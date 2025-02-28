@@ -1,0 +1,753 @@
+import os
+import json
+import cv2
+import numpy as np
+from pathlib import Path
+from typing import Dict, List, Tuple, Set
+
+class SpriteDetector:
+    def __init__(self, sprites_dir: str):
+        """
+        Initialize detector with sprites directory.
+        Expects subdirectories for each element type (enemies, blocks, etc.)
+        """
+        self.templates: Dict[str, List[Tuple[np.ndarray, str]]] = {}
+        self.load_sprites(sprites_dir)
+        
+        # Use different thresholds for different sprite categories
+        self.thresholds = {
+            "enemies": 0.73,  # Lower threshold for enemies to account for variations
+            "blocks": 0.85,
+            "structures": 0.95
+        }
+        # Default threshold for any category not explicitly specified
+        self.default_threshold = 0.8
+
+    def load_sprites(self, sprites_dir: str):
+        """
+        Load sprite templates from subdirectories.
+        Each subdirectory name becomes a category.
+        """
+        for category_dir in Path(sprites_dir).iterdir():
+            #print(category_dir)
+            if category_dir.is_dir():
+                category = category_dir.name
+                self.templates[category] = []
+                
+                # Load all PNG files in the category directory
+                for sprite_file in category_dir.glob('*.png'):
+                    #print("\t",sprite_file)
+                    template = cv2.imread(str(sprite_file))
+                    if template is not None:
+                        # Store both color and grayscale versions for flexibility
+                        gray_template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+                        self.templates[category].append((template, gray_template, sprite_file.stem))
+
+    def detect_sprite(self, image: np.ndarray, template: np.ndarray, category: str, sprite_name: str) -> bool:
+        """
+        Detect if a specific template appears in the image using template matching.
+        Returns True if template is found with confidence above threshold.
+        """
+        threshold = self.thresholds.get(category, self.default_threshold)
+        
+        # For enemies, use a more forgiving approach
+        if category == "enemies":
+            # Try both regular template matching and another method that ignores background
+            gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Method 1: Regular template matching
+            result1 = cv2.matchTemplate(gray_image, template, cv2.TM_CCOEFF_NORMED)
+            
+            # Method 2: Edge-based matching to reduce background influence
+            # Detect edges in both the image and template
+            image_edges = cv2.Canny(gray_image, 50, 150)
+            template_edges = cv2.Canny(template, 50, 150)
+            
+            # Match on edges
+            w, h = template_edges.shape[::-1]
+            if w < image_edges.shape[1] and h < image_edges.shape[0]:  # Ensure template fits in image
+                result2 = cv2.matchTemplate(image_edges, template_edges, cv2.TM_CCOEFF_NORMED)
+                
+                # Return true if either method finds a match
+                return np.max(result1) >= threshold or np.max(result2) >= threshold * 0.9
+            return np.max(result1) >= threshold
+        else:
+            # For non-enemy sprites, use standard template matching
+            gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            result = cv2.matchTemplate(gray_image, template, cv2.TM_CCOEFF_NORMED)
+            return np.max(result) >= threshold
+
+    def detect_sprites_in_category(self, image: np.ndarray, category: str) -> List[str]:
+        """
+        Detect all sprites from a category in the image.
+        Returns list of detected sprite names.
+        """
+        detected = set()
+        for color_template, gray_template, sprite_name in self.templates[category]:
+            if self.detect_sprite(image, gray_template, category, sprite_name):
+                print(f"Simple match: {sprite_name}")
+                base_name = sprite_name.split('_')[0]  # Extract base name before underscore
+                if base_name != "floor": # Floor handled differently by analyze_floor
+                    detected.add(base_name)
+        
+        # Special handling for enemy descriptions
+        if category == "enemies":
+            return self._format_enemy_count(detected)
+        return list(detected)
+    
+    def _format_enemy_count(self, enemy_types: Set[str]) -> List[str]:
+        """Format enemy descriptions with approximate counts."""
+        result = []
+        
+        # Count instances of each enemy type more precisely
+        # This is a placeholder - in a real implementation, you'd count 
+        # the actual instances based on non-overlapping detections
+        for enemy in enemy_types:
+            result.append(f"{enemy}s")  # Simplify by just adding 's' for plural
+            
+        return result
+
+class EnhancedSpriteDetector(SpriteDetector):
+    def __init__(self, sprites_dir: str):
+        """
+        Initialize enhanced detector with sprites directory.
+        Extends the base SpriteDetector with better description capabilities.
+        """
+        super().__init__(sprites_dir)
+        
+        # Define thresholds for quantity descriptions
+        self.quantity_thresholds = {
+            "coin": {
+                "few": 3,       # 1-3 coins = "a few coins"
+                "several": 7,   # 4-7 coins = "several coins"
+                "many": 15,     # 8-15 coins = "many coins"
+                # 16+ coins = "lots of coins"
+            },
+            "brick": {
+                "few": 3,
+                "several": 7,
+                "many": 15,
+            },
+            "goomba": {
+                "few": 2,
+                "several": 4,
+                "many": 6,
+            },
+            "koopa": {
+                "few": 2,
+                "several": 4,
+                "many": 6,
+            },
+            "bill": {
+                "few": 1,
+                "several": 2,
+                "many": 3,
+            },
+            "hammerturtle": {
+                "few": 1,
+                "several": 2,
+                "many": 3,
+            },
+            "helmet": {
+                "few": 1,
+                "several": 2,
+                "many": 3,
+            },
+            "plant": {
+                "few": 1,
+                "several": 2,
+                "many": 3,
+            },
+            "spiny": {
+                "few": 1,
+                "several": 2,
+                "many": 3,
+            },
+            # Add thresholds for other common elements as needed
+        }
+        
+        # Extra distance threshold to detect patterns
+        self.pattern_distance_threshold = 32  # Pixels
+        
+    def detect_pattern(self, sprite_locations, image_width, sprite_type = None):
+        """
+        Analyze the pattern of sprite locations.
+        Returns a string describing the pattern.
+        
+        Args:
+            sprite_locations: List of (x, y) coordinates where sprites were detected
+            image_width: Width of the image for horizontal pattern detection
+        """
+        if len(sprite_locations) <= 1:
+            return ""  # No pattern with just one instance
+            
+        # Sort locations by x-coordinate
+        sorted_locs = sorted(sprite_locations, key=lambda loc: loc[0])
+        
+        # Horizontal platforms are actually just parts of the same platform
+        if sprite_type != "platform":
+            # Check for horizontal line (same y-coordinate, evenly spaced x)
+            y_values = [loc[1] for loc in sorted_locs]
+            if max(y_values) - min(y_values) < 5:  # All at similar height
+                # Check if evenly spaced
+                x_diffs = [sorted_locs[i+1][0] - sorted_locs[i][0] for i in range(len(sorted_locs)-1)]
+                if max(x_diffs) - min(x_diffs) < 2 and min(x_diffs) > 0 and max(x_diffs) < 20:
+                    return "in a horizontal line"
+                
+        # Check for vertical line (same x-coordinate, closely spaced y)
+        x_values = [loc[0] for loc in sorted_locs]
+        if max(x_values) - min(x_values) < 5:  # All at similar x-position
+            # Check if closely and evenly spaced
+            sorted_by_y = sorted(sprite_locations, key=lambda loc: loc[1])
+            y_diffs = [sorted_by_y[i+1][1] - sorted_by_y[i][1] for i in range(len(sorted_by_y)-1)]
+            if max(y_diffs) - min(y_diffs) < 2 and min(y_diffs) > 0 and max(y_diffs) < 20:
+                return "in a vertical line"
+                            
+        # Check for cluster (close together but not in a clear pattern)
+        all_distances = []
+        for i in range(len(sprite_locations)):
+            for j in range(i+1, len(sprite_locations)):
+                x1, y1 = sprite_locations[i]
+                x2, y2 = sprite_locations[j]
+                distance = ((x2-x1)**2 + (y2-y1)**2)**0.5
+                all_distances.append(distance)
+            
+        # Don't let brickledges or platforms cluster    
+        if sprite_type != "brickledge" and sprite_type != "platform":
+            avg_distance = sum(all_distances) / len(all_distances) if all_distances else float('inf')
+            if avg_distance < self.pattern_distance_threshold:
+                return "clustered"
+            
+        # Check if distributed across the screen
+        x_min, x_max = min(x_values), max(x_values)
+        # Need at least 3 to be scattered
+        if len(x_values) > 2 and x_max - x_min > image_width * 0.6:
+            return "scattered"
+            
+        # Default if no clear pattern detected
+        return ""
+    
+    def detect_sprites_in_category_enhanced(self, image: np.ndarray, category: str) -> List[str]:
+        """
+        Enhanced detection with quantity and pattern recognition.
+        Returns more descriptive strings about the detected sprites.
+        """
+        # First, get locations of all sprite matches
+        sprite_locations = {}
+        height, width = image.shape[:2]
+        
+        for color_template, gray_template, sprite_name in self.templates[category]:
+            # Extract base name (e.g., "coin" from "coin_spinning")
+            if '_' in sprite_name:
+                base_name = sprite_name.split('_')[0]
+            else:
+                base_name = sprite_name
+                
+            print(f"\tDetecting {sprite_name}")
+
+            # Skip if not relevant for quantity analysis
+            if base_name not in ["coin", "brick", "mushroom", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", "brickledge", "cannon", "metal", "greenpipe", "whitepipe", "obstacle", "platform", "tree", "bush", "cloud", "stairs"]:
+                continue
+                
+            # Find all instances using template matching
+            gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            threshold = self.thresholds.get(category, self.default_threshold)
+            
+            # Use template matching method suited for the category
+            method = cv2.TM_CCOEFF_NORMED
+            
+            result = cv2.matchTemplate(gray_image, gray_template, method)
+            locations = np.where(result >= threshold)
+            
+            # Process matched locations
+            template_h, template_w = gray_template.shape
+            
+            # Initialize sprite type in dictionary if not exists
+            if base_name not in sprite_locations:
+                sprite_locations[base_name] = []
+                
+            # Add all matched locations, with non-max suppression to avoid duplicates
+            for pt in zip(*locations[::-1]):  # Convert from (y,x) to (x,y)
+                # Check if this point is too close to an already detected point
+                too_close = False
+                for existing_x, existing_y in sprite_locations[base_name]:
+                    if abs(pt[0] - existing_x) < template_w/2 and abs(pt[1] - existing_y) < template_h/2:
+                        too_close = True
+                        break
+                
+                if not too_close:
+                    sprite_locations[base_name].append(pt)
+                    print(f"\t\t{base_name} at {pt}")
+        
+
+        # Check for overlap between stairs and obstacles
+        if "stairs" in sprite_locations and "obstacle" in sprite_locations:
+            print("remove obstacles that are stairs")
+            stairs_locations = sprite_locations["stairs"].copy()
+            obstacle_locations = sprite_locations["obstacle"].copy()
+    
+            # Clear the current obstacle locations list to rebuild it
+            sprite_locations["obstacle"] = []
+    
+            # Find template dimensions for stairs and obstacles
+            stairs_template = None
+            obstacle_template = None
+    
+            for _, gray_temp, name in self.templates[category]:
+                if "stairs" in name and stairs_template is None:
+                    stairs_template = gray_temp
+                if "obstacle" in name and obstacle_template is None:
+                    obstacle_template = gray_temp
+                if stairs_template is not None and obstacle_template is not None:
+                    break
+    
+            # If we couldn't find templates, crash
+            if stairs_template is None or obstacle_template is None:
+                print(f"\tWarning: Could not find templates for stairs or obstacles")
+                quit()
+    
+            stairs_h, stairs_w = stairs_template.shape
+            obstacle_h, obstacle_w = obstacle_template.shape
+    
+            # For each obstacle, check if it overlaps with any stairs
+            for obs_pt in obstacle_locations:
+                obs_x, obs_y = obs_pt
+                obs_rect = (obs_x, obs_y, obs_x + obstacle_w, obs_y + obstacle_h)
+        
+                # Check for intersection with any stairs
+                overlaps_with_stairs = False
+                for stairs_pt in stairs_locations:
+                    stairs_x, stairs_y = stairs_pt
+                    stairs_rect = (stairs_x, stairs_y, stairs_x + stairs_w, stairs_y + stairs_h)
+            
+                    # Check if rectangles intersect
+                    if (obs_rect[0] < stairs_rect[2] and obs_rect[2] > stairs_rect[0] and
+                        obs_rect[1] < stairs_rect[3] and obs_rect[3] > stairs_rect[1]):
+                        overlaps_with_stairs = True
+                        print(f"\t\tRemoving obstacle at {obs_pt} - overlaps with stairs at {stairs_pt}")
+                        break
+        
+                # Keep this obstacle only if it doesn't overlap with any stairs
+                if not overlaps_with_stairs:
+                    sprite_locations["obstacle"].append(obs_pt)
+
+        # I looked up the stairs locations for the special obstacle comparison above,
+        # but I don't want the caption to say anything about stairs quantity. stairs
+        # will be added back by the simple_detected below (if present)
+        if "stairs" in sprite_locations: 
+            del sprite_locations["stairs"]
+
+        # Process results into descriptions
+        descriptions = []
+        
+        for sprite_type, locations in sprite_locations.items():
+            # Skip if none detected
+            if not locations:
+                continue
+                
+            count = len(locations)
+            if count > 0:
+                # Get quantity description
+                if sprite_type in self.quantity_thresholds:
+                    thresholds = self.quantity_thresholds[sprite_type]
+                    
+                    if count == 1:
+                        quantity = f"a {sprite_type}"
+                    elif count <= thresholds["few"]:
+                        quantity = f"a few {sprite_type}s"
+                    elif count <= thresholds["several"]:
+                        quantity = f"several {sprite_type}s"
+                    elif count <= thresholds["many"]:
+                        quantity = f"many {sprite_type}s"
+                    else:
+                        quantity = f"lots of {sprite_type}s"
+                else:
+                    # Default quantification for other sprite types
+                    if count == 1:
+                        quantity = f"a {sprite_type}"
+                    elif count <= 3:
+                        quantity = f"a few {sprite_type}s"
+                    elif count <= 7:
+                        quantity = f"several {sprite_type}s"
+                    else:
+                        quantity = f"many {sprite_type}s"
+                
+                # Get pattern description if more than one
+                pattern = ""
+                if count > 1:
+                    pattern = self.detect_pattern(locations, width, sprite_type)
+                    if pattern:
+                        pattern = " " + pattern
+                
+                descriptions.append(f"{quantity}{pattern}")
+        
+        # For enemies category, include enemy count
+        if category == "enemies":
+            # Special handling for enemy descriptions
+            return self._format_enemy_count_enhanced(sprite_locations)
+            
+        # Add any additional sprites from the original method that we might have missed
+        simple_detected = super().detect_sprites_in_category(image, category)
+        
+        # Filter out anything we've already described
+        for detected in simple_detected:
+            # Check if this is a base type we've already covered
+            already_covered = False
+            for sprite_type in sprite_locations.keys():
+                if detected == sprite_type or detected.startswith(sprite_type):
+                    already_covered = True
+                    break
+            
+            if not already_covered:
+                descriptions.append(detected)
+        
+        return descriptions
+    
+    def _format_enemy_count_enhanced(self, enemy_locations: Dict[str, List[Tuple[int, int]]]) -> List[str]:
+        """Format enhanced enemy descriptions with counts and patterns."""
+        result = []
+        
+        for enemy_type, locations in enemy_locations.items():
+            count = len(locations)
+            
+            if count > 0:
+                if count == 1:
+                    result.append(f"a {enemy_type}")
+                elif count == 2:
+                    result.append(f"two {enemy_type}s")
+                elif count == 3:
+                    result.append(f"three {enemy_type}s")
+                elif count <= 6:
+                    result.append(f"several {enemy_type}s")
+                else:
+                    result.append(f"many {enemy_type}s")
+            
+            # Add pattern for multiple enemies
+            if count > 1:
+                pattern = self.detect_pattern(locations, 256)  # Assuming typical screen width
+                if pattern:
+                    result[-1] += f" {pattern}"
+        
+        return result
+
+def get_floor_template(detector: SpriteDetector) -> np.ndarray:
+    """
+    Find the floor template from the detector's loaded templates.
+    """
+    for category, templates in detector.templates.items():
+        if category == "blocks":
+            for color_template, gray_template, sprite_name in templates:
+                # Look for floor_1 or any sprite name starting with "floor_"
+                if sprite_name == "floor_1" or sprite_name.startswith("floor_"):
+                    return color_template
+    
+    # Return None if floor template not found
+    return None
+
+def generate_basic_caption(image: np.ndarray, filename: str, detector: SpriteDetector) -> Dict:
+    """
+    Generate basic image properties (level type, sky, floor)
+    """
+    # Determine level type from filename
+    is_underworld = filename.startswith(('mario-1-2', 'mario-4-2'))
+    level_type = "underworld" if is_underworld else "overworld"
+    
+    # Determine sky type from top pixels
+    top_row = image[0:16, :]  # Check top 16 pixels
+    avg_brightness = np.mean(top_row)
+    sky_type = "blue" if avg_brightness > 128 else "night"
+    
+    # Get the floor template
+    floor_template = get_floor_template(detector)
+    
+    # Get background color based on level type
+    background_color = None
+    if level_type == "overworld":
+        background_color = image[5, 5].tolist()  # Sky color from top
+    else:
+        # For underworld, black background
+        background_color = [0, 0, 0]
+    
+    # Needs special handling since the floor does not align with bottom of screen in usual way
+    is_shifted = filename.startswith('mario-8-3')
+
+    # Analyze floor using the template
+    floor_description = analyze_floor(image, floor_template, background_color, is_shifted)
+    
+    return {
+        "level_type": level_type,
+        "sky_type": sky_type,
+        "floor": floor_description
+    }
+
+def analyze_floor(image: np.ndarray, floor_template: np.ndarray, background_color=None, is_shifted=False) -> str:
+    """
+    Analyze the floor in the image using the floor template and detect gaps.
+    
+    Args:
+        image: The full screenshot image
+        floor_template: The floor block template image
+        background_color: The background color to identify gaps (if None, detect automatically)
+        is_shifted: If True, then there is a floor, but it is not aligned with the bottom of the screen
+    
+    Returns:
+        String description of the floor: "full floor", "floor with gaps", or "no floor"
+    """
+    # Extract bottom strip (16 pixels high)
+    height, width = image.shape[:2]
+    bottom_strip = image[height-16:height, :]
+    
+    # If we're dealing with a shifted floor, we just need to check for background color gaps
+    if is_shifted:
+        print("shifted floor")
+        # Automatically detect background color if not provided
+        if background_color is None:
+            # In Mario, sky/background is usually the top-left pixel
+            background_color = image[0, 0].tolist()
+        
+        # Create binary mask where pixels match the background color
+        tolerance = 30  # Allow some variation in color matching
+        bg_mask = np.zeros((bottom_strip.shape[0], bottom_strip.shape[1]), dtype=np.uint8)
+        
+        for y in range(bottom_strip.shape[0]):
+            for x in range(bottom_strip.shape[1]):
+                pixel = bottom_strip[y, x].tolist()
+                # Check if pixel color is close to background color
+                if all(abs(pixel[i] - background_color[i]) < tolerance for i in range(3)):
+                    bg_mask[y, x] = 255
+        
+        # Check for contiguous 5x5 regions of background color
+        kernel = np.ones((5, 5), np.uint8)
+        gaps = cv2.morphologyEx(bg_mask, cv2.MORPH_OPEN, kernel)
+        
+        result = "floor with gaps" if np.any(gaps > 0) else "full floor"
+        print(f"Floor: {result}")
+        return result    
+
+    # For non-shifted floors, proceed with the original detection
+    # Convert to grayscale for template matching
+    gray_strip = cv2.cvtColor(bottom_strip, cv2.COLOR_BGR2GRAY)
+    gray_template = cv2.cvtColor(floor_template, cv2.COLOR_BGR2GRAY)
+    
+    # Check if floor blocks exist in the bottom strip
+    result = cv2.matchTemplate(gray_strip, gray_template, cv2.TM_CCOEFF_NORMED)
+    floor_exists = np.max(result) >= 0.8  # Using threshold of 0.8
+    
+    if not floor_exists:
+        print("no floor!")
+        return "no floor"
+    
+    # Automatically detect background color if not provided
+    if background_color is None:
+        # In Mario, sky/background is usually the top-left pixel
+        background_color = image[0, 0].tolist()
+    
+    # Create binary mask where pixels match the background color
+    tolerance = 30  # Allow some variation in color matching
+    bg_mask = np.zeros((bottom_strip.shape[0], bottom_strip.shape[1]), dtype=np.uint8)
+    
+    for y in range(bottom_strip.shape[0]):
+        for x in range(bottom_strip.shape[1]):
+            pixel = bottom_strip[y, x].tolist()
+            # Check if pixel color is close to background color
+            if all(abs(pixel[i] - background_color[i]) < tolerance for i in range(3)):
+                bg_mask[y, x] = 255
+    
+    # Check for contiguous 5x5 regions of background color
+    kernel = np.ones((5, 5), np.uint8)
+    gaps = cv2.morphologyEx(bg_mask, cv2.MORPH_OPEN, kernel)
+    
+    result = "floor with gaps" if np.any(gaps > 0) else "full floor"
+    print(f"Floor: {result}")
+    return result
+
+def format_caption(basic_props: Dict, detected_elements: Dict[str, List[str]], 
+                  use_detailed_format: bool = False) -> str:
+    """
+    Format caption according to chosen structure.
+    """
+    if use_detailed_format:
+        # Collect all elements
+        all_elements = []
+        for category, items in detected_elements.items():
+            all_elements.extend(items)
+        
+        return (f"pixel art Super Mario Bros level, {basic_props['level_type']} stage, "
+                f"{basic_props['sky_type']} sky background, {basic_props['floor']}, "
+                f"{', '.join(all_elements) if all_elements else 'empty scene'}, "
+                f"8-bit NES graphics, side-scrolling view")
+    else:
+        # Simple format similar to your original captions
+        elements = [
+            f"{basic_props['level_type']} level",
+            f"{basic_props['sky_type']} sky",
+            basic_props['floor']
+        ]
+        
+        # Add all detected elements
+        for category, items in detected_elements.items():
+            elements.extend(items)
+            
+        return ". ".join(elements)
+
+def format_caption_enhanced(basic_props: Dict, detected_elements: Dict[str, List[str]], 
+                           use_detailed_format: bool = False) -> str:
+    """
+    Enhanced caption formatting with better element descriptions.
+    """
+    if use_detailed_format:
+        # Collect all elements by category
+        elements_by_category = {}
+        for category, items in detected_elements.items():
+            elements_by_category[category] = items
+        
+        # Format by category for better structure
+        formatted_elements = []
+        
+        # Order categories
+        category_order = ["blocks", "enemies", "structures"]
+        
+        for category in category_order:
+            if category in elements_by_category and elements_by_category[category]:
+                items = elements_by_category[category]
+                if category == "blocks":
+                    formatted_elements.append(f"with {', '.join(items)}")
+                elif category == "enemies":
+                    formatted_elements.append(f"populated by {', '.join(items)}")
+                elif category == "powerups":
+                    formatted_elements.append(f"contains {', '.join(items)}")
+        
+        # Add remaining categories
+        for category, items in elements_by_category.items():
+            if category not in category_order and items:
+                formatted_elements.append(f"{', '.join(items)}")
+        
+        element_text = "; ".join(formatted_elements) if formatted_elements else "empty scene"
+        
+        return (f"pixel art Super Mario Bros level, {basic_props['level_type']} stage, "
+                f"{basic_props['sky_type']} sky background, {basic_props['floor']}, "
+                f"{element_text}, 8-bit NES graphics, side-scrolling view")
+    else:
+        # Simple format similar to your original captions
+        elements = [
+            f"{basic_props['level_type']} level",
+            f"{basic_props['sky_type']} sky",
+            basic_props['floor']
+        ]
+        
+        # Add all detected elements
+        for category, items in detected_elements.items():
+            elements.extend(items)
+            
+        return ". ".join(elements)
+
+def process_directory_enhanced(input_dir: str, sprites_dir: str, output_file: str, use_detailed_format: bool = False):
+    """
+    Process all screenshots in directory with enhanced sprite detection.
+    """
+    detector = EnhancedSpriteDetector(sprites_dir)
+    
+    with open(output_file, 'w') as f:
+        for image_file in sorted(Path(input_dir).glob('*.png')):  # Sort files for consistent processing
+            print(f"Process {image_file}")
+            # Read image
+            image = cv2.imread(str(image_file))
+            if image is None:
+                print(f"Failed to read {image_file}")
+                continue
+            
+            # Get basic properties including floor detection
+            floor_template = get_floor_template(detector)
+            
+            # Check for shifted floors based on level name patterns
+            is_shifted = any(pattern in image_file.name for pattern in ['mario-1-3', 'mario-3-3'])
+            
+            # Get basic properties with the updated floor detection
+            basic_props = generate_basic_caption_enhanced(image, image_file.name, detector, floor_template, is_shifted)
+            
+            # Detect sprites from each category with enhanced descriptions
+            detected_elements = {}
+            for category in detector.templates.keys():
+                detected = detector.detect_sprites_in_category_enhanced(image, category)
+                if detected:
+                    detected_elements[category] = detected
+            
+            # Generate enhanced caption
+            caption = format_caption_enhanced(basic_props, detected_elements, use_detailed_format)
+            
+            # Create JSONL entry
+            entry = {
+                "file_name": image_file.name,
+                "text": caption
+            }
+            
+            # Write to file
+            json.dump(entry, f)
+            f.write('\n')
+            
+            # Print progress every 100 images
+            if image_file.name.endswith('00.png'):
+                print(f"Processed: {image_file.name}")
+
+def generate_basic_caption_enhanced(image: np.ndarray, filename: str, detector: EnhancedSpriteDetector, 
+                                   floor_template=None, is_shifted=False) -> Dict:
+    """
+    Generate basic image properties with enhanced floor detection.
+    """
+    # Determine level type from filename
+    is_underworld = filename.startswith(('mario-1-2', 'mario-4-2'))
+    level_type = "underworld" if is_underworld else "overworld"
+    
+    # Determine sky type from top pixels
+    top_row = image[0:16, :]  # Check top 16 pixels
+    avg_brightness = np.mean(top_row)
+    sky_type = "blue" if avg_brightness > 128 else "night"
+    
+    # Get background color based on level type
+    background_color = None
+    if level_type == "overworld":
+        background_color = image[5, 5].tolist()  # Sky color from top
+    else:
+        # For underworld, black background
+        background_color = [0, 0, 0]
+    
+    # Get floor template if not provided
+    if floor_template is None:
+        floor_template = get_floor_template(detector)
+    
+    # Needs special handling since the floor does not align with bottom of screen in usual way
+    is_shifted = filename.startswith('mario-8-3')
+
+    # Analyze floor using the template
+    floor_description = analyze_floor(image, floor_template, background_color, is_shifted)
+    
+    return {
+        "level_type": level_type,
+        "sky_type": sky_type,
+        "floor": floor_description
+    }
+
+def get_floor_template(detector: SpriteDetector) -> np.ndarray:
+    """
+    Find the floor template from the detector's loaded templates.
+    """
+    for category, templates in detector.templates.items():
+        if category == "blocks":
+            for color_template, gray_template, sprite_name in templates:
+                # Look for floor_1 or any sprite name starting with "floor_"
+                if sprite_name == "floor_1" or sprite_name.startswith("floor_"):
+                    return color_template
+    
+    # Return None if floor template not found
+    return None
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate captions for Mario screenshots")
+    parser.add_argument("input_dir", help="Directory containing PNG screenshots")
+    parser.add_argument("sprites_dir", help="Directory containing sprite templates")
+    parser.add_argument("output_file", help="Output JSONL file path")
+    parser.add_argument("--detailed", action="store_true", help="Use detailed caption format")
+
+    args = parser.parse_args()
+    process_directory_enhanced(args.input_dir, args.sprites_dir, args.output_file, args.detailed)
