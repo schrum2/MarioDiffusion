@@ -5,6 +5,8 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple, Set
 
+DEBUG = False
+
 class SpriteDetector:
     def __init__(self, sprites_dir: str):
         """
@@ -85,7 +87,7 @@ class SpriteDetector:
         detected = set()
         for color_template, gray_template, sprite_name in self.templates[category]:
             if self.detect_sprite(image, gray_template, category, sprite_name):
-                print(f"Simple match: {sprite_name}")
+                if DEBUG: print(f"Simple match: {sprite_name}")
                 base_name = sprite_name.split('_')[0]  # Extract base name before underscore
                 if base_name != "floor": # Floor handled differently by analyze_floor
                     detected.add(base_name)
@@ -243,7 +245,7 @@ class EnhancedSpriteDetector(SpriteDetector):
             else:
                 base_name = sprite_name
                 
-            print(f"\tDetecting {sprite_name}")
+            if DEBUG: print(f"\tDetecting {sprite_name}")
 
             # Skip if not relevant for quantity analysis
             if base_name not in ["coin", "brick", "mushroom", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", "brickledge", "cannon", "metal", "greenpipe", "whitepipe", "obstacle", "platform", "tree", "bush", "cloud", "stairs"]:
@@ -277,12 +279,12 @@ class EnhancedSpriteDetector(SpriteDetector):
                 
                 if not too_close:
                     sprite_locations[base_name].append(pt)
-                    print(f"\t\t{base_name} at {pt}")
+                    if DEBUG: print(f"\t\t{base_name} at {pt}")
         
 
         # Check for overlap between stairs and obstacles
         if "stairs" in sprite_locations and "obstacle" in sprite_locations:
-            print("remove obstacles that are stairs")
+            if DEBUG: print("remove obstacles that are stairs")
             stairs_locations = sprite_locations["stairs"].copy()
             obstacle_locations = sprite_locations["obstacle"].copy()
     
@@ -324,7 +326,7 @@ class EnhancedSpriteDetector(SpriteDetector):
                     if (obs_rect[0] < stairs_rect[2] and obs_rect[2] > stairs_rect[0] and
                         obs_rect[1] < stairs_rect[3] and obs_rect[3] > stairs_rect[1]):
                         overlaps_with_stairs = True
-                        print(f"\t\tRemoving obstacle at {obs_pt} - overlaps with stairs at {stairs_pt}")
+                        if DEBUG: print(f"\t\tRemoving obstacle at {obs_pt} - overlaps with stairs at {stairs_pt}")
                         break
         
                 # Keep this obstacle only if it doesn't overlap with any stairs
@@ -499,7 +501,7 @@ def analyze_floor(image: np.ndarray, floor_template: np.ndarray, background_colo
     
     # If we're dealing with a shifted floor, we just need to check for background color gaps
     if is_shifted:
-        print("shifted floor")
+        if DEBUG: print("shifted floor")
         # Automatically detect background color if not provided
         if background_color is None:
             # In Mario, sky/background is usually the top-left pixel
@@ -521,7 +523,7 @@ def analyze_floor(image: np.ndarray, floor_template: np.ndarray, background_colo
         gaps = cv2.morphologyEx(bg_mask, cv2.MORPH_OPEN, kernel)
         
         result = "floor with gaps" if np.any(gaps > 0) else "full floor"
-        print(f"Floor: {result}")
+        if DEBUG: print(f"Floor: {result}")
         return result    
 
     # For non-shifted floors, proceed with the original detection
@@ -534,7 +536,7 @@ def analyze_floor(image: np.ndarray, floor_template: np.ndarray, background_colo
     floor_exists = np.max(result) >= 0.8  # Using threshold of 0.8
     
     if not floor_exists:
-        print("no floor!")
+        if DEBUG: print("no floor!")
         return "no floor"
     
     # Automatically detect background color if not provided
@@ -558,7 +560,7 @@ def analyze_floor(image: np.ndarray, floor_template: np.ndarray, background_colo
     gaps = cv2.morphologyEx(bg_mask, cv2.MORPH_OPEN, kernel)
     
     result = "floor with gaps" if np.any(gaps > 0) else "full floor"
-    print(f"Floor: {result}")
+    if DEBUG: print(f"Floor: {result}")
     return result
 
 def format_caption(basic_props: Dict, detected_elements: Dict[str, List[str]], 
@@ -649,7 +651,7 @@ def process_directory_enhanced(input_dir: str, sprites_dir: str, output_file: st
     
     with open(output_file, 'w') as f:
         for image_file in sorted(Path(input_dir).glob('*.png')):  # Sort files for consistent processing
-            print(f"Process {image_file}")
+            if DEBUG: print(f"Process {image_file}")
             # Read image
             image = cv2.imread(str(image_file))
             if image is None:
