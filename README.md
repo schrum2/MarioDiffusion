@@ -18,7 +18,7 @@ cd SDMario
 ```
 From here, extract an image dataset of level scenes from the level images in TheVGLC:
 ```
-python create_level_squares.py <in> <out>
+python create_level_squares.py "..\\TheVGLC\\Super Mario Bros\\Original" SMB1
 ```
 
 
