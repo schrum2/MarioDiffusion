@@ -16,6 +16,10 @@ Both of these directories should be in the same parent directory. Next, enter th
 ```
 cd SDMario
 ```
+Before running any code, install all requirements with pip:
+```
+pip install -r requirements.txt
+```
 From here, extract an image dataset of level scenes from the level images in TheVGLC:
 ```
 python create_level_squares.py "..\\TheVGLC\\Super Mario Bros\\Original" SMB1
