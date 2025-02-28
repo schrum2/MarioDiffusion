@@ -172,3 +172,4 @@ cython_debug/
 *.png
 *.jsonl
 *.json
+*.safetensors
