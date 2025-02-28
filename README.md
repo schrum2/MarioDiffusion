@@ -30,7 +30,7 @@ python create_level_captions.py SMB1 mario_elements SMB1\\metadata.jsonl
 ```
 Once the captions have been created, you can browse them using a GUI with this command:
 ```
-python data_browser.py
+python data_browser.py SMB1\\metadata.jsonl
 ```
 These captions are used to train the LoRA model with this command:
 ```

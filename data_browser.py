@@ -3,11 +3,12 @@ from tkinter import ttk, filedialog
 import json
 import os
 from PIL import Image, ImageTk
+import sys
 
 # From Gemini
 
 class ImageBrowser:
-    def __init__(self, master):
+    def __init__(self, master, filepath = None):
         self.master = master
         master.title("Image Browser")
 
@@ -37,10 +38,13 @@ class ImageBrowser:
         self.load_button = ttk.Button(master, text="Load Data", command=self.load_data)
         self.load_button.pack()
 
+        if filepath: # Loaded from command line
+            self.load_data(filepath)
 
-
-    def load_data(self):
-        filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON Lines", "*.jsonl")])
+    def load_data(self, filepath = None):
+        if filepath == None:
+            filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON Lines", "*.jsonl")])
+            
         if filepath:
             try:
                 self.data = []
@@ -170,5 +174,8 @@ class ImageBrowser:
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
 
 root = tk.Tk()
-app = ImageBrowser(root)
+filepath = None
+if len(sys.argv) > 1:
+    filepath = sys.argv[1]
+app = ImageBrowser(root, filepath)
 root.mainloop()
