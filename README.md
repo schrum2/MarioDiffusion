@@ -20,16 +20,17 @@ From here, extract an image dataset of level scenes from the level images in The
 ```
 python create_level_squares.py "..\\TheVGLC\\Super Mario Bros\\Original" SMB1
 ```
-
-
-
-The directory `SMB1` contains level scenes from Super Mario Bros derived from the VGLC. The following command automatically captions each scene and saves the captions in `metadata.jsonl`:
+The directory `SMB1` now contains level scenes from Super Mario Bros derived from TheVGLC. The following command automatically captions each scene and saves the captions in `metadata.jsonl`:
 ```
 python create_level_captions.py SMB1 mario_elements SMB1\\metadata.jsonl
 ```
-Once the captions have been created, you can train the LoRA model. Use the following command:
+Once the captions have been created, you can browse them using a GUI with this command:
 ```
-python train_sd15_lora.py -t SMB1 -o SMB1_LoRA -r 256 -s mario
+python data_browser.py
+```
+These captions are used to train the LoRA model with this command:
+```
+python train_sd15_lora.py -t SMB1 -o SMB1_LoRA -r 256 -s mario --plot_loss
 ```
 Note that the resolution is set to 256, since that is the size of the training images. 
 
