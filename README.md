@@ -4,7 +4,24 @@ Generate Mario level scenes with Stable Diffusion
 
 ## Create data
 
-?? Tell how to create level scenes from VGLC? ??
+This repository can be checked out with this command:
+```
+git clone https://github.com/schrum2/SDMario.git
+```
+You will also need to check out level data from [TheVGLC](https://github.com/TheVGLC/TheVGLC) to create the training set:
+```
+git clone https://github.com/TheVGLC/TheVGLC.git
+```
+Both of these directories should be in the same parent directory. Next, enter the `SDMario` repository.
+```
+cd SDMario
+```
+From here, extract an image dataset of level scenes from the level images in TheVGLC:
+```
+python create_level_squares.py <in> <out>
+```
+
+
 
 The directory `SMB1` contains level scenes from Super Mario Bros derived from the VGLC. The following command automatically captions each scene and saves the captions in `metadata.jsonl`:
 ```
