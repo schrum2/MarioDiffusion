@@ -36,10 +36,13 @@ These captions are used to train the LoRA model with this command:
 ```
 python train_sd15_lora.py -t SMB1 -o SMB1_LoRA -r 256 -s mario --plot_loss
 ```
-Note that the resolution is set to 256, since that is the size of the training images. 
+Note that the resolution is set to 256, since that is the size of the training images. This will take some time to train, but once it is done, you can interactively generate level scenes using the GUI produced by this command:
+```
+python interactive_level_generator.py SMB1\\metadata.jsonl <safetensors file>
+```
+You will have to supply the path to the trained safetensors LoRA model. Or you could simply leave these parameters out and use the buttons in the GUI to load the needed files.
 
 
-Change instructions above to use "accelerate"
 
 
 ?? interactive plot does not work?

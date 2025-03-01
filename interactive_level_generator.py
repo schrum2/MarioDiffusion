@@ -4,6 +4,7 @@ import json
 import torch
 from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
 from PIL import Image, ImageTk
+import sys
 
 class CaptionBuilder:
     def __init__(self, master):
@@ -117,8 +118,9 @@ class CaptionBuilder:
         
         self.checkbox_vars = {}
     
-    def load_data(self):
-        filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON Lines", "*.jsonl")])
+    def load_data(self, filepath = None):
+        if filepath == None:
+            filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON Lines", "*.jsonl")])
         if filepath:
             try:
                 phrases_set = set()
@@ -139,9 +141,13 @@ class CaptionBuilder:
                 print(f"Error loading data: {e}")
                 messagebox.showerror("Error", f"Error loading data: {e}")
     
-    def load_lora(self):
-        lora_model = filedialog.askopenfilename(title="Select LoRA File", filetypes=[("SafeTensors", "*.safetensors")])
+    def load_lora(self, lora_model = None):
+        if lora_model == None:
+            lora_model = filedialog.askopenfilename(title="Select LoRA File", filetypes=[("SafeTensors", "*.safetensors")])
         if lora_model:
+            # Unload any previously loaded LoRA adapters
+            self.pipe.unload_lora_weights()
+
             self.pipe.load_lora_weights(
                 pretrained_model_name_or_path_or_dict=lora_model,
                 adapter_name="my_lora",
@@ -196,4 +202,11 @@ class CaptionBuilder:
         
 root = tk.Tk()
 app = CaptionBuilder(root)
+
+if len(sys.argv) > 1:
+    app.load_data(sys.argv[1])
+
+if len(sys.argv) > 2:
+    app.load_lora(sys.argv[2])
+
 root.mainloop()
