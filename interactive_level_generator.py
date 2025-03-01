@@ -117,6 +117,9 @@ class CaptionBuilder:
         self.image_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         self.checkbox_vars = {}
+
+        self.loaded_lora_label = ttk.Label(self.caption_frame, text=f"Using LoRA: Not loaded yet")
+        self.loaded_lora_label.pack()
     
     def load_data(self, filepath = None):
         if filepath == None:
@@ -154,6 +157,8 @@ class CaptionBuilder:
                 use_safetensors=True
             )
             self.pipe.set_adapters(["my_lora"], adapter_weights=[1.0])
+
+            self.loaded_lora_label["text"] = f"Using LoRA: {lora_model}"
     
     def create_checkboxes(self):
         for widget in self.checkbox_inner_frame.winfo_children():
@@ -187,7 +192,7 @@ class CaptionBuilder:
             "height": int(self.height_entry.get()),
             "width": int(self.width_entry.get()),
         }
-        generator = torch.manual_seed(42)
+        generator = torch.manual_seed(int(self.seed_entry.get()))
         
         self.image_inner_frame
         for widget in self.image_inner_frame.winfo_children():
@@ -199,6 +204,8 @@ class CaptionBuilder:
             label = ttk.Label(self.image_inner_frame, image=img_tk)
             label.image = img_tk
             label.pack()
+
+        print("Generation done")
         
 root = tk.Tk()
 app = CaptionBuilder(root)
