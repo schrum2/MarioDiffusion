@@ -163,6 +163,36 @@ def update_args_from_config(args, config):
     
     return args
 
+def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_samples=4, guidance_scale=7.5, steps=30):
+    """Generate and save sample images to track model progress."""
+    # Create samples directory if it doesn't exist
+    samples_dir = os.path.join(output_dir, f"{prefix}_samples")
+    os.makedirs(samples_dir, exist_ok=True)
+    
+    # Set evaluation mode
+    pipe.unet.eval()
+    
+    # Generate samples with current model state
+    with torch.no_grad():
+        # Generate multiple samples at once
+        images = pipe([prompt] * num_samples, 
+                      num_inference_steps=steps,
+                      height = resolution,
+                      width = resolution,
+                      guidance_scale=guidance_scale).images
+        
+        # Save each image
+        for i, image in enumerate(images):
+            image_path = os.path.join(samples_dir, f"epoch_{epoch:03d}_sample_{i+1}.png")
+            image.save(image_path)
+            
+    print(f"Generated {num_samples} sample images for epoch {epoch}")
+    
+    # Return to training mode
+    pipe.unet.train()
+    
+    return samples_dir
+
 # train code 
 def main(args):
     # If config file is provided, load and update arguments
@@ -506,6 +536,44 @@ def main(args):
                 unwrapped_unet = unwrapped_unet.to(torch.float32)
                 save_checkpoint(unwrapped_unet, epoch + 1)
 
+        # Generate sample images at specified intervals
+        if args.sample_interval > 0 and (epoch + 1) % args.sample_interval == 0:
+            accelerator.wait_for_everyone()
+            if accelerator.is_main_process:
+                # Temporarily convert model to float32
+                unwrapped_unet = accelerator.unwrap_model(unet)
+                unwrapped_unet = unwrapped_unet.to(torch.float32)
+        
+                # Create a pipeline with the current state of the model
+                eval_pipe = StableDiffusionPipeline.from_pretrained(
+                    pretrained_model_name_or_path,
+                    unet=unwrapped_unet,
+                    torch_dtype=weight_dtype
+                ).to(device)
+        
+                # Generate and save samples
+                samples_dir = generate_samples(
+                    eval_pipe, 
+                    epoch + 1, 
+                    output_dir, 
+                    prefix, 
+                    args.sample_prompt,
+                    resolution=args.resolution,
+                    num_samples=args.num_samples
+                )
+        
+        # Log the sample generation
+        log_entry = {
+            "epoch": epoch + 1,
+            "samples_dir": samples_dir,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        with open(os.path.join(output_dir, f"{prefix}_samples_log.json"), 'a') as f:
+            f.write(json.dumps(log_entry) + '\n')
+        
+        # Restore unet to its previous state
+        unwrapped_unet = unwrapped_unet.to(weight_dtype)
+
     # Save the final model
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
@@ -610,6 +678,11 @@ def add_arguments(parser):
     parser.add_argument("--log_steps", type=int, default=10, help="Log every N steps")
     parser.add_argument("--plot_loss", action="store_true", help="Plot loss during training")
     parser.add_argument("--interactive_plot", action="store_true", help="Try to use an interactive plot window (if supported)")
+
+    # Image samples
+    parser.add_argument("--sample_interval", type=int, default=10, help="Generate sample images every N epochs (0 to disable)")
+    parser.add_argument("--sample_prompt", type=str, default="overworld level. blue sky. full floor. several bricks. a few questionblocks in a horizontal line. many solidblocks. three goombas. a brickledge. a cloud. a obstacle. a greenpipe. stairs", help="Prompt to use for sample image generation")
+    parser.add_argument("--num_samples", type=int, default=4, help="Number of sample images to generate")
 
 if __name__ == "__main__":
     # Argument parsing
