@@ -182,14 +182,15 @@ def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_sa
     # Create samples directory if it doesn't exist
     samples_dir = os.path.join(output_dir, f"{prefix}_samples")
     os.makedirs(samples_dir, exist_ok=True)
-    
-    # DOES NOT WORK!
-    # Always error: RuntimeError: Input type (float) and bias type (struct c10::Half) should be the same
-    return sample_dir
 
-    # Set evaluation mode
+    return samples_dir # code below is bad. Give up and fail.
+
+    # ALLOWS IMAGE TO BE GENERATED, BUT COSTS MORE VRAM. WHY WON'T float16 work?
+    pipe.unet.to(torch.float32)
+    pipe.vae.to(torch.float32)
+
     pipe.unet.eval()
-    
+
     # Generate samples with current model state
     with torch.no_grad():
         # Generate multiple samples at once
@@ -208,6 +209,10 @@ def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_sa
 
     # Return to training mode
     pipe.unet.train()
+
+    # THEXE NEXT TWO LINES DO NOT WORK!
+    pipe.unet.to(torch.float16)
+    pipe.vae.to(torch.float16)
 
     return samples_dir
 
