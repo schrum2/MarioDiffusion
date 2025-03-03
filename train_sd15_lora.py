@@ -176,6 +176,7 @@ def update_args_from_config(args, config):
     
     return args
 
+# Modify the generate_samples function to always return a path
 def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_samples=4, guidance_scale=7.5, steps=30):
     """Generate and save sample images to track model progress."""
     # Create samples directory if it doesn't exist
@@ -548,6 +549,8 @@ def main(args):
         
         print(f"Epoch {epoch}: Average Loss = {epoch_avg_loss:.6f}")
         
+        unwrapped_unet = None
+        
         # Save checkpoint at specified intervals
         if checkpoint_interval > 0 and (epoch + 1) % checkpoint_interval == 0:
             accelerator.wait_for_everyone()
@@ -557,6 +560,7 @@ def main(args):
                 save_checkpoint(unwrapped_unet, epoch + 1)
 
         # Generate sample images at specified intervals
+        samples_dir = None
         if args.sample_interval > 0 and (epoch + 1) % args.sample_interval == 0:
             accelerator.wait_for_everyone()
             if accelerator.is_main_process:
@@ -592,7 +596,8 @@ def main(args):
             f.write(json.dumps(log_entry) + '\n')
         
         # Restore unet to its previous state
-        unwrapped_unet = unwrapped_unet.to(weight_dtype)
+        if unwrapped_unet: 
+            unwrapped_unet = unwrapped_unet.to(weight_dtype)
 
     # Save the final model
     accelerator.wait_for_everyone()
