@@ -5,14 +5,11 @@ import torch
 from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
 from PIL import Image, ImageTk
 import sys
+from gui_shared import ParentBuilder
 
-class CaptionBuilder:
+class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
-        self.master = master
-        master.title("Caption Builder")
-        
-        self.all_phrases = []
-        self.selected_phrases = set()
+        super().__init__(master) 
         
         # Load Stable Diffusion Model
         self.pipe = StableDiffusionPipeline.from_pretrained(
@@ -21,7 +18,9 @@ class CaptionBuilder:
             torch_dtype=torch.float16,
             safety_checker=None,
             requires_safety_checker=False
-        ).to("cuda")
+        )
+
+        if torch.cuda.is_available(): self.pipe.to("cuda")
         
         self.pipe.scheduler = EulerDiscreteScheduler.from_config(self.pipe.scheduler.config)
         
@@ -79,27 +78,9 @@ class CaptionBuilder:
         
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
-        
-        # Frame for checkboxes
-        self.checkbox_frame = ttk.Frame(master)
-        self.checkbox_frame.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.load_button = ttk.Button(self.checkbox_frame, text="Load Data", command=self.load_data)
-        self.load_button.pack()
-        
+                
         self.lora_button = ttk.Button(self.checkbox_frame, text="Load LoRA", command=self.load_lora)
         self.lora_button.pack()
-
-        self.checkbox_canvas = tk.Canvas(self.checkbox_frame)
-        self.checkbox_scrollbar = ttk.Scrollbar(self.checkbox_frame, orient=tk.VERTICAL, command=self.checkbox_canvas.yview)
-        self.checkbox_inner_frame = ttk.Frame(self.checkbox_canvas)
-
-        self.checkbox_inner_frame.bind("<Configure>", lambda e: self.checkbox_canvas.configure(scrollregion=self.checkbox_canvas.bbox("all")))
-        self.checkbox_canvas.create_window((0, 0), window=self.checkbox_inner_frame, anchor="nw")
-        self.checkbox_canvas.configure(yscrollcommand=self.checkbox_scrollbar.set)
-
-        self.checkbox_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.checkbox_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Frame for image display
         self.image_frame = ttk.Frame(master)
@@ -120,30 +101,7 @@ class CaptionBuilder:
 
         self.loaded_lora_label = ttk.Label(self.caption_frame, text=f"Using LoRA: Not loaded yet")
         self.loaded_lora_label.pack()
-    
-    def load_data(self, filepath = None):
-        if filepath == None:
-            filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON Lines", "*.jsonl")])
-        if filepath:
-            try:
-                phrases_set = set()
-                with open(filepath, 'r') as f:
-                    for line in f:
-                        try:
-                            item = json.loads(line)
-                            if 'text' in item:
-                                phrases = item['text'].split('.')
-                                phrases_set.update(phrase.strip() for phrase in phrases if phrase.strip())
-                        except json.JSONDecodeError as e:
-                            print(f"Error decoding JSON on line: {line.strip()}. Error: {e}")
-                            messagebox.showerror("Error", f"Error decoding JSON on line: {line.strip()}. Error: {e}")
-                
-                self.all_phrases = sorted(list(phrases_set))
-                self.create_checkboxes()
-            except FileNotFoundError as e:
-                print(f"Error loading data: {e}")
-                messagebox.showerror("Error", f"Error loading data: {e}")
-    
+        
     def load_lora(self, lora_model = None):
         if lora_model == None:
             lora_model = filedialog.askopenfilename(title="Select LoRA File", filetypes=[("SafeTensors", "*.safetensors")])
@@ -159,62 +117,6 @@ class CaptionBuilder:
             self.pipe.set_adapters(["my_lora"], adapter_weights=[1.0])
 
             self.loaded_lora_label["text"] = f"Using LoRA: {lora_model}"
-    
-    def create_checkboxes(self):
-        for widget in self.checkbox_inner_frame.winfo_children():
-            widget.destroy()
-        
-        self.checkbox_vars.clear()
-        
-        # Define the specific phrases and their order
-        predefined_phrases = [
-            ("Level Type", ["overworld level", "underworld level"]),
-            ("Sky Type", ["blue sky", "night sky"]),
-            ("Floor Type", ["no floor", "full floor", "floor with gaps"])
-        ]
-        
-        # Add predefined phrases first with separators
-        for group_name, phrases in predefined_phrases:
-            group_label = ttk.Label(self.checkbox_inner_frame, text=group_name, font=("Arial", 10, "bold"))
-            group_label.pack(anchor=tk.W, pady=(10, 0))
-            for phrase in phrases:
-                if phrase in self.all_phrases:
-                    var = tk.BooleanVar(value=False)
-                    checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.update_caption)
-                    checkbox.pack(anchor=tk.W)
-                    self.checkbox_vars[phrase] = var
-                    self.all_phrases.remove(phrase)
-        
-        # Group remaining phrases by common patterns
-        def group_phrases_by_pattern(pattern):
-            return [phrase for phrase in self.all_phrases if pattern in phrase]
-        
-        patterns = ["cloud", "tree", "bush",
-                    "pipe", "coin", "brickledge", "cannon", "obstacle", "platform", "questionblock", "solidblock", "metal", "mushroom", "brick",
-                    "bill", "koopa", "goomba", "plant", "spiny", "hammerturtle", "helmet"]
-        
-        for pattern in patterns:
-            grouped_phrases = group_phrases_by_pattern(pattern)
-            if grouped_phrases:
-                group_label = ttk.Label(self.checkbox_inner_frame, text=f"{pattern.capitalize()} Phrases", font=("Arial", 10, "bold"))
-                group_label.pack(anchor=tk.W, pady=(10, 0))
-                for phrase in grouped_phrases:
-                    var = tk.BooleanVar(value=False)
-                    checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.update_caption)
-                    checkbox.pack(anchor=tk.W)
-                    self.checkbox_vars[phrase] = var
-                    self.all_phrases.remove(phrase)
-        
-        # Add a separator for remaining phrases
-        remaining_label = ttk.Label(self.checkbox_inner_frame, text="Other Phrases", font=("Arial", 10, "bold"))
-        remaining_label.pack(anchor=tk.W, pady=(10, 0))
-        
-        # Add the remaining phrases
-        for phrase in self.all_phrases:
-            var = tk.BooleanVar(value=False)
-            checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.update_caption)
-            checkbox.pack(anchor=tk.W)
-            self.checkbox_vars[phrase] = var
     
     def update_caption(self):
         self.selected_phrases = [phrase for phrase, var in self.checkbox_vars.items() if var.get()]
