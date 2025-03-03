@@ -92,22 +92,7 @@ class SpriteDetector:
                 if base_name != "floor": # Floor handled differently by analyze_floor
                     detected.add(base_name)
         
-        # Special handling for enemy descriptions
-        if category == "enemies":
-            return self._format_enemy_count(detected)
         return list(detected)
-    
-    def _format_enemy_count(self, enemy_types: Set[str]) -> List[str]:
-        """Format enemy descriptions with approximate counts."""
-        result = []
-        
-        # Count instances of each enemy type more precisely
-        # This is a placeholder - in a real implementation, you'd count 
-        # the actual instances based on non-overlapping detections
-        for enemy in enemy_types:
-            result.append(f"{enemy}s")  # Simplify by just adding 's' for plural
-            
-        return result
 
 class EnhancedSpriteDetector(SpriteDetector):
     def __init__(self, sprites_dir: str):
