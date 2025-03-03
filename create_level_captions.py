@@ -120,8 +120,8 @@ class EnhancedSpriteDetector(SpriteDetector):
         # Sort locations by x-coordinate
         sorted_locs = sorted(sprite_locations, key=lambda loc: loc[0])
         
-        # Horizontal platforms are actually just parts of the same platform
-        if len(sorted_locs) >= 3 and sprite_type != "platform":
+        # Horizontal platforms are actually just parts of the same platform. More brick sprites in a row needed to make "three"
+        if len(sorted_locs) >= 3 and sprite_type != "platform" and (sprite_type != "brick" or len(sorted_locs) >= 4):
             # Check for horizontal line (same y-coordinate, evenly spaced x)
             y_values = [loc[1] for loc in sorted_locs]
             if max(y_values) - min(y_values) < 5:  # All at similar height
@@ -154,7 +154,7 @@ class EnhancedSpriteDetector(SpriteDetector):
             if avg_distance < self.pattern_distance_threshold:
                 return "clustered"
             
-        if sprite_type != "brickledge" and sprite_type != "platform" and sprite_type != "cloud" and sprite_type != "tree" and sprite_type != "greenpipe" and sprite_type != "whitepipe" and sprite_type != "cannon" and sprite_type != "solidblock" and sprite_type != "metal" and sprite_type != "mushroom" and sprite_type != "koopa" and sprite_type != "goomba":
+        if sprite_type and sprite_type != "brickledge" and sprite_type != "platform" and sprite_type != "cloud" and sprite_type != "tree" and sprite_type != "greenpipe" and sprite_type != "whitepipe" and sprite_type != "cannon" and sprite_type != "solidblock" and sprite_type != "metal" and sprite_type != "mushroom":
             # Check if distributed across the screen
             x_min, x_max = min(x_values), max(x_values)
             # Need at least 3 to be scattered
@@ -283,9 +283,11 @@ class EnhancedSpriteDetector(SpriteDetector):
                 continue
                 
             count = len(locations)
+            if sprite_type in ["platform", "brickledge", "mushroom"]:
+                count = len(set([y for x, y in locations]))  # Count unique y-values
             if count > 0:
-                # Get quantity description (special cases for platform and brickledge, since multiple detected sprites are the same object)
-                if count == 1 or (sprite_type in ["platform", "brickledge"] and len(set([y for x, y in locations])) == 1):
+                # Get quantity description
+                if count == 1:
                     quantity = f"a {sprite_type}"
                 elif count <= 3:
                     quantity = f"a few {sprite_type}s"
