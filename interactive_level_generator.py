@@ -217,8 +217,8 @@ class CaptionBuilder:
             self.checkbox_vars[phrase] = var
     
     def update_caption(self):
-        self.selected_phrases = {phrase for phrase, var in self.checkbox_vars.items() if var.get()}
-        new_caption = ". ".join(sorted(self.selected_phrases)) + "." if self.selected_phrases else ""
+        self.selected_phrases = [phrase for phrase, var in self.checkbox_vars.items() if var.get()]
+        new_caption = ". ".join(self.selected_phrases) + "." if self.selected_phrases else ""
         
         self.caption_text.config(state=tk.NORMAL)
         self.caption_text.delete(1.0, tk.END)
