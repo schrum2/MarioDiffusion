@@ -30,15 +30,17 @@ import sys
 
 formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
 
+# Modified LossPlotter class
 class LossPlotter:
     def __init__(self, log_file, update_interval=1.0, interactive=False):
         self.log_file = log_file
         self.update_interval = update_interval
         self.interactive = interactive
+        self.running = True
         
         # Set the backend based on whether we're in interactive mode
         if interactive:
-            # Try to use an interactive backend if available
+            # Interactive backends should be set before importing pyplot
             try:
                 # Check if running in a GUI-capable environment
                 if sys.platform.startswith('win'):
@@ -59,14 +61,17 @@ class LossPlotter:
             # Use non-interactive backend
             matplotlib.use('Agg')
         
+        # Import pyplot after setting the backend
+        import matplotlib.pyplot as plt
+        self.plt = plt
+        
         self.fig, self.ax = plt.subplots(figsize=(10, 6))
         self.epochs = []
         self.losses = []
         self.lr_values = []
-        self.running = True
         self.ani = None
         
-    def update_plot(self, frame):
+    def update_plot(self, frame=None):
         if os.path.exists(self.log_file):
             try:
                 with open(self.log_file, 'r') as f:
@@ -82,7 +87,7 @@ class LossPlotter:
                 # Clear the axes and redraw
                 self.ax.clear()
                 # Plot loss
-                loss_line, = self.ax.plot(self.epochs, self.losses, 'b-', label='Training Loss')
+                self.ax.plot(self.epochs, self.losses, 'b-', label='Training Loss')
                 self.ax.set_xlabel('Epoch')
                 self.ax.set_ylabel('Loss', color='b')
                 self.ax.tick_params(axis='y', labelcolor='b')
@@ -90,15 +95,14 @@ class LossPlotter:
                 # Add learning rate on secondary y-axis if available
                 if any(self.lr_values):
                     ax2 = self.ax.twinx()
-                    lr_line, = ax2.plot(self.epochs, self.lr_values, 'r-', label='Learning Rate')
+                    ax2.plot(self.epochs, self.lr_values, 'r-', label='Learning Rate')
                     ax2.set_ylabel('Learning Rate', color='r')
                     ax2.tick_params(axis='y', labelcolor='r')
+                    ax2.legend(loc='upper right')
                 
                 # Add a title and legend
                 self.ax.set_title('Training Progress')
                 self.ax.legend(loc='upper left')
-                if any(self.lr_values):
-                    ax2.legend(loc='upper right')
                 
                 # Adjust layout
                 self.fig.tight_layout()
@@ -113,25 +117,34 @@ class LossPlotter:
     
     def start_plotting(self):
         if self.interactive:
-            self.ani = FuncAnimation(
-                self.fig, self.update_plot, interval=self.update_interval * 1000, cache_frame_data=False
-            )
             try:
-                plt.show()
+                from matplotlib.animation import FuncAnimation
+                # Use a shorter interval for more responsive updates
+                self.ani = FuncAnimation(
+                    self.fig, self.update_plot, interval=self.update_interval * 1000, cache_frame_data=False
+                )
+                self.plt.show(block=False)  # Non-blocking show
+                print("Interactive plot started successfully")
             except Exception as e:
-                print(f"Warning: Could not show interactive plot ({e}). Progress will still be saved as images.")
-                # Continue without showing the plot
+                print(f"Warning: Could not start interactive plot ({e}). Falling back to non-interactive mode.")
+                self.interactive = False
+                self.start_noninteractive_plotting()
         else:
-            # For non-interactive mode, periodically update the saved image
-            while self.running:
-                self.update_plot(0)
-                time.sleep(self.update_interval)
+            self.start_noninteractive_plotting()
+    
+    def start_noninteractive_plotting(self):
+        """Separate method for non-interactive plotting to run in thread"""
+        print("Starting non-interactive plotting in background")
+        while self.running:
+            self.update_plot()
+            time.sleep(self.update_interval)
     
     def stop_plotting(self):
         self.running = False
-        if self.ani and self.interactive:
+        if self.ani:
             self.ani.event_source.stop()
-        plt.close(self.fig)
+        self.plt.close(self.fig)
+        print("Plotting stopped")
 
 def load_config_from_json(config_path):
     """Load hyperparameters from a JSON config file."""
@@ -237,13 +250,20 @@ def main(args):
     plotter = None
     plot_thread = None
     if args.plot_loss:
-        # Determine if we should try to use interactive mode
+        # Create the plotter first
         try_interactive = args.interactive_plot
-        plotter = LossPlotter(log_file, interactive=try_interactive)
-        plot_thread = threading.Thread(target=plotter.start_plotting)
-        plot_thread.daemon = True
-        plot_thread.start()
-        print(f"Loss plotting enabled: {'interactive' if try_interactive else 'non-interactive'} mode")
+        plotter = LossPlotter(log_file, update_interval=1.0, interactive=try_interactive)
+        
+        if plotter.interactive:
+            # If interactive, start in main thread
+            plotter.start_plotting()
+        else:
+            # If non-interactive, start in background thread
+            plot_thread = threading.Thread(target=plotter.start_noninteractive_plotting)
+            plot_thread.daemon = True
+            plot_thread.start()
+            
+        print(f"Loss plotting enabled: {'interactive' if plotter.interactive else 'non-interactive'} mode")
         print(f"Progress images will be saved to {output_dir}/current_progress.png")
 
     accelerator = Accelerator(
@@ -603,8 +623,12 @@ def main(args):
             plt.savefig(os.path.join(output_dir, f"{prefix}_loss_plot_{formatted_date}.png"))
             plt.close()
 
-    # Stop the plotter if it's running
+    # Before ending, update the display one last time and ensure clean shutdown
     if plotter:
+        if plotter.interactive:
+            plotter.update_plot()  # Final update for interactive plot
+            # Give a moment for the plot to update
+            time.sleep(0.5)
         plotter.stop_plotting()
         if plot_thread and plot_thread.is_alive():
             plot_thread.join(timeout=1.0)
