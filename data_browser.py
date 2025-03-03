@@ -4,17 +4,16 @@ import json
 import os
 from PIL import Image, ImageTk
 import sys
+from gui_shared import ParentBuilder
 
-# From Gemini
+# From Gemini initially, but with many changes since
 
-class ImageBrowser:
-    def __init__(self, master, filepath = None):
-        self.master = master
-        master.title("Image Browser")
+class ImageBrowser(ParentBuilder):
+    def __init__(self, master):
+        super().__init__(master) 
 
         self.data = {}
         self.image_paths = {}  # Store image paths
-        self.all_phrases = set()
         self.filtered_data = {}
 
         # Frame for image display
@@ -31,21 +30,10 @@ class ImageBrowser:
         self.canvas.bind('<Configure>', self.configure_canvas)  # Handle resizing
         self.canvas.bind_all("<MouseWheel>", self._on_mouse_wheel) # Scroll with mouse wheel
 
-        # Frame for checkboxes
-        self.checkbox_frame = ttk.Frame(master)
-        self.checkbox_frame.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.load_button = ttk.Button(master, text="Load Data", command=self.load_data)
-        self.load_button.pack()
-
-        if filepath: # Loaded from command line
-            self.load_data(filepath)
-
+    # Overrides parent version
     def load_data(self, filepath = None):
-        if filepath == None:
-            filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON Lines", "*.jsonl")])
-            
-        if filepath:
+
+        if super().load_data(filepath):
             try:
                 self.data = []
                 with open(filepath, 'r') as f:
@@ -79,45 +67,14 @@ class ImageBrowser:
                     image_path = os.path.join(self.image_directory, item['file_name'])  # Use the common directory
                     if os.path.exists(image_path):
                         self.image_paths[item['file_name']] = image_path
-                        phrases = item['text'].split('.')
-                        for phrase in phrases:
-                            self.all_phrases.add(phrase.strip())
 
-                self.all_phrases = sorted(list(self.all_phrases))
                 self.filtered_data = self.data.copy()
-                self.create_checkboxes()
-                #self.display_images()
 
             except FileNotFoundError as e:
                 print(f"Error loading data: {e}")
                 tk.messagebox.showerror("Error", f"Error loading data: {e}")
 
-
-    def create_checkboxes(self):
-        # Create a canvas and a frame for the checkboxes
-        self.checkbox_canvas = tk.Canvas(self.checkbox_frame)
-        self.checkbox_scrollbar = ttk.Scrollbar(self.checkbox_frame, orient=tk.VERTICAL, command=self.checkbox_canvas.yview)
-        self.checkbox_inner_frame = ttk.Frame(self.checkbox_canvas)
-
-        # Configure canvas
-        self.checkbox_inner_frame.bind("<Configure>", lambda e: self.checkbox_canvas.configure(scrollregion=self.checkbox_canvas.bbox("all")))
-        self.checkbox_canvas.create_window((0, 0), window=self.checkbox_inner_frame, anchor="nw")
-        self.checkbox_canvas.configure(yscrollcommand=self.checkbox_scrollbar.set)
-
-        # Pack the scrollbar and canvas
-        self.checkbox_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.checkbox_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Create checkboxes
-        self.checkbox_vars = {}
-        for phrase in self.all_phrases:
-            var = tk.BooleanVar(value=False)  # Start with all boxes unchecked
-            checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.filter_images)
-            checkbox.pack(anchor=tk.W)  # Align checkboxes to the left
-            self.checkbox_vars[phrase] = var
-
-
-    def filter_images(self):
+    def update_caption(self):
         checked_phrases = {phrase for phrase, var in self.checkbox_vars.items() if var.get()}  # Get checked phrases
         
         if not checked_phrases:  # If no checkboxes are checked, show nothing
@@ -175,7 +132,10 @@ class ImageBrowser:
 
 root = tk.Tk()
 filepath = None
+
+app = ImageBrowser(root)
+
 if len(sys.argv) > 1:
-    filepath = sys.argv[1]
-app = ImageBrowser(root, filepath)
+    app.load_data(sys.argv[1])
+
 root.mainloop()

@@ -49,9 +49,13 @@ class ParentBuilder:
                 
                 self.all_phrases = sorted(list(phrases_set))
                 self.create_checkboxes()
+
+                return True
             except FileNotFoundError as e:
                 print(f"Error loading data: {e}")
                 messagebox.showerror("Error", f"Error loading data: {e}")
+
+        return False
 
     def create_checkboxes(self):
         for widget in self.checkbox_inner_frame.winfo_children():
