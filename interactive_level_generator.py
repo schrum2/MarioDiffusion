@@ -80,7 +80,7 @@ class CaptionBuilder(ParentBuilder):
         self.generate_button.pack(pady=5)
                 
         self.lora_button = ttk.Button(self.checkbox_frame, text="Load LoRA", command=self.load_lora)
-        self.lora_button.pack()
+        self.lora_button.pack(anchor=tk.E)
 
         # Frame for image display
         self.image_frame = ttk.Frame(master)

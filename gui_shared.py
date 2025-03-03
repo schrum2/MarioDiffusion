@@ -15,7 +15,7 @@ class ParentBuilder:
         self.checkbox_frame.pack(side=tk.RIGHT, fill=tk.Y)
         
         self.load_button = ttk.Button(self.checkbox_frame, text="Load Data", command=self.load_data)
-        self.load_button.pack()
+        self.load_button.pack(anchor=tk.E)
         
         self.checkbox_canvas = tk.Canvas(self.checkbox_frame)
         self.checkbox_scrollbar = ttk.Scrollbar(self.checkbox_frame, orient=tk.VERTICAL, command=self.checkbox_canvas.yview)
