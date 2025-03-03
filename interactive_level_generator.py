@@ -165,6 +165,31 @@ class CaptionBuilder:
             widget.destroy()
         
         self.checkbox_vars.clear()
+        
+        # Define the specific phrases and their order
+        predefined_phrases = [
+            ("Level Type", ["overworld level", "underworld level"]),
+            ("Sky Type", ["blue sky", "night sky"]),
+            ("Floor Type", ["no floor", "full floor", "floor with gaps"])
+        ]
+        
+        # Add predefined phrases first with separators
+        for group_name, phrases in predefined_phrases:
+            group_label = ttk.Label(self.checkbox_inner_frame, text=group_name, font=("Arial", 10, "bold"))
+            group_label.pack(anchor=tk.W, pady=(10, 0))
+            for phrase in phrases:
+                if phrase in self.all_phrases:
+                    var = tk.BooleanVar(value=False)
+                    checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.update_caption)
+                    checkbox.pack(anchor=tk.W)
+                    self.checkbox_vars[phrase] = var
+                    self.all_phrases.remove(phrase)
+        
+        # Add a separator for remaining phrases
+        remaining_label = ttk.Label(self.checkbox_inner_frame, text="Other Phrases", font=("Arial", 10, "bold"))
+        remaining_label.pack(anchor=tk.W, pady=(10, 0))
+        
+        # Add the remaining phrases
         for phrase in self.all_phrases:
             var = tk.BooleanVar(value=False)
             checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.update_caption)
