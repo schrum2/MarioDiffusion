@@ -186,8 +186,14 @@ def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_sa
     # Set evaluation mode
     pipe.unet.eval()
     
+    # Store original state for restoration later
+    original_dtype = next(pipe.unet.parameters()).dtype
+
     # Generate samples with current model state
     with torch.no_grad():
+        # Make sure the entire pipeline is using consistent dtype
+        pipe.to(torch.float16)  # Assuming fp16 is used for inference
+
         # Generate multiple samples at once
         images = pipe([prompt] * num_samples, 
                       num_inference_steps=steps,
@@ -201,9 +207,13 @@ def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_sa
             image.save(image_path)
             
     print(f"Generated {num_samples} sample images for epoch {epoch}")
-    
+
     # Return to training mode
     pipe.unet.train()
+
+    # Restore original dtype if needed
+    if original_dtype != next(pipe.unet.parameters()).dtype:
+        pipe.to(original_dtype)
     
     return samples_dir
 
