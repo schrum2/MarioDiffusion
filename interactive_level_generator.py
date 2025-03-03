@@ -44,7 +44,7 @@ class CaptionBuilder(ParentBuilder):
         self.num_images_label.pack()        
         self.num_images_entry = ttk.Entry(self.caption_frame)
         self.num_images_entry.pack()
-        self.num_images_entry.insert(0, "1")
+        self.num_images_entry.insert(0, "4")
 
         self.seed_label = ttk.Label(self.caption_frame, text="Random Seed:")
         self.seed_label.pack()        
