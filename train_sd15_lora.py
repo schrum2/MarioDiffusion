@@ -189,11 +189,19 @@ def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_sa
     # Store original state for restoration later
     original_dtype = next(pipe.unet.parameters()).dtype
 
+    # Convert input to the same type as the model weights
+    weight_dtype = torch.float16  # Since this is the dtype used in the pipeline creation
+    
+    # Manual conversion of all pipeline components to ensure consistent types
+    pipe.unet.to(weight_dtype)
+    pipe.vae.to(weight_dtype)
+    pipe.text_encoder.to(weight_dtype)
+    pipe.to(weight_dtype)
+    if hasattr(pipe, "safety_checker") and pipe.safety_checker is not None:
+        pipe.safety_checker.to(weight_dtype)
+
     # Generate samples with current model state
     with torch.no_grad():
-        # Make sure the entire pipeline is using consistent dtype
-        pipe.to(torch.float16)  # Assuming fp16 is used for inference
-
         # Generate multiple samples at once
         images = pipe([prompt] * num_samples, 
                       num_inference_steps=steps,
@@ -214,6 +222,11 @@ def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_sa
     # Restore original dtype if needed
     if original_dtype != next(pipe.unet.parameters()).dtype:
         pipe.to(original_dtype)
+        pipe.unet.to(original_dtype)
+        pipe.vae.to(original_dtype)
+        pipe.text_encoder.to(original_dtype)
+        if hasattr(pipe, "safety_checker") and pipe.safety_checker is not None:
+            pipe.safety_checker.to(original_dtype)
     
     return samples_dir
 
