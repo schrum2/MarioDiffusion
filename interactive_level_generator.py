@@ -185,6 +185,24 @@ class CaptionBuilder:
                     self.checkbox_vars[phrase] = var
                     self.all_phrases.remove(phrase)
         
+        # Group remaining phrases by common patterns
+        def group_phrases_by_pattern(pattern):
+            return [phrase for phrase in self.all_phrases if pattern in phrase]
+        
+        patterns = ["cloud", "tree", "pipe", "enemy", "coin", "brickledge"]
+        
+        for pattern in patterns:
+            grouped_phrases = group_phrases_by_pattern(pattern)
+            if grouped_phrases:
+                group_label = ttk.Label(self.checkbox_inner_frame, text=f"{pattern.capitalize()} Phrases", font=("Arial", 10, "bold"))
+                group_label.pack(anchor=tk.W, pady=(10, 0))
+                for phrase in grouped_phrases:
+                    var = tk.BooleanVar(value=False)
+                    checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.update_caption)
+                    checkbox.pack(anchor=tk.W)
+                    self.checkbox_vars[phrase] = var
+                    self.all_phrases.remove(phrase)
+        
         # Add a separator for remaining phrases
         remaining_label = ttk.Label(self.checkbox_inner_frame, text="Other Phrases", font=("Arial", 10, "bold"))
         remaining_label.pack(anchor=tk.W, pady=(10, 0))
