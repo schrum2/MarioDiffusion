@@ -189,7 +189,9 @@ class CaptionBuilder:
         def group_phrases_by_pattern(pattern):
             return [phrase for phrase in self.all_phrases if pattern in phrase]
         
-        patterns = ["cloud", "tree", "pipe", "enemy", "coin", "brickledge"]
+        patterns = ["cloud", "tree", "hill", 
+                    "pipe", "coin", "brickledge", "cannon", "obstacle", "platform", "questionblock", "solidblock", "metal", "mushroom",
+                    "bill", "koopa", "goomba", "plant", "spiny", "hammerturtle", "helmet"]
         
         for pattern in patterns:
             grouped_phrases = group_phrases_by_pattern(pattern)
