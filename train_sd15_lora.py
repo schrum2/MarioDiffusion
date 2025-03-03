@@ -183,6 +183,10 @@ def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_sa
     samples_dir = os.path.join(output_dir, f"{prefix}_samples")
     os.makedirs(samples_dir, exist_ok=True)
     
+    # DOES NOT WORK!
+    # Always error: RuntimeError: Input type (float) and bias type (struct c10::Half) should be the same
+    return sample_dir
+
     # Set evaluation mode
     pipe.unet.eval()
     
