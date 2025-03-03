@@ -117,57 +117,6 @@ class EnhancedSpriteDetector(SpriteDetector):
         """
         super().__init__(sprites_dir)
         
-        # Define thresholds for quantity descriptions
-        self.quantity_thresholds = {
-            "coin": {
-                "few": 3,       # 1-3 coins = "a few coins"
-                "several": 7,   # 4-7 coins = "several coins"
-                "many": 15,     # 8-15 coins = "many coins"
-                # 16+ coins = "lots of coins"
-            },
-            "brick": {
-                "few": 3,
-                "several": 7,
-                "many": 15,
-            },
-            "goomba": {
-                "few": 2,
-                "several": 4,
-                "many": 6,
-            },
-            "koopa": {
-                "few": 2,
-                "several": 4,
-                "many": 6,
-            },
-            "bill": {
-                "few": 1,
-                "several": 2,
-                "many": 3,
-            },
-            "hammerturtle": {
-                "few": 1,
-                "several": 2,
-                "many": 3,
-            },
-            "helmet": {
-                "few": 1,
-                "several": 2,
-                "many": 3,
-            },
-            "plant": {
-                "few": 1,
-                "several": 2,
-                "many": 3,
-            },
-            "spiny": {
-                "few": 1,
-                "several": 2,
-                "many": 3,
-            },
-            # Add thresholds for other common elements as needed
-        }
-        
         # Extra distance threshold to detect patterns
         self.pattern_distance_threshold = 32  # Pixels
         
@@ -350,29 +299,12 @@ class EnhancedSpriteDetector(SpriteDetector):
             count = len(locations)
             if count > 0:
                 # Get quantity description
-                if sprite_type in self.quantity_thresholds:
-                    thresholds = self.quantity_thresholds[sprite_type]
-                    
-                    if count == 1:
-                        quantity = f"a {sprite_type}"
-                    elif count <= thresholds["few"]:
-                        quantity = f"a few {sprite_type}s"
-                    elif count <= thresholds["several"]:
-                        quantity = f"several {sprite_type}s"
-                    elif count <= thresholds["many"]:
-                        quantity = f"many {sprite_type}s"
-                    else:
-                        quantity = f"lots of {sprite_type}s"
+                if count == 1:
+                    quantity = f"a {sprite_type}"
+                elif count <= 3:
+                    quantity = f"a few {sprite_type}s"
                 else:
-                    # Default quantification for other sprite types
-                    if count == 1:
-                        quantity = f"a {sprite_type}"
-                    elif count <= 3:
-                        quantity = f"a few {sprite_type}s"
-                    elif count <= 7:
-                        quantity = f"several {sprite_type}s"
-                    else:
-                        quantity = f"many {sprite_type}s"
+                    quantity = f"several {sprite_type}s"
                 
                 # Get pattern description if more than one
                 pattern = ""
@@ -419,10 +351,8 @@ class EnhancedSpriteDetector(SpriteDetector):
                     result.append(f"two {enemy_type}s")
                 elif count == 3:
                     result.append(f"three {enemy_type}s")
-                elif count <= 6:
-                    result.append(f"several {enemy_type}s")
                 else:
-                    result.append(f"many {enemy_type}s")
+                    result.append(f"several {enemy_type}s")
             
             # Add pattern for multiple enemies
             if count > 1:
