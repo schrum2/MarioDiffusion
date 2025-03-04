@@ -183,9 +183,17 @@ def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_sa
     samples_dir = os.path.join(output_dir, f"{prefix}_samples")
     os.makedirs(samples_dir, exist_ok=True)
 
-    return samples_dir # code below is bad. Give up and fail.
+    #print(pipe.components.items())
+    #for name, sub_model in pipe.components.items():
+    #    if hasattr(sub_model, "parameters"):
+    #        params = list(sub_model.parameters())  # Convert generator to list
+    #        if params:  # Ensure the model has parameters
+    #            print(f"{name} is on {params[0].device}")
+    #            dtypes = {p.dtype for p in params}
+    #            print(f"{name}: {dtypes}")
+    
+    original_dtypes = {n: p.dtype for n, p in pipe.unet.named_parameters()}    
 
-    # ALLOWS IMAGE TO BE GENERATED, BUT COSTS MORE VRAM. WHY WON'T float16 work?
     pipe.unet.to(torch.float32)
     pipe.vae.to(torch.float32)
 
@@ -210,8 +218,9 @@ def generate_samples(pipe, epoch, output_dir, prefix, prompt, resolution, num_sa
     # Return to training mode
     pipe.unet.train()
 
-    # THEXE NEXT TWO LINES DO NOT WORK!
-    pipe.unet.to(torch.float16)
+    # restore mixed precision types
+    for name, param in pipe.unet.named_parameters():
+        param.data = param.data.to(original_dtypes[name])
     pipe.vae.to(torch.float16)
 
     return samples_dir
@@ -573,9 +582,9 @@ def main(args):
         if args.sample_interval > 0 and (epoch + 1) % args.sample_interval == 0:
             accelerator.wait_for_everyone()
             if accelerator.is_main_process:
-                # Temporarily convert model to float32
+                # Temporarily convert model to float32 # WHY!!!
                 unwrapped_unet = accelerator.unwrap_model(unet)
-                unwrapped_unet = unwrapped_unet.to(torch.float32)
+                #unwrapped_unet = unwrapped_unet.to(torch.float32)
         
                 # Create a pipeline with the current state of the model
                 eval_pipe = StableDiffusionPipeline.from_pretrained(
@@ -605,8 +614,8 @@ def main(args):
             f.write(json.dumps(log_entry) + '\n')
         
         # Restore unet to its previous state
-        if unwrapped_unet: 
-            unwrapped_unet = unwrapped_unet.to(weight_dtype)
+        #if unwrapped_unet: 
+        #    unwrapped_unet = unwrapped_unet.to(weight_dtype)
 
     # Save the final model
     accelerator.wait_for_everyone()
