@@ -697,8 +697,8 @@ def add_arguments(parser):
     
     # Model configuration
     parser.add_argument("--pretrained_model", type=str, default="runwayml/stable-diffusion-v1-5", help="Pretrained model name or path")
-    parser.add_argument("--lora_rank", type=int, default=32, help="Rank for LoRA training")
-    parser.add_argument("--lora_alpha", type=int, default=64, help="Alpha for LoRA training")
+    parser.add_argument("--lora_rank", type=int, default=16, help="Rank for LoRA training")
+    parser.add_argument("--lora_alpha", type=int, default=32, help="Alpha for LoRA training")
     
     # Dataset options
     parser.add_argument("--dataset_name", type=str, default=None, help="HuggingFace dataset name")
@@ -707,7 +707,7 @@ def add_arguments(parser):
     parser.add_argument("--random_flip", action="store_true", help="Sometimes flip training images")
     
     # Training parameters
-    parser.add_argument("--learning_rate", type=float, default=3e-5, help="Learning rate")
+    parser.add_argument("--learning_rate", type=float, default=5e-5, help="Learning rate")
     parser.add_argument("--adam_betas", type=float, nargs=2, default=[0.9, 0.999], help="Adam betas")
     parser.add_argument("--adam_weight_decay", type=float, default=1e-2, help="Weight decay for Adam")
     parser.add_argument("--adam_epsilon", type=float, default=1e-8, help="Epsilon for Adam")
@@ -717,8 +717,8 @@ def add_arguments(parser):
     parser.add_argument("--lr_scheduler", type=str, default="cosine", 
                         choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
                         help="Type of learning rate scheduler")
-    parser.add_argument("--warmup_ratio", type=float, default=0.1, help="Ratio of warmup steps")
-    parser.add_argument("--max_grad_norm", type=float, default=0.5, help="Maximum gradient norm")
+    parser.add_argument("--warmup_ratio", type=float, default=0.05, help="Ratio of warmup steps")
+    parser.add_argument("--max_grad_norm", type=float, default=1.0, help="Maximum gradient norm")
     
     # Checkpointing and logging
     parser.add_argument("--checkpoint_interval", type=int, default=10, help="Save checkpoints every N epochs (0 to disable)")
