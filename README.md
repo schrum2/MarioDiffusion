@@ -22,9 +22,9 @@ pip install -r requirements.txt
 ```
 From here, extract an image dataset of level scenes from the level images in TheVGLC:
 ```
-python create_level_squares.py "..\\TheVGLC\\Super Mario Bros\\Original" SMB1 256
+python create_level_squares.py "..\\TheVGLC\\Super Mario Bros\\Original" SMB1
 ```
-The 256 parameter slides the window across one level screen at a time. The directory `SMB1` now contains level scenes from Super Mario Bros derived from TheVGLC. The following command automatically captions each scene and saves the captions in `metadata.jsonl`:
+The directory `SMB1` now contains level scenes from Super Mario Bros derived from TheVGLC. The following command automatically captions each scene and saves the captions in `metadata.jsonl`:
 ```
 python create_level_captions.py SMB1 mario_elements SMB1\\metadata.jsonl
 ```
