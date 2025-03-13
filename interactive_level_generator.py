@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-import json
+import os
 import torch
 from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
 from PIL import Image, ImageTk
@@ -116,7 +116,8 @@ class CaptionBuilder(ParentBuilder):
             )
             self.pipe.set_adapters(["my_lora"], adapter_weights=[1.0])
 
-            self.loaded_lora_label["text"] = f"Using LoRA: {lora_model}"
+            filename = os.path.splitext(os.path.basename(lora_model))[0]
+            self.loaded_lora_label["text"] = f"Using LoRA: {filename}"
     
     def update_caption(self):
         self.selected_phrases = [phrase for phrase, var in self.checkbox_vars.items() if var.get()]
