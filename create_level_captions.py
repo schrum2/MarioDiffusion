@@ -1,9 +1,8 @@
-import os
 import json
 import cv2
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Tuple, Set
+from typing import Dict, List, Tuple
 
 DEBUG = False
 
@@ -587,10 +586,26 @@ def process_directory_enhanced(input_dir: str, sprites_dir: str, output_file: st
             
             # Detect sprites from each category with enhanced descriptions
             detected_elements = {}
+            skip_image = False # Should this image even be in the training set?
+            skip_reason = None
             for category in detector.templates.keys():
                 detected = detector.detect_sprites_in_category_enhanced(image, category)
+                # Don't include any training data that features these sprites
+                for target in ["bridge", "flag", "spring", "vine", "helmet", "spiny", "water", "wall"]:
+                    if any(target in s for s in detected):
+                        skip_image = True
+                        skip_reason = target
+     
+                if skip_image:
+                    break
+
                 if detected:
                     detected_elements[category] = detected
+            
+            if skip_image:
+                if True: 
+                    print(f"Skipping image {image_file} because it contains {skip_reason}")
+                    continue # Go to next candidate image
             
             # Generate enhanced caption
             caption = format_caption_enhanced(basic_props, detected_elements, use_detailed_format)
