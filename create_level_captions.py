@@ -644,7 +644,7 @@ def process_directory_enhanced(input_dir: str, sprites_dir: str, output_file: st
                     detected_elements[category] = detected
             
             if skip_image:
-                if True: 
+                if DEBUG: 
                     print(f"Skipping image {image_file} because it contains {skip_reason}")
                     continue # Go to next candidate image
             
