@@ -576,7 +576,7 @@ def process_directory_enhanced(input_dir: str, sprites_dir: str, output_file: st
             if skip_image:
                 if DEBUG: 
                     print(f"Skipping image {image_file} because it contains {skip_reason}")
-                    continue # Go to next candidate image
+                continue # Go to next candidate image
             
             # Generate enhanced caption
             caption = format_caption_enhanced(basic_props, detected_elements)
