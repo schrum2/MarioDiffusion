@@ -334,15 +334,17 @@ class EnhancedSpriteDetector(SpriteDetector):
         for enemy_type, locations in enemy_locations.items():
             count = len(locations)
             
+            display_name = get_sprite_display_name(enemy_type)
+
             if count > 0:
                 if count == 1:
-                    result.append(f"a {enemy_type}")
+                    result.append(f"a {display_name}")
                 elif count == 2:
-                    result.append(f"two {enemy_type}s")
+                    result.append(f"two {display_name}s")
                 elif count == 3:
-                    result.append(f"three {enemy_type}s")
+                    result.append(f"three {display_name}s")
                 else:
-                    result.append(f"several {enemy_type}s")
+                    result.append(f"several {display_name}s")
             
             # Add pattern for multiple enemies
             if count > 1:
