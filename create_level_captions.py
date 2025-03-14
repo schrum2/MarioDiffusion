@@ -323,7 +323,7 @@ class EnhancedSpriteDetector(SpriteDetector):
                     break
             
             if not already_covered:
-                descriptions.append(detected)
+                descriptions.append(get_sprite_display_name(detected))
         
         return descriptions
     
