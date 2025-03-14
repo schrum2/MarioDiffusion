@@ -550,58 +550,24 @@ def format_caption(basic_props: Dict, detected_elements: Dict[str, List[str]],
             
         return ". ".join(elements)
 
-def format_caption_enhanced(basic_props: Dict, detected_elements: Dict[str, List[str]], 
-                           use_detailed_format: bool = False) -> str:
+def format_caption_enhanced(basic_props: Dict, detected_elements: Dict[str, List[str]]) -> str:
     """
     Enhanced caption formatting with better element descriptions.
     """
-    if use_detailed_format:
-        # Collect all elements by category
-        elements_by_category = {}
-        for category, items in detected_elements.items():
-            elements_by_category[category] = items
+    # Simple format similar to your original captions
+    elements = [
+        f"{basic_props['level_type']} level",
+        f"{basic_props['sky_type']} sky",
+        basic_props['floor']
+    ]
         
-        # Format by category for better structure
-        formatted_elements = []
-        
-        # Order categories
-        category_order = ["blocks", "enemies", "structures"]
-        
-        for category in category_order:
-            if category in elements_by_category and elements_by_category[category]:
-                items = elements_by_category[category]
-                if category == "blocks":
-                    formatted_elements.append(f"with {', '.join(items)}")
-                elif category == "enemies":
-                    formatted_elements.append(f"populated by {', '.join(items)}")
-                elif category == "powerups":
-                    formatted_elements.append(f"contains {', '.join(items)}")
-        
-        # Add remaining categories
-        for category, items in elements_by_category.items():
-            if category not in category_order and items:
-                formatted_elements.append(f"{', '.join(items)}")
-        
-        element_text = "; ".join(formatted_elements) if formatted_elements else "empty scene"
-        
-        return (f"pixel art Super Mario Bros level, {basic_props['level_type']} stage, "
-                f"{basic_props['sky_type']} sky background, {basic_props['floor']}, "
-                f"{element_text}, 8-bit NES graphics, side-scrolling view")
-    else:
-        # Simple format similar to your original captions
-        elements = [
-            f"{basic_props['level_type']} level",
-            f"{basic_props['sky_type']} sky",
-            basic_props['floor']
-        ]
-        
-        # Add all detected elements
-        for category, items in detected_elements.items():
-            elements.extend(items)
+    # Add all detected elements
+    for category, items in detected_elements.items():
+        elements.extend(items)
             
-        return ". ".join(elements)
+    return ". ".join(elements)
 
-def process_directory_enhanced(input_dir: str, sprites_dir: str, output_file: str, use_detailed_format: bool = False):
+def process_directory_enhanced(input_dir: str, sprites_dir: str, output_file: str):
     """
     Process all screenshots in directory with enhanced sprite detection.
     """
@@ -649,7 +615,7 @@ def process_directory_enhanced(input_dir: str, sprites_dir: str, output_file: st
                     continue # Go to next candidate image
             
             # Generate enhanced caption
-            caption = format_caption_enhanced(basic_props, detected_elements, use_detailed_format)
+            caption = format_caption_enhanced(basic_props, detected_elements)
             
             # Create JSONL entry
             entry = {
@@ -723,7 +689,6 @@ if __name__ == "__main__":
     parser.add_argument("input_dir", help="Directory containing PNG screenshots")
     parser.add_argument("sprites_dir", help="Directory containing sprite templates")
     parser.add_argument("output_file", help="Output JSONL file path")
-    parser.add_argument("--detailed", action="store_true", help="Use detailed caption format")
 
     args = parser.parse_args()
-    process_directory_enhanced(args.input_dir, args.sprites_dir, args.output_file, args.detailed)
+    process_directory_enhanced(args.input_dir, args.sprites_dir, args.output_file)
