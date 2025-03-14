@@ -87,8 +87,8 @@ class ParentBuilder:
             return [phrase for phrase in self.all_phrases if pattern in phrase]
         
         patterns = ["cloud", "tree", "bush",
-                    "pipe", "coin", "brickledge", "cannon", "obstacle", "platform", "questionblock", "solidblock", "metal", "mushroom", "brick",
-                    "bill", "koopa", "goomba", "plant", "spiny", "hammerturtle", "helmet"]
+                    "pipe", "coin", "brick ledge", "cannon", "obstacle", "girder", "question block", "solid block", "metal block", "mushroom", "brick block",
+                    "bullet bill", "koopa", "goomba", "piranha plant", "spiny", "hammer bro", "helmet"]
         
         for pattern in patterns:
             grouped_phrases = group_phrases_by_pattern(pattern)
