@@ -84,10 +84,14 @@ class ParentBuilder:
         
         # Group remaining phrases by common patterns
         def group_phrases_by_pattern(pattern):
-            return [phrase for phrase in self.all_phrases if pattern in phrase]
+            #Special case for background tree
+            if pattern == "tree":
+                return [phrase for phrase in self.all_phrases if pattern in phrase and "giant" not in phrase] # Exclude "giant tree platform" 
+            else:
+                return [phrase for phrase in self.all_phrases if pattern in phrase]
         
         patterns = ["cloud", "tree", "bush",
-                    "pipe", "coin", "brick ledge", "cannon", "obstacle", "girder", "question block", "solid block", "metal block", "mushroom", "brick block",
+                    "pipe", "coin", "brick ledge", "cannon", "obstacle", "girder", "question block", "solid block", "metal block", "mushroom", "giant tree", "brick block",
                     "bullet bill", "koopa", "goomba", "piranha plant", "spiny", "hammer bro", "helmet"]
         
         for pattern in patterns:
