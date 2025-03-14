@@ -404,42 +404,6 @@ def get_floor_template(detector: SpriteDetector) -> np.ndarray:
     # Return None if floor template not found
     return None
 
-def generate_basic_caption(image: np.ndarray, filename: str, detector: SpriteDetector) -> Dict:
-    """
-    Generate basic image properties (level type, sky, floor)
-    """
-    # Determine level type from filename
-    is_underworld = filename.startswith(('mario-1-2', 'mario-4-2'))
-    level_type = "underworld" if is_underworld else "overworld"
-    
-    # Determine sky type from top pixels
-    top_row = image[0:16, :]  # Check top 16 pixels
-    avg_brightness = np.mean(top_row)
-    sky_type = "blue" if avg_brightness > 128 else "night"
-    
-    # Get the floor template
-    floor_template = get_floor_template(detector)
-    
-    # Get background color based on level type
-    background_color = None
-    if level_type == "overworld":
-        background_color = image[5, 5].tolist()  # Sky color from top
-    else:
-        # For underworld, black background
-        background_color = [0, 0, 0]
-    
-    # Needs special handling since the floor does not align with bottom of screen in usual way
-    is_shifted = filename.startswith('mario-8-3')
-
-    # Analyze floor using the template
-    floor_description = analyze_floor(image, floor_template, background_color, is_shifted)
-    
-    return {
-        "level_type": level_type,
-        "sky_type": sky_type,
-        "floor": floor_description
-    }
-
 def analyze_floor(image: np.ndarray, floor_template: np.ndarray, background_color=None, is_shifted=False) -> str:
     """
     Analyze the floor in the image using the floor template and detect gaps.
