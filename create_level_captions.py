@@ -119,8 +119,8 @@ class EnhancedSpriteDetector(SpriteDetector):
         # Sort locations by x-coordinate
         sorted_locs = sorted(sprite_locations, key=lambda loc: loc[0])
         
-        # Horizontal platforms are actually just parts of the same platform. More brick sprites in a row needed to make "three"
-        if len(sorted_locs) >= 3 and sprite_type != "platform" and (sprite_type != "brick" or len(sorted_locs) >= 4):
+        # Horizontal girders are actually just parts of the same girder. More brick sprites in a row needed to make "three"
+        if len(sorted_locs) >= 3 and sprite_type != "girder" and (sprite_type != "brickblock" or len(sorted_locs) >= 4):
             # Check for horizontal line (same y-coordinate, evenly spaced x)
             y_values = [loc[1] for loc in sorted_locs]
             if max(y_values) - min(y_values) < 5:  # All at similar height
@@ -147,13 +147,13 @@ class EnhancedSpriteDetector(SpriteDetector):
                 distance = ((x2-x1)**2 + (y2-y1)**2)**0.5
                 all_distances.append(distance)
             
-        # Don't let brickledges or platforms cluster    
-        if sprite_type != "brickledge" and sprite_type != "platform":
+        # Don't let brickledges or girders cluster    
+        if sprite_type != "brickledge" and sprite_type != "girder":
             avg_distance = sum(all_distances) / len(all_distances) if all_distances else float('inf')
             if avg_distance < self.pattern_distance_threshold:
                 return "clustered"
             
-        if sprite_type and sprite_type != "brickledge" and sprite_type != "platform" and sprite_type != "cloud" and sprite_type != "tree" and sprite_type != "greenpipe" and sprite_type != "whitepipe" and sprite_type != "cannon" and sprite_type != "solidblock" and sprite_type != "metal" and sprite_type != "mushroom":
+        if sprite_type and sprite_type != "brickledge" and sprite_type != "girder" and sprite_type != "cloud" and sprite_type != "tree" and sprite_type != "greenpipe" and sprite_type != "whitepipe" and sprite_type != "cannon" and sprite_type != "solidblock" and sprite_type != "metal" and sprite_type != "mushroom":
             # Check if distributed across the screen
             x_min, x_max = min(x_values), max(x_values)
             # Need at least 3 to be scattered
@@ -182,7 +182,7 @@ class EnhancedSpriteDetector(SpriteDetector):
             if DEBUG: print(f"\tDetecting {sprite_name}")
 
             # Skip if not relevant for quantity analysis
-            if base_name not in ["coin", "brick", "mushroom", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", "brickledge", "cannon", "metal", "greenpipe", "whitepipe", "obstacle", "platform", "tree", "bush", "cloud", "stairs"]:
+            if base_name not in ["coin", "brickblock", "mushroom", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", "brickledge", "cannon", "metal", "greenpipe", "whitepipe", "obstacle", "girder", "tree", "bush", "cloud", "stairs"]:
                 continue
                 
             # Find all instances using template matching
@@ -282,16 +282,19 @@ class EnhancedSpriteDetector(SpriteDetector):
                 continue
                 
             count = len(locations)
-            if sprite_type in ["platform", "brickledge", "mushroom"]:
+            if sprite_type in ["girder", "brickledge", "mushroom"]:
                 count = len(set([y for x, y in locations]))  # Count unique y-values
+
+            display_name = get_sprite_display_name(sprite_type)
+
             if count > 0:
                 # Get quantity description
                 if count == 1:
-                    quantity = f"a {sprite_type}"
+                    quantity = f"a {display_name}"
                 elif count <= 3:
-                    quantity = f"a few {sprite_type}s"
+                    quantity = f"a few {display_name}s"
                 else:
-                    quantity = f"several {sprite_type}s"
+                    quantity = f"several {display_name}s"
                 
                 # Get pattern description if more than one
                 pattern = ""
@@ -348,6 +351,42 @@ class EnhancedSpriteDetector(SpriteDetector):
                     result[-1] += f" {pattern}"
         
         return result
+
+def get_sprite_display_name(sprite_type):
+    display_name = sprite_type
+    # Name changes and adding of spaces in names for certain sprites
+    if sprite_type == "questionblock":
+        display_name = "question block"
+    elif sprite_type == "greenpipe":
+        display_name = "green pipe"
+    elif sprite_type == "whitepipe":
+        display_name = "white pipe"
+    elif sprite_type == "whitepipe":
+        display_name = "white pipe"
+    elif sprite_type == "brickledge":
+        display_name = "brick ledge"
+    elif sprite_type == "brickblock":
+        display_name = "brick block"
+    elif sprite_type == "solidblock":
+        display_name = "solid block"
+    elif sprite_type == "metal":
+        display_name = "metal block"
+    elif sprite_type == "obstacle":
+        display_name = "vertical obstacle"
+    elif sprite_type == "bill":
+        display_name = "bullet bill"
+    elif sprite_type == "plant":
+        display_name = "piranha plant"
+    elif sprite_type == "hammerturtle":
+        display_name = "hammer bro"
+    elif sprite_type == "ceiling":
+        display_name = "brick ceiling"
+    elif sprite_type == "mushroom":
+        display_name = "giant mushroom platform"
+    elif sprite_type == "wood":
+        display_name = "giant tree platform"
+    
+    return display_name
 
 def get_floor_template(detector: SpriteDetector) -> np.ndarray:
     """
