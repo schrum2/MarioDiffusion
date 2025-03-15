@@ -302,13 +302,15 @@ class EnhancedSpriteDetector(SpriteDetector):
                     pattern = self.detect_pattern(locations, width, sprite_type)
                     if pattern:
                         pattern = " " + pattern
+                elif count == 1:
+                    pattern = " in the " + location_description_in_image(image, locations[0])
                 
                 descriptions.append(f"{quantity}{pattern}")
         
         # For enemies category, include enemy count
         if category == "enemies":
             # Special handling for enemy descriptions
-            return self._format_enemy_count_enhanced(sprite_locations)
+            return self._format_enemy_count_enhanced(image, sprite_locations)
             
         # Add any additional sprites from the original method that we might have missed
         simple_detected = super().detect_sprites_in_category(image, category)
@@ -327,7 +329,7 @@ class EnhancedSpriteDetector(SpriteDetector):
         
         return descriptions
     
-    def _format_enemy_count_enhanced(self, enemy_locations: Dict[str, List[Tuple[int, int]]]) -> List[str]:
+    def _format_enemy_count_enhanced(self, image, enemy_locations: Dict[str, List[Tuple[int, int]]]) -> List[str]:
         """Format enhanced enemy descriptions with counts and patterns."""
         result = []
         
@@ -351,7 +353,9 @@ class EnhancedSpriteDetector(SpriteDetector):
                 pattern = self.detect_pattern(locations, 256)  # Assuming typical screen width
                 if pattern:
                     result[-1] += f" {pattern}"
-        
+            elif count == 1:
+                result[-1] += " in the " + location_description_in_image(image, locations[0])
+
         return result
 
 def get_sprite_display_name(sprite_type):
@@ -646,6 +650,48 @@ def get_floor_template(detector: SpriteDetector) -> np.ndarray:
     
     # Return None if floor template not found
     return None
+
+def location_description_in_image(image, location):
+    """
+        Treat level as 3 by 3 grid and assign names to each section
+    """
+    height, width = image.shape[:2]
+    x,y = location
+
+    left = x < width / 3
+    right = x > width - (width / 3)
+    horizontal_center = not left and not right
+
+    top = y < height / 3
+    bottom = y > height - (height / 3)
+    vertical_center = not top and not bottom
+
+    if top and left:
+        return "top left"
+    elif top and right:
+        return "top right"
+    elif bottom and left:
+        return "bottom left"
+    elif bottom and right:
+        return "bottom right"
+    elif left and vertical_center:
+        return "center left"
+    elif right and vertical_center:
+        return "center right"
+    elif top and horizontal_center:
+        return "top center"
+    elif bottom and horizontal_center:
+        return "bottom center"
+    elif vertical_center and horizontal_center:
+        return "center"
+    else:
+        print("left",left)
+        print("right",right)
+        print("horizontal_center",horizontal_center)
+        print("top",top)
+        print("bottom",bottom)
+        print("vertical_center",vertical_center)
+        raise ValueError("How can this location not be placed? "+str(location))
 
 if __name__ == "__main__":
     import argparse
