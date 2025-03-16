@@ -60,62 +60,92 @@ class ParentBuilder:
     def create_checkboxes(self):
         for widget in self.checkbox_inner_frame.winfo_children():
             widget.destroy()
-        
+    
         self.checkbox_vars.clear()
-        
+        self.collapsible_frames = {}  # Store references to collapsible frames
+    
         # Define the specific phrases and their order
         predefined_phrases = [
             ("Level Type", ["overworld level", "underworld level"]),
             ("Sky Type", ["blue sky", "night sky"]),
             ("Floor Type", ["no floor", "full floor", "floor with gaps"])
         ]
+    
+        # Create a collapsible frame class
+        class CollapsibleFrame(ttk.Frame):
+            def __init__(self, parent, text="", *args, **kwargs):
+                ttk.Frame.__init__(self, parent, *args, **kwargs)
+                self.shown = False
+            
+                # Frame with header and toggle button
+                self.header_frame = ttk.Frame(self)
+                self.header_frame.pack(fill=tk.X, expand=True)
+            
+                # Toggle button (+ or -)
+                self.toggle_button = ttk.Label(self.header_frame, text="▶", width=2)
+                self.toggle_button.pack(side=tk.LEFT, padx=(0, 5))
+                self.toggle_button.bind("<Button-1>", self.toggle)
+            
+                # Header label
+                self.title_label = ttk.Label(self.header_frame, text=text, font=("Arial", 10, "bold"))
+                self.title_label.pack(side=tk.LEFT, fill=tk.X)
+                self.title_label.bind("<Button-1>", self.toggle)
+            
+                # Container for content
+                self.content_frame = ttk.Frame(self)
+            
+            def toggle(self, event=None):
+                if self.shown:
+                    self.content_frame.pack_forget()
+                    self.toggle_button.configure(text="▶")
+                else:
+                    self.content_frame.pack(fill=tk.X, expand=True, padx=(15, 0))
+                    self.toggle_button.configure(text="▼")
+                self.shown = not self.shown
+                return "break"
+            
+            def add_item(self, phrase, var, command):
+                checkbox = ttk.Checkbutton(self.content_frame, text=phrase, variable=var, command=command)
+                checkbox.pack(anchor=tk.W)
+    
+        # Function to process a group of phrases
+        def create_group(name, phrases_list):
+            frame = CollapsibleFrame(self.checkbox_inner_frame, text=name)
+            frame.pack(fill=tk.X, anchor=tk.W, pady=(5, 0))
+            self.collapsible_frames[name] = frame
         
-        # Add predefined phrases first with separators
-        for group_name, phrases in predefined_phrases:
-            group_label = ttk.Label(self.checkbox_inner_frame, text=group_name, font=("Arial", 10, "bold"))
-            group_label.pack(anchor=tk.W, pady=(10, 0))
-            for phrase in phrases:
+            for phrase in phrases_list:
                 if phrase in self.all_phrases:
                     var = tk.BooleanVar(value=False)
-                    checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.update_caption)
-                    checkbox.pack(anchor=tk.W)
+                    frame.add_item(phrase, var, self.update_caption)
                     self.checkbox_vars[phrase] = var
                     self.all_phrases.remove(phrase)
         
+            return frame
+    
+        # Add predefined phrases first
+        for group_name, phrases in predefined_phrases:
+            create_group(group_name, phrases)
+    
         # Group remaining phrases by common patterns
         def group_phrases_by_pattern(pattern):
-            #Special case for background tree
+            # Special case for background tree
             if pattern == "tree":
-                return [phrase for phrase in self.all_phrases if pattern in phrase and "giant" not in phrase] # Exclude "giant tree platform" 
+                return [phrase for phrase in self.all_phrases if pattern in phrase and "giant" not in phrase]  # Exclude "giant tree platform" 
             else:
                 return [phrase for phrase in self.all_phrases if pattern in phrase]
-        
+    
         patterns = ["cloud", "tree", "bush", "hill", 
-                    "pipe", "coin", # "brick ledge", 
-                    "cannon", # "obstacle", 
+                    "pipe", "coin", 
+                    "cannon", 
                     "girder", "question block", "solid block", "metal block", "mushroom", "giant tree", "brick block",
                     "bullet bill", "koopa", "goomba", "piranha plant", "spiny", "hammer bro", "helmet"]
-        
+    
         for pattern in patterns:
             grouped_phrases = group_phrases_by_pattern(pattern)
             if grouped_phrases:
-                group_label = ttk.Label(self.checkbox_inner_frame, text=f"{pattern.capitalize()} Phrases", font=("Arial", 10, "bold"))
-                group_label.pack(anchor=tk.W, pady=(10, 0))
-                for phrase in grouped_phrases:
-                    var = tk.BooleanVar(value=False)
-                    checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.update_caption)
-                    checkbox.pack(anchor=tk.W)
-                    self.checkbox_vars[phrase] = var
-                    self.all_phrases.remove(phrase)
-        
-        # Add a separator for remaining phrases
-        remaining_label = ttk.Label(self.checkbox_inner_frame, text="Other Phrases", font=("Arial", 10, "bold"))
-        remaining_label.pack(anchor=tk.W, pady=(10, 0))
-        
-        # Add the remaining phrases
-        for phrase in self.all_phrases:
-            var = tk.BooleanVar(value=False)
-            checkbox = ttk.Checkbutton(self.checkbox_inner_frame, text=phrase, variable=var, command=self.update_caption)
-            checkbox.pack(anchor=tk.W)
-            self.checkbox_vars[phrase] = var
+                create_group(f"{pattern.capitalize()} Phrases", grouped_phrases)
     
+        # Add remaining phrases
+        if self.all_phrases:
+            create_group("Other Phrases", self.all_phrases.copy())
