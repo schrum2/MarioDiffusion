@@ -256,14 +256,6 @@ class EnhancedSpriteDetector(SpriteDetector):
                         pattern = pattern + " in the " + list(loc_phrases)[0] # Convert back to list to access an index
                     elif "clustered" in pattern: # Refer to clustered elements with a single location, even if they straddle a border
                         pattern = pattern + " in the " + location_description_in_image(image, average_point(locations), sprite_type)
-                    elif len(loc_phrases) == 3 and all("bottom" in location for location in loc_phrases):
-                        pattern = pattern + " across the bottom"
-                    elif len(loc_phrases) == 3 and all("top" in location for location in loc_phrases):
-                        pattern = pattern + " across the top"
-                    elif len(loc_phrases) == 3 and all("left" in location for location in loc_phrases):
-                        pattern = pattern + " across the left side"
-                    elif len(loc_phrases) == 3 and all("right" in location for location in loc_phrases):
-                        pattern = pattern + " across the right side"
                     else: # len(loc_phrases) == count: # Each is in a different area
                         all_locations = location_phrase_sort(list(loc_phrases))
                         pattern = pattern + " in the " + (" and ".join(all_locations))
@@ -323,14 +315,6 @@ class EnhancedSpriteDetector(SpriteDetector):
                 loc_phrases = set(loc_phrases) # Eliminates duplicates
                 if len(loc_phrases) == 1: # They are all in the same area
                     result[-1] += " in the " + list(loc_phrases)[0] # Convert back to list to access an index
-                elif len(loc_phrases) == 3 and all("bottom" in location for location in loc_phrases):
-                    result[-1] += " across the bottom"
-                elif len(loc_phrases) == 3 and all("top" in location for location in loc_phrases):
-                    result[-1] += " across the top"
-                elif len(loc_phrases) == 3 and all("left" in location for location in loc_phrases):
-                    result[-1] += " across the left side"
-                elif len(loc_phrases) == 3 and all("right" in location for location in loc_phrases):
-                    result[-1] += " across the right side"
                 else: # if len(loc_phrases) == count: # Each is in a different area
                     result[-1] += " in the " + (" and ".join(location_phrase_sort(list(loc_phrases))))
 
