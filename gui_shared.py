@@ -91,7 +91,9 @@ class ParentBuilder:
                 return [phrase for phrase in self.all_phrases if pattern in phrase]
         
         patterns = ["cloud", "tree", "bush",
-                    "pipe", "coin", "brick ledge", "cannon", "obstacle", "girder", "question block", "solid block", "metal block", "mushroom", "giant tree", "brick block",
+                    "pipe", "coin", # "brick ledge", 
+                    "cannon", # "obstacle", 
+                    "girder", "question block", "solid block", "metal block", "mushroom", "giant tree", "brick block",
                     "bullet bill", "koopa", "goomba", "piranha plant", "spiny", "hammer bro", "helmet"]
         
         for pattern in patterns:

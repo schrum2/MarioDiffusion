@@ -182,7 +182,9 @@ class EnhancedSpriteDetector(SpriteDetector):
             if DEBUG: print(f"\tDetecting {sprite_name}")
 
             # Skip if not relevant for quantity analysis
-            if base_name not in ["coin", "brickblock", "mushroom", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", "brickledge", "cannon", "metal", "greenpipe", "whitepipe", "obstacle", "girder", "tree", "bush", "cloud", "stairs"]:
+            if base_name not in ["coin", "brickblock", "mushroom", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", # "brickledge", 
+                                 "cannon", "metal", "greenpipe", "whitepipe", # "obstacle", 
+                                 "girder", "tree", "bush", "cloud"]: # , "stairs"]:
                 continue
                 
             # Find all instances using template matching
@@ -214,65 +216,7 @@ class EnhancedSpriteDetector(SpriteDetector):
                 if not too_close:
                     sprite_locations[base_name].append(pt)
                     if DEBUG: print(f"\t\t{base_name} at {pt}")
-        
-
-        # Check for overlap between stairs and obstacles
-        if "stairs" in sprite_locations and "obstacle" in sprite_locations:
-            if DEBUG: print("remove obstacles that are stairs")
-            stairs_locations = sprite_locations["stairs"].copy()
-            obstacle_locations = sprite_locations["obstacle"].copy()
-    
-            # Clear the current obstacle locations list to rebuild it
-            sprite_locations["obstacle"] = []
-    
-            # Find template dimensions for stairs and obstacles
-            stairs_template = None
-            obstacle_template = None
-    
-            for _, gray_temp, name in self.templates[category]:
-                if "stairs" in name and stairs_template is None:
-                    stairs_template = gray_temp
-                if "obstacle" in name and obstacle_template is None:
-                    obstacle_template = gray_temp
-                if stairs_template is not None and obstacle_template is not None:
-                    break
-    
-            # If we couldn't find templates, crash
-            if stairs_template is None or obstacle_template is None:
-                print(f"\tWarning: Could not find templates for stairs or obstacles")
-                quit()
-    
-            stairs_h, stairs_w = stairs_template.shape
-            obstacle_h, obstacle_w = obstacle_template.shape
-    
-            # For each obstacle, check if it overlaps with any stairs
-            for obs_pt in obstacle_locations:
-                obs_x, obs_y = obs_pt
-                obs_rect = (obs_x, obs_y, obs_x + obstacle_w, obs_y + obstacle_h)
-        
-                # Check for intersection with any stairs
-                overlaps_with_stairs = False
-                for stairs_pt in stairs_locations:
-                    stairs_x, stairs_y = stairs_pt
-                    stairs_rect = (stairs_x, stairs_y, stairs_x + stairs_w, stairs_y + stairs_h)
-            
-                    # Check if rectangles intersect
-                    if (obs_rect[0] < stairs_rect[2] and obs_rect[2] > stairs_rect[0] and
-                        obs_rect[1] < stairs_rect[3] and obs_rect[3] > stairs_rect[1]):
-                        overlaps_with_stairs = True
-                        if DEBUG: print(f"\t\tRemoving obstacle at {obs_pt} - overlaps with stairs at {stairs_pt}")
-                        break
-        
-                # Keep this obstacle only if it doesn't overlap with any stairs
-                if not overlaps_with_stairs:
-                    sprite_locations["obstacle"].append(obs_pt)
-
-        # I looked up the stairs locations for the special obstacle comparison above,
-        # but I don't want the caption to say anything about stairs quantity. stairs
-        # will be added back by the simple_detected below (if present)
-        if "stairs" in sprite_locations: 
-            del sprite_locations["stairs"]
-
+     
         # Process results into descriptions
         descriptions = []
         
