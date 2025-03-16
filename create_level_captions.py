@@ -154,13 +154,6 @@ class EnhancedSpriteDetector(SpriteDetector):
             if avg_distance < self.pattern_distance_threshold:
                 return "clustered"
             
-        if sprite_type and sprite_type != "girder" and sprite_type != "cloud" and sprite_type != "tree" and sprite_type != "greenpipe" and sprite_type != "whitepipe" and sprite_type != "cannon" and sprite_type != "solidblock" and sprite_type != "metal" and sprite_type != "mushroom":
-            # Check if distributed across the screen
-            x_min, x_max = min(x_values), max(x_values)
-            # Need at least 3 to be scattered
-            if len(x_values) > 2 and x_max - x_min > image_width * 0.6:
-                return "scattered"
-            
         # Default if no clear pattern detected
         return ""
     
@@ -254,7 +247,7 @@ class EnhancedSpriteDetector(SpriteDetector):
                     loc_phrases = set(loc_phrases) # Eliminates duplicates
                     if len(loc_phrases) == 1: # They are all in the same area
                         pattern = pattern + " in the " + list(loc_phrases)[0] # Convert back to list to access an index
-                    elif "clustered" in pattern: # Refer to clustered elements with a single location, even if they straddle a border
+                    elif "clustered" in pattern or "line" in pattern: # Refer to clustered elements with a single location, even if they straddle a border
                         pattern = pattern + " in the " + location_description_in_image(image, average_point(locations), sprite_type)
                     else: # len(loc_phrases) == count: # Each is in a different area
                         all_locations = location_phrase_sort(list(loc_phrases))
