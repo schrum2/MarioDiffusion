@@ -236,8 +236,10 @@ class EnhancedSpriteDetector(SpriteDetector):
                 # Get quantity description
                 if count == 1:
                     quantity = f"a {display_name}"
-                elif count <= 3:
-                    quantity = f"a few {display_name}s"
+                elif count == 2:
+                    quantity = f"two {display_name}s"
+                elif count == 3:
+                    quantity = f"three {display_name}s"
                 else:
                     quantity = f"several {display_name}s"
                 
@@ -254,8 +256,17 @@ class EnhancedSpriteDetector(SpriteDetector):
                         pattern = pattern + " in the " + list(loc_phrases)[0] # Convert back to list to access an index
                     elif "clustered" in pattern: # Refer to clustered elements with a single location, even if they straddle a border
                         pattern = pattern + " in the " + location_description_in_image(image, average_point(locations), sprite_type)
-                    elif len(loc_phrases) == count: # Each is in a different area
-                        pattern = pattern + " in the " + (" and ".join(list(loc_phrases)))
+                    elif len(loc_phrases) == 3 and all("bottom" in location for location in loc_phrases):
+                        pattern = pattern + " across the bottom"
+                    elif len(loc_phrases) == 3 and all("top" in location for location in loc_phrases):
+                        pattern = pattern + " across the top"
+                    elif len(loc_phrases) == 3 and all("left" in location for location in loc_phrases):
+                        pattern = pattern + " across the left side"
+                    elif len(loc_phrases) == 3 and all("right" in location for location in loc_phrases):
+                        pattern = pattern + " across the right side"
+                    else: # len(loc_phrases) == count: # Each is in a different area
+                        all_locations = location_phrase_sort(list(loc_phrases))
+                        pattern = pattern + " in the " + (" and ".join(all_locations))
                 elif count == 1:
                     pattern = " in the " + location_description_in_image(image, locations[0], sprite_type)
                 
@@ -312,13 +323,40 @@ class EnhancedSpriteDetector(SpriteDetector):
                 loc_phrases = set(loc_phrases) # Eliminates duplicates
                 if len(loc_phrases) == 1: # They are all in the same area
                     result[-1] += " in the " + list(loc_phrases)[0] # Convert back to list to access an index
-                elif len(loc_phrases) == count: # Each is in a different area
-                    result[-1] += " in the " + (" and ".join(list(loc_phrases)))
+                elif len(loc_phrases) == 3 and all("bottom" in location for location in loc_phrases):
+                    result[-1] += " across the bottom"
+                elif len(loc_phrases) == 3 and all("top" in location for location in loc_phrases):
+                    result[-1] += " across the top"
+                elif len(loc_phrases) == 3 and all("left" in location for location in loc_phrases):
+                    result[-1] += " across the left side"
+                elif len(loc_phrases) == 3 and all("right" in location for location in loc_phrases):
+                    result[-1] += " across the right side"
+                else: # if len(loc_phrases) == count: # Each is in a different area
+                    result[-1] += " in the " + (" and ".join(location_phrase_sort(list(loc_phrases))))
 
             elif count == 1:
                 result[-1] += " in the " + location_description_in_image(image, locations[0], enemy_type)
 
         return result
+
+def location_phrase_sort(loc_phrases):
+    order = [
+        "top left",
+        "top center",
+        "top right",
+        "center left",
+        "center",
+        "center right",
+        "bottom left",
+        "bottom center",
+        "bottom right"
+    ]
+    
+    # Create a dictionary mapping each phrase to its index in the order list
+    order_dict = {phrase: index for index, phrase in enumerate(order)}
+    
+    # Sort loc_phrases based on the order dictionary
+    return sorted(loc_phrases, key=lambda x: order_dict.get(x, float('inf')))
 
 def get_sprite_display_name(sprite_type):
     display_name = sprite_type
