@@ -625,7 +625,7 @@ def location_description_in_image(image, location, sprite_type):
     horizontal_center = not left and not right
 
     # Horizontal only
-    if sprite_type in ["greenpipe", "whitepipe"]:
+    if sprite_type in ["greenpipe", "whitepipe", "tree"]:
         if left:
             return "left side"
         elif right:
