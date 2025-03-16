@@ -303,7 +303,7 @@ class EnhancedSpriteDetector(SpriteDetector):
                     if pattern:
                         pattern = " " + pattern
                 elif count == 1:
-                    pattern = " in the " + location_description_in_image(image, locations[0])
+                    pattern = " in the " + location_description_in_image(image, locations[0], sprite_type)
                 
                 descriptions.append(f"{quantity}{pattern}")
         
@@ -354,7 +354,7 @@ class EnhancedSpriteDetector(SpriteDetector):
                 if pattern:
                     result[-1] += f" {pattern}"
             elif count == 1:
-                result[-1] += " in the " + location_description_in_image(image, locations[0])
+                result[-1] += " in the " + location_description_in_image(image, locations[0], sprite_type)
 
         return result
 
@@ -651,7 +651,7 @@ def get_floor_template(detector: SpriteDetector) -> np.ndarray:
     # Return None if floor template not found
     return None
 
-def location_description_in_image(image, location):
+def location_description_in_image(image, location, sprite_type):
     """
         Treat level as 3 by 3 grid and assign names to each section
     """
@@ -661,6 +661,17 @@ def location_description_in_image(image, location):
     left = x < width / 3
     right = x > width - (width / 3)
     horizontal_center = not left and not right
+
+    # Horizontal only
+    if sprite_type in ["greenpipe", "whitepipe"]:
+        if left:
+            return "left side"
+        elif right:
+            return "right side"
+        elif horizontal_center:
+            return "the middle"
+        else:
+            raise ValueError("How can this location not be horizontally placed? "+str(location))
 
     top = y < height / 3
     bottom = y > height - (height / 3)
