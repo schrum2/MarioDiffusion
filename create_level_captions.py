@@ -618,11 +618,6 @@ def location_description_in_image(image, location, sprite_type):
         Treat level as 3 by 3 grid and assign names to each section
     """
     height, width = image.shape[:2]
-    # images should be 256 by 256. However, the height is padded to make them square.
-    # Original heights are 224 or 208 depending on the level, so settle on 224
-    height = 224
-    buffer = 256 - height
-
     x,y = location
 
     left = x < width / 3
@@ -640,8 +635,8 @@ def location_description_in_image(image, location, sprite_type):
         else:
             raise ValueError("How can this location not be horizontally placed? "+str(location))
 
-    top = y - buffer < height / 3
-    bottom = y - buffer > height - (height / 3)
+    top = y < height / 3
+    bottom = y > height - (height / 3)
     vertical_center = not top and not bottom
 
     if top and left:
