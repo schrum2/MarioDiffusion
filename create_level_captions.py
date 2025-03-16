@@ -178,7 +178,7 @@ class EnhancedSpriteDetector(SpriteDetector):
             # Skip if not relevant for quantity analysis
             if base_name not in ["coin", "brickblock", "mushroom", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", # "brickledge", 
                                  "cannon", "metal", "greenpipe", "whitepipe", # "obstacle", 
-                                 "girder", "tree", "bush", "cloud"]: # , "stairs"]:
+                                 "girder", "tree", "bush", "cloud", "hill"]: # , "stairs"]:
                 continue
                 
             # Find all instances using template matching
@@ -640,7 +640,7 @@ def location_description_in_image(image, location, sprite_type):
     horizontal_center = not left and not right
 
     # Horizontal only
-    if sprite_type in ["greenpipe", "whitepipe", "tree"]:
+    if sprite_type in ["greenpipe", "whitepipe", "tree", "hill"]:
         if left:
             return "left side"
         elif right:
