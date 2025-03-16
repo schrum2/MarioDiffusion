@@ -251,6 +251,8 @@ class EnhancedSpriteDetector(SpriteDetector):
                     loc_phrases = set(loc_phrases) # Eliminates duplicates
                     if len(loc_phrases) == 1: # They are all in the same area
                         pattern = pattern + " in the " + list(loc_phrases)[0] # Convert back to list to access an index
+                    elif "clustered" in pattern: # Refer to clustered elements with a single location, even if they straddle a border
+                        pattern = pattern + " in the " + location_description_in_image(image, average_point(locations), sprite_type)
                     elif len(loc_phrases) == count: # Each is in a different area
                         pattern = pattern + " in the " + (" and ".join(list(loc_phrases)))
                 elif count == 1:
@@ -662,6 +664,24 @@ def location_description_in_image(image, location, sprite_type):
         print("bottom",bottom)
         print("vertical_center",vertical_center)
         raise ValueError("How can this location not be placed? "+str(location))
+
+def average_point(points):
+    """
+    Calculates the average point of a list of two-tuples.
+
+    Args:
+      points: A list of two-tuples representing points in 2D space.
+
+    Returns:
+      A tuple representing the average point, or None if the input list is empty.
+    """
+    if not points:
+        return None
+
+    x_sum = sum(x for x, y in points)
+    y_sum = sum(y for x, y in points)
+
+    return (x_sum / len(points), y_sum / len(points))
 
 if __name__ == "__main__":
     import argparse
