@@ -246,12 +246,13 @@ class EnhancedSpriteDetector(SpriteDetector):
                     pattern = self.detect_pattern(locations, width, sprite_type)
                     if pattern:
                         pattern = " " + pattern
-                        loc_phrases = [location_description_in_image(image, v, sprite_type) for v in locations]
-                        loc_phrases = set(loc_phrases) # Eliminates duplicates
-                        if len(loc_phrases) == 1: # They are all in the same area
-                            pattern = pattern + " in the " + list(loc_phrases)[0] # Convert back to list to access an index
-                        elif len(loc_phrases) == count: # Each is in a different area
-                            pattern = pattern + " in the " + (" and ".join(list(loc_phrases)))
+                        
+                    loc_phrases = [location_description_in_image(image, v, sprite_type) for v in locations]
+                    loc_phrases = set(loc_phrases) # Eliminates duplicates
+                    if len(loc_phrases) == 1: # They are all in the same area
+                        pattern = pattern + " in the " + list(loc_phrases)[0] # Convert back to list to access an index
+                    elif len(loc_phrases) == count: # Each is in a different area
+                        pattern = pattern + " in the " + (" and ".join(list(loc_phrases)))
                 elif count == 1:
                     pattern = " in the " + location_description_in_image(image, locations[0], sprite_type)
                 
@@ -303,12 +304,14 @@ class EnhancedSpriteDetector(SpriteDetector):
                 pattern = self.detect_pattern(locations, 256)  # Assuming typical screen width
                 if pattern:
                     result[-1] += f" {pattern}"
-                    loc_phrases = [location_description_in_image(image, v, enemy_type) for v in locations]
-                    loc_phrases = set(loc_phrases) # Eliminates duplicates
-                    if len(loc_phrases) == 1: # They are all in the same area
-                        result[-1] += " in the " + list(loc_phrases)[0] # Convert back to list to access an index
-                    elif len(loc_phrases) == count: # Each is in a different area
-                        result[-1] += " in the " + (" and ".join(list(loc_phrases)))
+
+                loc_phrases = [location_description_in_image(image, v, enemy_type) for v in locations]
+                loc_phrases = set(loc_phrases) # Eliminates duplicates
+                if len(loc_phrases) == 1: # They are all in the same area
+                    result[-1] += " in the " + list(loc_phrases)[0] # Convert back to list to access an index
+                elif len(loc_phrases) == count: # Each is in a different area
+                    result[-1] += " in the " + (" and ".join(list(loc_phrases)))
+
             elif count == 1:
                 result[-1] += " in the " + location_description_in_image(image, locations[0], enemy_type)
 
