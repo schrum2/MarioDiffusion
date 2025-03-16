@@ -200,16 +200,20 @@ class EnhancedSpriteDetector(SpriteDetector):
                 
             # Add all matched locations, with non-max suppression to avoid duplicates
             for pt in zip(*locations[::-1]):  # Convert from (y,x) to (x,y)
+                # Calculate center coordinates
+                center_x = pt[0] + template_w // 2
+                center_y = pt[1] + template_h // 2
+    
                 # Check if this point is too close to an already detected point
                 too_close = False
                 for existing_x, existing_y in sprite_locations[base_name]:
-                    if abs(pt[0] - existing_x) < template_w/2 and abs(pt[1] - existing_y) < template_h/2:
+                    if abs(center_x - existing_x) < template_w/2 and abs(center_y - existing_y) < template_h/2:
                         too_close = True
                         break
-                
+    
                 if not too_close:
-                    sprite_locations[base_name].append(pt)
-                    if DEBUG: print(f"\t\t{base_name} at {pt}")
+                    sprite_locations[base_name].append((center_x, center_y))
+                    if DEBUG: print(f"\t\t{base_name} at center ({center_x}, {center_y})")
      
         # Process results into descriptions
         descriptions = []
