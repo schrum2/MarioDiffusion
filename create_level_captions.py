@@ -148,12 +148,13 @@ class EnhancedSpriteDetector(SpriteDetector):
                 all_distances.append(distance)
             
         # Don't let brickledges or girders cluster    
-        if sprite_type != "brickledge" and sprite_type != "girder":
+        #if sprite_type != "brickledge" and sprite_type != "girder":
+        if sprite_type != "girder":
             avg_distance = sum(all_distances) / len(all_distances) if all_distances else float('inf')
             if avg_distance < self.pattern_distance_threshold:
                 return "clustered"
             
-        if sprite_type and sprite_type != "brickledge" and sprite_type != "girder" and sprite_type != "cloud" and sprite_type != "tree" and sprite_type != "greenpipe" and sprite_type != "whitepipe" and sprite_type != "cannon" and sprite_type != "solidblock" and sprite_type != "metal" and sprite_type != "mushroom":
+        if sprite_type and sprite_type != "girder" and sprite_type != "cloud" and sprite_type != "tree" and sprite_type != "greenpipe" and sprite_type != "whitepipe" and sprite_type != "cannon" and sprite_type != "solidblock" and sprite_type != "metal" and sprite_type != "mushroom":
             # Check if distributed across the screen
             x_min, x_max = min(x_values), max(x_values)
             # Need at least 3 to be scattered
@@ -226,7 +227,7 @@ class EnhancedSpriteDetector(SpriteDetector):
                 continue
                 
             count = len(locations)
-            if sprite_type in ["girder", "brickledge", "mushroom"]:
+            if sprite_type in ["girder", "mushroom"]:
                 count = len(set([y for x, y in locations]))  # Count unique y-values
 
             display_name = get_sprite_display_name(sprite_type)
@@ -330,16 +331,16 @@ def get_sprite_display_name(sprite_type):
         display_name = "white pipe"
     elif sprite_type == "whitepipe":
         display_name = "white pipe"
-    elif sprite_type == "brickledge":
-        display_name = "brick ledge"
+    #elif sprite_type == "brickledge":
+    #    display_name = "brick ledge"
     elif sprite_type == "brickblock":
         display_name = "brick block"
     elif sprite_type == "solidblock":
         display_name = "solid block"
     elif sprite_type == "metal":
         display_name = "metal block"
-    elif sprite_type == "obstacle":
-        display_name = "vertical obstacle"
+    #elif sprite_type == "obstacle":
+    #    display_name = "vertical obstacle"
     elif sprite_type == "bill":
         display_name = "bullet bill"
     elif sprite_type == "plant":
