@@ -32,6 +32,10 @@ class ImageBrowser(ParentBuilder):
         self.canvas.bind('<Configure>', self.configure_canvas)  # Handle resizing
         self.canvas.bind_all("<MouseWheel>", self._on_mouse_wheel) # Scroll with mouse wheel
 
+        self.show_grid = tk.BooleanVar(value=False)
+        self.grid_checkbox = ttk.Checkbutton(self.checkbox_frame, text="Grid lines", variable=self.show_grid, command=self.display_images)
+        self.grid_checkbox.pack(anchor=tk.E) #, side=tk.LEFT, fill=tk.BOTH, expand=True)
+
     # Overrides parent version
     def load_data(self, filepath = None):
 
@@ -101,12 +105,41 @@ class ImageBrowser(ParentBuilder):
             if image_path:  # Check if image exists
                 try:
                     img = Image.open(image_path)
-                    img.thumbnail((300, 300))  # Resize for display
+                    img.thumbnail((256, 256))  # Resize for display
                     photo = ImageTk.PhotoImage(img)
 
                     # Display image
                     self.canvas.create_image(10, y_position, anchor=tk.NW, image=photo, tags=("image_item",))
                     self.canvas.images.append(photo)  # Store reference
+
+                    # Draw grid lines if checkbox is checked
+                    if self.show_grid:
+                        img_width = photo.width()
+                        img_height = photo.height()
+                        
+                        # Draw vertical lines
+                        self.canvas.create_line(
+                            10 + LEFT_LINE, y_position,
+                            10 + LEFT_LINE, y_position + img_height,
+                            fill="green", width=2, tags=("grid_line",)
+                        )
+                        self.canvas.create_line(
+                            10 + RIGHT_LINE, y_position,
+                            10 + RIGHT_LINE, y_position + img_height,
+                            fill="green", width=2, tags=("grid_line",)
+                        )
+                        
+                        # Draw horizontal lines
+                        self.canvas.create_line(
+                            10, y_position + TOP_LINE,
+                            10 + img_width, y_position + TOP_LINE,
+                            fill="green", width=2, tags=("grid_line",)
+                        )
+                        self.canvas.create_line(
+                            10, y_position + BOTTOM_LINE,
+                            10 + img_width, y_position + BOTTOM_LINE,
+                            fill="green", width=2, tags=("grid_line",)
+                        )
 
                     y_position += img.height + 10  # Move down after the image
 
