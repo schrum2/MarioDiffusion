@@ -32,16 +32,9 @@ class ImageBrowser(ParentBuilder):
         self.canvas.bind('<Configure>', self.configure_canvas)  # Handle resizing
         self.canvas.bind_all("<MouseWheel>", self._on_mouse_wheel) # Scroll with mouse wheel
 
-        self.show_grid = False
-
-        #self.grid_var = tk.BooleanVar(value=False)
-        #self.grid_checkbox = ttk.Checkbutton(self.checkbox_frame, text="Grid lines", variable=self.grid_var, command=self.toggle_grid)
-        #self.grid_checkbox.pack(anchor=tk.E) #, side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-    def toggle_grid(self):
-        """Toggle grid display and refresh images"""
-        self.show_grid = self.grid_var.get()
-        self.display_images()
+        self.show_grid = tk.BooleanVar(value=False)
+        self.grid_checkbox = ttk.Checkbutton(self.checkbox_frame, text="Grid lines", variable=self.show_grid, command=self.display_images)
+        self.grid_checkbox.pack(anchor=tk.E) #, side=tk.LEFT, fill=tk.BOTH, expand=True)
 
     # Overrides parent version
     def load_data(self, filepath = None):
@@ -101,7 +94,6 @@ class ImageBrowser(ParentBuilder):
 
     def display_images(self):
         self.canvas.delete("image_item")  # Clear previous images
-        self.canvas.delete("grid_line")   # Clear any previous grid lines
         self.canvas.yview_moveto(0)  # Reset scrollbar to top
         y_position = 10
         self.canvas.images = []  # Keep references to prevent garbage collection
@@ -169,7 +161,6 @@ class ImageBrowser(ParentBuilder):
 
     def configure_canvas(self, event):
         self.canvas.config(scrollregion=self.canvas.bbox("all"))
-        self.display_images()  # Redraw images when canvas is resized
 
     def _on_mouse_wheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
