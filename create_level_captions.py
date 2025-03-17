@@ -4,6 +4,8 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+from boundaries import *
+
 DEBUG = False
 
 class SpriteDetector:
@@ -639,8 +641,8 @@ def location_description_in_image(image, location, sprite_type):
     height, width = image.shape[:2]
     x,y = location
 
-    left = x < width / 3
-    right = x > width - (width / 3)
+    left = x < LEFT_LINE
+    right = x > RIGHT_LINE
     horizontal_center = not left and not right
 
     # Horizontal only
@@ -654,8 +656,8 @@ def location_description_in_image(image, location, sprite_type):
         else:
             raise ValueError("How can this location not be horizontally placed? "+str(location))
 
-    top = y < height / 3
-    bottom = y > height - (height / 3)
+    top = y < TOP_LINE
+    bottom = y > BOTTOM_LINE
     vertical_center = not top and not bottom
 
     if top and left:

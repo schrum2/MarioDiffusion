@@ -1,0 +1,6 @@
+
+TOP_LINE = 256 / 3
+BOTTOM_LINE = 256 - (256 / 3)
+
+LEFT_LINE = 256 / 3
+RIGHT_LINE = 256 - (256 / 3)

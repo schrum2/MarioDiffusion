@@ -6,6 +6,8 @@ from PIL import Image, ImageTk
 import sys
 from gui_shared import ParentBuilder
 
+from boundaries import *
+
 # From Gemini initially, but with many changes since
 
 class ImageBrowser(ParentBuilder):
