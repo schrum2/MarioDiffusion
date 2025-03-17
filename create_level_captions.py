@@ -176,7 +176,7 @@ class EnhancedSpriteDetector(SpriteDetector):
             if DEBUG: print(f"\tDetecting {sprite_name}")
 
             # Skip if not relevant for quantity analysis
-            if base_name not in ["coin", "brickblock", "mushroom", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", # "brickledge", 
+            if base_name not in ["coin", "brickblock", "mushroom", "wood", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", # "brickledge", 
                                  "cannon", "metal", "greenpipe", "whitepipe", # "obstacle", 
                                  "girder", "tree", "bush", "cloud", "hill"]: # , "stairs"]:
                 continue
@@ -224,7 +224,7 @@ class EnhancedSpriteDetector(SpriteDetector):
                 continue
                 
             count = len(locations)
-            if sprite_type in ["girder", "mushroom"]:
+            if sprite_type in ["girder", "mushroom", "wood"]:
                 count = len(set([y for x, y in locations]))  # Count unique y-values
 
             display_name = get_sprite_display_name(sprite_type)
