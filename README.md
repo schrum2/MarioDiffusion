@@ -32,7 +32,11 @@ Once the captions have been created, you can browse them using a GUI with this c
 ```
 python data_browser.py SMB1\\metadata.jsonl
 ```
-These captions are used to train the LoRA model with this command:
+Before training, some of the images in `SMB1` need to be deleted, because they contain sprites that are not captioned. Run this command:
+```
+python filter_training_data.py
+```
+The remaining data and captions are used to train the LoRA model with this command:
 ```
 python train_sd15_lora.py -t SMB1 -o SMB1_LoRA -r 256 -s mario --plot_loss
 ```
