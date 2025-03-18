@@ -280,7 +280,7 @@ class EnhancedSpriteDetector(SpriteDetector):
                     loc_phrases = set(loc_phrases) # Eliminates duplicates
                     if len(loc_phrases) == 1: # They are all in the same area
                         pattern = pattern + " in the " + list(loc_phrases)[0] # Convert back to list to access an index
-                    elif "clustered" in pattern or "line" in pattern: # Refer to clustered elements with a single location, even if they straddle a border
+                    elif "clustered" in pattern: # or "line" in pattern: # Refer to clustered elements with a single location, even if they straddle a border
                         pattern = pattern + " in the " + location_description_in_image(image, average_point(locations), sprite_type)
                     else: # len(loc_phrases) == count: # Each is in a different area
                         all_locations = location_phrase_sort(list(loc_phrases))
