@@ -137,7 +137,7 @@ class ParentBuilder:
     
         patterns = ["cloud", "tree", "bush", "hill", 
                     "pipe", "coin", 
-                    "cannon", 
+                    "cannon", "staircase",
                     "girder", "question block", "solid block", "metal block", "mushroom", "giant tree", "brick block",
                     "bullet bill", "koopa", "goomba", "piranha plant", "spiny", "hammer bro", "helmet"]
     
