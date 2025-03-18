@@ -728,7 +728,7 @@ def add_arguments(parser):
 
     # Image samples
     parser.add_argument("--sample_interval", type=int, default=10, help="Generate sample images every N epochs (0 to disable)")
-    parser.add_argument("--sample_prompt", type=str, default="overworld level. blue sky. full floor. several bricks. a few questionblocks in a horizontal line. many solidblocks. three goombas. a brickledge. a cloud. a obstacle. a greenpipe. stairs", help="Prompt to use for sample image generation")
+    parser.add_argument("--sample_prompt", type=str, default="overworld level. blue sky. floor with gaps. two brick blocks in the bottom left. a question block in the bottom left. several solid blocks clustered in the bottom right. two goombas clustered in the bottom left and bottom center. three clouds in the top left and top right. a green pipe in the right side. a staircase in the right side", help="Prompt to use for sample image generation")
     parser.add_argument("--num_samples", type=int, default=4, help="Number of sample images to generate")
 
 if __name__ == "__main__":
