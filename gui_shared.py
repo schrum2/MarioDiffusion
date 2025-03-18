@@ -105,8 +105,16 @@ class ParentBuilder:
                 return "break"
             
             def add_item(self, phrase, var, command):
-                checkbox = ttk.Checkbutton(self.content_frame, text=phrase, variable=var, command=command)
-                checkbox.pack(anchor=tk.W)
+                checkbox = tk.Checkbutton(
+                    self.content_frame, 
+                    text=phrase, 
+                    variable=var, 
+                    command=command,     
+                    wraplength=300,  # Adjust wrap length in pixels
+                    anchor="w",
+                    justify="left"
+                )
+                checkbox.pack(anchor=tk.W, fill=tk.X)
     
         # Function to process a group of phrases
         def create_group(name, phrases_list):
