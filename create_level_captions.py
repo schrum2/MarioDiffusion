@@ -180,7 +180,7 @@ class EnhancedSpriteDetector(SpriteDetector):
             # Skip if not relevant for quantity analysis
             if base_name not in ["coin", "brickblock", "mushroom", "wood", "solidblock", "questionblock", "goomba", "koopa", "bill", "helmet", "hammerturtle", "plant", "spiny", # "brickledge", 
                                  "cannon", "metal", "greenpipe", "whitepipe", # "obstacle", 
-                                 "girder", "tree", "bush", "cloud", "hill"]: # , "stairs"]:
+                                 "girder", "tree", "bush", "cloud", "hill", "staircase"]:
                 continue
                 
             # Find all instances using template matching
@@ -229,6 +229,33 @@ class EnhancedSpriteDetector(SpriteDetector):
             if sprite_type in ["girder", "mushroom", "wood"]:
                 count = len(set([y for x, y in locations]))  # Count unique y-values
 
+            if sprite_type == "staircase" and count > 0:
+                    threshold = 48
+                    # Sort by x-coordinate
+                    locations.sort(key=lambda loc: loc[0])
+
+                    grouped_locations = []
+                    current_group = [locations[0]]
+
+                    for x, y in locations[1:]:
+                        prev_x, _ = current_group[-1]
+                        if x - prev_x < threshold:
+                            current_group.append((x, y))
+                        else:
+                            # Compute average for the completed group
+                            avg_x = sum(loc[0] for loc in current_group) / len(current_group)
+                            avg_y = sum(loc[1] for loc in current_group) / len(current_group)
+                            grouped_locations.append((avg_x, avg_y))
+                            current_group = [(x, y)]
+
+                    # Don't forget the last group
+                    avg_x = sum(loc[0] for loc in current_group) / len(current_group)
+                    avg_y = sum(loc[1] for loc in current_group) / len(current_group)
+                    grouped_locations.append((avg_x, avg_y))
+
+                    count = len(grouped_locations)
+                    locations = grouped_locations
+            
             display_name = get_sprite_display_name(sprite_type)
 
             if count > 0:
@@ -646,7 +673,7 @@ def location_description_in_image(image, location, sprite_type):
     horizontal_center = not left and not right
 
     # Horizontal only
-    if sprite_type in ["greenpipe", "whitepipe", "tree", "hill"]:
+    if sprite_type in ["greenpipe", "whitepipe", "tree", "hill", "staircase"]:
         if left:
             return "left side"
         elif right:
