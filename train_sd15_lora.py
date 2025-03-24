@@ -584,13 +584,13 @@ def main(args):
             if accelerator.is_main_process:
                 # Temporarily convert model to float32 # WHY!!!
                 unwrapped_unet = accelerator.unwrap_model(unet)
-                #unwrapped_unet = unwrapped_unet.to(torch.float32)
+                unwrapped_unet = unwrapped_unet.to(torch.float32)
         
                 # Create a pipeline with the current state of the model
                 eval_pipe = StableDiffusionPipeline.from_pretrained(
                     pretrained_model_name_or_path,
                     unet=unwrapped_unet,
-                    torch_dtype=weight_dtype
+                    torch_dtype=torch.float32
                 ).to(device)
         
                 # Generate and save samples
