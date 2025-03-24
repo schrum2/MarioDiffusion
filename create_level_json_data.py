@@ -50,8 +50,8 @@ def main(tileset_path, levels_dir, output_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tileset', required=True, help='Path to the tile set JSON')
-    parser.add_argument('--levels', required=True, help='Directory containing level text files')
+    parser.add_argument('--tileset', default='..\TheVGLC\Super Mario Bros\smb.json', help='Path to the tile set JSON')
+    parser.add_argument('--levels', default='..\TheVGLC\Super Mario Bros\Processed', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output JSON file')
     args = parser.parse_args()
     main(args.tileset, args.levels, args.output)

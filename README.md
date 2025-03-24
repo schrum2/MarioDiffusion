@@ -25,11 +25,11 @@ STEPS TO TRAIN A DISCRETE DIFFUSION MODEL:
 
 Extract a json data set of 16 by 16 level scenes from the VGLC data for Super Mario Bros with this command:
 ```
-python create_level_json_data.py --tileset '..\TheVGLC\Super Mario Bros\smb.json' --levels '..\TheVGLC\Super Mario Bros\Processed'  --output "SMB1_Levels.json"
+python create_level_json_data.py --output "SMB1_Levels.json"
 ```
 Now you can browse the level scene data created by the previous command with this command:
 ```
-python ascii_data_browser.py SMB1_Levels.json '..\TheVGLC\Super Mario Bros\smb.json'
+python ascii_data_browser.py SMB1_Levels.json 
 ```
 
 
