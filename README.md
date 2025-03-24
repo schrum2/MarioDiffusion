@@ -20,6 +20,18 @@ Before running any code, install all requirements with pip:
 ```
 pip install -r requirements.txt
 ```
+
+STEPS TO TRAIN A DISCRETE DIFFUSION MODEL:
+
+Extract a json data set of 16 by 16 level scenes from the VGLC data for Super Mario Bros with this command:
+python create_level_json_data.py --tileset '..\TheVGLC\Super Mario Bros\smb.json' --levels '..\TheVGLC\Super Mario Bros\Processed'  --output "SMB1_Levels.json"
+
+
+
+
+
+STEPS BELOW CREATE IMAGES TO TRAIN A STABLE DIFFUSION LORA:
+
 From here, extract an image dataset of level scenes from the level images in TheVGLC:
 ```
 python create_level_squares.py "..\\TheVGLC\\Super Mario Bros\\Original" SMB1
@@ -45,12 +57,3 @@ Note that the resolution is set to 256, since that is the size of the training i
 python interactive_level_generator.py SMB1\\metadata.jsonl <safetensors file>
 ```
 You will have to supply the path to the trained safetensors LoRA model. Or you could simply leave these parameters out and use the buttons in the GUI to load the needed files.
-
-
-
-
-?? interactive plot does not work?
-C:\Users\schrum2\Documents\GitHub\SDTinker\train_sd15_lora.py:89: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-  plt.show()
-?? This command also creates a GUI to plot the change in loss over time. ??
-
