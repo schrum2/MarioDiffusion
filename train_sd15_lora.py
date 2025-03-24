@@ -698,7 +698,7 @@ def add_arguments(parser):
     # Model configuration
     parser.add_argument("--pretrained_model", type=str, default="runwayml/stable-diffusion-v1-5", help="Pretrained model name or path")
     parser.add_argument("--lora_rank", type=int, default=16, help="Rank for LoRA training")
-    parser.add_argument("--lora_alpha", type=int, default=32, help="Alpha for LoRA training")
+    parser.add_argument("--lora_alpha", type=int, default=16, help="Alpha for LoRA training")
     
     # Dataset options
     parser.add_argument("--dataset_name", type=str, default=None, help="HuggingFace dataset name")
