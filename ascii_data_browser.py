@@ -6,9 +6,17 @@ class TileViewer(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Tile Dataset Viewer")
-        self.geometry("900x700")
+        
+        # Get screen size and adjust canvas size dynamically
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        
+        self.window_size = min(screen_width, screen_height) * 0.75  # 75% of smaller dimension
+        self.tile_size = int(self.window_size / 20)  # Keep padding/margins in mind
+        self.font_size = max(self.tile_size // 2, 8)  # Ensure font is readable
+        
         self.dataset = []
-        self.tile_id_to_char = {}
+        self.id_to_char = {}
         self.current_sample_idx = 0
         self.show_ids = tk.BooleanVar(value=False)
 
@@ -17,7 +25,7 @@ class TileViewer(tk.Tk):
 
     def create_widgets(self):
         frame = tk.Frame(self)
-        frame.pack(pady=10)
+        frame.pack(pady=5)
 
         load_button = tk.Button(frame, text="Load Dataset & Tileset", command=self.load_files)
         load_button.pack()
@@ -25,13 +33,14 @@ class TileViewer(tk.Tk):
         self.checkbox = tk.Checkbutton(self, text="Show numeric IDs", variable=self.show_ids, command=self.redraw)
         self.checkbox.pack()
 
-        self.canvas = tk.Canvas(self, bg="white", width=800, height=800)
+        # Create dynamically sized canvas
+        self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size)
         self.canvas.pack()
 
         nav_frame = tk.Frame(self)
-        nav_frame.pack(pady=10)
-        tk.Button(nav_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=10)
-        tk.Button(nav_frame, text="Next >>", command=self.next_sample).pack(side=tk.LEFT, padx=10)
+        nav_frame.pack(pady=5)
+        tk.Button(nav_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=5)
+        tk.Button(nav_frame, text="Next >>", command=self.next_sample).pack(side=tk.LEFT, padx=5)
 
     def load_files(self):
         dataset_path = filedialog.askopenfilename(title="Select dataset JSON")
@@ -59,16 +68,15 @@ class TileViewer(tk.Tk):
         self.canvas.delete("all")
         sample = self.dataset[self.current_sample_idx]
 
-        cell_size = 40  # Size per tile cell
-        font = ("Courier", 16)
+        font = ("Courier", self.font_size)
 
         for y in range(16):
             for x in range(16):
                 tile_id = sample[y][x]
                 text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
                 self.canvas.create_text(
-                    x * cell_size + cell_size // 2,
-                    y * cell_size + cell_size // 2,
+                    x * self.tile_size + self.tile_size // 2,
+                    y * self.tile_size + self.tile_size // 2,
                     text=text,
                     font=font,
                     anchor="center"
