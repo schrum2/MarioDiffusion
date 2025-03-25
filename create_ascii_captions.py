@@ -2,6 +2,12 @@ import json
 import sys
 import os
 
+WIDTH = 16
+HEIGHT = 16
+
+BOTTOM = 16
+CEILING = 4
+
 def get_tile_descriptors(tileset):
     """Creates a mapping from tile character to its list of descriptors."""
     return {char: set(attrs) for char, attrs in tileset["tiles"].items()}
@@ -12,9 +18,9 @@ def analyze_floor(scene, id_to_char, tile_descriptors):
     solid_count = sum(1 for tile in last_row if "solid" in tile_descriptors.get(id_to_char[tile], []))
     passable_count = sum(1 for tile in last_row if "passable" in tile_descriptors.get(id_to_char[tile], []))
 
-    if solid_count == 16:
+    if solid_count == WIDTH:
         return "full floor"
-    elif passable_count == 16:
+    elif passable_count == WIDTH:
         return "no floor"
     elif solid_count > passable_count:
         # Count contiguous groups of passable tiles
@@ -83,7 +89,7 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors):
     Analyzes row 4 (0-based index) to detect a ceiling.
     Returns a caption phrase or an empty string if no ceiling is detected.
     """
-    ceiling_row = 4
+    ceiling_row = CEILING 
     if ceiling_row >= len(scene):
         return ""  # Scene too short to have a ceiling
 
@@ -91,9 +97,9 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors):
     solid_count = sum(1 for tile in row if "solid" in tile_descriptors.get(id_to_char[tile], []))
     passable_count = sum(1 for tile in row if "passable" in tile_descriptors.get(id_to_char[tile], []))
 
-    if solid_count == 16:
+    if solid_count == WIDTH:
         return " full ceiling."
-    elif solid_count > 8:
+    elif solid_count > WIDTH//2:
         # Count contiguous gaps of passable tiles
         gaps = 0
         in_gap = False
@@ -295,14 +301,15 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
             if (row, col) in visited or (row, col) in already_accounted:
                 continue
             tile = scene[row][col]
-            if "solid" in tile_descriptors.get(id_to_char[tile], []):
+            descriptors = tile_descriptors.get(id_to_char[tile], [])
+            if "solid" in descriptors and "pipe" not in descriptors:
                 structure = flood_fill(scene, visited, row, col, id_to_char, tile_descriptors, already_accounted)
                 if len(structure) >= 4:  # Ignore tiny groups
                     structures.append(structure)
 
     return structures
 
-def describe_structures(structures, ceiling_row=4):
+def describe_structures(structures, ceiling_row=CEILING):
     descriptions = []
     for struct in structures:
         min_row = min(pos[0] for pos in struct)
@@ -352,6 +359,9 @@ def generate_captions(dataset_path, tileset_path, output_path):
     captioned_dataset = []
     for scene in dataset:
         already_accounted = set()
+        # Include all of floor, even empty tiles
+        for x in range(WIDTH):
+            already_accounted.add( (BOTTOM - 1,x) )
 
         caption = analyze_floor(scene, id_to_char, tile_descriptors) + "."
         ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors)
