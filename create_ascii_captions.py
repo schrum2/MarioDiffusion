@@ -108,7 +108,7 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors):
     else:
         return ""  # Not enough solid tiles for a ceiling
 
-def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False, exclude_rows = []):
+def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False, exclude_rows = [], already_accounted = set()):
     """
     Finds horizontal lines (runs) of tiles with the target descriptor.
     - Skips the bottom row
@@ -121,6 +121,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
     width = len(scene[0]) if height > 0 else 0
 
     for y in range(height - 1):  # Skip bottom row
+        possible_locations = set()
         if y in exclude_rows:
             continue # Could skip ceiling
 
@@ -166,12 +167,16 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
                             break
                         if y + 1 < height and "solid" in tile_descriptors.get(id_to_char[scene[y + 1][x]], []):
                             break
+
+                    possible_locations.add( (y,x) )
                     x += 1
                 else:
                     break
             run_length = x - run_start
             if run_length >= min_run_length:
+                already_accounted.update(possible_locations) # Blocks of the line are now accounted for
                 lines.append((y, run_start, x - 1))
+
     return lines
 
 def describe_horizontal_lines(lines, label):
@@ -188,7 +193,7 @@ def describe_horizontal_lines(lines, label):
     plural = label + "s" if count > 1 else label
     return f" {count} {plural} at row{'s' if count > 1 else ''} {rows_text}."
 
-def analyze_staircases(scene, id_to_char, tile_descriptors, verticality):
+def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
     """
     Detects staircases in the scene.
     verticality = 1 for descending, verticality = -1 for ascending
@@ -206,10 +211,10 @@ def analyze_staircases(scene, id_to_char, tile_descriptors, verticality):
         # Try to find the start of a staircase
         step_cols = []
         for start_row in range(0 if verticality == 1 else 3, height - 3 if verticality == 1 else height - 1):
-            if is_staircase_from(scene, id_to_char, tile_descriptors, col, start_row, verticality):
+            if is_staircase_from(scene, id_to_char, tile_descriptors, col, start_row, verticality, already_accounted):
                 # Now count how many columns this staircase extends
                 length = 3
-                while col + length < width and is_staircase_from(scene, id_to_char, tile_descriptors, col + length - 2, start_row + verticality*(length - 2), verticality):
+                while col + length < width and is_staircase_from(scene, id_to_char, tile_descriptors, col + length - 2, start_row + verticality*(length - 2), verticality, already_accounted):
                     length += 1
                 staircases += 1
                 col += length  # Skip past this staircase
@@ -224,12 +229,13 @@ def analyze_staircases(scene, id_to_char, tile_descriptors, verticality):
     else:
         return ""
 
-def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row, verticality):
+def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row, verticality, already_accounted):
     """
     Checks if there's a valid 3-step staircase starting at (start_col, start_row).
     verticality = 1 for descending staircase, verticality = -1 for ascending
     """
     try:
+        blocks_in_stairs = set()
         for step in range(3):
             row = start_row + verticality*step
             if row == len(scene) - 1: 
@@ -243,9 +249,88 @@ def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row,
                 tile_above = scene[row - 1][col]
                 if "solid" in tile_descriptors.get(id_to_char[tile_above], []):
                     return False
+                else:
+                    # Blocks beneath the stairs are also part of stairs
+                    row2 = row
+                    while row2 < len(scene) and "solid" in tile_descriptors.get(id_to_char[scene[row2][col]], []): 
+                        blocks_in_stairs.add( (row2,col) )
+                        row2 += 1                    
+
+        # Only add all of the blocks once it is confirmed to be a staircase
+        already_accounted.update(blocks_in_stairs)
         return True
     except IndexError:
         return False  # Out of bounds means no staircase
+
+def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptors, excluded):
+    stack = [(start_row, start_col)]
+    structure = []
+
+    while stack:
+        row, col = stack.pop()
+        if (row, col) in visited or (row, col) in excluded:
+            continue
+        tile = scene[row][col]
+        if "solid" not in tile_descriptors.get(id_to_char[tile], []):
+            continue
+
+        visited.add((row, col))
+        structure.append((row, col))
+
+        # Check neighbors
+        for d_row, d_col in [(-1,0), (1,0), (0,-1), (0,1)]:
+            n_row, n_col = row + d_row, col + d_col
+            if 0 <= n_row < len(scene) and 0 <= n_col < len(scene[0]):
+                stack.append((n_row, n_col))
+
+    return structure
+
+def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted):
+    """Find unaccounted solid block structures"""
+    visited = set()
+    structures = []
+
+    for row in range(len(scene)):
+        for col in range(len(scene[0])):
+            if (row, col) in visited or (row, col) in already_accounted:
+                continue
+            tile = scene[row][col]
+            if "solid" in tile_descriptors.get(id_to_char[tile], []):
+                structure = flood_fill(scene, visited, row, col, id_to_char, tile_descriptors, already_accounted)
+                if len(structure) >= 4:  # Ignore tiny groups
+                    structures.append(structure)
+
+    return structures
+
+def describe_structures(structures, ceiling_row=4):
+    descriptions = []
+    for struct in structures:
+        min_row = min(pos[0] for pos in struct)
+        max_row = max(pos[0] for pos in struct)
+        min_col = min(pos[1] for pos in struct)
+        max_col = max(pos[1] for pos in struct)
+
+        width = max_col - min_col + 1
+        height = max_row - min_row + 1
+
+        attached_to_ceiling = any(r == ceiling_row for r, c in struct)
+
+        if width <= 2 and height >= 4:
+            desc = "tall tower"
+        elif width >= 4 and height <= 2:
+            desc = "wide wall"
+        else:
+            desc = "irregular block cluster"
+
+        if attached_to_ceiling:
+            desc += " attached to the ceiling"
+
+        desc += f" from row {min_row} to {max_row}, columns {min_col} to {max_col}"
+        descriptions.append(desc)
+    
+    if descriptions:
+        return " " + "; ".join(descriptions) + "."
+    return ""
 
 def generate_captions(dataset_path, tileset_path, output_path):
     """Processes the dataset and generates captions for each level scene."""
@@ -266,6 +351,8 @@ def generate_captions(dataset_path, tileset_path, output_path):
     # Generate captions
     captioned_dataset = []
     for scene in dataset:
+        already_accounted = set()
+
         caption = analyze_floor(scene, id_to_char, tile_descriptors) + "."
         ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors)
         caption += ceiling
@@ -291,12 +378,16 @@ def generate_captions(dataset_path, tileset_path, output_path):
             target_descriptor="solid",
             min_run_length=2,
             require_above_below_not_solid=True,
-            exclude_rows = [] if ceiling == "" else [4] # ceiling is not a platform
+            exclude_rows = [] if ceiling == "" else [4], # ceiling is not a platform
+            already_accounted=already_accounted
         )
         caption += describe_horizontal_lines(platform_lines, "platform")
 
-        caption += analyze_staircases(scene, id_to_char, tile_descriptors, -1)
-        caption += analyze_staircases(scene, id_to_char, tile_descriptors, 1)
+        caption += analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=already_accounted)
+        caption += analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=already_accounted)
+
+        structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
+        caption += describe_structures(structures)
 
         captioned_dataset.append({
             "scene": scene,
