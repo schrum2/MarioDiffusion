@@ -78,47 +78,61 @@ def in_column(scene, x, tile):
 
     return False
 
-def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2):
+def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False):
     """
-    Finds contiguous horizontal runs of tiles with the target descriptor (like "solid"),
-    excluding:
-      - the bottom row (considered floor)
-      - tiles with the "pipe" descriptor
-      - tiles not having "passable" space directly above (when target_descriptor is "solid")
-    Returns a list of (row_index, start_x, end_x) tuples for each valid run.
+    Finds horizontal lines (runs) of tiles with the target descriptor.
+    - Skips the bottom row
+    - Skips tiles marked as 'pipe'
+    - Can require non-solid space above and below (for platforms)
+    Returns a list of (y, start_x, end_x) tuples
     """
     lines = []
     height = len(scene)
     width = len(scene[0]) if height > 0 else 0
 
-    for y in range(height - 1):  # Skip the bottom row
-        row = scene[y]
+    for y in range(height - 1):  # Skip bottom row
         x = 0
         while x < width:
-            tile_char = id_to_char[row[x]]
+            tile_char = id_to_char[scene[y][x]]
             descriptors = tile_descriptors.get(tile_char, [])
 
-            # Skip tiles that don't qualify as part of the platform run
             if (target_descriptor not in descriptors) or ("pipe" in descriptors):
                 x += 1
                 continue
 
-            # Check passable space above only for solid platforms
-            if target_descriptor == "solid":
-                above_tile_char = id_to_char[scene[y - 1][x]] if y > 0 else None
-                if above_tile_char and "passable" not in tile_descriptors.get(above_tile_char, []):
+            # If required, check for passable tiles above and below
+            if require_above_below_not_solid:
+                # Above
+                if y > 0:
+                    above_char = id_to_char[scene[y - 1][x]]
+                    if "solid" in tile_descriptors.get(above_char, []):
+                        x += 1
+                        continue
+                else:
+                    x += 1
+                    continue
+                # Below
+                if y + 1 < height:
+                    below_char = id_to_char[scene[y + 1][x]]
+                    if "solid" in tile_descriptors.get(below_char, []):
+                        x += 1
+                        continue
+                else:
                     x += 1
                     continue
 
-            # Start counting a valid run
+            # Start of valid run
             run_start = x
             while x < width:
-                tile_char = id_to_char[row[x]]
+                tile_char = id_to_char[scene[y][x]]
                 descriptors = tile_descriptors.get(tile_char, [])
-                if (target_descriptor in descriptors and 
-                    "pipe" not in descriptors and
-                    (target_descriptor != "solid" or 
-                     (y > 0 and "passable" in tile_descriptors.get(id_to_char[scene[y - 1][x]], [])))):
+
+                if (target_descriptor in descriptors and "pipe" not in descriptors):
+                    if require_above_below_not_solid:
+                        if y > 0 and "solid" in tile_descriptors.get(id_to_char[scene[y - 1][x]], []):
+                            break
+                        if y + 1 < height and "solid" in tile_descriptors.get(id_to_char[scene[y + 1][x]], []):
+                            break
                     x += 1
                 else:
                     break
@@ -129,15 +143,17 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
 
 def describe_horizontal_lines(lines, label):
     """
-    Creates a caption phrase like '2 platforms at rows 5-7'
-    or '1 coin line at row 3'
+    Outputs phrases like:
+      " 3 platforms at rows 4,7,9."
     """
     if not lines:
         return ""
-    rows = sorted(set(y for y, _, _ in lines))
-    if len(rows) == 1:
-        return f" 1 {label} at row {rows[0]}."
-    return f" {len(rows)} {label}s at rows {min(rows)}-{max(rows)}."
+    # Extract all unique y positions of valid runs
+    rows = [y for y, _, _ in lines]
+    rows_text = ",".join(str(y) for y in sorted(rows))
+    count = len(rows)
+    plural = label + "s" if count > 1 else label
+    return f" {count} {plural} at rows {rows_text}."
 
 def generate_captions(dataset_path, tileset_path, output_path):
     """Processes the dataset and generates captions for each level scene."""
@@ -167,10 +183,21 @@ def generate_captions(dataset_path, tileset_path, output_path):
         caption += count_caption_phrase(scene, [char_to_id['<']], "pipe", "pipes", pipe_at_edge)
 
         caption += count_caption_phrase(scene, [char_to_id['o']], "coin", "coins")
-        coin_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, "coin")
+        # Coin lines - no passable/solid requirements
+        coin_lines = find_horizontal_lines(
+            scene, id_to_char, tile_descriptors, 
+            target_descriptor="coin",
+            min_run_length=2
+        )
         caption += describe_horizontal_lines(coin_lines, "coin line")
 
-        platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, "solid")
+        # Platforms - solid tiles with passable above and below, no pipes
+        platform_lines = find_horizontal_lines(
+            scene, id_to_char, tile_descriptors, 
+            target_descriptor="solid",
+            min_run_length=2,
+            require_above_below_not_solid=True
+        )
         caption += describe_horizontal_lines(platform_lines, "platform")
 
         # TODO: Add more detailed captioning logic here.
