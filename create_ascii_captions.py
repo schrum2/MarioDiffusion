@@ -188,6 +188,58 @@ def describe_horizontal_lines(lines, label):
     plural = label + "s" if count > 1 else label
     return f" {count} {plural} at rows {rows_text}."
 
+def analyze_staircases(scene, id_to_char, tile_descriptors):
+    """
+    Detects staircases in the scene.
+    A staircase is a sequence of at least 3 columns where solid tiles form steps increasing by 1 row each.
+    Above each solid block must be passable.
+    Returns a caption phrase or empty string.
+    """
+    height = len(scene)
+    width = len(scene[0]) if height > 0 else 0
+    staircases = 0
+    col = 0
+
+    while col <= width - 3:
+        # Try to find the start of a staircase
+        step_cols = []
+        for start_row in range(height - 3):
+            if is_staircase_from(scene, id_to_char, tile_descriptors, col, start_row):
+                # Now count how many columns this staircase extends
+                length = 3
+                while col + length < width and is_staircase_from(scene, id_to_char, tile_descriptors, col + length - 2, start_row):
+                    length += 1
+                staircases += 1
+                col += length  # Skip past this staircase
+                break  # Restart staircase search from new col
+        else:
+            col += 1  # No staircase starting here, move right
+
+    if staircases > 0:
+        return f" {staircases} staircase{'s' if staircases > 1 else ''}."
+    else:
+        return ""
+
+def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row):
+    """
+    Checks if there's a valid 3-step staircase starting at (start_col, start_row).
+    """
+    try:
+        for step in range(3):
+            row = start_row + step
+            col = start_col + step
+            tile = scene[row][col]
+            if "solid" not in tile_descriptors.get(id_to_char[tile], []):
+                return False
+            # Check above this block is passable
+            if row > 0:
+                tile_above = scene[row - 1][col]
+                if "solid" in tile_descriptors.get(id_to_char[tile_above], []):
+                    return False
+        return True
+    except IndexError:
+        return False  # Out of bounds means no staircase
+
 def generate_captions(dataset_path, tileset_path, output_path):
     """Processes the dataset and generates captions for each level scene."""
     # Load dataset
@@ -236,8 +288,7 @@ def generate_captions(dataset_path, tileset_path, output_path):
         )
         caption += describe_horizontal_lines(platform_lines, "platform")
 
-        # TODO: Add more detailed captioning logic here.
-        # Example: You could analyze enemy types, platform heights, pipes, etc.
+        caption += analyze_staircases(scene, id_to_char, tile_descriptors)
 
         captioned_dataset.append({
             "scene": scene,
