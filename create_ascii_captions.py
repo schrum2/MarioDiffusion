@@ -80,22 +80,51 @@ def in_column(scene, x, tile):
 
 def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2):
     """
-    Scans each row for contiguous horizontal runs of tiles that have the target descriptor.
-    Returns a list of (row_index, start_x, end_x) for each valid run.
+    Finds contiguous horizontal runs of tiles with the target descriptor (like "solid"),
+    excluding:
+      - the bottom row (considered floor)
+      - tiles with the "pipe" descriptor
+      - tiles not having "passable" space directly above (when target_descriptor is "solid")
+    Returns a list of (row_index, start_x, end_x) tuples for each valid run.
     """
     lines = []
-    for y, row in enumerate(scene):
+    height = len(scene)
+    width = len(scene[0]) if height > 0 else 0
+
+    for y in range(height - 1):  # Skip the bottom row
+        row = scene[y]
         x = 0
-        while x < len(row):
-            if target_descriptor in tile_descriptors.get(id_to_char[row[x]], []):
-                run_start = x
-                while x < len(row) and target_descriptor in tile_descriptors.get(id_to_char[row[x]], []):
-                    x += 1
-                run_length = x - run_start
-                if run_length >= min_run_length:
-                    lines.append((y, run_start, x - 1))  # (row_index, start_x, end_x)
-            else:
+        while x < width:
+            tile_char = id_to_char[row[x]]
+            descriptors = tile_descriptors.get(tile_char, [])
+
+            # Skip tiles that don't qualify as part of the platform run
+            if (target_descriptor not in descriptors) or ("pipe" in descriptors):
                 x += 1
+                continue
+
+            # Check passable space above only for solid platforms
+            if target_descriptor == "solid":
+                above_tile_char = id_to_char[scene[y - 1][x]] if y > 0 else None
+                if above_tile_char and "passable" not in tile_descriptors.get(above_tile_char, []):
+                    x += 1
+                    continue
+
+            # Start counting a valid run
+            run_start = x
+            while x < width:
+                tile_char = id_to_char[row[x]]
+                descriptors = tile_descriptors.get(tile_char, [])
+                if (target_descriptor in descriptors and 
+                    "pipe" not in descriptors and
+                    (target_descriptor != "solid" or 
+                     (y > 0 and "passable" in tile_descriptors.get(id_to_char[scene[y - 1][x]], [])))):
+                    x += 1
+                else:
+                    break
+            run_length = x - run_start
+            if run_length >= min_run_length:
+                lines.append((y, run_start, x - 1))
     return lines
 
 def describe_horizontal_lines(lines, label):
