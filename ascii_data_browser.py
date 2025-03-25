@@ -107,7 +107,8 @@ class TileViewer(tk.Tk):
             8 * self.tile_size + self.tile_size // 2,
             17 * self.tile_size + self.tile_size // 2,
             text=sample['caption'],
-            anchor="center"
+            anchor="center",
+            width=self.tile_size * 16
         )
 
         self.sample_label.config(

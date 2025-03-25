@@ -367,6 +367,11 @@ def generate_captions(dataset_path, tileset_path, output_path):
         ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors)
         caption += ceiling
 
+        if ceiling != "":
+            # Include all of ceiling, even empty tiles
+            for x in range(WIDTH):
+                already_accounted.add( (CEILING,x) )
+        
         caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies")
         caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks")
   
