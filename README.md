@@ -27,10 +27,15 @@ Extract a json data set of 16 by 16 level scenes from the VGLC data for Super Ma
 ```
 python create_level_json_data.py --output "SMB1_Levels.json"
 ```
-Now you can browse the level scene data created by the previous command with this command:
+Create captions for all level scenes in the data set with this command:
 ```
-python ascii_data_browser.py SMB1_Levels.json 
+python create_ascii_captions.py --dataset SMB1_Levels.json --output SMB1_LevelsAndCaptions.json
 ```
+Now you can browse the level scenes and their captions with this command:
+```
+python ascii_data_browser.py SMB1_LevelsAndCaptions.json 
+```
+
 
 
 
