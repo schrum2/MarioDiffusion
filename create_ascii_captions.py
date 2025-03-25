@@ -105,6 +105,9 @@ def generate_captions(dataset_path, tileset_path, output_path):
         pipe_at_edge = 1 if in_column(scene, 0, char_to_id['>']) else 0
         caption += count_caption_phrase(scene, [char_to_id['<']], "pipe", "pipes", pipe_at_edge)
 
+        caption += count_caption_phrase(scene, [char_to_id['o']], "coin", "coins")
+
+
         # TODO: Add more detailed captioning logic here.
         # Example: You could analyze enemy types, platform heights, pipes, etc.
 
