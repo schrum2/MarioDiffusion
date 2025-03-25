@@ -108,7 +108,7 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors):
     else:
         return ""  # Not enough solid tiles for a ceiling
 
-def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False):
+def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False, exclude_rows = []):
     """
     Finds horizontal lines (runs) of tiles with the target descriptor.
     - Skips the bottom row
@@ -121,6 +121,9 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
     width = len(scene[0]) if height > 0 else 0
 
     for y in range(height - 1):  # Skip bottom row
+        if y in exclude_rows:
+            continue # Could skip ceiling
+
         x = 0
         while x < width:
             tile_char = id_to_char[scene[y][x]]
@@ -205,7 +208,8 @@ def generate_captions(dataset_path, tileset_path, output_path):
     captioned_dataset = []
     for scene in dataset:
         caption = analyze_floor(scene, id_to_char, tile_descriptors) + "."
-        caption += analyze_ceiling(scene, id_to_char, tile_descriptors)
+        ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors)
+        caption += ceiling
 
         caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies")
         caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks")
@@ -227,7 +231,8 @@ def generate_captions(dataset_path, tileset_path, output_path):
             scene, id_to_char, tile_descriptors, 
             target_descriptor="solid",
             min_run_length=2,
-            require_above_below_not_solid=True
+            require_above_below_not_solid=True,
+            exclude_rows = [] if ceiling == "" else [4] # ceiling is not a platform
         )
         caption += describe_horizontal_lines(platform_lines, "platform")
 
