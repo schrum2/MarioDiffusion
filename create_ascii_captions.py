@@ -188,16 +188,18 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
 def describe_horizontal_lines(lines, label):
     """
     Outputs phrases like:
-      " 3 platforms at rows 4,7,9."
+      "3 platforms at rows 4 (cols 5-10), 7 (cols 3-8), 9 (cols 12-15)."
     """
     if not lines:
         return ""
-    # Extract all unique y positions of valid runs
-    rows = [y for y, _, _ in lines]
-    rows_text = ", ".join(str(y) for y in sorted(rows))
-    count = len(rows)
+    
+    parts = []
+    for y, start_x, end_x in sorted(lines):
+        parts.append(f"{y} (cols {start_x}-{end_x})")
+    
+    count = len(lines)
     plural = label + "s" if count > 1 else label
-    return f" {count} {plural} at row{'s' if count > 1 else ''} {rows_text}."
+    return f" {count} {plural} at row{'s' if count > 1 else ''} " + ", ".join(parts) + "."
 
 def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
     """
@@ -277,7 +279,8 @@ def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptor
         if (row, col) in visited or (row, col) in excluded:
             continue
         tile = scene[row][col]
-        if "solid" not in tile_descriptors.get(id_to_char[tile], []):
+        descriptors = tile_descriptors.get(id_to_char[tile], [])
+        if "solid" not in descriptors or "pipe" in descriptors:
             continue
 
         visited.add((row, col))
