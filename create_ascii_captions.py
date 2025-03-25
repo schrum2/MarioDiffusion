@@ -78,6 +78,38 @@ def in_column(scene, x, tile):
 
     return False
 
+def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2):
+    """
+    Scans each row for contiguous horizontal runs of tiles that have the target descriptor.
+    Returns a list of (row_index, start_x, end_x) for each valid run.
+    """
+    lines = []
+    for y, row in enumerate(scene):
+        x = 0
+        while x < len(row):
+            if target_descriptor in tile_descriptors.get(id_to_char[row[x]], []):
+                run_start = x
+                while x < len(row) and target_descriptor in tile_descriptors.get(id_to_char[row[x]], []):
+                    x += 1
+                run_length = x - run_start
+                if run_length >= min_run_length:
+                    lines.append((y, run_start, x - 1))  # (row_index, start_x, end_x)
+            else:
+                x += 1
+    return lines
+
+def describe_horizontal_lines(lines, label):
+    """
+    Creates a caption phrase like '2 platforms at rows 5-7'
+    or '1 coin line at row 3'
+    """
+    if not lines:
+        return ""
+    rows = sorted(set(y for y, _, _ in lines))
+    if len(rows) == 1:
+        return f" 1 {label} at row {rows[0]}."
+    return f" {len(rows)} {label}s at rows {min(rows)}-{max(rows)}."
+
 def generate_captions(dataset_path, tileset_path, output_path):
     """Processes the dataset and generates captions for each level scene."""
     # Load dataset
@@ -106,7 +138,11 @@ def generate_captions(dataset_path, tileset_path, output_path):
         caption += count_caption_phrase(scene, [char_to_id['<']], "pipe", "pipes", pipe_at_edge)
 
         caption += count_caption_phrase(scene, [char_to_id['o']], "coin", "coins")
+        coin_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, "coin")
+        caption += describe_horizontal_lines(coin_lines, "coin line")
 
+        platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, "solid")
+        caption += describe_horizontal_lines(platform_lines, "platform")
 
         # TODO: Add more detailed captioning logic here.
         # Example: You could analyze enemy types, platform heights, pipes, etc.
