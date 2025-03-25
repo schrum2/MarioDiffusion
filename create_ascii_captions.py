@@ -6,28 +6,52 @@ def get_tile_descriptors(tileset):
     """Creates a mapping from tile character to its list of descriptors."""
     return {char: set(attrs) for char, attrs in tileset["tiles"].items()}
 
-def analyze_floor(scene, tile_descriptors):
+def analyze_floor(scene, id_to_char, tile_descriptors):
     """Analyzes the last row of the 16x16 scene and generates a floor description."""
     last_row = scene[-1]  # The bottom row of the scene
-    solid_count = sum(1 for tile in last_row if "solid" in tile_descriptors.get(tile, []))
-    passable_count = sum(1 for tile in last_row if "passable" in tile_descriptors.get(tile, []))
+    solid_count = sum(1 for tile in last_row if "solid" in tile_descriptors.get(id_to_char[tile], []))
+    passable_count = sum(1 for tile in last_row if "passable" in tile_descriptors.get(id_to_char[tile], []))
 
     if solid_count == 16:
         return "full floor"
     elif passable_count == 16:
         return "no floor"
-    else:
+    elif solid_count > passable_count:
         # Count contiguous groups of passable tiles
         gaps = 0
         in_gap = False
         for tile in last_row:
-            if "passable" in tile_descriptors.get(tile, []):
+            if "passable" in tile_descriptors.get(id_to_char[tile], []):
                 if not in_gap:
                     gaps += 1
                     in_gap = True
-            else:
+            elif "solid" in tile_descriptors.get(id_to_char[tile], []):
                 in_gap = False
-        return f"floor with {gaps} gaps"
+            else:
+                print("error")
+                print(tile)
+                print(tile_descriptors)
+                print(tile_descriptors.get(tile, []))
+                raise ValueError("Every tile should be either passable or solid")
+        return f"floor with {gaps} gap" + ("s" if gaps > 1 else "")
+    else:
+        # Count contiguous groups of solid tiles
+        chunks = 0
+        in_chunk = False
+        for tile in last_row:
+            if "solid" in tile_descriptors.get(id_to_char[tile], []):
+                if not in_chunk:
+                    chunks += 1
+                    in_chunk = True
+            elif "passable" in tile_descriptors.get(id_to_char[tile], []):
+                in_chunk = False
+            else:
+                print("error")
+                print(tile)
+                print(tile_descriptors)
+                print(tile_descriptors.get(tile, []))
+                raise ValueError("Every tile should be either passable or solid")
+        return f"giant gap with {chunks} chunk"+("s" if chunks > 1 else "")+" of floor"
 
 def generate_captions(dataset_path, tileset_path, output_path):
     """Processes the dataset and generates captions for each level scene."""
@@ -38,12 +62,16 @@ def generate_captions(dataset_path, tileset_path, output_path):
     # Load tileset
     with open(tileset_path, "r") as f:
         tileset = json.load(f)
+        #print(f"tileset: {tileset}")
+        tile_chars = sorted(tileset['tiles'].keys())
+        id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
         tile_descriptors = get_tile_descriptors(tileset)
+        #print(f"tile_descriptors: {tile_descriptors}")
 
     # Generate captions
     captioned_dataset = []
     for scene in dataset:
-        caption = analyze_floor(scene, tile_descriptors)
+        caption = analyze_floor(scene, id_to_char, tile_descriptors)
 
         # TODO: Add more detailed captioning logic here.
         # Example: You could analyze enemy types, platform heights, pipes, etc.

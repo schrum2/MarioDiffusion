@@ -76,6 +76,7 @@ class TileViewer(tk.Tk):
                 tileset = json.load(f)
                 tile_chars = sorted(tileset['tiles'].keys())
                 self.id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+                #print(self.id_to_char)
             self.current_sample_idx = 0
             self.redraw()
         except Exception as e:
@@ -103,7 +104,7 @@ class TileViewer(tk.Tk):
                 )
 
         self.canvas.create_text(
-            1 * self.tile_size + self.tile_size // 2,
+            8 * self.tile_size + self.tile_size // 2,
             17 * self.tile_size + self.tile_size // 2,
             text=sample['caption'],
             anchor="center"
