@@ -54,6 +54,7 @@ def analyze_floor(scene, id_to_char, tile_descriptors):
         return f"giant gap with {chunks} chunk"+("s" if chunks > 1 else "")+" of floor"
 
 def count_in_scene(scene, tiles):
+    """ counts standalone tiles """
     count = 0
     for row in scene:
         for t in row: 
@@ -62,12 +63,20 @@ def count_in_scene(scene, tiles):
 
     return count
 
-def count_caption_phrase(scene, tiles, name, names):
-    count = count_in_scene(scene, tiles)
+def count_caption_phrase(scene, tiles, name, names, offset = 0):
+    """ offset modifies count used in caption """
+    count = offset + count_in_scene(scene, tiles)
     if count > 0: 
         return " " + str(count) + " " + (names if count > 1 else name) + "."
     else:
         return ""
+
+def in_column(scene, x, tile):
+    for row in scene:
+        if row[x] == tile:
+            return True
+
+    return False
 
 def generate_captions(dataset_path, tileset_path, output_path):
     """Processes the dataset and generates captions for each level scene."""
@@ -93,6 +102,9 @@ def generate_captions(dataset_path, tileset_path, output_path):
         caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies")
         caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks")
   
+        pipe_at_edge = 1 if in_column(scene, 0, char_to_id['>']) else 0
+        caption += count_caption_phrase(scene, [char_to_id['<']], "pipe", "pipes", pipe_at_edge)
+
         # TODO: Add more detailed captioning logic here.
         # Example: You could analyze enemy types, platform heights, pipes, etc.
 
