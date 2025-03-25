@@ -92,7 +92,7 @@ class TileViewer(tk.Tk):
 
         for y in range(16):
             for x in range(16):
-                tile_id = sample[y][x]
+                tile_id = sample['scene'][y][x]
                 text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
                 self.canvas.create_text(
                     x * self.tile_size + self.tile_size // 2,
@@ -101,6 +101,13 @@ class TileViewer(tk.Tk):
                     font=font,
                     anchor="center"
                 )
+
+        self.canvas.create_text(
+            1 * self.tile_size + self.tile_size // 2,
+            17 * self.tile_size + self.tile_size // 2,
+            text=sample['caption'],
+            anchor="center"
+        )
 
         self.sample_label.config(
             text=f"Sample: {self.current_sample_idx + 1} / {len(self.dataset)}"
