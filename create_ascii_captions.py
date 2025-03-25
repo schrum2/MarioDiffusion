@@ -188,9 +188,10 @@ def describe_horizontal_lines(lines, label):
     plural = label + "s" if count > 1 else label
     return f" {count} {plural} at rows {rows_text}."
 
-def analyze_staircases(scene, id_to_char, tile_descriptors):
+def analyze_staircases(scene, id_to_char, tile_descriptors, verticality):
     """
     Detects staircases in the scene.
+    verticality = 1 for descending, verticality = -1 for ascending
     A staircase is a sequence of at least 3 columns where solid tiles form steps increasing by 1 row each.
     Above each solid block must be passable.
     Returns a caption phrase or empty string.
@@ -199,34 +200,40 @@ def analyze_staircases(scene, id_to_char, tile_descriptors):
     width = len(scene[0]) if height > 0 else 0
     staircases = 0
     col = 0
+    staircase_lengths = []
 
     while col <= width - 3:
         # Try to find the start of a staircase
         step_cols = []
-        for start_row in range(height - 3):
-            if is_staircase_from(scene, id_to_char, tile_descriptors, col, start_row):
+        for start_row in range(0 if verticality == 1 else 3, height - 3 if verticality == 1 else height - 1):
+            if is_staircase_from(scene, id_to_char, tile_descriptors, col, start_row, verticality):
                 # Now count how many columns this staircase extends
                 length = 3
-                while col + length < width and is_staircase_from(scene, id_to_char, tile_descriptors, col + length - 2, start_row):
+                while col + length < width and is_staircase_from(scene, id_to_char, tile_descriptors, col + length - 2, start_row + verticality*(length - 2), verticality):
                     length += 1
                 staircases += 1
                 col += length  # Skip past this staircase
+                staircase_lengths.append(length)
                 break  # Restart staircase search from new col
         else:
             col += 1  # No staircase starting here, move right
 
+    type = "descending" if verticality == 1 else "ascending"
     if staircases > 0:
-        return f" {staircases} staircase{'s' if staircases > 1 else ''}."
+        return f" {staircases} {type} staircase{'s' if staircases > 1 else ''} with length{'s' if staircases > 1 else ''} {', '.join(map(str, staircase_lengths))}."
     else:
         return ""
 
-def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row):
+def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row, verticality):
     """
     Checks if there's a valid 3-step staircase starting at (start_col, start_row).
+    verticality = 1 for descending staircase, verticality = -1 for ascending
     """
     try:
         for step in range(3):
-            row = start_row + step
+            row = start_row + verticality*step
+            if row == len(scene) - 1: 
+                return False # Do not count floor in staircases
             col = start_col + step
             tile = scene[row][col]
             if "solid" not in tile_descriptors.get(id_to_char[tile], []):
@@ -288,7 +295,8 @@ def generate_captions(dataset_path, tileset_path, output_path):
         )
         caption += describe_horizontal_lines(platform_lines, "platform")
 
-        caption += analyze_staircases(scene, id_to_char, tile_descriptors)
+        caption += analyze_staircases(scene, id_to_char, tile_descriptors, -1)
+        caption += analyze_staircases(scene, id_to_char, tile_descriptors, 1)
 
         captioned_dataset.append({
             "scene": scene,
