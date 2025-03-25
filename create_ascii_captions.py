@@ -186,7 +186,7 @@ def describe_horizontal_lines(lines, label):
     rows_text = ", ".join(str(y) for y in sorted(rows))
     count = len(rows)
     plural = label + "s" if count > 1 else label
-    return f" {count} {plural} at rows {rows_text}."
+    return f" {count} {plural} at row{'s' if count > 1 else ''} {rows_text}."
 
 def analyze_staircases(scene, id_to_char, tile_descriptors, verticality):
     """
