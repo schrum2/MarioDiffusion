@@ -78,6 +78,36 @@ def in_column(scene, x, tile):
 
     return False
 
+def analyze_ceiling(scene, id_to_char, tile_descriptors):
+    """
+    Analyzes row 4 (0-based index) to detect a ceiling.
+    Returns a caption phrase or an empty string if no ceiling is detected.
+    """
+    ceiling_row = 4
+    if ceiling_row >= len(scene):
+        return ""  # Scene too short to have a ceiling
+
+    row = scene[ceiling_row]
+    solid_count = sum(1 for tile in row if "solid" in tile_descriptors.get(id_to_char[tile], []))
+    passable_count = sum(1 for tile in row if "passable" in tile_descriptors.get(id_to_char[tile], []))
+
+    if solid_count == 16:
+        return " full ceiling."
+    elif solid_count > 8:
+        # Count contiguous gaps of passable tiles
+        gaps = 0
+        in_gap = False
+        for tile in row:
+            if "passable" in tile_descriptors.get(id_to_char[tile], []):
+                if not in_gap:
+                    gaps += 1
+                    in_gap = True
+            else:
+                in_gap = False
+        return f" ceiling with {gaps} gap" + ("s" if gaps > 1 else "") + "."
+    else:
+        return ""  # Not enough solid tiles for a ceiling
+
 def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False):
     """
     Finds horizontal lines (runs) of tiles with the target descriptor.
@@ -150,7 +180,7 @@ def describe_horizontal_lines(lines, label):
         return ""
     # Extract all unique y positions of valid runs
     rows = [y for y, _, _ in lines]
-    rows_text = ",".join(str(y) for y in sorted(rows))
+    rows_text = ", ".join(str(y) for y in sorted(rows))
     count = len(rows)
     plural = label + "s" if count > 1 else label
     return f" {count} {plural} at rows {rows_text}."
@@ -175,6 +205,7 @@ def generate_captions(dataset_path, tileset_path, output_path):
     captioned_dataset = []
     for scene in dataset:
         caption = analyze_floor(scene, id_to_char, tile_descriptors) + "."
+        caption += analyze_ceiling(scene, id_to_char, tile_descriptors)
 
         caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies")
         caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks")
