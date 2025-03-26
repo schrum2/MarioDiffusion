@@ -1,27 +1,73 @@
 import json
 import torch
+import random
 from torch.utils.data import Dataset
 from tokenizer import Tokenizer
 
-class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, max_length=50):
+
+class LevelDataset:
+    def __init__(self, json_path, tokenizer, batch_size=32, shuffle=True, max_length=None):
         """
-        Dataset class for handling level data with dynamic tokenization.
-        
         Args:
-            json_path (str): Path to the JSON file containing level scenes and captions.
-            tokenizer (Tokenizer): Tokenizer instance for processing captions.
-            max_length (int): Maximum length for tokenized sequences (truncation/padding).
+            json_path (str): Path to JSON file with captions.
+            tokenizer (Tokenizer): Tokenizer instance.
+            batch_size (int): Number of samples per batch.
+            shuffle (bool): Whether to shuffle data at the start of an epoch.
+            max_length (int, optional): Maximum length for tokenized captions.
         """
+        self.batch_size = batch_size
+        self.shuffle = shuffle
         self.tokenizer = tokenizer
         self.max_length = max_length
 
-        # Load JSON data (list of dicts)
-        with open(json_path, "r", encoding="utf-8") as f:
+        # Load data
+        with open(json_path, 'r') as f:
             self.data = json.load(f)
 
+        # Tokenize all captions in advance
+        self.tokenized_captions = [self.tokenizer.tokenize(entry["caption"]) for entry in self.data]
+
+        # Determine padding length (if not provided)
+        if self.max_length is None:
+            self.max_length = max(len(tokens) for tokens in self.tokenized_captions)
+
+        # Shuffle dataset
+        if self.shuffle:
+            self._shuffle_data()
+
+    def _shuffle_data(self):
+        """Shuffles the dataset."""
+        combined = list(zip(self.data, self.tokenized_captions))
+        random.shuffle(combined)
+        self.data, self.tokenized_captions = zip(*combined)
+
+    def _pad_sequence(self, tokens):
+        """Pads tokenized sequences to max_length with a padding token (assumed to be '[PAD]')."""
+        #print(self.tokenizer.token_to_id)
+        pad_token = self.tokenizer.token_to_id["[PAD]"]
+        return tokens + [pad_token] * (self.max_length - len(tokens))
+
+    def get_batch(self, idx):
+        """
+        Retrieves a batch of data.
+        
+        Args:
+            idx (int): Batch index.
+
+        Returns:
+            token_tensor (Tensor): Tensor of shape (batch_size, max_length).
+        """
+        start = idx * self.batch_size
+        end = start + self.batch_size
+
+        batch_tokens = self.tokenized_captions[start:end]
+        batch_tokens = [self._pad_sequence(tokens) for tokens in batch_tokens]
+
+        return torch.tensor(batch_tokens, dtype=torch.long)
+
     def __len__(self):
-        return len(self.data)
+        """Returns number of batches."""
+        return len(self.tokenized_captions) // self.batch_size
 
     def __getitem__(self, idx):
         """
@@ -79,27 +125,11 @@ if __name__ == "__main__":
     #tokenizer.build_vocab('SMB1_LevelsAndCaptions.json')
     tokenizer.load('SMB1_Tokenizer.pkl')
 
-    dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer)
+    dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16)
 
-    # Fetch a sample
-    scene_tensor, caption_tensor = dataset[0]
+    # Retrieve a batch
+    batch_idx = 0
+    batch = dataset.get_batch(batch_idx)
+    print(batch.shape)  # Expected: (16, max_length)
 
-    # Print raw and tokenized output
-    print("Raw Caption:", dataset.get_sample_caption(0))
-    print("Tokenized Caption:", caption_tensor.tolist())
-    print("Decoded Caption:", dataset.decode_caption(caption_tensor.tolist()))
-    print("Vocab Size:", dataset.get_vocab_size())
-
-    # Find the longest caption
-    longest_idx = max(range(len(dataset)), key=lambda i: len(dataset.get_sample_caption(i)))
-
-    # Fetch the longest caption
-    longest_caption = dataset.get_sample_caption(longest_idx)
-    tokenized_caption = dataset.tokenizer.encode(longest_caption)
-
-    # Print results
-    print("Index of Longest Caption:", longest_idx)
-    print("Raw Caption:", longest_caption)
-    print("Tokenized Length:", len(tokenized_caption))
-    print("Tokenized Caption:", tokenized_caption)
-    print("Decoded Caption:", dataset.decode_caption(tokenized_caption))
+    print(batch)
