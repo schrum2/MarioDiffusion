@@ -270,7 +270,7 @@ def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row,
     except IndexError:
         return False  # Out of bounds means no staircase
 
-def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptors, excluded):
+def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptors, excluded, pipes=False):
     stack = [(start_row, start_col)]
     structure = []
 
@@ -280,7 +280,7 @@ def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptor
             continue
         tile = scene[row][col]
         descriptors = tile_descriptors.get(id_to_char[tile], [])
-        if "solid" not in descriptors or "pipe" in descriptors:
+        if "solid" not in descriptors or (not pipes and "pipe" in descriptors):
             continue
 
         visited.add((row, col))
@@ -294,7 +294,7 @@ def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptor
 
     return structure
 
-def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted):
+def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes = False):
     """Find unaccounted solid block structures"""
     visited = set()
     structures = []
@@ -305,14 +305,14 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
                 continue
             tile = scene[row][col]
             descriptors = tile_descriptors.get(id_to_char[tile], [])
-            if "solid" in descriptors and "pipe" not in descriptors:
-                structure = flood_fill(scene, visited, row, col, id_to_char, tile_descriptors, already_accounted)
-                if len(structure) >= 4:  # Ignore tiny groups
+            if (not pipes and "solid" in descriptors and "pipe" not in descriptors) or (pipes and "pipe" in descriptors):
+                structure = flood_fill(scene, visited, row, col, id_to_char, tile_descriptors, already_accounted, pipes)
+                if pipes or len(structure) >= 4:  # Ignore tiny groups of blocks, but keep all pipes
                     structures.append(structure)
 
     return structures
 
-def describe_structures(structures, ceiling_row=CEILING):
+def describe_structures(structures, ceiling_row=CEILING, pipes=False):
     descriptions = []
     for struct in structures:
         min_row = min(pos[0] for pos in struct)
@@ -323,17 +323,20 @@ def describe_structures(structures, ceiling_row=CEILING):
         width = max_col - min_col + 1
         height = max_row - min_row + 1
 
-        attached_to_ceiling = any(r == ceiling_row for r, c in struct)
-
-        if width <= 2 and height >= 4:
-            desc = "tall tower"
-        elif width >= 4 and height <= 2:
-            desc = "wide wall"
+        if pipes:
+            desc = "pipe"
         else:
-            desc = "irregular block cluster"
+            attached_to_ceiling = any(r == ceiling_row for r, c in struct)
 
-        if attached_to_ceiling:
-            desc += " attached to the ceiling"
+            if width <= 2 and height >= 4:
+                desc = "tall tower"
+            elif width >= 4 and height <= 2:
+                desc = "wide wall"
+            else:
+                desc = "irregular block cluster"
+
+            if attached_to_ceiling:
+                desc += " attached to the ceiling"
 
         desc += f" from row {min_row} to {max_row}, columns {min_col} to {max_col}"
         descriptions.append(desc)
@@ -378,8 +381,9 @@ def generate_captions(dataset_path, tileset_path, output_path):
         caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies")
         caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks")
   
-        pipe_at_edge = 1 if in_column(scene, 0, char_to_id['>']) else 0
-        caption += count_caption_phrase(scene, [char_to_id['<']], "pipe", "pipes", pipe_at_edge)
+        # Did not give pipe position information
+        #pipe_at_edge = 1 if in_column(scene, 0, char_to_id['>']) else 0
+        #caption += count_caption_phrase(scene, [char_to_id['<']], "pipe", "pipes", pipe_at_edge)
 
         caption += count_caption_phrase(scene, [char_to_id['o']], "coin", "coins")
         # Coin lines - no passable/solid requirements
@@ -403,6 +407,9 @@ def generate_captions(dataset_path, tileset_path, output_path):
 
         caption += analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=already_accounted)
         caption += analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=already_accounted)
+
+        structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
+        caption += describe_structures(structures, pipes=True)
 
         structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
         caption += describe_structures(structures)
