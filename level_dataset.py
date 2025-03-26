@@ -90,8 +90,9 @@ class LevelDataset:
         caption_tokens = self.tokenizer.encode(caption)
         
         # Ensure fixed-length output
+        pad_token = self.tokenizer.token_to_id["[PAD]"]
         caption_tokens = caption_tokens[:self.max_length]  # Truncate if too long
-        caption_tokens += [0] * (self.max_length - len(caption_tokens))  # Pad if too short
+        caption_tokens += [pad_token] * (self.max_length - len(caption_tokens))
         
         return scene, torch.tensor(caption_tokens, dtype=torch.long)
 
@@ -138,3 +139,5 @@ if __name__ == "__main__":
     print(batch.shape)  # Expected: (16, max_length)
 
     print(batch)
+
+    print(dataset[0])
