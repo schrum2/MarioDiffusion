@@ -14,6 +14,16 @@ RIGHT = WIDTH - LEFT
 TOP = (FLOOR - CEILING) / 3 + CEILING
 BOTTOM = FLOOR - ((FLOOR - CEILING) / 3)
 
+coarse_counts = True
+pluralize = False
+
+def describe_quantity(count):
+    if count == 1: return "one"
+    elif count == 2: return "two"
+    elif count < 5: return "a few"
+    elif count < 10: return "several"
+    else: return "many"
+
 def get_tile_descriptors(tileset):
     """Creates a mapping from tile character to its list of descriptors."""
     return {char: set(attrs) for char, attrs in tileset["tiles"].items()}
@@ -45,7 +55,7 @@ def analyze_floor(scene, id_to_char, tile_descriptors):
                 print(tile_descriptors)
                 print(tile_descriptors.get(tile, []))
                 raise ValueError("Every tile should be either passable or solid")
-        return f"floor with {gaps} gap" + ("s" if gaps > 1 else "")
+        return f"floor with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps > 1 else "")
     else:
         # Count contiguous groups of solid tiles
         chunks = 0
@@ -63,7 +73,7 @@ def analyze_floor(scene, id_to_char, tile_descriptors):
                 print(tile_descriptors)
                 print(tile_descriptors.get(tile, []))
                 raise ValueError("Every tile should be either passable or solid")
-        return f"giant gap with {chunks} chunk"+("s" if chunks > 1 else "")+" of floor"
+        return f"giant gap with {describe_quantity(chunks) if coarse_counts else chunks} chunk"+("s" if pluralize and chunks > 1 else "")+" of floor"
 
 def count_in_scene(scene, tiles):
     """ counts standalone tiles """
@@ -79,7 +89,7 @@ def count_caption_phrase(scene, tiles, name, names, offset = 0):
     """ offset modifies count used in caption """
     count = offset + count_in_scene(scene, tiles)
     if count > 0: 
-        return " " + str(count) + " " + (names if count > 1 else name) + "."
+        return f" {describe_quantity(count) if coarse_counts else count} " + (names if pluralize and count > 1 else name) + "."
     else:
         return ""
 
@@ -116,7 +126,7 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors):
                     in_gap = True
             else:
                 in_gap = False
-        return f" ceiling with {gaps} gap" + ("s" if gaps > 1 else "") + "."
+        return f" ceiling with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps > 1 else "") + "."
     else:
         return ""  # Not enough solid tiles for a ceiling
 
@@ -204,8 +214,8 @@ def describe_horizontal_lines(lines, label):
         parts.append(f"{y} (cols {start_x}-{end_x})")
     
     count = len(lines)
-    plural = label + "s" if count > 1 else label
-    return f" {count} {plural} at row{'s' if count > 1 else ''} " + ", ".join(parts) + "."
+    plural = label + "s" if pluralize and count > 1 else label
+    return f" {describe_quantity(count) if coarse_counts else count} {plural} at row{'s' if count > 1 else ''} " + ", ".join(parts) + "."
 
 def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
     """
@@ -239,7 +249,7 @@ def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already
 
     type = "descending" if verticality == 1 else "ascending"
     if staircases > 0:
-        return f" {staircases} {type} staircase{'s' if staircases > 1 else ''} with length{'s' if staircases > 1 else ''} {', '.join(map(str, staircase_lengths))}."
+        return f" {describe_quantity(staircases) if coarse_counts else staircases} {type} staircase{'s' if pluralize and staircases > 1 else ''} with length{'s' if staircases > 1 else ''} {', '.join(map(str, staircase_lengths))}."
     else:
         return ""
 
