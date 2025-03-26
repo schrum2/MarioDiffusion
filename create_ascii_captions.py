@@ -388,7 +388,10 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False):
             if attached_to_ceiling:
                 desc += " attached to the ceiling"
 
-        desc += f" from row {min_row} to {max_row}, columns {min_col} to {max_col}"
+        if coarse_locations:
+            desc += " at " + describe_location((min_col + max_col) / 2.0, (min_row + max_row) / 2.0)
+        else:
+            desc += f" from row {min_row} to {max_row}, columns {min_col} to {max_col}"
         descriptions.append(desc)
     
     if descriptions:
