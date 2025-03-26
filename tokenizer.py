@@ -6,10 +6,10 @@ import sys
 
 class Tokenizer:
     def __init__(self):
+        self.special_tokens = ["[PAD]", "[MASK]"]
         self.vocab = {}
         self.token_to_id = {}
         self.id_to_token = {}
-        self.pad_token = "[PAD]"
 
     def tokenize(self, text):
         # Match words, numbers, periods, and commas as separate tokens
@@ -29,26 +29,27 @@ class Tokenizer:
         # Keep tokens that meet the min frequency
         tokens = [tok for tok, count in token_counter.items() if count >= min_freq]
 
-        # Ensure PAD token is included
-        tokens.append(self.pad_token)
-
+        # Ensure special tokens are always included
+        all_tokens = self.special_tokens + sorted(tokens)
+        
         # Build vocab dictionaries
-        self.vocab = {tok: idx for idx, tok in enumerate(sorted(tokens))}
+        self.vocab = {tok: idx for idx, tok in enumerate(all_tokens)}
         self.token_to_id = self.vocab
         self.id_to_token = {idx: tok for tok, idx in self.vocab.items()}
 
         print(f"Vocabulary size: {len(self.vocab)}")
 
-    def token_to_id(self, token):
-        """Get token ID, or return PAD token ID if unknown."""
-        return self.token_to_id.get(token, self.token_to_id[self.pad_token])
-
     def encode(self, text):
         tokens = self.tokenize(text)
-        return [self.token_to_id(tok) for tok in tokens]
+        encoded = []
+        for tok in tokens:
+            if tok not in self.token_to_id:
+                raise ValueError(f"Unknown token encountered: {tok}")
+            encoded.append(self.token_to_id[tok])
+        return encoded
 
     def decode(self, token_ids):
-        return ' '.join(self.id_to_token.get(tok_id, '<UNK>') for tok_id in token_ids)
+        return ' '.join(self.id_to_token[tok_id] for tok_id in token_ids)
 
     def save(self, path):
         with open(path, 'wb') as f:
@@ -63,6 +64,7 @@ class Tokenizer:
 
     def get_vocab(self):
         return sorted(self.vocab.keys())
+
 
 if __name__ == "__main__":
     tokenizer = Tokenizer()
