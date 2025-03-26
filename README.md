@@ -35,6 +35,10 @@ Now you can browse the level scenes and their captions with this command:
 ```
 python ascii_data_browser.py SMB1_LevelsAndCaptions.json 
 ```
+Create a tokenizer for this data with this command:
+```
+python tokenizer.py save
+```
 
 
 

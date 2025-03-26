@@ -2,6 +2,7 @@ import json
 import re
 from collections import Counter
 import pickle
+import sys
 
 class Tokenizer:
     def __init__(self):
@@ -56,11 +57,13 @@ class Tokenizer:
 
 if __name__ == "__main__":
     tokenizer = Tokenizer()
-    #tokenizer.build_vocab('SMB1_LevelsAndCaptions.json')
-    #tokenizer.save('SMB1_Tokenizer.pkl')
-    tokenizer.load('SMB1_Tokenizer.pkl')
+
+    if sys.argv[1] == "save":
+        tokenizer.build_vocab('SMB1_LevelsAndCaptions.json')
+        tokenizer.save('SMB1_Tokenizer.pkl')
+    elif sys.argv[1] == "load":
+        tokenizer.load('SMB1_Tokenizer.pkl')
 
     # Example usage
-    print(tokenizer.encode("floor with one gap. one enemy."))
-
-    print(tokenizer.get_vocab())
+    #print(tokenizer.encode("floor with one gap. one enemy."))
+    #print(tokenizer.get_vocab())
