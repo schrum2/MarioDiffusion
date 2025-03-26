@@ -239,19 +239,27 @@ def describe_horizontal_lines(lines, label):
     if not lines:
         return ""
     
-    parts = []
+    
     if coarse_locations:
+        location_counts = {}
         for y, start_x, end_x in sorted(lines):
-            parts.append(f"{describe_location((end_x + start_x)/2.0, y)}")
-        location_description = "at " + (", ".join(parts))
+            location_str = f"{describe_location((end_x + start_x)/2.0, y)}"
+            if location_str in location_counts:
+                location_counts[location_str] += 1
+            else:
+                location_counts[location_str] = 1
+
+        return " " + ", ".join([f"{describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''} at {location}" for location, count in location_counts.items()]) + "."
+        
     else:
+        parts = []
         for y, start_x, end_x in sorted(lines):
             parts.append(f"{y} (cols {start_x}-{end_x})")
         location_description = f"at row{'s' if pluralize and count > 1 else ''} " + ", ".join(parts)
     
-    count = len(lines)
-    plural = label + "s" if pluralize and count > 1 else label
-    return f" {describe_quantity(count) if coarse_counts else count} {plural} " + location_description + "."
+        count = len(lines)
+        plural = label + "s" if pluralize and count > 1 else label
+        return f" {describe_quantity(count) if coarse_counts else count} {plural} " + location_description + "."
 
 def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
     """
@@ -397,7 +405,7 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False):
         descriptions.append(desc)
     
     if descriptions:
-        return " " + "; ".join(descriptions) + "."
+        return " " + ", ".join(descriptions) + "."
     return ""
 
 def generate_captions(dataset_path, tileset_path, output_path):
