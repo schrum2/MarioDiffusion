@@ -14,9 +14,11 @@ RIGHT = WIDTH - LEFT
 TOP = (FLOOR - CEILING) / 3 + CEILING
 BOTTOM = FLOOR - ((FLOOR - CEILING) / 3)
 
+# Could define these via the command line, but for now they are hardcoded
 coarse_locations = True
 coarse_counts = True
 pluralize = False
+give_staircase_lengths = False
 
 def describe_size(count):
     if count <= 4: return "small"
@@ -283,7 +285,7 @@ def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already
 
     type = "descending" if verticality == 1 else "ascending"
     if staircases > 0:
-        return f" {describe_quantity(staircases) if coarse_counts else staircases} {type} staircase{'s' if pluralize and staircases > 1 else ''} with length{'s' if staircases > 1 else ''} {', '.join(map(str, staircase_lengths))}."
+        return f" {describe_quantity(staircases) if coarse_counts else staircases} {type} staircase{'s' if pluralize and staircases > 1 else ''}"+ (f" with length{'s' if staircases > 1 else ''} {', '.join(map(str, staircase_lengths))}" if give_staircase_lengths else "")+ "."
     else:
         return ""
 
