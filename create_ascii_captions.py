@@ -14,8 +14,36 @@ RIGHT = WIDTH - LEFT
 TOP = (FLOOR - CEILING) / 3 + CEILING
 BOTTOM = FLOOR - ((FLOOR - CEILING) / 3)
 
+coarse_locations = True
 coarse_counts = True
 pluralize = False
+
+def describe_size(count):
+    if count <= 4: return "small"
+    else: return "big"
+
+def describe_location(x, y):
+    """
+        Describes the location of a point in the scene.
+        Returns a string like "left top", "center middle", "right bottom".
+        x is the column index, y is the row index.
+    """
+
+    if x < LEFT:
+        x_desc = "left"
+    elif x < RIGHT:
+        x_desc = "center"
+    else:
+        x_desc = "right"
+
+    if y < TOP:
+        y_desc = "top"
+    elif y < BOTTOM:
+        y_desc = "middle"
+    else:
+        y_desc = "bottom"
+
+    return f"{x_desc} {y_desc}"
 
 def describe_quantity(count):
     if count == 1: return "one"
@@ -210,12 +238,18 @@ def describe_horizontal_lines(lines, label):
         return ""
     
     parts = []
-    for y, start_x, end_x in sorted(lines):
-        parts.append(f"{y} (cols {start_x}-{end_x})")
+    if coarse_locations:
+        for y, start_x, end_x in sorted(lines):
+            parts.append(f"{describe_location((end_x + start_x)/2.0, y)}")
+        location_description = "at " + (", ".join(parts))
+    else:
+        for y, start_x, end_x in sorted(lines):
+            parts.append(f"{y} (cols {start_x}-{end_x})")
+        location_description = f"at row{'s' if pluralize and count > 1 else ''} " + ", ".join(parts)
     
     count = len(lines)
     plural = label + "s" if pluralize and count > 1 else label
-    return f" {describe_quantity(count) if coarse_counts else count} {plural} at row{'s' if count > 1 else ''} " + ", ".join(parts) + "."
+    return f" {describe_quantity(count) if coarse_counts else count} {plural} " + location_description + "."
 
 def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
     """
