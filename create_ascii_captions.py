@@ -5,8 +5,14 @@ import os
 WIDTH = 16
 HEIGHT = 16
 
-BOTTOM = 16
+FLOOR = 16
 CEILING = 4
+
+LEFT = WIDTH / 3
+RIGHT = WIDTH - LEFT
+
+TOP = (FLOOR - CEILING) / 3 + CEILING
+BOTTOM = FLOOR - ((FLOOR - CEILING) / 3)
 
 def get_tile_descriptors(tileset):
     """Creates a mapping from tile character to its list of descriptors."""
@@ -14,7 +20,7 @@ def get_tile_descriptors(tileset):
 
 def analyze_floor(scene, id_to_char, tile_descriptors):
     """Analyzes the last row of the 16x16 scene and generates a floor description."""
-    last_row = scene[-1]  # The bottom row of the scene
+    last_row = scene[-1]  # The FLOOR row of the scene
     solid_count = sum(1 for tile in last_row if "solid" in tile_descriptors.get(id_to_char[tile], []))
     passable_count = sum(1 for tile in last_row if "passable" in tile_descriptors.get(id_to_char[tile], []))
 
@@ -117,7 +123,7 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors):
 def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False, exclude_rows = [], already_accounted = set()):
     """
     Finds horizontal lines (runs) of tiles with the target descriptor.
-    - Skips the bottom row
+    - Skips the FLOOR row
     - Skips tiles marked as 'pipe'
     - Can require non-solid space above and below (for platforms)
     Returns a list of (y, start_x, end_x) tuples
@@ -126,7 +132,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
     height = len(scene)
     width = len(scene[0]) if height > 0 else 0
 
-    for y in range(height - 1):  # Skip bottom row
+    for y in range(height - 1):  # Skip FLOOR row
         possible_locations = set()
         if y in exclude_rows:
             continue # Could skip ceiling
@@ -367,7 +373,7 @@ def generate_captions(dataset_path, tileset_path, output_path):
         already_accounted = set()
         # Include all of floor, even empty tiles
         for x in range(WIDTH):
-            already_accounted.add( (BOTTOM - 1,x) )
+            already_accounted.add( (FLOOR - 1,x) )
 
         caption = analyze_floor(scene, id_to_char, tile_descriptors) + "."
         ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors)
