@@ -51,6 +51,8 @@ class Tokenizer:
             self.token_to_id = self.vocab
             self.id_to_token = {idx: tok for tok, idx in self.vocab.items()}
 
+    def get_vocab(self):
+        return sorted(self.vocab.keys())
 
 if __name__ == "__main__":
     tokenizer = Tokenizer()
@@ -60,3 +62,5 @@ if __name__ == "__main__":
 
     # Example usage
     print(tokenizer.encode("floor with one gap. one enemy."))
+
+    print(tokenizer.get_vocab())
