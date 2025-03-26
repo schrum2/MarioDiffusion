@@ -17,7 +17,7 @@ BOTTOM = FLOOR - ((FLOOR - CEILING) / 3)
 # Could define these via the command line, but for now they are hardcoded
 coarse_locations = True
 coarse_counts = True
-pluralize = False
+pluralize = True
 give_staircase_lengths = False
 
 def describe_size(count):
