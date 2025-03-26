@@ -9,6 +9,7 @@ class Tokenizer:
         self.vocab = {}
         self.token_to_id = {}
         self.id_to_token = {}
+        self.pad_token = "[PAD]"
 
     def tokenize(self, text):
         # Match words, numbers, periods, and commas as separate tokens
@@ -28,15 +29,23 @@ class Tokenizer:
         # Keep tokens that meet the min frequency
         tokens = [tok for tok, count in token_counter.items() if count >= min_freq]
 
+        # Ensure PAD token is included
+        tokens.append(self.pad_token)
+
         # Build vocab dictionaries
         self.vocab = {tok: idx for idx, tok in enumerate(sorted(tokens))}
         self.token_to_id = self.vocab
         self.id_to_token = {idx: tok for tok, idx in self.vocab.items()}
+
         print(f"Vocabulary size: {len(self.vocab)}")
+
+    def token_to_id(self, token):
+        """Get token ID, or return PAD token ID if unknown."""
+        return self.token_to_id.get(token, self.token_to_id[self.pad_token])
 
     def encode(self, text):
         tokens = self.tokenize(text)
-        return [self.token_to_id.get(tok, -1) for tok in tokens]  # -1 for unknowns
+        return [self.token_to_id(tok) for tok in tokens]
 
     def decode(self, token_ids):
         return ' '.join(self.id_to_token.get(tok_id, '<UNK>') for tok_id in token_ids)
