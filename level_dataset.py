@@ -25,7 +25,12 @@ class LevelDataset:
             self.data = json.load(f)
 
         # Tokenize all captions in advance
-        self.tokenized_captions = [self.tokenizer.tokenize(entry["caption"]) for entry in self.data]
+        self.tokenized_captions = [self.tokenizer.encode(entry["caption"]) for entry in self.data]
+
+        # Ensure all tokenized captions are lists of integers
+        for i, tokens in enumerate(self.tokenized_captions):
+            if not all(isinstance(token, int) for token in tokens):
+                raise ValueError(f"Tokenization error at index {i}: {tokens}")
 
         # Determine padding length (if not provided)
         if self.max_length is None:
