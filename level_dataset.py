@@ -64,6 +64,30 @@ class LevelDataset:
         pad_token = self.tokenizer.token_to_id["[PAD]"]
         return tokens + [pad_token] * (self.max_length - len(tokens))
 
+    def flip_scene_horizontally(self, scene):
+        return [row[::-1] for row in scene]
+
+    def swap_caption_tokens(self, caption_tensor):
+        left_id = self.tokenizer.token_to_id["left"]
+        right_id = self.tokenizer.token_to_id["right"]
+        ascending_id = self.tokenizer.token_to_id["ascending"]
+        descending_id = self.tokenizer.token_to_id["descending"]
+        
+        swapped_caption = []
+        for token in caption_tensor:
+            if token == left_id:
+                swapped_caption.append(right_id)
+            elif token == right_id:
+                swapped_caption.append(left_id)
+            elif token == ascending_id:
+                swapped_caption.append(descending_id)
+            elif token == descending_id:
+                swapped_caption.append(ascending_id)
+            else:
+                swapped_caption.append(token)
+        
+        return swapped_caption
+
     def get_batch(self, idx):
         """
         Retrieves a batch of data.
@@ -87,7 +111,13 @@ class LevelDataset:
 
         # Get level scenes for diffusion training
         batch_scenes = [self.data[i]["scene"] for i in range(start, min(end, len(self.data)))]
+        for i in range(len(batch_scenes)):
+            if random.choice([True, False]):  # Randomly decide whether to flip
+                batch_scenes[i] = self.flip_scene_horizontally(batch_scenes[i])
+                batch_tokens[i] = self.swap_caption_tokens(batch_tokens[i])
+
         scene_tensor = torch.tensor(batch_scenes, dtype=torch.long)
+        caption_tensor = torch.tensor(batch_tokens, dtype=torch.long)
 
         return scene_tensor, caption_tensor
 
@@ -113,6 +143,10 @@ class LevelDataset:
             return caption_tensor  # MLM only uses captions
 
         scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
+        if random.choice([True, False]):
+            scene_tensor = self.flip_scene_horizontally(scene_tensor)
+            caption_tensor = self.swap_caption_tokens(caption_tensor)
+
         return scene_tensor, caption_tensor
 
     def decode_caption(self, token_ids):
