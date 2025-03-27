@@ -174,3 +174,4 @@ cython_debug/
 *.json
 *.safetensors
 *.pkl
+*.pth

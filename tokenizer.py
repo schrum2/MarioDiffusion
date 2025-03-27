@@ -65,6 +65,8 @@ class Tokenizer:
     def get_vocab(self):
         return sorted(self.vocab.keys())
 
+    def get_vocab_size(self):
+        return len(self.vocab)
 
 if __name__ == "__main__":
     tokenizer = Tokenizer()
