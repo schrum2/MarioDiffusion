@@ -43,6 +43,7 @@ if __name__ == "__main__":
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--embedding_dim", type=int, default=128, help="Length of text embedding vectors")
+    parser.add_argument("--hidden_dim", type=int, default=256, help="Units in hidden layers")
     args = parser.parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -53,7 +54,7 @@ if __name__ == "__main__":
     
     vocab_size = tokenizer.get_vocab_size()
     embedding_dim = args.embedding_dim
-    hidden_dim = 256  # Adjustable
+    hidden_dim = args.hidden_dim
     
     if args.model == "lstm":
         model = LSTMModel(vocab_size, embedding_dim, hidden_dim).to(device)
