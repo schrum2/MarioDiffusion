@@ -126,7 +126,13 @@ if __name__ == "__main__":
     batch = mlm_dataset.get_batch(0)
     print("MLM Batch Shape:", batch.shape)  # Should be (16, max_length)
 
+    print(batch[0])
+    print(mlm_dataset.tokenizer.decode(batch[0].tolist()))
+
     # Create Diffusion dataset
     diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="diffusion")
     scenes, captions = diffusion_dataset.get_batch(0)
     print("Diffusion Batch Shapes:", scenes.shape, captions.shape)  # Expected: (16,16,16) and (16, max_length)
+
+    print(scenes[0])
+    print(diffusion_dataset.tokenizer.decode(captions[0].tolist()))
