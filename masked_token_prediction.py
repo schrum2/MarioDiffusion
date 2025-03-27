@@ -46,6 +46,7 @@ def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15):
     
     accuracy = correct / total if total > 0 else 0
     print(f"Mask Prediction Accuracy: {accuracy:.2%}")
+    print(f"Correct: {correct} | Total: {total}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
