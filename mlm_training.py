@@ -8,6 +8,13 @@ from level_dataset import LevelDataset
 from tokenizer import Tokenizer
 from models import LSTMModel, TransformerModel
 
+def masked_inputs(input_batch, tokenizer, device, mask_prob=0.15):
+    mask_token = tokenizer.token_to_id["[MASK]"]
+    mask_prob = 0.15  # Standard MLM masking probability
+    mask = torch.rand(input_batch.shape, device=device) < mask_prob
+    input_batch[mask] = mask_token
+    return input_batch
+
 def train(model, dataloader, criterion, optimizer, device, epochs):
     model.train()
     for epoch in range(epochs):
@@ -20,10 +27,7 @@ def train(model, dataloader, criterion, optimizer, device, epochs):
             
             # Masking: Replace some tokens with [MASK] (handled in dataset or here)
             input_batch, target_batch = batch.clone(), batch.clone()
-            mask_token = tokenizer.token_to_id["[MASK]"]
-            mask_prob = 0.15  # Standard MLM masking probability
-            mask = torch.rand(input_batch.shape, device=device) < mask_prob
-            input_batch[mask] = mask_token
+            input_batch = masked_inputs(input_batch, tokenizer, device=device)
             
             output = model(input_batch)
             loss = criterion(output.view(-1, output.size(-1)), target_batch.view(-1))
