@@ -50,10 +50,9 @@ python mlm_training.py --model transformer
 ```
 
 
-
-TEST trained model?
+TEST trained model? Training did not go well it seems. Try LSTM, etc
 ```
-python masked_token_prediction.py --model_file mlm_lstm.pth --text "full [MASK]. pipe at middle [MASK]."
+python .\masked_token_prediction.py --model_file .\mlm_transformer.pth
 ```
 
 

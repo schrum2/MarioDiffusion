@@ -27,8 +27,17 @@ def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15):
             for idx in masked_indices:
                 predicted_token = tokenizer.id_to_token[predicted_ids[idx]]
                 expected_token = tokenizer.id_to_token[ground_truth_tensor[idx].item()]
-                print(f"Original: {' '.join(tokenizer.decode(ground_truth))}")
-                print(f"Masked: {' '.join(tokenizer.decode(masked_input))}")
+                
+                if expected_token == "[PAD]":
+                    continue # Don't investigate these
+
+                try:
+                    pad_index = ground_truth.tolist().index(0) # 0 is the [PAD] token id
+                except ValueError:
+                    pad_index = len(ground_truth)
+
+                print(f"Original: {(tokenizer.decode(ground_truth.tolist()[:pad_index]))}")
+                print(f"Masked  : {(tokenizer.decode(masked_input.tolist()[:pad_index]))}")
                 print(f"Predicted: {predicted_token} | Expected: {expected_token}\n")
                 
                 if predicted_token == expected_token:
