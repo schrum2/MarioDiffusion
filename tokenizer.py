@@ -13,8 +13,13 @@ class Tokenizer:
 
     def tokenize(self, text):
         # Match words, numbers, periods, and commas as separate tokens
-        tokens = re.findall(r'\w+|[.,]', text.lower())
-        return tokens
+        tokens = re.findall(r'\w+|[.,]|\[mask\]|\[pad\]', text.lower())
+        # Restore MASK and PAD to all caps
+        modified_list = []
+        for s in tokens:
+            modified_s = s.replace("[mask]", "[MASK]").replace("[pad]", "[PAD]")
+            modified_list.append(modified_s)
+        return modified_list
 
     def build_vocab(self, dataset_path, min_freq=1):
         token_counter = Counter()

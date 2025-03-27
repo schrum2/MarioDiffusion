@@ -39,6 +39,27 @@ Create a tokenizer for this data with this command:
 ```
 python tokenizer.py save
 ```
+Now, masked language modeling will be used to pre-train the text embedding model.
+
+
+
+
+OR lstm? Change epochs?
+```
+python mlm_training.py --model transformer
+```
+
+
+
+TEST trained model?
+```
+python masked_token_prediction.py --model_file mlm_lstm.pth --text "full [MASK]. pipe at middle [MASK]."
+```
+
+
+
+
+
 
 
 
