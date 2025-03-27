@@ -6,9 +6,9 @@ from tokenizer import Tokenizer
 
 
 class LevelDataset:
-    def __init__(self, json_path, tokenizer, batch_size=32, shuffle=True, max_length=None, mode="diffusion"):
+    def __init__(self, json_path, tokenizer, batch_size=32, shuffle=True, max_length=None, mode="diffusion", random_seed=1):
         """
-        Args:
+            Args:
             json_path (str): Path to JSON file with captions.
             tokenizer (Tokenizer): Tokenizer instance.
             batch_size (int): Number of samples per batch.
@@ -17,6 +17,10 @@ class LevelDataset:
             mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training.
         """
         assert mode in ["mlm", "diffusion"], "Mode must be 'mlm' or 'diffusion'."
+
+        self.random_seed = random_seed
+        random.seed(self.random_seed)  # Ensure reproducibility
+
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.tokenizer = tokenizer
@@ -43,6 +47,12 @@ class LevelDataset:
         if self.shuffle:
             self._shuffle_data()
 
+    def _augment_caption(self, caption):
+        """Shuffles period-separated phrases in the caption."""
+        phrases = caption[:-1].split(". ") # [:-1] removes the last period
+        random.shuffle(phrases)  # Shuffle phrases
+        return ". ".join(phrases) + "."
+
     def _shuffle_data(self):
         """Shuffles the dataset."""
         combined = list(zip(self.data, self.tokenized_captions))
@@ -68,7 +78,7 @@ class LevelDataset:
         start = idx * self.batch_size
         end = start + self.batch_size
 
-        batch_tokens = self.tokenized_captions[start:end]
+        batch_tokens = [self.tokenizer.encode(self._augment_caption(self.data[i]["caption"])) for i in range(start, end)]
         batch_tokens = [self._pad_sequence(tokens) for tokens in batch_tokens]
         caption_tensor = torch.tensor(batch_tokens, dtype=torch.long)
 
@@ -94,7 +104,8 @@ class LevelDataset:
             - In "diffusion" mode: (scene_tensor, caption_tensor)
         """
         sample = self.data[idx]
-        caption_tokens = self.tokenizer.encode(sample["caption"])
+        augmented_caption = self._augment_caption(sample["caption"])
+        caption_tokens = self.tokenizer.encode(augmented_caption)
         caption_tokens = self._pad_sequence(caption_tokens)
         caption_tensor = torch.tensor(caption_tokens, dtype=torch.long)
 
@@ -122,7 +133,7 @@ if __name__ == "__main__":
     tokenizer.load('SMB1_Tokenizer.pkl')
 
     # Create MLM dataset
-    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="mlm")
+    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="mlm", random_seed=5)
     batch = mlm_dataset.get_batch(0)
     print("MLM Batch Shape:", batch.shape)  # Should be (16, max_length)
 
@@ -130,7 +141,7 @@ if __name__ == "__main__":
     print(mlm_dataset.tokenizer.decode(batch[0].tolist()))
 
     # Create Diffusion dataset
-    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="diffusion")
+    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="diffusion", random_seed=5)
     scenes, captions = diffusion_dataset.get_batch(0)
     print("Diffusion Batch Shapes:", scenes.shape, captions.shape)  # Expected: (16,16,16) and (16, max_length)
 
