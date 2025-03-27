@@ -38,14 +38,16 @@ def train(model, dataloader, criterion, optimizer, device, epochs):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", choices=["lstm", "transformer"], required=True, help="Model type")
-    parser.add_argument("--epochs", type=int, required=True, help="Number of training epochs")
-    parser.add_argument("--lr", type=float, required=True, help="Learning rate")
+    parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
+    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
+    parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
+    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     args = parser.parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = Tokenizer()
-    tokenizer.load("SMB1_Tokenizer.pkl")
-    dataset = LevelDataset("SMB1_LevelsAndCaptions.json", tokenizer, batch_size=16, mode="mlm")
+    tokenizer.load(args.pkl)
+    dataset = LevelDataset(args.json, tokenizer, batch_size=16, mode="mlm")
     dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
     
     vocab_size = tokenizer.get_vocab_size()
