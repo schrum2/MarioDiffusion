@@ -39,9 +39,13 @@ class TransformerModel(nn.Module):
         self.fc = nn.Linear(embedding_dim, vocab_size)
     
     def create_positional_encoding(self, max_seq_length, embedding_dim):
+        # The implementation uses a sinusoidal positional encoding, which creates a unique pattern for each position in the sequence.
+        # The frequencies create unique values, the sin/cos bounds values
         position = torch.arange(0, max_seq_length, dtype=torch.float).unsqueeze(1)
+        # Creates a set of divisors that create different frequencies
         div_term = torch.exp(torch.arange(0, embedding_dim, 2).float() * (-math.log(10000.0) / embedding_dim))
         pe = torch.zeros(max_seq_length, embedding_dim)
+        # Even dimensions use sin, odd dimensions use cos
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         return pe.unsqueeze(0)
