@@ -68,7 +68,7 @@ if __name__ == "__main__":
         model_name = "mlm_transformer.pth"
     
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.token_to_id["[PAD]"])
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     
     train(model, dataloader, criterion, optimizer, device, args.epochs)
     torch.save(model.state_dict(), model_name)
