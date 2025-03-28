@@ -10,6 +10,15 @@ from models import LSTMModel, TransformerModel
 from masked_token_prediction import evaluate_model, masked_inputs
 
 def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
+
+    #for batch in dataloader:
+    #    print("Batch shape:", batch.shape)
+    #    # Decode and print first few sequences in the batch
+    #    for seq in batch:
+    #        decoded_seq = tokenizer.decode(seq.tolist())
+    #        print(decoded_seq)
+    #quit()
+
     model.train()
     for epoch in range(epochs):
         epoch_loss = 0
