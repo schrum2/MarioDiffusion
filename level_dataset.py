@@ -6,7 +6,7 @@ from tokenizer import Tokenizer
 
 
 class LevelDataset:
-    def __init__(self, json_path, tokenizer, batch_size=32, shuffle=True, max_length=None, mode="diffusion", random_seed=1):
+    def __init__(self, json_path, tokenizer, batch_size=32, shuffle=True, max_length=None, mode="diffusion", random_seed=1, augment=True, limit=-1):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -15,6 +15,8 @@ class LevelDataset:
             shuffle (bool): Whether to shuffle data at the start of an epoch.
             max_length (int, optional): Maximum length for tokenized captions.
             mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training.
+            augment (bool): Whether to apply data augmentation
+            limit (int): restrict dataset to this size if not -1
         """
         assert mode in ["mlm", "diffusion"], "Mode must be 'mlm' or 'diffusion'."
 
@@ -26,10 +28,15 @@ class LevelDataset:
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.mode = mode
+        self.augment = augment
 
         # Load data
         with open(json_path, 'r') as f:
             self.data = json.load(f)
+
+        if limit > -1:
+            # Random selection of limited portion of data (if limit is less than actual size)
+            self.data = random.sample(self.data, limit)
 
         # Tokenize all captions in advance
         self.tokenized_captions = [self.tokenizer.encode(entry["caption"]) for entry in self.data]
@@ -49,9 +56,12 @@ class LevelDataset:
 
     def _augment_caption(self, caption):
         """Shuffles period-separated phrases in the caption."""
-        phrases = caption[:-1].split(". ") # [:-1] removes the last period
-        random.shuffle(phrases)  # Shuffle phrases
-        return ". ".join(phrases) + "."
+        if self.augment:
+            phrases = caption[:-1].split(". ") # [:-1] removes the last period
+            random.shuffle(phrases)  # Shuffle phrases
+            return ". ".join(phrases) + "."
+        else:
+            return caption # Same as original
 
     def _shuffle_data(self):
         """Shuffles the dataset."""
@@ -111,23 +121,24 @@ class LevelDataset:
 
         # Get level scenes for diffusion training
         batch_scenes = [self.data[i]["scene"] for i in range(start, min(end, len(self.data)))]
-        for i in range(len(batch_scenes)):
-            if random.choice([True, False]):  # Randomly decide whether to flip
-                # Comments verified that scenen flipping works
-                #print("before")
-                #print(torch.Tensor(batch_scenes[i]))
-                #print(batch_tokens[i])
-                #print(self.tokenizer.decode(batch_tokens[i]))
+        if self.augment:
+            for i in range(len(batch_scenes)):
+                if random.choice([True, False]):  # Randomly decide whether to flip
+                    # Comments verified that scenen flipping works
+                    #print("before")
+                    #print(torch.Tensor(batch_scenes[i]))
+                    #print(batch_tokens[i])
+                    #print(self.tokenizer.decode(batch_tokens[i]))
 
-                batch_scenes[i] = self.flip_scene_horizontally(batch_scenes[i])
-                batch_tokens[i] = self.swap_caption_tokens(batch_tokens[i])
+                    batch_scenes[i] = self.flip_scene_horizontally(batch_scenes[i])
+                    batch_tokens[i] = self.swap_caption_tokens(batch_tokens[i])
 
-                #print("after")
-                #print(torch.Tensor(batch_scenes[i]))
-                #print(batch_tokens[i])
-                #print(self.tokenizer.decode(batch_tokens[i]))
+                    #print("after")
+                    #print(torch.Tensor(batch_scenes[i]))
+                    #print(batch_tokens[i])
+                    #print(self.tokenizer.decode(batch_tokens[i]))
 
-                #if "staircase" in self.tokenizer.decode(batch_tokens[i]): quit()
+                    #if "staircase" in self.tokenizer.decode(batch_tokens[i]): quit()
 
         scene_tensor = torch.tensor(batch_scenes, dtype=torch.long)
         caption_tensor = torch.tensor(batch_tokens, dtype=torch.long)
@@ -156,7 +167,7 @@ class LevelDataset:
             return caption_tensor  # MLM only uses captions
 
         scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
-        if random.choice([True, False]):
+        if self.augment and random.choice([True, False]):
             scene_tensor = self.flip_scene_horizontally(scene_tensor)
             caption_tensor = self.swap_caption_tokens(caption_tensor)
 
