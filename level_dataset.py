@@ -38,6 +38,8 @@ class LevelDataset:
             # Random selection of limited portion of data (if limit is less than actual size)
             self.data = random.sample(self.data, limit)
 
+        print(f"Training samples: {len(self.data)}")
+
         # Tokenize all captions in advance
         self.tokenized_captions = [self.tokenizer.encode(entry["caption"]) for entry in self.data]
 

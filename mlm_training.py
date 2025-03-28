@@ -1,7 +1,3 @@
-"""
-Masked Language Modeling on the Mario captions
-"""
-
 import argparse
 import torch
 import torch.nn as nn
@@ -58,6 +54,8 @@ if __name__ == "__main__":
     dataset = LevelDataset(args.json, tokenizer, batch_size=16, mode="mlm", augment=args.augment, limit=args.data_limit)
     dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
     
+    print(f"Num batches: {len(dataset)}")
+
     vocab_size = tokenizer.get_vocab_size()
     embedding_dim = args.embedding_dim
     hidden_dim = args.hidden_dim
