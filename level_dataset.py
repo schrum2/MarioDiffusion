@@ -113,8 +113,21 @@ class LevelDataset:
         batch_scenes = [self.data[i]["scene"] for i in range(start, min(end, len(self.data)))]
         for i in range(len(batch_scenes)):
             if random.choice([True, False]):  # Randomly decide whether to flip
+                # Comments verified that scenen flipping works
+                #print("before")
+                #print(torch.Tensor(batch_scenes[i]))
+                #print(batch_tokens[i])
+                #print(self.tokenizer.decode(batch_tokens[i]))
+
                 batch_scenes[i] = self.flip_scene_horizontally(batch_scenes[i])
                 batch_tokens[i] = self.swap_caption_tokens(batch_tokens[i])
+
+                #print("after")
+                #print(torch.Tensor(batch_scenes[i]))
+                #print(batch_tokens[i])
+                #print(self.tokenizer.decode(batch_tokens[i]))
+
+                #if "staircase" in self.tokenizer.decode(batch_tokens[i]): quit()
 
         scene_tensor = torch.tensor(batch_scenes, dtype=torch.long)
         caption_tensor = torch.tensor(batch_tokens, dtype=torch.long)
@@ -167,7 +180,7 @@ if __name__ == "__main__":
     tokenizer.load('SMB1_Tokenizer.pkl')
 
     # Create MLM dataset
-    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="mlm", random_seed=5)
+    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="mlm", random_seed=9999)
     batch = mlm_dataset.get_batch(0)
     print("MLM Batch Shape:", batch.shape)  # Should be (16, max_length)
 
@@ -175,7 +188,7 @@ if __name__ == "__main__":
     print(mlm_dataset.tokenizer.decode(batch[0].tolist()))
 
     # Create Diffusion dataset
-    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="diffusion", random_seed=5)
+    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="diffusion", random_seed=9999)
     scenes, captions = diffusion_dataset.get_batch(0)
     print("Diffusion Batch Shapes:", scenes.shape, captions.shape)  # Expected: (16,16,16) and (16, max_length)
 
