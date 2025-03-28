@@ -85,3 +85,5 @@ if __name__ == "__main__":
     # Example usage
     #print(tokenizer.encode("floor with one gap. one enemy."))
     #print(tokenizer.get_vocab())
+    #for id, token in tokenizer.id_to_token.items():
+    #    print(id,":",token)
