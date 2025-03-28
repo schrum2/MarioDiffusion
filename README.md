@@ -46,8 +46,14 @@ Now, masked language modeling will be used to pre-train the text embedding model
 
 OR lstm? Change epochs?
 ```
-python mlm_training.py --model transformer
+python mlm_training.py --model transformer --epochs 1000
 ```
+
+Train small data
+```
+python mlm_training.py --model transformer --data_limit 100 --no-augment --epochs 1000
+```
+
 
 
 TEST trained model? Training did not go well it seems. Try LSTM, etc

@@ -48,12 +48,14 @@ if __name__ == "__main__":
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--embedding_dim", type=int, default=128, help="Length of text embedding vectors")
     parser.add_argument("--hidden_dim", type=int, default=256, help="Units in hidden layers")
+    parser.add_argument("--data_limit", type=int, default=-1, help="If not negative, only train with this many examples")
+    parser.add_argument('--no-augment', action='store_false', dest='augment', help='Disable data augmentation (default: True)')
     args = parser.parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = Tokenizer()
     tokenizer.load(args.pkl)
-    dataset = LevelDataset(args.json, tokenizer, batch_size=16, mode="mlm")
+    dataset = LevelDataset(args.json, tokenizer, batch_size=16, mode="mlm", augment=args.augment, limit=args.data_limit)
     dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
     
     vocab_size = tokenizer.get_vocab_size()
