@@ -40,23 +40,14 @@ Create a tokenizer for this data with this command:
 python tokenizer.py save
 ```
 Now, masked language modeling will be used to pre-train the text embedding model.
-
-
-
-
-OR lstm? Change epochs?
 ```
-python mlm_training.py --model transformer --epochs 1000
-```
-
-Train small data
-```
-python mlm_training.py --model transformer --data_limit 100 --no-augment --epochs 1000
+python mlm_training.py --model transformer --epochs 3000
 ```
 
 
 
-TEST trained model? Training did not go well it seems. Try LSTM, etc
+
+TEST trained model? Currently just uses original training data, no test set
 ```
 python .\masked_token_prediction.py --model_file .\mlm_transformer.pth
 ```
