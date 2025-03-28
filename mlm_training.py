@@ -33,6 +33,10 @@ def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
             input_batch = masked_inputs(input_batch, tokenizer, device=device)
             
             output = model(input_batch)
+
+            #print(f"Output shape: {output.shape}")
+            #print(f"Target batch shape: {target_batch.shape}")
+
             loss = criterion(output.view(-1, output.size(-1)), target_batch.view(-1))
             loss.backward()
             optimizer.step()
