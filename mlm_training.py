@@ -21,7 +21,7 @@ def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
             
             # Masking: Replace some tokens with [MASK] (handled in dataset or here)
             input_batch, target_batch = batch.clone(), batch.clone()
-            input_batch = masked_inputs(input_batch, tokenizer, device=device)
+            input_batch, _ = masked_inputs(input_batch, tokenizer, device=device)
             
             output = model(input_batch)
             loss = criterion(output.view(-1, output.size(-1)), target_batch.view(-1))
