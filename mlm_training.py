@@ -7,15 +7,9 @@ from tqdm import tqdm
 from level_dataset import LevelDataset
 from tokenizer import Tokenizer
 from models import LSTMModel, TransformerModel
+from masked_token_prediction import evaluate_model, masked_inputs
 
-def masked_inputs(input_batch, tokenizer, device, mask_prob=0.15):
-    mask_token = tokenizer.token_to_id["[MASK]"]
-    mask_prob = 0.15  # Standard MLM masking probability
-    mask = torch.rand(input_batch.shape, device=device) < mask_prob
-    input_batch[mask] = mask_token
-    return input_batch
-
-def train(model, dataloader, criterion, optimizer, device, epochs):
+def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
     model.train()
     for epoch in range(epochs):
         epoch_loss = 0
@@ -38,6 +32,8 @@ def train(model, dataloader, criterion, optimizer, device, epochs):
             progress_bar.set_postfix(loss=loss.item())
         
         print(f"Epoch {epoch+1}/{epochs}, Loss: {epoch_loss/len(dataloader):.4f}")
+
+    evaluate_model(model, tokenizer, dataloader, device)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -72,6 +68,6 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.token_to_id["[PAD]"])
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     
-    train(model, dataloader, criterion, optimizer, device, args.epochs)
+    train(model, dataloader, criterion, optimizer, device, args.epochs, tokenizer)
     torch.save(model.state_dict(), model_name)
     print(f"Model saved as {model_name}")

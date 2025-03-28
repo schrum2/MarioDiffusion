@@ -5,20 +5,31 @@ from tokenizer import Tokenizer
 from models import LSTMModel, TransformerModel
 from level_dataset import LevelDataset
 from torch.utils.data import DataLoader
-from mlm_training import masked_inputs
+
+def masked_inputs(input_batch, tokenizer, device, mask_prob=0.15):
+    mask_token = tokenizer.token_to_id["[MASK]"]
+    pad_token = tokenizer.token_to_id["[PAD]"] # Don't mask [PAD] tokens
+    # Move input batch to the correct device
+    input_batch = input_batch.to(device)
+    # Apply mask only to non-[PAD] tokens
+    mask = (torch.rand(input_batch.shape, device=device) < mask_prob) & (input_batch != pad_token)
+    input_batch[mask] = mask_token
+    return input_batch
 
 def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15):
     model.eval()
+    mask_token = tokenizer.token_to_id["[MASK]"]
+    pad_token = tokenizer.token_to_id["[PAD]"]
     correct, total = 0, 0
     for batch in dataloader:
         for item in batch:
             masked_input = masked_inputs(item.clone(), tokenizer, device, mask_prob)
             ground_truth = item.clone()
-            masked_indices = (masked_input != ground_truth).nonzero().squeeze(1)
+            masked_indices = (masked_input == mask_token).nonzero().squeeze(1)
 
-            input_tensor = torch.tensor(masked_input).unsqueeze(0).to(device)
-            ground_truth_tensor = torch.tensor(ground_truth).to(device)
-            
+            input_tensor = masked_input.unsqueeze(0).to(device)
+            ground_truth_tensor = ground_truth.to(device)
+
             with torch.no_grad():
                 output = model(input_tensor)
             
@@ -32,7 +43,7 @@ def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15):
                     continue # Don't investigate these
 
                 try:
-                    pad_index = ground_truth.tolist().index(0) # 0 is the [PAD] token id
+                    pad_index = ground_truth.tolist().index(pad_token) 
                 except ValueError:
                     pad_index = len(ground_truth)
 
