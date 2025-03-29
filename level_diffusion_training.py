@@ -8,15 +8,15 @@ from diffusers import UNet2DModel, DDPMScheduler, DDPMPipeline
 from diffusers.optimization import get_scheduler
 from diffusers.training_utils import EMAModel
 from tqdm.auto import tqdm
-from tokenizer import Tokenizer  # Your custom tokenizer
+from tokenizer import Tokenizer 
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a diffusion model for level generation")
-    parser.add_argument("--json_path", type=str, required=True, help="Path to JSON file with level data")
-    parser.add_argument("--tokenizer_path", type=str, required=True, help="Path to tokenizer file")
+    parser.add_argument("--json_path", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to JSON file with level data")
+    parser.add_argument("--tokenizer_path", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--output_dir", type=str, required=True, help="Directory to save model")
-    parser.add_argument("--mlm_model_path", type=str, help="Path to trained MLM model (for conditional training)")
+    parser.add_argument("--mlm_model_path", type=str, default="mlm_transformer.pth", help="Path to trained MLM model (for conditional training)")
     parser.add_argument("--conditional", action="store_true", help="Enable text conditional training")
     parser.add_argument("--num_train_steps", type=int, default=100000, help="Number of training steps")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
@@ -153,7 +153,8 @@ def train_diffusion_model(args):
     torch.manual_seed(args.seed)
     
     # Initialize tokenizer
-    tokenizer = Tokenizer.load(args.tokenizer_path)
+    tokenizer = Tokenizer()
+    tokenizer.load(args.tokenizer_path)
     
     # Create dataset
     from level_dataset import LevelDataset

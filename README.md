@@ -61,7 +61,7 @@ python .\masked_token_prediction.py --model_file .\mlm_transformer.pth
 
 Train unconditional diffusion model?
 ```
-python level_diffusion_model.py --json_path path/to/your/data.json --tokenizer_path path/to/tokenizer.json --output_dir ./trained_model --num_tiles 15 --level_size 16 --batch_size 32 --augment --num_train_steps 100000 --use_ema
+python level_diffusion_model.py --output_dir ./unconditional_model --augment --num_train_steps 100000 --use_ema
 ```
 
 
@@ -69,7 +69,7 @@ python level_diffusion_model.py --json_path path/to/your/data.json --tokenizer_p
 
 Train conditional diffusion model?
 ```
-python level_diffusion_model.py --json_path path/to/your/data.json --tokenizer_path path/to/tokenizer.json --output_dir ./trained_model_conditional --mlm_model_path path/to/mlm_model.pt --conditional --num_tiles 15 --level_size 16 --batch_size 32 --augment --num_train_steps 100000 --use_ema
+python level_diffusion_model.py --output_dir ./conditional_model --conditional --augment --num_train_steps 100000 --use_ema
 ```
 
 
