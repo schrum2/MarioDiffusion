@@ -1,12 +1,13 @@
 import json
 import torch
+import torch.nn.functional as F
 import random
 from torch.utils.data import Dataset
 from tokenizer import Tokenizer
 
 
 class LevelDataset:
-    def __init__(self, json_path, tokenizer, batch_size=32, shuffle=True, max_length=None, mode="diffusion", random_seed=1, augment=True, limit=-1):
+    def __init__(self, json_path, tokenizer, batch_size=32, shuffle=True, max_length=None, mode="diffusion", random_seed=1, augment=True, limit=-1, num_tiles=15):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -17,6 +18,7 @@ class LevelDataset:
             mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training.
             augment (bool): Whether to apply data augmentation
             limit (int): restrict dataset to this size if not -1
+            num_tiles (int): Number of different tile types for one-hot encoding
         """
         assert mode in ["mlm", "diffusion"], "Mode must be 'mlm' or 'diffusion'."
 
@@ -29,6 +31,7 @@ class LevelDataset:
         self.max_length = max_length
         self.mode = mode
         self.augment = augment
+        self.num_tiles = num_tiles
 
         # Load data
         with open(json_path, 'r') as f:
@@ -77,7 +80,16 @@ class LevelDataset:
         return tokens + [pad_token] * (self.max_length - len(tokens))
 
     def flip_scene_horizontally(self, scene):
-        return [row[::-1] for row in scene]
+        """Flip scene horizontally, working with either tensor or list representation"""
+        if isinstance(scene, torch.Tensor):
+            # If scene is already a tensor (potentially one-hot encoded)
+            if scene.dim() == 2:  # Regular 2D scene (H×W)
+                return torch.flip(scene, dims=[1])
+            elif scene.dim() == 3:  # One-hot encoded scene (C×H×W)
+                return torch.flip(scene, dims=[2])
+        else:
+            # Original list of lists implementation
+            return [row[::-1] for row in scene]
 
     def swap_caption_tokens(self, caption_tensor):
         left_id = self.tokenizer.token_to_id["left"]
@@ -100,6 +112,23 @@ class LevelDataset:
         
         return swapped_caption
 
+    def _prepare_scene_for_diffusion(self, scene):
+        """Convert scene to one-hot encoding for diffusion model"""
+        if self.mode == "diffusion":
+            # Convert to tensor if not already
+            if not isinstance(scene, torch.Tensor):
+                scene = torch.tensor(scene, dtype=torch.long)
+            
+            # Convert to one-hot encoding
+            one_hot = F.one_hot(scene, num_classes=self.num_tiles).float()
+            
+            # Permute dimensions to [C, H, W] format for diffusion model
+            # From [H, W, C] to [C, H, W]
+            return one_hot.permute(2, 0, 1)
+        else:
+            # For MLM mode, just return the scene as is
+            return scene
+
     def get_batch(self, idx):
         """
         Retrieves a batch of data.
@@ -109,10 +138,11 @@ class LevelDataset:
 
         Returns:
             - In "mlm" mode: token_tensor (Tensor) of shape (batch_size, max_length)
-            - In "diffusion" mode: (scenes_tensor, captions_tensor)
+            - In "diffusion" mode: (pixel_values, captions_tensor) where pixel_values is 
+              one-hot encoded [batch_size, num_tiles, height, width]
         """
         start = idx * self.batch_size
-        end = start + self.batch_size
+        end = min(start + self.batch_size, len(self.data))
 
         batch_tokens = [self.tokenizer.encode(self._augment_caption(self.data[i]["caption"])) for i in range(start, end)]
         batch_tokens = [self._pad_sequence(tokens) for tokens in batch_tokens]
@@ -122,34 +152,34 @@ class LevelDataset:
             return caption_tensor  # MLM only uses captions
 
         # Get level scenes for diffusion training
-        batch_scenes = [self.data[i]["scene"] for i in range(start, min(end, len(self.data)))]
+        batch_scenes = [self.data[i]["scene"] for i in range(start, end)]
+        
+        # Convert scenes to tensors
+        batch_scene_tensors = [torch.tensor(scene, dtype=torch.long) for scene in batch_scenes]
+        
+        # Apply data augmentation
         if self.augment:
-            for i in range(len(batch_scenes)):
+            for i in range(len(batch_scene_tensors)):
                 if random.choice([True, False]):  # Randomly decide whether to flip
-                    # Comments verified that scenen flipping works
-                    #print("before")
-                    #print(torch.Tensor(batch_scenes[i]))
-                    #print(batch_tokens[i])
-                    #print(self.tokenizer.decode(batch_tokens[i]))
-
-                    batch_scenes[i] = self.flip_scene_horizontally(batch_scenes[i])
+                    batch_scene_tensors[i] = self.flip_scene_horizontally(batch_scene_tensors[i])
                     batch_tokens[i] = self.swap_caption_tokens(batch_tokens[i])
-
-                    #print("after")
-                    #print(torch.Tensor(batch_scenes[i]))
-                    #print(batch_tokens[i])
-                    #print(self.tokenizer.decode(batch_tokens[i]))
-
-                    #if "staircase" in self.tokenizer.decode(batch_tokens[i]): quit()
-
-        scene_tensor = torch.tensor(batch_scenes, dtype=torch.long)
+        
+        # Convert to one-hot encoding for diffusion
+        one_hot_scenes = []
+        for scene_tensor in batch_scene_tensors:
+            one_hot = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
+            # Convert from [H, W, C] to [C, H, W]
+            one_hot_scenes.append(one_hot.permute(2, 0, 1))
+        
+        # Stack into a batch
+        scene_tensor = torch.stack(one_hot_scenes)
         caption_tensor = torch.tensor(batch_tokens, dtype=torch.long)
 
         return scene_tensor, caption_tensor
 
     def __len__(self):
         """Returns number of batches."""
-        return len(self.tokenized_captions) // self.batch_size
+        return (len(self.tokenized_captions) + self.batch_size - 1) // self.batch_size
 
     def __getitem__(self, idx):
         """
@@ -158,6 +188,7 @@ class LevelDataset:
         Returns:
             - In "mlm" mode: tokenized caption
             - In "diffusion" mode: (scene_tensor, caption_tensor)
+              where scene_tensor is one-hot encoded [C, H, W]
         """
         sample = self.data[idx]
         augmented_caption = self._augment_caption(sample["caption"])
@@ -168,10 +199,15 @@ class LevelDataset:
         if self.mode == "mlm":
             return caption_tensor  # MLM only uses captions
 
-        scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
+        scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)
+        
+        # Apply augmentation
         if self.augment and random.choice([True, False]):
             scene_tensor = self.flip_scene_horizontally(scene_tensor)
-            caption_tensor = self.swap_caption_tokens(caption_tensor)
+            caption_tensor = torch.tensor(self.swap_caption_tokens(caption_tokens.tolist()), dtype=torch.long)
+        
+        # Prepare for diffusion
+        scene_tensor = self._prepare_scene_for_diffusion(scene_tensor)
 
         return scene_tensor, caption_tensor
 
@@ -186,24 +222,3 @@ class LevelDataset:
     def get_sample_caption(self, idx):
         """Returns the raw caption from the dataset for debugging."""
         return self.data[idx]["caption"]
-
-
-if __name__ == "__main__":
-    tokenizer = Tokenizer()
-    tokenizer.load('SMB1_Tokenizer.pkl')
-
-    # Create MLM dataset
-    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="mlm", random_seed=9999)
-    batch = mlm_dataset.get_batch(0)
-    print("MLM Batch Shape:", batch.shape)  # Should be (16, max_length)
-
-    print(batch[0])
-    print(mlm_dataset.tokenizer.decode(batch[0].tolist()))
-
-    # Create Diffusion dataset
-    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="diffusion", random_seed=9999)
-    scenes, captions = diffusion_dataset.get_batch(0)
-    print("Diffusion Batch Shapes:", scenes.shape, captions.shape)  # Expected: (16,16,16) and (16, max_length)
-
-    print(scenes[0])
-    print(diffusion_dataset.tokenizer.decode(captions[0].tolist()))
