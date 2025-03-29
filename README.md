@@ -59,6 +59,18 @@ python .\masked_token_prediction.py --model_file .\mlm_transformer.pth
 
 
 
+Train diffusion model?
+```
+python level_diffusion_model.py --json_path path/to/your/data.json --tokenizer_path path/to/tokenizer.json --output_dir ./trained_model --num_tiles 15 --level_size 16 --batch_size 32 --augment --num_train_steps 100000 --use_ema
+```
+
+
+
+
+
+
+
+
 
 
 
