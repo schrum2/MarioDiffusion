@@ -155,12 +155,10 @@ def main():
         
         for batch_idx, batch in enumerate(dataloader):
             # We're ignoring captions for unconditional generation
-            if isinstance(batch, tuple):
+            if isinstance(batch, list):
                 scenes, _ = batch
             else:
                 scenes = batch
-            
-            scenes = torch.tensor(scenes, device="cuda")
 
             # Add noise to the clean scenes
             noise = torch.randn_like(scenes)
@@ -204,7 +202,7 @@ def main():
                 # Sample random noise
                 sample = torch.randn(
                     4, args.num_tiles, 16, 16,
-                    generator=torch.manual_seed(args.seed),
+                    generator=torch.manual_seed(args.seed, device=accelerator.device),
                     device=accelerator.device
                 )
                 
