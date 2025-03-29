@@ -186,8 +186,8 @@ def train_diffusion_model(args):
     while global_step < args.num_train_steps:
         for batch_idx in range(len(diffusion_dataset)):
             # Get batch
-            batch = diffusion_dataset[batch_idx]
-            clean_images = batch["pixel_values"].to(device)
+            scenes, captions = diffusion_dataset[batch_idx]
+            clean_images = scenes.to(device)
             
             # Sample noise
             noise = torch.randn_like(clean_images)
@@ -203,7 +203,7 @@ def train_diffusion_model(args):
             if args.conditional:
                 # Get text embeddings
                 with torch.no_grad():
-                    encoder_hidden_states = text_encoder(batch["captions"].to(device))
+                    encoder_hidden_states = text_encoder(captions.to(device))
                 
                 # Predict noise
                 noise_pred = model(
