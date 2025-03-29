@@ -1,7 +1,7 @@
 import json
 import torch
-import torch.nn.functional as F
 import random
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 from tokenizer import Tokenizer
 
@@ -79,21 +79,6 @@ class LevelDataset:
         pad_token = self.tokenizer.token_to_id["[PAD]"]
         return tokens + [pad_token] * (self.max_length - len(tokens))
 
-    def flip_scene_horizontally(self, scene):
-        """Flip scene horizontally, working with either tensor or list representation"""
-        if isinstance(scene, torch.Tensor):
-            # If scene is already a tensor (potentially one-hot encoded)
-            if scene.dim() == 2:  # Regular 2D scene (H×W)
-                return torch.flip(scene, dims=[1])
-            elif scene.dim() == 3:  # One-hot encoded scene (C×H×W)
-                return torch.flip(scene, dims=[2])
-        else:
-            print(scene)
-            raise ValueError("Why is data still a list of lists?")
-            # Should not ever happen
-            # Original list of lists implementation
-            # return [row[::-1] for row in scene]
-
     def swap_caption_tokens(self, caption_tensor):
         left_id = self.tokenizer.token_to_id["left"]
         right_id = self.tokenizer.token_to_id["right"]
@@ -115,23 +100,6 @@ class LevelDataset:
         
         return swapped_caption
 
-    def _prepare_scene_for_diffusion(self, scene):
-        """Convert scene to one-hot encoding for diffusion model"""
-        if self.mode == "diffusion":
-            # Convert to tensor if not already
-            if not isinstance(scene, torch.Tensor):
-                scene = torch.tensor(scene, dtype=torch.long)
-            
-            # Convert to one-hot encoding
-            one_hot = F.one_hot(scene, num_classes=self.num_tiles).float()
-            
-            # Permute dimensions to [C, H, W] format for diffusion model
-            # From [H, W, C] to [C, H, W]
-            return one_hot.permute(2, 0, 1)
-        else:
-            # Should not be called in MLM mode
-            raise ValueError("Should not be called in MLM mode")
-
     def get_batch(self, idx):
         """
         Retrieves a batch of data.
@@ -141,8 +109,8 @@ class LevelDataset:
 
         Returns:
             - In "mlm" mode: token_tensor (Tensor) of shape (batch_size, max_length)
-            - In "diffusion" mode: (pixel_values, captions_tensor) where pixel_values is 
-              one-hot encoded [batch_size, num_tiles, height, width]
+            - In "diffusion" mode: (scenes_tensor, captions_tensor)
+              scenes_tensor is one-hot encoded with shape (batch_size, num_tiles, height, width)
         """
         start = idx * self.batch_size
         end = min(start + self.batch_size, len(self.data))
@@ -156,29 +124,23 @@ class LevelDataset:
 
         # Get level scenes for diffusion training
         batch_scenes = [self.data[i]["scene"] for i in range(start, end)]
+        scene_tensor = torch.tensor(batch_scenes, dtype=torch.long)
         
-        # Convert scenes to tensors
-        batch_scene_tensors = [torch.tensor(scene, dtype=torch.long) for scene in batch_scenes]
-        
-        # Apply data augmentation
+        # Apply augmentation if enabled
         if self.augment:
-            for i in range(len(batch_scene_tensors)):
+            for i in range(len(batch_scenes)):
                 if random.choice([True, False]):  # Randomly decide whether to flip
-                    batch_scene_tensors[i] = self.flip_scene_horizontally(batch_scene_tensors[i])
+                    # Convert to tensor for consistent handling
+                    scene_tensor[i] = torch.flip(scene_tensor[i], dims=[1])
                     batch_tokens[i] = self.swap_caption_tokens(batch_tokens[i])
-        
-        # Convert to one-hot encoding for diffusion
-        one_hot_scenes = []
-        for scene_tensor in batch_scene_tensors:
-            one_hot = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
-            # Convert from [H, W, C] to [C, H, W]
-            one_hot_scenes.append(one_hot.permute(2, 0, 1))
-        
-        # Stack into a batch
-        scene_tensor = torch.stack(one_hot_scenes)
-        caption_tensor = torch.tensor(batch_tokens, dtype=torch.long)
+                    caption_tensor[i] = torch.tensor(batch_tokens[i], dtype=torch.long)
 
-        return scene_tensor, caption_tensor
+        # Convert to one-hot encoding for diffusion model
+        one_hot_scenes = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
+        # Permute dimensions to [batch_size, num_tiles, height, width]
+        one_hot_scenes = one_hot_scenes.permute(0, 3, 1, 2)
+
+        return one_hot_scenes, caption_tensor
 
     def __len__(self):
         """Returns number of batches."""
@@ -191,7 +153,7 @@ class LevelDataset:
         Returns:
             - In "mlm" mode: tokenized caption
             - In "diffusion" mode: (scene_tensor, caption_tensor)
-              where scene_tensor is one-hot encoded [C, H, W]
+              scene_tensor is one-hot encoded with shape (num_tiles, height, width)
         """
         sample = self.data[idx]
         augmented_caption = self._augment_caption(sample["caption"])
@@ -202,17 +164,19 @@ class LevelDataset:
         if self.mode == "mlm":
             return caption_tensor  # MLM only uses captions
 
-        scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)
+        scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
         
-        # Apply augmentation
+        # Apply augmentation if enabled
         if self.augment and random.choice([True, False]):
-            scene_tensor = self.flip_scene_horizontally(scene_tensor)
-            caption_tensor = torch.tensor(self.swap_caption_tokens(caption_tokens.tolist()), dtype=torch.long)
-        
-        # Prepare for diffusion
-        scene_tensor = self._prepare_scene_for_diffusion(scene_tensor)
+            scene_tensor = torch.flip(scene_tensor, dims=[1])
+            caption_tensor = torch.tensor(self.swap_caption_tokens(caption_tokens), dtype=torch.long)
 
-        return scene_tensor, caption_tensor
+        # Convert to one-hot encoding for diffusion model
+        one_hot_scene = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
+        # Permute dimensions to [num_tiles, height, width]
+        one_hot_scene = one_hot_scene.permute(2, 0, 1)
+
+        return one_hot_scene, caption_tensor
 
     def decode_caption(self, token_ids):
         """Converts a sequence of token IDs back into a readable caption."""
