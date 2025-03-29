@@ -68,6 +68,12 @@ class LevelDataset:
         else:
             return caption # Same as original
 
+    def _augment_scene_and_caption(self, scene, caption): # augments by flipping
+        scene_tensor = torch.flip(scene, dims=[-1]) # Had to make -1 to work, which seems odd, but results look right
+        caption_tensor = torch.tensor(self._swap_caption_tokens(caption), dtype=torch.long)
+
+        return scene_tensor, caption_tensor
+
     def _shuffle_data(self):
         """Shuffles the dataset."""
         combined = list(zip(self.data, self.tokenized_captions))
@@ -79,7 +85,7 @@ class LevelDataset:
         pad_token = self.tokenizer.token_to_id["[PAD]"]
         return tokens + [pad_token] * (self.max_length - len(tokens))
 
-    def swap_caption_tokens(self, caption_tensor):
+    def _swap_caption_tokens(self, caption_tensor):
         left_id = self.tokenizer.token_to_id["left"]
         right_id = self.tokenizer.token_to_id["right"]
         ascending_id = self.tokenizer.token_to_id["ascending"]
@@ -131,9 +137,7 @@ class LevelDataset:
             for i in range(len(batch_scenes)):
                 if random.choice([True, False]):  # Randomly decide whether to flip
                     # Convert to tensor for consistent handling
-                    scene_tensor[i] = torch.flip(scene_tensor[i], dims=[1])
-                    batch_tokens[i] = self.swap_caption_tokens(batch_tokens[i])
-                    caption_tensor[i] = torch.tensor(batch_tokens[i], dtype=torch.long)
+                    scene_tensor[i], caption_tensor[i] = self._augment_scene_and_caption(scene_tensor[i], batch_tokens[i])
 
         # Convert to one-hot encoding for diffusion model
         one_hot_scenes = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
@@ -168,8 +172,7 @@ class LevelDataset:
         
         # Apply augmentation if enabled
         if self.augment and random.choice([True, False]):
-            scene_tensor = torch.flip(scene_tensor, dims=[1])
-            caption_tensor = torch.tensor(self.swap_caption_tokens(caption_tokens), dtype=torch.long)
+            scene_tensor, caption_tensor = self._augment_scene_and_caption(scene_tensor, caption_tokens)
 
         # Convert to one-hot encoding for diffusion model
         one_hot_scene = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
@@ -190,6 +193,36 @@ class LevelDataset:
         """Returns the raw caption from the dataset for debugging."""
         return self.data[idx]["caption"]
 
+    def decode_scene(self, one_hot_scene):
+        """
+        Converts a one-hot encoded level scene tensor back to the original list of lists of integers.
+    
+        Args:
+            one_hot_scene (Tensor): One-hot encoded scene tensor with shape [num_tiles, height, width]
+                                   or [batch_size, num_tiles, height, width] if batched
+    
+        Returns:
+            List of lists of integers representing the original scene layout
+        """
+        # Check if we have a batched input
+        is_batched = len(one_hot_scene.shape) == 4
+    
+        if is_batched:
+            # For batched input, we'll just process the first example
+            # You could extend this to process all examples if needed
+            one_hot_scene = one_hot_scene[0]
+    
+        # Permute back to [height, width, num_tiles] format
+        one_hot_permuted = one_hot_scene.permute(1, 2, 0)
+    
+        # Get the indices (tile IDs) where the one-hot encoding has a 1
+        scene_indices = torch.argmax(one_hot_permuted, dim=2)
+    
+        # Convert to a list of lists
+        scene_list = scene_indices.tolist()
+    
+        return scene_list
+
 if __name__ == "__main__":
     tokenizer = Tokenizer()
     tokenizer.load('SMB1_Tokenizer.pkl')
@@ -208,4 +241,12 @@ if __name__ == "__main__":
     print("Diffusion Batch Shapes:", scenes.shape, captions.shape) 
 
     print(scenes[0])
+    print(torch.tensor(diffusion_dataset.decode_scene(scenes[0])))
     print(diffusion_dataset.tokenizer.decode(captions[0].tolist()))
+
+    print("-----------")
+
+    scene, caption = diffusion_dataset[100]
+    print(torch.tensor(diffusion_dataset.decode_scene(scene)))
+    scene, caption = diffusion_dataset._augment_scene_and_caption(scene, caption)
+    print(torch.tensor(diffusion_dataset.decode_scene(scene)))
