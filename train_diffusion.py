@@ -202,7 +202,7 @@ def main():
                 # Sample random noise
                 sample = torch.randn(
                     4, args.num_tiles, 16, 16,
-                    generator=torch.manual_seed(args.seed, device=accelerator.device),
+                    generator=torch.Generator(accelerator.device).manual_seed(args.seed),
                     device=accelerator.device
                 )
                 
