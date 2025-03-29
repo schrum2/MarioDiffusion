@@ -80,9 +80,8 @@ def main():
     # Initialize the TensorBoard writer
     writer = SummaryWriter(log_dir=args.logging_dir)
     
-    # Load tokenizer
-    with open(args.pkl, 'rb') as f:
-        tokenizer = pickle.load(f)
+    tokenizer = Tokenizer()
+    tokenizer.load('SMB1_Tokenizer.pkl')
     
     # Initialize dataset
     dataset = LevelDataset(
