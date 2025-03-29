@@ -443,10 +443,7 @@ def generate_captions(dataset_path, tileset_path, output_path):
         
         caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies")
         caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks")
-  
-        # Did not give pipe position information
-        #pipe_at_edge = 1 if in_column(scene, 0, char_to_id['>']) else 0
-        #caption += count_caption_phrase(scene, [char_to_id['<']], "pipe", "pipes", pipe_at_edge)
+        caption += count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons")
 
         caption += count_caption_phrase(scene, [char_to_id['o']], "coin", "coins")
         # Coin lines - no passable/solid requirements
