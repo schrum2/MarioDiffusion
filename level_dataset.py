@@ -189,3 +189,23 @@ class LevelDataset:
     def get_sample_caption(self, idx):
         """Returns the raw caption from the dataset for debugging."""
         return self.data[idx]["caption"]
+
+if __name__ == "__main__":
+    tokenizer = Tokenizer()
+    tokenizer.load('SMB1_Tokenizer.pkl')
+
+    # Create MLM dataset
+    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="mlm", random_seed=9999)
+    batch = mlm_dataset.get_batch(0)
+    print("MLM Batch Shape:", batch.shape)  # Should be (16, max_length)
+
+    print(batch[0])
+    print(mlm_dataset.tokenizer.decode(batch[0].tolist()))
+
+    # Create Diffusion dataset
+    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="diffusion", random_seed=9999)
+    scenes, captions = diffusion_dataset.get_batch(0)
+    print("Diffusion Batch Shapes:", scenes.shape, captions.shape) 
+
+    print(scenes[0])
+    print(diffusion_dataset.tokenizer.decode(captions[0].tolist()))
