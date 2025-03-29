@@ -41,7 +41,7 @@ python tokenizer.py save
 ```
 Now, masked language modeling will be used to pre-train the text embedding model.
 ```
-python mlm_training.py --model transformer --epochs 3000
+python train_mlm.py --model transformer --epochs 3000
 ```
 
 
