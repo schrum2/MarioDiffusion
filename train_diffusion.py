@@ -15,6 +15,7 @@ from accelerate import Accelerator
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from level_dataset import LevelDataset
+from tokenizer import Tokenizer 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a diffusion model for tile-based level generation")
