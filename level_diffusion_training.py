@@ -29,30 +29,6 @@ def parse_args():
     parser.add_argument("--use_ema", action="store_true", help="Use EMA for model weights")
     return parser.parse_args()
 
-
-class LevelDiffusionDataset:
-    def __init__(self, level_dataset, num_tiles):
-        self.level_dataset = level_dataset
-        self.num_tiles = num_tiles
-        
-    def __len__(self):
-        return len(self.level_dataset)
-    
-    def __getitem__(self, idx):
-        if isinstance(idx, int):
-            # Single item access
-            scene, caption = self.level_dataset[idx]
-            # Convert scene to one-hot encoding
-            one_hot = F.one_hot(scene, num_classes=self.num_tiles).float()
-            return {"pixel_values": one_hot.permute(2, 0, 1), "captions": caption}
-        else:
-            # Batch access via get_batch
-            scene_batch, caption_batch = self.level_dataset.get_batch(idx)
-            # Convert scene batch to one-hot encoding
-            one_hot_batch = F.one_hot(scene_batch, num_classes=self.num_tiles).float()
-            return {"pixel_values": one_hot_batch.permute(0, 3, 1, 2), "captions": caption_batch}
-
-
 class TextEncoder(nn.Module):
     def __init__(self, transformer_model, embedding_dim):
         super(TextEncoder, self).__init__()
@@ -158,18 +134,16 @@ def train_diffusion_model(args):
     
     # Create dataset
     from level_dataset import LevelDataset
-    level_dataset = LevelDataset(
+    diffusion_dataset = LevelDataset(
         json_path=args.json_path,
         tokenizer=tokenizer,
         batch_size=args.batch_size,
         shuffle=True,
         mode="diffusion",
         augment=args.augment,
+        num_tiles=args.num_tiles
     )
-    
-    # Create diffusion dataset wrapper
-    diffusion_dataset = LevelDiffusionDataset(level_dataset, args.num_tiles)
-    
+
     # Setup noise scheduler
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=1000,
@@ -210,7 +184,7 @@ def train_diffusion_model(args):
     progress_bar = tqdm(range(args.num_train_steps))
     
     while global_step < args.num_train_steps:
-        for batch_idx in range(len(level_dataset)):
+        for batch_idx in range(len(diffusion_dataset)):
             # Get batch
             batch = diffusion_dataset[batch_idx]
             clean_images = batch["pixel_values"].to(device)
