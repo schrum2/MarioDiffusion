@@ -88,8 +88,11 @@ class LevelDataset:
             elif scene.dim() == 3:  # One-hot encoded scene (C×H×W)
                 return torch.flip(scene, dims=[2])
         else:
+            print(scene)
+            raise ValueError("Why is data still a list of lists?")
+            # Should not ever happen
             # Original list of lists implementation
-            return [row[::-1] for row in scene]
+            # return [row[::-1] for row in scene]
 
     def swap_caption_tokens(self, caption_tensor):
         left_id = self.tokenizer.token_to_id["left"]
@@ -126,8 +129,8 @@ class LevelDataset:
             # From [H, W, C] to [C, H, W]
             return one_hot.permute(2, 0, 1)
         else:
-            # For MLM mode, just return the scene as is
-            return scene
+            # Should not be called in MLM mode
+            raise ValueError("Should not be called in MLM mode")
 
     def get_batch(self, idx):
         """
