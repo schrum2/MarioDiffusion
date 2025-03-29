@@ -61,16 +61,12 @@ python .\masked_token_prediction.py --model_file .\mlm_transformer.pth
 
 Train unconditional diffusion model?
 ```
-python level_diffusion_training.py --output_dir ./unconditional_model --augment --num_train_steps 100000 --use_ema
+python train_diffusion.py --augment --num_epochs 100 --learning_rate 1e-4
 ```
 
 
 
 
-Train conditional diffusion model?
-```
-python level_diffusion_training.py --output_dir ./conditional_model --conditional --augment --num_train_steps 100000 --use_ema
-```
 
 
 
