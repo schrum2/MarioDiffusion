@@ -160,6 +160,8 @@ def main():
             else:
                 scenes = batch
             
+            scenes = torch.tensor(scenes, device="cuda")
+
             # Add noise to the clean scenes
             noise = torch.randn_like(scenes)
             timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
