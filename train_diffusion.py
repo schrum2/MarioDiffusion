@@ -263,9 +263,6 @@ def visualize_samples(samples, dataset, output_dir, epoch):
     for i, sample in enumerate(samples):
         # Convert one-hot back to indices (get most likely tile for each position)
         # [num_tiles, height, width] -> [height, width]
-        print(sample)
-        print(type(sample))
-
         sample_index = torch.argmax(torch.tensor(sample), dim=0).cpu().numpy()
         sample_indices.append(sample_index)
         
