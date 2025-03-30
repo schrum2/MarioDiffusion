@@ -115,10 +115,10 @@ def parse_args():
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--num_epochs", type=int, default=100, help="Number of training epochs")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps")
-    parser.add_argument("--lr_warmup_steps", type=int, default=500, help="Learning rate warmup steps")
+    parser.add_argument("--lr_warmup_steps", type=int, default=100, help="Learning rate warmup steps")
     parser.add_argument("--save_image_epochs", type=int, default=10, help="Save generated levels every N epochs")
     parser.add_argument("--save_model_epochs", type=int, default=10, help="Save model every N epochs")
-    parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help="Mixed precision type")
+    parser.add_argument("--mixed_precision", type=str, default="fp16", choices=["no", "fp16", "bf16"], help="Mixed precision type")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     
     # Output args
@@ -126,7 +126,7 @@ def parse_args():
     parser.add_argument("--logging_dir", type=str, default="logs", help="Logging directory for TensorBoard")
     
     # Diffusion scheduler args
-    parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
+    parser.add_argument("--num_train_timesteps", type=int, default=500, help="Number of diffusion timesteps")
     parser.add_argument("--beta_schedule", type=str, default="linear", help="Beta schedule type")
     parser.add_argument("--beta_start", type=float, default=0.0001, help="Beta schedule start value")
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
