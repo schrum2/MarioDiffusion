@@ -32,34 +32,13 @@ formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
 
 # Modified LossPlotter class
 class LossPlotter:
-    def __init__(self, log_file, update_interval=1.0, interactive=False):
+    def __init__(self, log_file, update_interval=1.0):
         self.log_file = log_file
         self.update_interval = update_interval
-        self.interactive = interactive
         self.running = True
         
-        # Set the backend based on whether we're in interactive mode
-        if interactive:
-            # Interactive backends should be set before importing pyplot
-            try:
-                # Check if running in a GUI-capable environment
-                if sys.platform.startswith('win'):
-                    matplotlib.use('TkAgg')
-                elif sys.platform.startswith('darwin'):  # macOS
-                    matplotlib.use('MacOSX')
-                else:  # Linux and others
-                    # Try Qt first, fall back to TkAgg
-                    try:
-                        matplotlib.use('Qt5Agg')
-                    except ImportError:
-                        matplotlib.use('TkAgg')
-            except Exception as e:
-                print(f"Warning: Could not set interactive backend ({e}). Falling back to non-interactive mode.")
-                self.interactive = False
-                matplotlib.use('Agg')
-        else:
-            # Use non-interactive backend
-            matplotlib.use('Agg')
+        # Use non-interactive backend
+        matplotlib.use('Agg')
         
         # Import pyplot after setting the backend
         import matplotlib.pyplot as plt
@@ -116,21 +95,7 @@ class LossPlotter:
         return self.ax,
     
     def start_plotting(self):
-        if self.interactive:
-            try:
-                from matplotlib.animation import FuncAnimation
-                # Use a shorter interval for more responsive updates
-                self.ani = FuncAnimation(
-                    self.fig, self.update_plot, interval=self.update_interval * 1000, cache_frame_data=False
-                )
-                self.plt.show(block=False)  # Non-blocking show
-                print("Interactive plot started successfully")
-            except Exception as e:
-                print(f"Warning: Could not start interactive plot ({e}). Falling back to non-interactive mode.")
-                self.interactive = False
-                self.start_noninteractive_plotting()
-        else:
-            self.start_noninteractive_plotting()
+        self.start_noninteractive_plotting()
     
     def start_noninteractive_plotting(self):
         """Separate method for non-interactive plotting to run in thread"""
@@ -270,19 +235,14 @@ def main(args):
     plot_thread = None
     if args.plot_loss:
         # Create the plotter first
-        try_interactive = args.interactive_plot
-        plotter = LossPlotter(log_file, update_interval=1.0, interactive=try_interactive)
+        plotter = LossPlotter(log_file, update_interval=1.0)
         
-        if plotter.interactive:
-            # If interactive, start in main thread
-            plotter.start_plotting()
-        else:
-            # If non-interactive, start in background thread
-            plot_thread = threading.Thread(target=plotter.start_noninteractive_plotting)
-            plot_thread.daemon = True
-            plot_thread.start()
+        # If non-interactive, start in background thread
+        plot_thread = threading.Thread(target=plotter.start_noninteractive_plotting)
+        plot_thread.daemon = True
+        plot_thread.start()
             
-        print(f"Loss plotting enabled: {'interactive' if plotter.interactive else 'non-interactive'} mode")
+        print(f"Loss plotting enabled")
         print(f"Progress images will be saved to {output_dir}/current_progress.png")
 
     accelerator = Accelerator(
@@ -648,10 +608,6 @@ def main(args):
 
     # Before ending, update the display one last time and ensure clean shutdown
     if plotter:
-        if plotter.interactive:
-            plotter.update_plot()  # Final update for interactive plot
-            # Give a moment for the plot to update
-            time.sleep(0.5)
         plotter.stop_plotting()
         if plot_thread and plot_thread.is_alive():
             plot_thread.join(timeout=1.0)
@@ -724,7 +680,6 @@ def add_arguments(parser):
     parser.add_argument("--checkpoint_interval", type=int, default=10, help="Save checkpoints every N epochs (0 to disable)")
     parser.add_argument("--log_steps", type=int, default=10, help="Log every N steps")
     parser.add_argument("--plot_loss", action="store_true", help="Plot loss during training")
-    parser.add_argument("--interactive_plot", action="store_true", help="Try to use an interactive plot window (if supported)")
 
     # Image samples
     parser.add_argument("--sample_interval", type=int, default=10, help="Generate sample images every N epochs (0 to disable)")
