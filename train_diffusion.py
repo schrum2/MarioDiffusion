@@ -280,7 +280,7 @@ def main():
             with accelerator.accumulate(model):
                 # Predict the noise
                 noise_pred = model(noisy_scenes, timesteps).sample
-                
+
                 # Compute loss
                 loss = F.mse_loss(noise_pred, noise)
                 
@@ -319,7 +319,7 @@ def main():
                     generator=torch.Generator(accelerator.device).manual_seed(args.seed),
                     device=accelerator.device
                 )
-                
+
                 # Generate samples from noise
                 samples = pipeline(
                     batch_size=4,
@@ -328,8 +328,10 @@ def main():
                     output_type="tensor",
                 ).images
             
+                samples = torch.tensor(samples).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
+
             # Convert one-hot samples to tile indices
-            samples_indices = dataset.visualize_samples(torch.tensor(samples), args.output_dir, f"samples_epoch_{epoch}")
+            samples_indices = dataset.visualize_samples(samples, args.output_dir, f"samples_epoch_{epoch}")
             
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
