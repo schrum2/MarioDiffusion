@@ -115,7 +115,7 @@ def parse_args():
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--num_epochs", type=int, default=100, help="Number of training epochs")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps")
-    parser.add_argument("--lr_warmup_steps", type=int, default=100, help="Learning rate warmup steps")
+    parser.add_argument("--lr_warmup_steps", type=int, default=10, help="Learning rate warmup steps")
     parser.add_argument("--save_image_epochs", type=int, default=10, help="Save generated levels every N epochs")
     parser.add_argument("--save_model_epochs", type=int, default=10, help="Save model every N epochs")
     parser.add_argument("--mixed_precision", type=str, default="fp16", choices=["no", "fp16", "bf16"], help="Mixed precision type")
