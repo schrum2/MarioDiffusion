@@ -188,6 +188,7 @@ def main():
             
             # Log to TensorBoard
             accelerator.log(logs, step=global_step)
+            print(logs)
         
         # Generate and save sample levels every N epochs
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
