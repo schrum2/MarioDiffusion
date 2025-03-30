@@ -329,7 +329,7 @@ def main():
                 ).images
             
             # Convert one-hot samples to tile indices
-            samples_indices = visualize_samples(samples, dataset, args.output_dir, epoch)
+            samples_indices = dataset.visualize_samples(torch.tensor(samples), args.output_dir, f"samples_epoch_{epoch}")
             
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
@@ -349,54 +349,6 @@ def main():
     # Final model save
     pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
     pipeline.save_pretrained(args.output_dir)
-
-def visualize_samples(samples, dataset, output_dir, epoch):
-    """
-    Visualize generated samples and save as images.
-    
-    Args:
-        samples: One-hot encoded samples from the diffusion model
-        dataset: LevelDataset instance for decoding
-        output_dir: Directory to save visualizations
-        epoch: Current epoch number
-    
-    Returns:
-        List of tile index maps for the samples
-    """
-    # Create directory for this epoch's samples
-    samples_dir = os.path.join(output_dir, f"samples_epoch_{epoch}")
-    os.makedirs(samples_dir, exist_ok=True)
-    
-    # Convert from one-hot to tile indices
-    sample_indices = []
-    plt.figure(figsize=(16, 4))
-    
-    for i, sample in enumerate(samples):
-        # Convert one-hot back to indices (get most likely tile for each position)
-        # [num_tiles, height, width] -> [height, width]
-        sample_index = torch.argmax(torch.tensor(sample), dim=0).cpu().numpy()
-        sample_indices.append(sample_index)
-        
-        # Plot and save
-        plt.subplot(1, 4, i + 1)
-        plt.imshow(sample_index, cmap='viridis')
-        plt.colorbar(label='Tile Type')
-        plt.title(f"Sample {i+1}")
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(samples_dir, "samples_grid.png"))
-    plt.close()
-    
-    # Save individual samples
-    for i, sample_index in enumerate(sample_indices):
-        plt.figure(figsize=(8, 8))
-        plt.imshow(sample_index, cmap='viridis')
-        plt.colorbar(label='Tile Type')
-        plt.title(f"Sample {i+1}")
-        plt.savefig(os.path.join(samples_dir, f"sample_{i}.png"))
-        plt.close()
-    
-    return sample_indices
 
 def generate_levels(model_path, num_samples=10, output_dir="generated_levels", seed=42):
     """
