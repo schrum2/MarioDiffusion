@@ -8,14 +8,86 @@ from diffusers import UNet2DModel, DDPMScheduler, DDPMPipeline
 from diffusers.optimization import get_scheduler
 from tqdm.auto import tqdm
 import pickle
-import json
 import random
 import numpy as np
 from accelerate import Accelerator
+import matplotlib
 import matplotlib.pyplot as plt
-from torch.utils.tensorboard import SummaryWriter
 from level_dataset import LevelDataset
 from tokenizer import Tokenizer 
+import json
+import threading
+import time
+from datetime import datetime
+
+# Create a loss plotter class
+class LossPlotter:
+    def __init__(self, log_file, update_interval=1.0):
+        self.log_file = log_file
+        self.update_interval = update_interval
+        self.running = True
+        
+        # Use non-interactive backend
+        matplotlib.use('Agg')
+        
+        self.fig, self.ax = plt.subplots(figsize=(10, 6))
+        self.epochs = []
+        self.losses = []
+        self.lr_values = []
+        
+    def update_plot(self):
+        if os.path.exists(self.log_file):
+            try:
+                with open(self.log_file, 'r') as f:
+                    data = [json.loads(line) for line in f if line.strip()]
+                    
+                if not data:
+                    return
+                    
+                self.epochs = [entry.get('step', 0) for entry in data]
+                self.losses = [entry.get('loss', 0) for entry in data]
+                self.lr_values = [entry.get('lr', 0) for entry in data]
+                
+                # Clear the axes and redraw
+                self.ax.clear()
+                # Plot loss
+                self.ax.plot(self.epochs, self.losses, 'b-', label='Training Loss')
+                self.ax.set_xlabel('Step')
+                self.ax.set_ylabel('Loss', color='b')
+                self.ax.tick_params(axis='y', labelcolor='b')
+                
+                # Add learning rate on secondary y-axis
+                if any(self.lr_values):
+                    ax2 = self.ax.twinx()
+                    ax2.plot(self.epochs, self.lr_values, 'r-', label='Learning Rate')
+                    ax2.set_ylabel('Learning Rate', color='r')
+                    ax2.tick_params(axis='y', labelcolor='r')
+                    ax2.legend(loc='upper right')
+                
+                # Add a title and legend
+                self.ax.set_title('Training Progress')
+                self.ax.legend(loc='upper left')
+                
+                # Adjust layout
+                self.fig.tight_layout()
+                
+                # Save the current plot to disk
+                self.fig.savefig(os.path.join(os.path.dirname(self.log_file), 'training_progress.png'))
+            
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"Error parsing log file: {e}")
+    
+    def start_plotting(self):
+        """Method for non-interactive plotting to run in thread"""
+        print("Starting non-interactive plotting in background")
+        while self.running:
+            self.update_plot()
+            time.sleep(self.update_interval)
+    
+    def stop_plotting(self):
+        self.running = False
+        plt.close(self.fig)
+        print("Plotting stopped")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a diffusion model for tile-based level generation")
@@ -59,10 +131,18 @@ def parse_args():
     parser.add_argument("--beta_start", type=float, default=0.0001, help="Beta schedule start value")
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
     
+    parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
+
     return parser.parse_args()
 
 def main():
     args = parse_args()
+
+    # Check if config file is provided before training loop begins
+    if hasattr(args, 'config') and args.config:
+        config = load_config_from_json(args.config)
+        args = update_args_from_config(args, config)
+        print("Training will use parameters from the config file.")
     
     # Set random seeds for reproducibility
     random.seed(args.seed)
@@ -73,14 +153,9 @@ def main():
     # Setup accelerator
     accelerator = Accelerator(
         mixed_precision=args.mixed_precision,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-        log_with="tensorboard",
-        project_dir=args.logging_dir,
+        gradient_accumulation_steps=args.gradient_accumulation_steps
     )
-    
-    # Initialize the TensorBoard writer
-    writer = SummaryWriter(log_dir=args.logging_dir)
-    
+
     tokenizer = Tokenizer()
     tokenizer.load('SMB1_Tokenizer.pkl')
     
@@ -150,6 +225,43 @@ def main():
     progress_bar = tqdm(total=args.num_epochs * len(dataloader), disable=not accelerator.is_local_main_process)
     progress_bar.set_description("Steps")
     
+    # Get formatted timestamp for filenames
+    formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
+
+    # Create log files
+    log_file = os.path.join(args.output_dir, f"training_log_{formatted_date}.jsonl")
+    config_file = os.path.join(args.output_dir, f"hyperparams_{formatted_date}.json")
+
+    # Save hyperparameters to JSON file
+    if accelerator.is_local_main_process:
+        hyperparams = vars(args)
+        with open(config_file, "w") as f:
+            json.dump(hyperparams, f, indent=4)
+        print(f"Saved configuration to: {config_file}")
+  
+    # Add function to log metrics
+    def log_metrics(epoch, loss, lr, step=None):
+        if accelerator.is_local_main_process:
+            log_entry = {
+                "epoch": epoch,
+                "loss": loss,
+                "lr": lr,
+                "step": step if step is not None else epoch * len(dataloader),
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            with open(log_file, 'a') as f:
+                f.write(json.dumps(log_entry) + '\n')
+
+    # Initialize plotter if we're on the main process
+    plotter = None
+    plot_thread = None
+    if accelerator.is_local_main_process:
+        plotter = LossPlotter(log_file, update_interval=5.0)  # Update every 5 seconds
+        plot_thread = threading.Thread(target=plotter.start_plotting)
+        plot_thread.daemon = True
+        plot_thread.start()
+        print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'training_progress.png')}")
+
     for epoch in range(args.num_epochs):
         model.train()
         
@@ -184,11 +296,12 @@ def main():
             progress_bar.update(1)
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
             progress_bar.set_postfix(**logs)
-            global_step += 1
-            
-            # Log to TensorBoard
-            accelerator.log(logs, step=global_step)
+                        
+            # Log to JSONL file
+            log_metrics(epoch, loss.detach().item(), lr_scheduler.get_last_lr()[0], step=global_step)
             print(logs)
+
+            global_step += 1
         
         # Generate and save sample levels every N epochs
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
@@ -218,23 +331,20 @@ def main():
             # Convert one-hot samples to tile indices
             samples_indices = visualize_samples(samples, dataset, args.output_dir, epoch)
             
-            # Log samples to TensorBoard
-            for i, sample_level in enumerate(samples_indices):
-                fig = plt.figure(figsize=(5, 5))
-                plt.imshow(sample_level, cmap='viridis')
-                plt.colorbar(label='Tile Type')
-                plt.tight_layout()
-                writer.add_figure(f"generated_level_{i}", fig, global_step=epoch)
-        
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
             # Save the model
             pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
     
+    # Clean up plotting resources
+    if accelerator.is_local_main_process and plotter:
+        plotter.stop_plotting()
+        if plot_thread and plot_thread.is_alive():
+            plot_thread.join(timeout=1.0)
+
     # Close progress bar and TensorBoard writer
     progress_bar.close()
-    writer.close()
     
     # Final model save
     pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
@@ -344,6 +454,32 @@ def generate_levels(model_path, num_samples=10, output_dir="generated_levels", s
     plt.close()
     
     print(f"Generated {num_samples} levels saved to {output_dir}")
+
+# Add function to load config from JSON
+def load_config_from_json(config_path):
+    """Load hyperparameters from a JSON config file."""
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            print(f"Configuration loaded from {config_path}")
+            
+            # Print the loaded config for verification
+            print("Loaded hyperparameters:")
+            for key, value in config.items():
+                print(f"  {key}: {value}")
+                
+            return config
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Error loading config file: {e}")
+        raise e
+
+def update_args_from_config(args, config):
+    """Update argparse namespace with values from config."""
+    # Convert config dict to argparse namespace
+    for key, value in config.items():
+        if hasattr(args, key):
+            setattr(args, key, value)
+    return args
 
 if __name__ == "__main__":
     main()
