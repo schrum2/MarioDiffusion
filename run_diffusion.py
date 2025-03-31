@@ -51,17 +51,6 @@ def convert_to_level_format(sample):
             sample_indices = sample.cpu().numpy()
         return sample_indices
 
-def save_level_as_json(level_indices, save_path):
-    """Save generated level in a JSON format"""
-    level_data = {
-        "width": level_indices.shape[1],
-        "height": level_indices.shape[0],
-        "tiles": level_indices.tolist()
-    }
-    
-    with open(save_path, 'w') as f:
-        json.dump(level_data, f, indent=2)
-
 def generate_levels(args):
     """Generate level designs using a trained diffusion model"""
     # Set seeds for reproducibility
@@ -129,18 +118,27 @@ def generate_levels(args):
     # Convert to list of numpy arrays (why?)
     samples_list = [all_samples[i] for i in range(len(all_samples))]
     
-    # Visualize and save individual samples
+    # Prepare a list to store all levels
+    all_levels = []
+
+    # Process and collect individual samples
     for i, sample in enumerate(samples_list):
         # Convert to indices
         sample_tensor = sample.unsqueeze(0) if sample.shape[0] == num_tiles else sample
         sample_indices = convert_to_level_format(sample_tensor)
-        if sample_indices.shape[0] == 1:
-            sample_indices = sample_indices[0]
         
-        # Save as JSON if requested
-        if args.save_as_json:
-            json_path = os.path.join(args.output_dir, f"level_{i}.json")
-            save_level_as_json(sample_indices, json_path)
+        # Add level data to the list
+        level_data = {
+            "scene": sample_indices.tolist(),
+            "caption": "unknown" # TODO: extract this as I do in create_ascii_captions.py
+        }
+        all_levels.append(level_data)
+    
+    # Save all levels to a single JSON file if requested
+    if args.save_as_json:
+        json_path = os.path.join(args.output_dir, "all_levels.json")
+        with open(json_path, 'w') as f:
+            json.dump(all_levels, f, indent=2)
     
 if __name__ == "__main__":
     args = parse_args()
