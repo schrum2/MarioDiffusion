@@ -341,9 +341,12 @@ def main():
     
     # Clean up plotting resources
     if accelerator.is_local_main_process and plotter:
-        plotter.stop_plotting()
+        # Better thread cleanup
         if plot_thread and plot_thread.is_alive():
-            plot_thread.join(timeout=1.0)
+            plotter.stop_plotting()
+            plot_thread.join(timeout=5.0)
+            if plot_thread.is_alive():
+                print("Warning: Plot thread did not terminate properly")
 
     # Close progress bar and TensorBoard writer
     progress_bar.close()
