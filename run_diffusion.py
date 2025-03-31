@@ -98,7 +98,7 @@ def generate_levels(args):
     all_samples = torch.cat(all_samples, dim=0)[:total_samples]
     print(f"Generated {len(all_samples)} level samples")
     
-    visualize_samples(all_samples, "generated_levels")
+    visualize_samples(all_samples, args.output_dir)
 
     # Convert to list
     samples_list = [all_samples[i] for i in range(len(all_samples))]
