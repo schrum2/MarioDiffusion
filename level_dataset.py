@@ -21,6 +21,28 @@ def visualize_samples(samples, output_dir):
     # Create directory for the samples
     os.makedirs(output_dir, exist_ok=True)
     
+    # Create custom colormap for integers 0-15
+    colors = [
+        (0.8, 0.9, 1.0),    # 0 = very light blue
+        (0.0, 0.4, 0.0),    # 1 = dark green
+        (0.0, 0.2, 0.0),    # 2 = darker green
+        (1.0, 0.7, 0.9),    # 3 = pink
+        (0.0, 0.0, 0.0),    # 4 = black
+        (1.0, 0.0, 0.0),    # 5 = bright red
+        (0.6, 0.4, 0.0),    # 6 = dark gold
+        (0.8, 0.4, 0.0),    # 7 = dark orange
+        (0.5, 0.2, 0.1),    # 8 = brownish red
+        (0.6, 0.9, 0.6),    # 9 = light green
+        (0.7, 1.0, 0.7),    # 10 = lighter green
+        (0.5, 0.5, 0.5),    # 11 = grey
+        (1.0, 1.0, 0.0),    # 12 = yellow
+        (1.0, 1.0, 1.0),    # 13 = white
+        (0.6, 0.0, 0.9),    # 14 = violet
+        (0.3, 0.3, 0.3)     # 15 (extra color just in case)
+    ]
+    
+    custom_cmap = matplotlib.colors.ListedColormap(colors[:15])
+    
     # Convert from one-hot to tile indices
     sample_indices = []
     num_samples = len(samples)
@@ -37,7 +59,7 @@ def visualize_samples(samples, output_dir):
         
         # Plot and save
         plt.subplot(grid_rows, grid_cols, i + 1)
-        plt.imshow(sample_index, cmap='viridis')
+        plt.imshow(sample_index, cmap=custom_cmap, vmin=0, vmax=14)  # Set vmin and vmax to ensure color mapping
         plt.title(f"Sample {i+1}")
     
     plt.tight_layout()
@@ -47,7 +69,7 @@ def visualize_samples(samples, output_dir):
     # Save individual samples
     for i, sample_index in enumerate(sample_indices):
         plt.figure(figsize=(8, 8))
-        plt.imshow(sample_index, cmap='viridis')
+        plt.imshow(sample_index, cmap=custom_cmap, vmin=0, vmax=14)
         plt.title(f"Sample {i+1}")
         plt.savefig(os.path.join(output_dir, f"sample_{i}.png"))
         plt.close()
