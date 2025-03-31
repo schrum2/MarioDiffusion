@@ -157,7 +157,7 @@ def main():
     )
 
     tokenizer = Tokenizer()
-    tokenizer.load('SMB1_Tokenizer.pkl')
+    tokenizer.load(args.pkl)
     
     # Initialize dataset
     dataset = LevelDataset(
