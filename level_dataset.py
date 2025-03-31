@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 from tokenizer import Tokenizer
 import os
 import matplotlib.pyplot as plt
+import matplotlib
 
 def visualize_samples(samples, output_dir):
     """
