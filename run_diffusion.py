@@ -20,7 +20,7 @@ def parse_args():
     parser.add_argument("--num_samples", type=int, default=10, help="Number of levels to generate")
     parser.add_argument("--output_dir", type=str, default="generated_levels", help="Directory to save generated levels")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--inference_steps", type=int, default=1000, help="Number of denoising steps")
+    parser.add_argument("--inference_steps", type=int, default=500, help="Number of denoising steps")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer file for visualization")
