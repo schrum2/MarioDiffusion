@@ -65,7 +65,10 @@ python train_diffusion.py --augment --num_epochs 100 --learning_rate 1e-4
 ```
 
 
-
+Run trained diffusion model
+```
+python run_diffusion.py --model_path level-diffusion-output --num_samples 10
+```
 
 
 
