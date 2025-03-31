@@ -121,36 +121,21 @@ def generate_levels(args):
             all_samples.append(samples)
     
     # Concatenate all batches
-    try:
-        all_samples = torch.cat(all_samples, dim=0)[:total_samples]
-    except RuntimeError as e:
-        print(f"Error concatenating samples: {e}")
-        # Alternative approach if cat fails
-        all_samples = [sample for batch in all_samples for sample in batch][:total_samples]
-    
+    all_samples = torch.cat(all_samples, dim=0)[:total_samples]
     print(f"Generated {len(all_samples)} level samples")
     
     visualize_samples(all_samples, "generated_levels")
 
-    # Convert to list of numpy arrays if it's not already
-    if isinstance(all_samples, torch.Tensor):
-        samples_list = [all_samples[i] for i in range(len(all_samples))]
-    else:
-        samples_list = all_samples
+    # Convert to list of numpy arrays (why?)
+    samples_list = [all_samples[i] for i in range(len(all_samples))]
     
     # Visualize and save individual samples
     for i, sample in enumerate(samples_list):
         # Convert to indices
-        if isinstance(sample, torch.Tensor) and len(sample.shape) == 3:
-            sample_tensor = sample.unsqueeze(0) if sample.shape[0] == num_tiles else sample
-            sample_indices = convert_to_level_format(sample_tensor)
-            if sample_indices.shape[0] == 1:
-                sample_indices = sample_indices[0]
-        else:
-            # Try to handle any other format
-            sample_indices = convert_to_level_format(sample)
-            if len(sample_indices.shape) > 2:
-                sample_indices = sample_indices[0]
+        sample_tensor = sample.unsqueeze(0) if sample.shape[0] == num_tiles else sample
+        sample_indices = convert_to_level_format(sample_tensor)
+        if sample_indices.shape[0] == 1:
+            sample_indices = sample_indices[0]
         
         # Save as JSON if requested
         if args.save_as_json:
