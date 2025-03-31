@@ -5,7 +5,6 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from diffusers import DDPMPipeline
-from tokenizer import Tokenizer
 import json
 import random
 from tqdm.auto import tqdm
@@ -23,24 +22,12 @@ def parse_args():
     parser.add_argument("--inference_steps", type=int, default=500, help="Number of denoising steps")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
-    parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer file for visualization")
     
     # Visualization options
     parser.add_argument("--colormap", type=str, default="viridis", help="Matplotlib colormap for visualization")
     parser.add_argument("--figsize", type=int, nargs=2, default=[10, 10], help="Figure size for individual level plots")
     
     return parser.parse_args()
-
-def setup_visualizer(tokenizer_path=None):
-    """Set up visualization utilities with optional tokenizer for better rendering"""
-    if tokenizer_path and os.path.exists(tokenizer_path):
-        try:
-            tokenizer = Tokenizer()
-            tokenizer.load(tokenizer_path)
-            return tokenizer
-        except Exception as e:
-            print(f"Warning: Could not load tokenizer: {e}")
-    return None
 
 def create_custom_colormap(num_tiles):
     """Create a custom colormap that makes different tiles visually distinct"""
@@ -52,8 +39,8 @@ def create_custom_colormap(num_tiles):
     
     return mcolors.ListedColormap(colors)
 
-def visualize_level(level_indices, tokenizer=None, cmap='viridis', title="Generated Level", figsize=(10, 10), save_path=None):
-    """Visualize a single level with optional tokenizer labels"""
+def visualize_level(level_indices, cmap='viridis', title="Generated Level", figsize=(10, 10), save_path=None):
+    """Visualize a single level with optional labels"""
     plt.figure(figsize=figsize)
     
     num_tiles = level_indices.max() + 1
@@ -66,29 +53,6 @@ def visualize_level(level_indices, tokenizer=None, cmap='viridis', title="Genera
     
     # Add grid lines for visibility
     plt.grid(which='both', color='lightgrey', linestyle='-', linewidth=0.5)
-    
-    # If tokenizer is available, add tile names as text annotations
-    if tokenizer:
-        height, width = level_indices.shape
-        for y in range(height):
-            for x in range(width):
-                tile_idx = level_indices[y, x]
-                if tile_idx > 0:  # Skip annotating empty tiles
-                    try:
-                        tile_name = tokenizer.id_to_token.get(int(tile_idx), str(tile_idx))
-                        # Abbreviate long tile names
-                        if len(tile_name) > 10:
-                            tile_name = tile_name[:8] + ".."
-                        
-                        # Choose text color based on background brightness
-                        color_val = custom_cmap(tile_idx / (num_tiles - 1))
-                        brightness = 0.299 * color_val[0] + 0.587 * color_val[1] + 0.114 * color_val[2]
-                        text_color = 'black' if brightness > 0.5 else 'white'
-                        
-                        plt.text(x, y, tile_name, ha='center', va='center', 
-                                 color=text_color, fontsize=8)
-                    except Exception as e:
-                        print(f"Warning: Could not annotate tile at ({x}, {y}): {e}")
     
     plt.tight_layout()
     
@@ -119,20 +83,13 @@ def convert_to_level_format(sample):
             sample_indices = sample.cpu().numpy()
         return sample_indices
 
-def save_level_as_json(level_indices, save_path, tokenizer=None):
+def save_level_as_json(level_indices, save_path):
     """Save generated level in a JSON format"""
     level_data = {
         "width": level_indices.shape[1],
         "height": level_indices.shape[0],
         "tiles": level_indices.tolist()
     }
-    
-    # Add tile names if tokenizer is available
-    if tokenizer:
-        tile_names = {}
-        for idx in np.unique(level_indices):
-            tile_names[int(idx)] = tokenizer.id_to_token.get(int(idx), f"unknown_{idx}")
-        level_data["tile_names"] = tile_names
     
     with open(save_path, 'w') as f:
         json.dump(level_data, f, indent=2)
@@ -149,9 +106,6 @@ def generate_levels(args):
     # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    
-    # Load the tokenizer if available
-    tokenizer = setup_visualizer(args.pkl)
     
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
@@ -232,7 +186,6 @@ def generate_levels(args):
         img_path = os.path.join(args.output_dir, f"level_{i}.png")
         visualize_level(
             sample_indices,
-            tokenizer=tokenizer, 
             cmap=args.colormap,
             title=f"Generated Level {i+1}",
             figsize=tuple(args.figsize),
@@ -242,7 +195,7 @@ def generate_levels(args):
         # Save as JSON if requested
         if args.save_as_json:
             json_path = os.path.join(args.output_dir, f"level_{i}.json")
-            save_level_as_json(sample_indices, json_path, tokenizer)
+            save_level_as_json(sample_indices, json_path)
     
     # Create a grid visualization of all levels
     rows = int(np.ceil(np.sqrt(len(samples_list))))
