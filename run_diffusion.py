@@ -157,36 +157,6 @@ def generate_levels(args):
             json_path = os.path.join(args.output_dir, f"level_{i}.json")
             save_level_as_json(sample_indices, json_path)
     
-    # Create a grid visualization of all levels
-    rows = int(np.ceil(np.sqrt(len(samples_list))))
-    cols = int(np.ceil(len(samples_list) / rows))
-    
-    plt.figure(figsize=(cols * 3, rows * 3))
-    
-    for i, sample in enumerate(samples_list):
-        # Convert to indices again
-        if isinstance(sample, torch.Tensor) and len(sample.shape) == 3:
-            sample_tensor = sample.unsqueeze(0) if sample.shape[0] == num_tiles else sample
-            sample_indices = convert_to_level_format(sample_tensor)
-            if sample_indices.shape[0] == 1:
-                sample_indices = sample_indices[0]
-        else:
-            sample_indices = convert_to_level_format(sample)
-            if len(sample_indices.shape) > 2:
-                sample_indices = sample_indices[0]
-        
-        plt.subplot(rows, cols, i + 1)
-        plt.imshow(sample_indices, cmap=args.colormap)
-        plt.title(f"Level {i+1}")
-        plt.axis('off')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(args.output_dir, "levels_grid.png"), dpi=150)
-    plt.close()
-    
-    print(f"All generated levels saved to {args.output_dir}")
-    print(f"Grid visualization saved as {os.path.join(args.output_dir, 'levels_grid.png')}")
-
 if __name__ == "__main__":
     args = parse_args()
     generate_levels(args)
