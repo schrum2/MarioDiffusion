@@ -14,7 +14,6 @@ def visualize_samples(samples, output_dir):
     Args:
         samples: One-hot encoded samples from the diffusion model
         output_dir: Directory to save visualizations
-        subdir: Subdirectory for the samples
     
     Returns:
         List of tile index maps for the samples
@@ -24,7 +23,11 @@ def visualize_samples(samples, output_dir):
     
     # Convert from one-hot to tile indices
     sample_indices = []
-    plt.figure(figsize=(16, 4))
+    num_samples = len(samples)
+    grid_cols = min(4, num_samples)  # Limit to 4 columns
+    grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
+    
+    plt.figure(figsize=(4 * grid_cols, 4 * grid_rows))  # Adjust figure size dynamically
     
     for i, sample in enumerate(samples):
         # Convert one-hot back to indices (get most likely tile for each position)
@@ -33,13 +36,13 @@ def visualize_samples(samples, output_dir):
         sample_indices.append(sample_index)
         
         # Plot and save
-        plt.subplot(1, 4, i + 1)
+        plt.subplot(grid_rows, grid_cols, i + 1)
         plt.imshow(sample_index, cmap='viridis')
         plt.colorbar(label='Tile Type')
         plt.title(f"Sample {i+1}")
     
     plt.tight_layout()
-    plt.savefig(os.path.join(samples_dir, "samples_grid.png"))
+    plt.savefig(os.path.join(output_dir, "samples_grid.png"))
     plt.close()
     
     # Save individual samples
@@ -48,7 +51,7 @@ def visualize_samples(samples, output_dir):
         plt.imshow(sample_index, cmap='viridis')
         plt.colorbar(label='Tile Type')
         plt.title(f"Sample {i+1}")
-        plt.savefig(os.path.join(samples_dir, f"sample_{i}.png"))
+        plt.savefig(os.path.join(output_dir, f"sample_{i}.png"))
         plt.close()
     
     return sample_indices

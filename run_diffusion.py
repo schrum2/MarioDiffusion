@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from diffusers import DDPMPipeline
+from level_dataset import visualize_samples
 import json
 import random
 from tqdm.auto import tqdm
@@ -162,6 +163,8 @@ def generate_levels(args):
     
     print(f"Generated {len(all_samples)} level samples")
     
+    visualize_samples(all_samples, "levels")
+
     # Convert to list of numpy arrays if it's not already
     if isinstance(all_samples, torch.Tensor):
         samples_list = [all_samples[i] for i in range(len(all_samples))]
