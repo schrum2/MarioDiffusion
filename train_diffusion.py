@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from diffusers import UNet2DModel, DDPMScheduler, DDPMPipeline
-from diffusers.optimization import get_scheduler
+from diffusers.optimization import get_cosine_schedule_with_warmup 
 from tqdm.auto import tqdm
 import pickle
 import random
@@ -114,8 +114,8 @@ def parse_args():
     # Training args
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--num_epochs", type=int, default=100, help="Number of training epochs")
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps")
-    parser.add_argument("--lr_warmup_steps", type=int, default=10, help="Learning rate warmup steps")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=2, help="Gradient accumulation steps")
+    parser.add_argument("--lr_warmup_steps", type=int, default=50, help="Learning rate warmup steps")
     parser.add_argument("--save_image_epochs", type=int, default=10, help="Save generated levels every N epochs")
     parser.add_argument("--save_model_epochs", type=int, default=10, help="Save model every N epochs")
     parser.add_argument("--mixed_precision", type=str, default="fp16", choices=["no", "fp16", "bf16"], help="Mixed precision type")
@@ -202,13 +202,15 @@ def main():
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
+        weight_decay=0.01,  # Add weight decay to prevent overfitting
+        betas=(0.9, 0.999)  # Default AdamW betas
     )
     
     # Setup learning rate scheduler
-    lr_scheduler = get_scheduler(
-        name="cosine",
+    lr_scheduler = get_cosine_schedule_with_warmup (
         optimizer=optimizer,
         num_warmup_steps=args.lr_warmup_steps,
+        num_cycles=2,  # Setting explicit number of cosine cycles (adjust as needed)
         num_training_steps=(len(dataloader) * args.num_epochs) // args.gradient_accumulation_steps,
     )
     
