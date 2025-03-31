@@ -30,39 +30,6 @@ def parse_args():
     
     return parser.parse_args()
 
-def create_custom_colormap(num_tiles):
-    """Create a custom colormap that makes different tiles visually distinct"""
-    # Generate evenly spaced colors across HSV space
-    colors = plt.cm.get_cmap('hsv', num_tiles)(np.linspace(0, 1, num_tiles))
-    
-    # Create a special color for empty space (typically index 0)
-    colors[0] = [0.95, 0.95, 0.95, 1.0]  # Light gray for empty space
-    
-    return mcolors.ListedColormap(colors)
-
-def visualize_level(level_indices, cmap='viridis', title="Generated Level", figsize=(10, 10), save_path=None):
-    """Visualize a single level with optional labels"""
-    plt.figure(figsize=figsize)
-    
-    num_tiles = level_indices.max() + 1
-    custom_cmap = create_custom_colormap(num_tiles)
-    
-    # Plot the level with colormap
-    img = plt.imshow(level_indices, cmap=custom_cmap, interpolation='nearest')
-    plt.colorbar(img, label='Tile Type')
-    plt.title(title)
-    
-    # Add grid lines for visibility
-    plt.grid(which='both', color='lightgrey', linestyle='-', linewidth=0.5)
-    
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=150)
-        plt.close()
-    else:
-        plt.show()
-
 def convert_to_level_format(sample):
     """Convert model output to level indices"""
     if isinstance(sample, np.ndarray):
@@ -163,7 +130,7 @@ def generate_levels(args):
     
     print(f"Generated {len(all_samples)} level samples")
     
-    visualize_samples(all_samples, "levels")
+    visualize_samples(all_samples, "generated_levels")
 
     # Convert to list of numpy arrays if it's not already
     if isinstance(all_samples, torch.Tensor):
@@ -184,16 +151,6 @@ def generate_levels(args):
             sample_indices = convert_to_level_format(sample)
             if len(sample_indices.shape) > 2:
                 sample_indices = sample_indices[0]
-        
-        # Save visualization
-        img_path = os.path.join(args.output_dir, f"level_{i}.png")
-        visualize_level(
-            sample_indices,
-            cmap=args.colormap,
-            title=f"Generated Level {i+1}",
-            figsize=tuple(args.figsize),
-            save_path=img_path
-        )
         
         # Save as JSON if requested
         if args.save_as_json:
