@@ -38,7 +38,6 @@ def visualize_samples(samples, output_dir):
         # Plot and save
         plt.subplot(grid_rows, grid_cols, i + 1)
         plt.imshow(sample_index, cmap='viridis')
-        plt.colorbar(label='Tile Type')
         plt.title(f"Sample {i+1}")
     
     plt.tight_layout()
@@ -49,7 +48,6 @@ def visualize_samples(samples, output_dir):
     for i, sample_index in enumerate(sample_indices):
         plt.figure(figsize=(8, 8))
         plt.imshow(sample_index, cmap='viridis')
-        plt.colorbar(label='Tile Type')
         plt.title(f"Sample {i+1}")
         plt.savefig(os.path.join(output_dir, f"sample_{i}.png"))
         plt.close()
