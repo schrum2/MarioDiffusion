@@ -5,8 +5,54 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 from tokenizer import Tokenizer
 import os
-import matplotlib
 import matplotlib.pyplot as plt
+
+def visualize_samples(samples, output_dir, subdir):
+    """
+    Visualize generated samples and save as images.
+    
+    Args:
+        samples: One-hot encoded samples from the diffusion model
+        output_dir: Directory to save visualizations
+        subdir: Subdirectory for the samples
+    
+    Returns:
+        List of tile index maps for the samples
+    """
+    # Create directory for the samples
+    samples_dir = os.path.join(output_dir, subdir)
+    os.makedirs(samples_dir, exist_ok=True)
+    
+    # Convert from one-hot to tile indices
+    sample_indices = []
+    plt.figure(figsize=(16, 4))
+    
+    for i, sample in enumerate(samples):
+        # Convert one-hot back to indices (get most likely tile for each position)
+        # [num_tiles, height, width] -> [height, width]
+        sample_index = torch.argmax(sample, dim=0).cpu().numpy()
+        sample_indices.append(sample_index)
+        
+        # Plot and save
+        plt.subplot(1, 4, i + 1)
+        plt.imshow(sample_index, cmap='viridis')
+        plt.colorbar(label='Tile Type')
+        plt.title(f"Sample {i+1}")
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(samples_dir, "samples_grid.png"))
+    plt.close()
+    
+    # Save individual samples
+    for i, sample_index in enumerate(sample_indices):
+        plt.figure(figsize=(8, 8))
+        plt.imshow(sample_index, cmap='viridis')
+        plt.colorbar(label='Tile Type')
+        plt.title(f"Sample {i+1}")
+        plt.savefig(os.path.join(samples_dir, f"sample_{i}.png"))
+        plt.close()
+    
+    return sample_indices
 
 class LevelDataset:
     def __init__(self, json_path, tokenizer, batch_size=32, shuffle=True, max_length=None, mode="diffusion", random_seed=1, augment=True, limit=-1, num_tiles=15):
@@ -224,52 +270,6 @@ class LevelDataset:
         scene_list = scene_indices.tolist()
     
         return scene_list
-
-    def visualize_samples(self, samples, output_dir, subdir):
-        """
-        Visualize generated samples and save as images.
-    
-        Args:
-            samples: One-hot encoded samples from the diffusion model
-            output_dir: Directory to save visualizations
-    
-        Returns:
-            List of tile index maps for the samples
-        """
-        # Create directory for the samples
-        samples_dir = os.path.join(output_dir, subdir)
-        os.makedirs(samples_dir, exist_ok=True)
-    
-        # Convert from one-hot to tile indices
-        sample_indices = []
-        plt.figure(figsize=(16, 4))
-    
-        for i, sample in enumerate(samples):
-            # Convert one-hot back to indices (get most likely tile for each position)
-            # [num_tiles, height, width] -> [height, width]
-            sample_index = torch.argmax(sample, dim=0).cpu().numpy()
-            sample_indices.append(sample_index)
-        
-            # Plot and save
-            plt.subplot(1, 4, i + 1)
-            plt.imshow(sample_index, cmap='viridis')
-            plt.colorbar(label='Tile Type')
-            plt.title(f"Sample {i+1}")
-    
-        plt.tight_layout()
-        plt.savefig(os.path.join(samples_dir, "samples_grid.png"))
-        plt.close()
-    
-        # Save individual samples
-        for i, sample_index in enumerate(sample_indices):
-            plt.figure(figsize=(8, 8))
-            plt.imshow(sample_index, cmap='viridis')
-            plt.colorbar(label='Tile Type')
-            plt.title(f"Sample {i+1}")
-            plt.savefig(os.path.join(samples_dir, f"sample_{i}.png"))
-            plt.close()
-    
-        return sample_indices
 
 if __name__ == "__main__":
     tokenizer = Tokenizer()

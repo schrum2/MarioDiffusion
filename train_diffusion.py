@@ -13,7 +13,7 @@ import numpy as np
 from accelerate import Accelerator
 import matplotlib
 import matplotlib.pyplot as plt
-from level_dataset import LevelDataset
+from level_dataset import LevelDataset, visualize_samples
 from tokenizer import Tokenizer 
 import json
 import threading
@@ -333,7 +333,7 @@ def main():
                 samples = torch.tensor(samples).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
 
             # Convert one-hot samples to tile indices
-            samples_indices = dataset.visualize_samples(samples, args.output_dir, f"samples_epoch_{epoch}")
+            visualize_samples(samples, args.output_dir, f"samples_epoch_{epoch}")
             
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
