@@ -7,7 +7,7 @@ from tokenizer import Tokenizer
 import os
 import matplotlib.pyplot as plt
 
-def visualize_samples(samples, output_dir, subdir):
+def visualize_samples(samples, output_dir):
     """
     Visualize generated samples and save as images.
     
@@ -20,8 +20,7 @@ def visualize_samples(samples, output_dir, subdir):
         List of tile index maps for the samples
     """
     # Create directory for the samples
-    samples_dir = os.path.join(output_dir, subdir)
-    os.makedirs(samples_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     
     # Convert from one-hot to tile indices
     sample_indices = []

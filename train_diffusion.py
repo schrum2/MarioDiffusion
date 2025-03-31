@@ -333,7 +333,7 @@ def main():
                 samples = torch.tensor(samples).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
 
             # Convert one-hot samples to tile indices
-            visualize_samples(samples, args.output_dir, f"samples_epoch_{epoch}")
+            visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
             
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
