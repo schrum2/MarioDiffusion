@@ -32,24 +32,9 @@ def parse_args():
 
 def convert_to_level_format(sample):
     """Convert model output to level indices"""
-    if isinstance(sample, np.ndarray):
-        # Handle numpy arrays
-        if len(sample.shape) == 4:  # BCHW format
-            sample_indices = np.argmax(sample, axis=1)
-        elif len(sample.shape) == 3 and sample.shape[0] > 1:  # CHW format (single sample)
-            sample_indices = np.argmax(sample, axis=0)
-        else:
-            sample_indices = sample
-        return sample_indices
-    else:
-        # Handle torch tensors
-        if len(sample.shape) == 4:  # BCHW format
-            sample_indices = torch.argmax(sample, dim=1).cpu().numpy()
-        elif len(sample.shape) == 3 and sample.shape[0] > 1:  # CHW format (single sample)
-            sample_indices = torch.argmax(sample, dim=0).cpu().numpy()
-        else:
-            sample_indices = sample.cpu().numpy()
-        return sample_indices
+    sample_indices = torch.argmax(sample, dim=1).cpu().numpy()
+    #print(sample_indices.shape)
+    return sample_indices
 
 def generate_levels(args):
     """Generate level designs using a trained diffusion model"""
@@ -115,21 +100,21 @@ def generate_levels(args):
     
     visualize_samples(all_samples, "generated_levels")
 
-    # Convert to list of numpy arrays (why?)
+    # Convert to list
     samples_list = [all_samples[i] for i in range(len(all_samples))]
     
     # Prepare a list to store all levels
     all_levels = []
 
     # Process and collect individual samples
-    for i, sample in enumerate(samples_list):
+    for _, sample in enumerate(samples_list):
         # Convert to indices
         sample_tensor = sample.unsqueeze(0) if sample.shape[0] == num_tiles else sample
         sample_indices = convert_to_level_format(sample_tensor)
         
         # Add level data to the list
         level_data = {
-            "scene": sample_indices.tolist(),
+            "scene": sample_indices[0].tolist(), # Always just one scene: (1,16,16)
             "caption": "unknown" # TODO: extract this as I do in create_ascii_captions.py
         }
         all_levels.append(level_data)
