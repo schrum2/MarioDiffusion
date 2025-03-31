@@ -43,14 +43,12 @@ Now, masked language modeling will be used to pre-train the text embedding model
 ```
 python train_mlm.py --model transformer --epochs 3000
 ```
-
-
-
-
-TEST trained model? Currently just uses original training data, no test set
+A report evaluating the accuracy of the model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```
 python .\masked_token_prediction.py --model_file .\mlm_transformer.pth
 ```
+
+
 
 
 
