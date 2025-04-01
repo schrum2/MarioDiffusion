@@ -270,7 +270,7 @@ def main():
         for batch_idx, batch in enumerate(dataloader):
             # We're ignoring captions for unconditional generation
             if isinstance(batch, list):
-                scenes, _ = batch
+                scenes, captions = batch
             else:
                 scenes = batch
 
