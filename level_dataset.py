@@ -10,7 +10,7 @@ import matplotlib
 
 def colors():
     # Create custom colormap for integers 0-15
-    colors = [
+    colorslist = [
         (0.8, 0.9, 1.0),    # 0 = very light blue
         (0.0, 0.4, 0.0),    # 1 = dark green
         (0.0, 0.2, 0.0),    # 2 = darker green
@@ -29,7 +29,7 @@ def colors():
         (0.3, 0.3, 0.3)     # 15 (extra color just in case)
     ]
 
-    return colors
+    return colorslist
 
 def visualize_samples(samples, output_dir):
     """
@@ -46,8 +46,8 @@ def visualize_samples(samples, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     
     # Create custom colormap for integers 0-15
-    colors = colors()
-    custom_cmap = matplotlib.colors.ListedColormap(colors[:15])
+    colorslist = colors()
+    custom_cmap = matplotlib.colors.ListedColormap(colorslist[:15])
     
     # Convert from one-hot to tile indices
     sample_indices = []
