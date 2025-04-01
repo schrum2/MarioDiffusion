@@ -3,6 +3,7 @@ from tkinter import filedialog
 import json
 import sys
 import os
+import level_dataset
 
 class TileViewer(tk.Tk):
     def __init__(self, dataset_path=None, tileset_path=None):
@@ -90,17 +91,21 @@ class TileViewer(tk.Tk):
         sample = self.dataset[self.current_sample_idx]
 
         font = ("Courier", self.font_size)
-
+        colors = level_dataset.colors()
         for y in range(16):
             for x in range(16):
                 tile_id = sample['scene'][y][x]
                 text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
+                # Convert (r, g, b) float tuple to hex color string
+                r, g, b = colors[tile_id]
+                color_hex = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
                 self.canvas.create_text(
                     x * self.tile_size + self.tile_size // 2,
                     y * self.tile_size + self.tile_size // 2,
                     text=text,
                     font=font,
-                    anchor="center"
+                    anchor="center",
+                    fill=color_hex
                 )
 
         self.canvas.create_text(

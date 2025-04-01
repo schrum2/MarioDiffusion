@@ -8,20 +8,7 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib
 
-def visualize_samples(samples, output_dir):
-    """
-    Visualize generated samples and save as images.
-    
-    Args:
-        samples: One-hot encoded samples from the diffusion model
-        output_dir: Directory to save visualizations
-    
-    Returns:
-        List of tile index maps for the samples
-    """
-    # Create directory for the samples
-    os.makedirs(output_dir, exist_ok=True)
-    
+def colors():
     # Create custom colormap for integers 0-15
     colors = [
         (0.8, 0.9, 1.0),    # 0 = very light blue
@@ -41,7 +28,25 @@ def visualize_samples(samples, output_dir):
         (0.6, 0.0, 0.9),    # 14 = violet
         (0.3, 0.3, 0.3)     # 15 (extra color just in case)
     ]
+
+    return colors
+
+def visualize_samples(samples, output_dir):
+    """
+    Visualize generated samples and save as images.
     
+    Args:
+        samples: One-hot encoded samples from the diffusion model
+        output_dir: Directory to save visualizations
+    
+    Returns:
+        List of tile index maps for the samples
+    """
+    # Create directory for the samples
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Create custom colormap for integers 0-15
+    colors = colors()
     custom_cmap = matplotlib.colors.ListedColormap(colors[:15])
     
     # Convert from one-hot to tile indices
