@@ -279,8 +279,8 @@ def main():
             out_channels=args.num_tiles,
             layers_per_block=args.num_res_blocks,
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
-            down_block_types=args.down_block_types.replace("CrossAttn", "") if args.down_block_types else ["DownBlock2D", "AttnDownBlock2D", "DownBlock2D"],
-            up_block_types=args.up_block_types.replace("CrossAttn", "") if args.up_block_types else ["UpBlock2D", "AttnUpBlock2D", "UpBlock2D"],
+            down_block_types = [item.replace("CrossAttn", "") for item in args.down_block_types],
+            up_block_types=[item.replace("CrossAttn", "") for item in args.up_block_types],
         )
     
     # Setup the noise scheduler
