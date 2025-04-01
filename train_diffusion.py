@@ -89,8 +89,67 @@ class LossPlotter:
         plt.close(self.fig)
         print("Plotting stopped")
 
+# Create a custom pipeline for text-conditional generation
+class TextConditionalDDPMPipeline(DDPMPipeline):
+    def __init__(self, unet, scheduler, text_encoder=None):
+        super().__init__(unet, scheduler)
+        self.text_encoder = text_encoder
+        
+    def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
+                output_type="pil", captions=None, **kwargs):
+        # Process text embeddings if captions are provided
+        text_embeddings = None
+        if captions is not None and self.text_encoder is not None:
+            text_embeddings = self.text_encoder(captions)
+        
+        # Start from random noise
+        if isinstance(generator, list) and len(generator) != batch_size:
+            raise ValueError("Must provide a generator for each sample if passing a list of generators")
+            
+        device = self.device
+        sample_shape = (batch_size, self.unet.config.in_channels, 
+                        self.unet.config.sample_size[0], self.unet.config.sample_size[1])
+        
+        if isinstance(generator, list):
+            sample = torch.cat([
+                torch.randn(1, *sample_shape[1:], generator=gen, device=device)
+                for gen in generator
+            ])
+        else:
+            sample = torch.randn(sample_shape, generator=generator, device=device)
+            
+        # Set number of inference steps
+        self.scheduler.set_timesteps(num_inference_steps)
+        
+        # Denoising loop
+        for t in self.progress_bar(self.scheduler.timesteps):
+            # Get model prediction
+            model_input = torch.cat([sample] * 2) if text_embeddings is None else sample
+            model_kwargs = {}
+            if text_embeddings is not None:
+                model_kwargs["encoder_hidden_states"] = text_embeddings
+                
+            # Predict noise residual
+            noise_pred = self.unet(model_input, t, **model_kwargs).sample
+            
+            # Compute previous sample: x_{t-1} = scheduler(x_t, noise_pred)
+            sample = self.scheduler.step(noise_pred, t, sample).prev_sample
+            
+        # Convert to output format
+        if output_type == "pil":
+            # Convert to PIL images
+            # This would need to be adapted for one-hot level representation
+            sample = (sample / 2 + 0.5).clamp(0, 1)
+            sample = sample.cpu().permute(0, 2, 3, 1).numpy()
+            
+        elif output_type == "tensor":
+            # Apply softmax to get probabilities for each tile type
+            sample = F.softmax(sample, dim=1)
+            
+        return {"images": sample}
+
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train a diffusion model for tile-based level generation")
+    parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
     
     # Dataset args
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
@@ -99,15 +158,23 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     
+    # New text conditioning args
+    parser.add_argument("--model_file", type=str, default=None, help="Path to pre-trained text embedding model")
+    parser.add_argument("--embedding_dim", type=int, default=256, help="Text embedding dimension")
+    parser.add_argument("--hidden_dim", type=int, default=512, help="Hidden dimension for text model")
+    parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
+    parser.add_argument("--classifier_free_guidance_scale", type=float, default=7.5, 
+                      help="Scale for classifier-free guidance during inference")
+    
     # Model args
     parser.add_argument("--model_dim", type=int, default=128, help="Base dimension of UNet model")
     parser.add_argument("--dim_mults", nargs="+", type=int, default=[1, 2, 4], help="Dimension multipliers for UNet")
     parser.add_argument("--num_res_blocks", type=int, default=2, help="Number of residual blocks per downsampling")
     parser.add_argument("--down_block_types", nargs="+", type=str, 
-                       default=["DownBlock2D", "AttnDownBlock2D", "DownBlock2D"], 
+                       default=["DownBlock2D", "CrossAttnDownBlock2D", "DownBlock2D"], 
                        help="Down block types for UNet")
     parser.add_argument("--up_block_types", nargs="+", type=str, 
-                       default=["UpBlock2D", "AttnUpBlock2D", "UpBlock2D"], 
+                       default=["UpBlock2D", "CrossAttnUpBlock2D", "UpBlock2D"], 
                        help="Up block types for UNet")
     parser.add_argument("--add_attention", action="store_true", help="Add attention layers to the model")
     
@@ -155,9 +222,23 @@ def main():
         mixed_precision=args.mixed_precision,
         gradient_accumulation_steps=args.gradient_accumulation_steps
     )
+    
+    device = accelerator.device
 
+    # Initialize tokenizer
     tokenizer = Tokenizer()
     tokenizer.load(args.pkl)
+    
+    # Load text embedding model if text conditioning is enabled
+    text_encoder = None
+    if args.text_conditional and args.model_file:
+        vocab_size = tokenizer.get_vocab_size()
+        embedding_dim = args.embedding_dim
+        hidden_dim = args.hidden_dim
+        text_encoder = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
+        text_encoder.load_state_dict(torch.load(args.model_file, map_location=device))
+        text_encoder.eval()  # Set to evaluation mode
+        print(f"Loaded text encoder from {args.model_file}")
     
     # Initialize dataset
     dataset = LevelDataset(
@@ -179,16 +260,28 @@ def main():
         drop_last=True
     )
     
-    # Setup the UNet model
-    model = UNet2DModel(
-        sample_size=(16, 16),  # Fixed size for your level scenes
-        in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
-        out_channels=args.num_tiles,
-        layers_per_block=args.num_res_blocks,
-        block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
-        down_block_types=args.down_block_types,
-        up_block_types=args.up_block_types,
-    )
+    # Setup the UNet model - use conditional version if text conditioning is enabled
+    if args.text_conditional:
+        model = UNet2DConditionModel(
+            sample_size=(16, 16),  # Fixed size for your level scenes
+            in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
+            out_channels=args.num_tiles,
+            layers_per_block=args.num_res_blocks,
+            block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
+            down_block_types=args.down_block_types,
+            up_block_types=args.up_block_types,
+            cross_attention_dim=args.embedding_dim,  # Match the embedding dimension
+        )
+    else:
+        model = UNet2DModel(
+            sample_size=(16, 16),  # Fixed size for your level scenes
+            in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
+            out_channels=args.num_tiles,
+            layers_per_block=args.num_res_blocks,
+            block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
+            down_block_types=args.down_block_types.replace("CrossAttn", "") if args.down_block_types else ["DownBlock2D", "AttnDownBlock2D", "DownBlock2D"],
+            up_block_types=args.up_block_types.replace("CrossAttn", "") if args.up_block_types else ["UpBlock2D", "AttnUpBlock2D", "UpBlock2D"],
+        )
     
     # Setup the noise scheduler
     noise_scheduler = DDPMScheduler(
@@ -207,10 +300,9 @@ def main():
     )
     
     # Setup learning rate scheduler
-    lr_scheduler = get_cosine_schedule_with_warmup (
+    lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=args.lr_warmup_steps,
-        num_cycles=2,  # Setting explicit number of cosine cycles (adjust as needed)
         num_training_steps=(len(dataloader) * args.num_epochs) // args.gradient_accumulation_steps,
     )
     
@@ -268,11 +360,26 @@ def main():
         model.train()
         
         for batch_idx, batch in enumerate(dataloader):
-            # We're ignoring captions for unconditional generation
-            if isinstance(batch, list):
+            # Process batch data
+            if args.text_conditional:
+                # Unpack scenes and captions
                 scenes, captions = batch
+                
+                # Get text embeddings from the text encoder
+                with torch.no_grad():
+                    text_embeddings = text_encoder(captions)
+                
+                # For classifier-free guidance, we need to create a negative prompt embedding
+                # We'll use the unconditional embedding
+                uncond_tokens = torch.zeros_like(captions)
+                with torch.no_grad():
+                    uncond_embeddings = text_encoder(uncond_tokens)
             else:
-                scenes = batch
+                # For unconditional generation, we don't need captions
+                if isinstance(batch, list):
+                    scenes, _ = batch  # Ignore captions
+                else:
+                    scenes = batch
 
             # Add noise to the clean scenes
             noise = torch.randn_like(scenes)
@@ -280,8 +387,12 @@ def main():
             noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
             
             with accelerator.accumulate(model):
-                # Predict the noise
-                noise_pred = model(noisy_scenes, timesteps).sample
+                if args.text_conditional:
+                    # Predict the noise with conditioning
+                    noise_pred = model(noisy_scenes, timesteps, encoder_hidden_states=text_embeddings).sample
+                else:
+                    # Predict the noise
+                    noise_pred = model(noisy_scenes, timesteps).sample
 
                 # Compute loss
                 loss = F.mse_loss(noise_pred, noise)
@@ -301,8 +412,7 @@ def main():
                         
             # Log to JSONL file
             log_metrics(epoch, loss.detach().item(), lr_scheduler.get_last_lr()[0], step=global_step)
-            print(logs)
-
+            
             global_step += 1
         
         # Generate and save sample levels every N epochs
@@ -310,35 +420,73 @@ def main():
             # Switch to eval mode
             model.eval()
             
-            # Create a pipeline for generation
-            pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
-            
-            # Generate sample levels
-            with torch.no_grad():
-                # Sample random noise
-                sample = torch.randn(
-                    4, args.num_tiles, 16, 16,
-                    generator=torch.Generator(accelerator.device).manual_seed(args.seed),
-                    device=accelerator.device
+            # Create the appropriate pipeline for generation
+            if args.text_conditional:
+                pipeline = TextConditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler,
+                    text_encoder=text_encoder
                 )
+                
+                # Generate sample levels with conditioning
+                sample_captions = [
+                    "full floor. one enemy. a few question blocks. one platform at left middle. pipe at center bottom.",
+                    "no floor. one enemy. a few coins. one coin line at right top. one platform at right top, one platform at right middle, one platform at left bottom.",
+                    "floor with a few gaps. full ceiling. irregular block cluster at right top.",
+                    "floor with one gap. full ceiling. two enemies. one ascending staircase. pipe at left bottom, pipe at left bottom."
+                ]
+                
+                # Convert captions to token IDs using the tokenizer
+                sample_caption_tokens = tokenizer.encode_batch(sample_captions)
+                sample_caption_tokens = torch.tensor(sample_caption_tokens).to(accelerator.device)
+                
+                with torch.no_grad():
+                    # Generate samples
+                    samples = pipeline(
+                        batch_size=4,
+                        generator=torch.manual_seed(args.seed),
+                        num_inference_steps=args.num_train_timesteps,
+                        output_type="tensor",
+                        captions=sample_caption_tokens
+                    ).images
+            else:
+                # For unconditional generation
+                pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+                
+                # Generate sample levels
+                with torch.no_grad():
+                    # Sample random noise
+                    sample = torch.randn(
+                        4, args.num_tiles, 16, 16,
+                        generator=torch.Generator(accelerator.device).manual_seed(args.seed),
+                        device=accelerator.device
+                    )
 
-                # Generate samples from noise
-                samples = pipeline(
-                    batch_size=4,
-                    generator=torch.manual_seed(args.seed),
-                    num_inference_steps=args.num_train_timesteps,
-                    output_type="tensor",
-                ).images
-            
-                samples = torch.tensor(samples).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
+                    # Generate samples from noise
+                    samples = pipeline(
+                        batch_size=4,
+                        generator=torch.manual_seed(args.seed),
+                        num_inference_steps=args.num_train_timesteps,
+                        output_type="tensor",
+                    ).images
+                
+                    samples = torch.tensor(samples).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
 
-            # Convert one-hot samples to tile indices
+            # Convert one-hot samples to tile indices and visualize
             visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
             
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
             # Save the model
-            pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+            if args.text_conditional:
+                pipeline = TextConditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler,
+                    text_encoder=text_encoder
+                )
+            else:
+                pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+                
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
     
     # Clean up plotting resources
@@ -354,10 +502,18 @@ def main():
     progress_bar.close()
     
     # Final model save
-    pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+    if args.text_conditional:
+        pipeline = TextConditionalDDPMPipeline(
+            unet=accelerator.unwrap_model(model), 
+            scheduler=noise_scheduler,
+            text_encoder=text_encoder
+        )
+    else:
+        pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+        
     pipeline.save_pretrained(args.output_dir)
 
-def generate_levels(model_path, num_samples=10, output_dir="generated_levels", seed=42):
+def generate_levels(model_path, num_samples=10, output_dir="generated_levels", seed=42, captions=None, text_encoder_path=None):
     """
     Generate new level designs using a trained diffusion model.
     
@@ -366,25 +522,71 @@ def generate_levels(model_path, num_samples=10, output_dir="generated_levels", s
         num_samples: Number of levels to generate
         output_dir: Directory to save generated levels
         seed: Random seed for reproducibility
+        captions: Optional list of text captions for conditional generation
+        text_encoder_path: Path to saved text encoder model (required if captions provided)
     """
     # Set seed for reproducibility
     torch.manual_seed(seed)
     
-    # Load the pipeline
-    pipeline = DDPMPipeline.from_pretrained(model_path)
-    pipeline.to("cuda" if torch.cuda.is_available() else "cpu")
+    # Determine if this is a conditional model
+    is_conditional = captions is not None and text_encoder_path is not None
+    
+    # Load the appropriate pipeline
+    if is_conditional:
+        # Load text encoder
+        tokenizer = Tokenizer()
+        tokenizer.load("path_to_tokenizer.pkl")  # Need to specify the tokenizer path
+        
+        vocab_size = tokenizer.vocab_size
+        embedding_dim = 256  # Should match the model's parameters
+        hidden_dim = 512     # Should match the model's parameters
+        
+        text_encoder = TransformerModel(vocab_size, embedding_dim, hidden_dim)
+        text_encoder.load_state_dict(torch.load(text_encoder_path))
+        text_encoder.eval()
+        
+        # Load the pipeline
+        pipeline = TextConditionalDDPMPipeline.from_pretrained(
+            model_path, 
+            text_encoder=text_encoder
+        )
+    else:
+        # Load an unconditional pipeline
+        pipeline = DDPMPipeline.from_pretrained(model_path)
+    
+    # Move to appropriate device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    pipeline.to(device)
+    if is_conditional and text_encoder is not None:
+        text_encoder.to(device)
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
     
     # Generate samples
     print(f"Generating {num_samples} level samples...")
-    samples = pipeline(
-        batch_size=num_samples,
-        generator=torch.manual_seed(seed),
-        num_inference_steps=1000,
-        output_type="tensor"
-    ).images
+    
+    if is_conditional:
+        # Process captions
+        caption_tokens = tokenizer.encode_batch(captions[:num_samples])
+        caption_tokens = torch.tensor(caption_tokens).to(device)
+        
+        # Generate with captions
+        samples = pipeline(
+            batch_size=num_samples,
+            generator=torch.manual_seed(seed),
+            num_inference_steps=1000,
+            output_type="tensor",
+            captions=caption_tokens
+        ).images
+    else:
+        # Generate unconditionally
+        samples = pipeline(
+            batch_size=num_samples,
+            generator=torch.manual_seed(seed),
+            num_inference_steps=1000,
+            output_type="tensor"
+        ).images
     
     # Visualize and save samples
     plt.figure(figsize=(20, 4 * ((num_samples + 4) // 5)))
@@ -397,13 +599,16 @@ def generate_levels(model_path, num_samples=10, output_dir="generated_levels", s
         plt.subplot((num_samples + 4) // 5, 5, i + 1)
         plt.imshow(sample_index, cmap='viridis')
         plt.colorbar(label='Tile Type')
-        plt.title(f"Level {i+1}")
+        
+        # Add caption if available
+        caption_text = captions[i] if is_conditional and i < len(captions) else f"Level {i+1}"
+        plt.title(caption_text)
         
         # Save individual sample
         plt.figure(figsize=(8, 8))
         plt.imshow(sample_index, cmap='viridis')
         plt.colorbar(label='Tile Type')
-        plt.title(f"Level {i+1}")
+        plt.title(caption_text)
         plt.savefig(os.path.join(output_dir, f"level_{i}.png"))
         plt.close()
     
