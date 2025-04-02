@@ -124,7 +124,7 @@ class TileDiffusionTrainer:
                     'loss': avg_epoch_loss,
                 }, f"{save_path.split('.')[0]}_epoch{epoch+1}.pt")
 
-                generate_samples(num_samples=4)
+                self.generate_samples(num_samples=4)
             
             # Save best model
             if avg_epoch_loss < best_loss:
