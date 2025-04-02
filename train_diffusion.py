@@ -302,6 +302,7 @@ def main():
     # Setup learning rate scheduler
     lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer=optimizer,
+        num_cycles=2,  # Setting explicit number of cosine cycles (adjust as needed)
         num_warmup_steps=args.lr_warmup_steps,
         num_training_steps=(len(dataloader) * args.num_epochs) // args.gradient_accumulation_steps,
     )
