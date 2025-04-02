@@ -23,7 +23,7 @@ class TileDiffusionTrainer:
         learning_rate=1e-4,
         num_train_timesteps=1000,
         num_inference_steps=100,
-        beta_schedule="cosine",
+        beta_schedule="squaredcos_cap_v2", # "cosine", # there is no "cosine", but squaredcos_cap_v2 is apparently a type of cosine schedule
         device="cuda" if torch.cuda.is_available() else "cpu"
     ):
         self.num_tiles = num_tiles
