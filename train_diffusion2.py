@@ -9,6 +9,10 @@ from tqdm.auto import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 
+# From me
+from level_dataset import LevelDataset, visualize_samples
+from tokenizer import Tokenizer 
+
 class TileDiffusionTrainer:
     def __init__(
         self,
@@ -200,7 +204,8 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Train a diffusion model for tile-based level generation")
-    parser.add_argument("--json", type=str, required=True, help="Path to dataset JSON file")
+    parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
+    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset JSON file")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
     parser.add_argument("--augment", action="store_true", help="Use data augmentation")
@@ -210,6 +215,10 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    # Initialize tokenizer
+    tokenizer = Tokenizer()
+    tokenizer.load(args.pkl)
+
     # Initialize dataset and dataloader (as in your example)
     dataset = LevelDataset(
         json_path=args.json,
