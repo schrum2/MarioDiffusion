@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 # From me
 from level_dataset import LevelDataset, visualize_samples
 from tokenizer import Tokenizer 
+from torch.utils.data import DataLoader
 
 class TileDiffusionTrainer:
     def __init__(
