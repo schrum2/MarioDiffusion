@@ -17,6 +17,7 @@ class LossPlotter:
         
         self.fig, self.ax = plt.subplots(figsize=(10, 6))
         self.epochs = []
+        self.steps = []
         self.losses = []
         self.lr_values = []
         
@@ -30,21 +31,22 @@ class LossPlotter:
                     return
                     
                 self.epochs = [entry.get('epoch', 0) for entry in data]
+                self.steps = [entry.get('step', 0) for entry in data]
                 self.losses = [entry.get('loss', 0) for entry in data]
                 self.lr_values = [entry.get('lr', 0) for entry in data]
                 
                 # Clear the axes and redraw
                 self.ax.clear()
                 # Plot loss
-                self.ax.plot(self.epochs, self.losses, 'b-', label='Training Loss')
-                self.ax.set_xlabel('Epoch')
+                self.ax.plot(self.steps, self.losses, 'b-', label='Training Loss')
+                self.ax.set_xlabel('Step')
                 self.ax.set_ylabel('Loss', color='b')
                 self.ax.tick_params(axis='y', labelcolor='b')
                 
                 # Add learning rate on secondary y-axis
                 if any(self.lr_values):
                     ax2 = self.ax.twinx()
-                    ax2.plot(self.epochs, self.lr_values, 'r-', label='Learning Rate')
+                    ax2.plot(self.steps, self.lr_values, 'r-', label='Learning Rate')
                     ax2.set_ylabel('Learning Rate', color='r')
                     ax2.tick_params(axis='y', labelcolor='r')
                     ax2.legend(loc='upper right')
