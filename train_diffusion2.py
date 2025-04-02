@@ -123,6 +123,8 @@ class TileDiffusionTrainer:
                     'optimizer_state_dict': self.optimizer.state_dict(),
                     'loss': avg_epoch_loss,
                 }, f"{save_path.split('.')[0]}_epoch{epoch+1}.pt")
+
+                generate_samples(num_samples=4)
             
             # Save best model
             if avg_epoch_loss < best_loss:
@@ -177,6 +179,9 @@ class TileDiffusionTrainer:
             # For each position, find the tile with highest probability
             sample = F.softmax(sample, dim=1)
             
+            # Convert one-hot samples to tile indices and visualize
+            visualize_samples(sample, "diffusion2_samples")
+
             return sample
     
     def convert_to_categorical(self, samples):
