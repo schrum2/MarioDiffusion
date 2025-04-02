@@ -175,3 +175,4 @@ cython_debug/
 *.safetensors
 *.pkl
 *.pth
+*.pt
