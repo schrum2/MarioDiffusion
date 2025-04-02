@@ -57,6 +57,10 @@ def generate_levels(args):
     pipeline = DDPMPipeline.from_pretrained(args.model_path)
     pipeline.to(device)
     
+    #print(pipeline)
+    #print("---")
+    #print(pipeline.unet)
+    
     # Determine number of tiles from model
     num_tiles = pipeline.unet.config.in_channels
     print(f"Model configured for {num_tiles} tile types")
@@ -82,7 +86,7 @@ def generate_levels(args):
                 num_inference_steps=args.inference_steps,
                 output_type="tensor"
             ).images
-            
+
             # Convert shape if needed (DDPMPipeline might return different format)
             if isinstance(samples, torch.Tensor):
                 if len(samples.shape) == 4 and samples.shape[1] == 16:  # BHWC format
@@ -91,7 +95,14 @@ def generate_levels(args):
                 if len(samples.shape) == 4 and samples.shape[3] == num_tiles:  # BHWC format
                     samples = np.transpose(samples, (0, 3, 1, 2))  # Convert (B, H, W, C) -> (B, C, H, W)
                 samples = torch.tensor(samples)
-            
+
+            #for i in range(16):
+            #    for j in range(16):
+            #        values = samples[0, :, i, j]  # Get channel values at (i, j)
+            #        values = torch.tensor(values)
+            #        max_idx = torch.argmax(values).item()
+            #        print(f"({i},{j}): max idx={max_idx}, values={values.cpu().detach().numpy()}")
+
             all_samples.append(samples)
     
     # Concatenate all batches
