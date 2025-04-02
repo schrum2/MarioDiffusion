@@ -169,9 +169,10 @@ class TileDiffusionTrainer:
             
             # Sampling loop
             for t in tqdm(inference_scheduler.timesteps[-self.num_inference_steps:]):
+                # Move the timestep tensor to the same device as the model and sample
+                t_gpu = t.unsqueeze(0).repeat(num_samples).to(self.model.device)  # Assuming your model has a .device attribute
                 # Get model prediction
-                model_output = self.model(sample, t.unsqueeze(0).repeat(num_samples), return_dict=False)[0]
-                
+                model_output = self.model(sample, t_gpu, return_dict=False)[0]
                 # Update sample with scheduler
                 sample = inference_scheduler.step(model_output, t, sample).prev_sample
             
