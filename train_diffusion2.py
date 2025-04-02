@@ -124,7 +124,7 @@ class TileDiffusionTrainer:
                     'loss': avg_epoch_loss,
                 }, f"{save_path.split('.')[0]}_epoch{epoch+1}.pt")
 
-                self.generate_samples(num_samples=4)
+                self.generate_samples(num_samples=4, f"{save_path.split('.')[0]}_epoch{epoch+1}_samples")
             
             # Save best model
             if avg_epoch_loss < best_loss:
@@ -148,7 +148,7 @@ class TileDiffusionTrainer:
         
         return epoch_losses
     
-    def generate_samples(self, num_samples=1):
+    def generate_samples(self, num_samples=1, save_dir):
         """Generate new samples using the trained diffusion model"""
         self.model.eval()
         
@@ -181,7 +181,7 @@ class TileDiffusionTrainer:
             sample = F.softmax(sample, dim=1)
             
             # Convert one-hot samples to tile indices and visualize
-            visualize_samples(sample, "diffusion2_samples")
+            visualize_samples(sample, save_dir)
 
             return sample
     
