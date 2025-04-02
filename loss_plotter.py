@@ -29,7 +29,7 @@ class LossPlotter:
                 if not data:
                     return
                     
-                self.epochs = [entry.get('step', 0) for entry in data]
+                self.epochs = [entry.get('epoch', 0) for entry in data]
                 self.losses = [entry.get('loss', 0) for entry in data]
                 self.lr_values = [entry.get('lr', 0) for entry in data]
                 
@@ -37,7 +37,7 @@ class LossPlotter:
                 self.ax.clear()
                 # Plot loss
                 self.ax.plot(self.epochs, self.losses, 'b-', label='Training Loss')
-                self.ax.set_xlabel('Step')
+                self.ax.set_xlabel('Epoch')
                 self.ax.set_ylabel('Loss', color='b')
                 self.ax.tick_params(axis='y', labelcolor='b')
                 
