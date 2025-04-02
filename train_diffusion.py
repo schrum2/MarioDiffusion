@@ -87,7 +87,7 @@ def parse_args():
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
-    parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
+    parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     
     # New text conditioning args
@@ -112,8 +112,8 @@ def parse_args():
     # Training args
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--num_epochs", type=int, default=100, help="Number of training epochs")
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=2, help="Gradient accumulation steps")
-    parser.add_argument("--lr_warmup_steps", type=int, default=50, help="Learning rate warmup steps")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps")
+    parser.add_argument("--lr_warmup_steps", type=int, default=100, help="Learning rate warmup steps") # TODO: Consider much higher values, like 800
     parser.add_argument("--lr_scheduler_cycles", type=int, default=2, help="Number of cycles for the cosine learning rate scheduler")
     parser.add_argument("--save_image_epochs", type=int, default=10, help="Save generated levels every N epochs")
     parser.add_argument("--save_model_epochs", type=int, default=10, help="Save model every N epochs")
