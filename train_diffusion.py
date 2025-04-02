@@ -125,7 +125,7 @@ def parse_args():
     parser.add_argument("--logging_dir", type=str, default="logs", help="Logging directory for TensorBoard")
     
     # Diffusion scheduler args
-    parser.add_argument("--num_train_timesteps", type=int, default=500, help="Number of diffusion timesteps")
+    parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
     parser.add_argument("--beta_schedule", type=str, default="linear", help="Beta schedule type")
     parser.add_argument("--beta_start", type=float, default=0.0001, help="Beta schedule start value")
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
