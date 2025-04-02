@@ -108,7 +108,6 @@ def parse_args():
     parser.add_argument("--up_block_types", nargs="+", type=str, 
                        default=["UpBlock2D", "CrossAttnUpBlock2D", "UpBlock2D"], 
                        help="Up block types for UNet")
-    parser.add_argument("--add_attention", action="store_true", help="Add attention layers to the model")
     
     # Training args
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
