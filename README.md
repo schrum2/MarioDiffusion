@@ -61,16 +61,10 @@ Train unconditional diffusion model?
 ```
 python train_diffusion.py --augment --num_epochs 1000 --learning_rate 1e-4
 ```
-
-
-Run trained diffusion model
+Run trained diffusion model and save 100 random levels to json
 ```
-python run_diffusion.py --model_path level-diffusion-output --num_samples 10 --save_as_json
+python run_diffusion.py --model_path level-diffusion-output --num_samples 100 --save_as_json
 ```
-
-
-
-
 View the saved levels in the data browser
 ```
 python ascii_data_browser.py generated_levels\\all_levels.json
