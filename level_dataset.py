@@ -12,19 +12,19 @@ from torch.utils.data import DataLoader
 def colors():
     # Create custom colormap for integers 0-15
     colorslist = [
-        (0.8, 0.9, 1.0),    # 0 = very light blue
-        (0.0, 0.4, 0.0),    # 1 = dark green
-        (0.0, 0.2, 0.0),    # 2 = darker green
-        (1.0, 0.7, 0.9),    # 3 = pink
-        (0.0, 0.0, 0.0),    # 4 = black
-        (1.0, 0.0, 0.0),    # 5 = bright red
-        (0.6, 0.4, 0.0),    # 6 = dark gold
-        (0.8, 0.4, 0.0),    # 7 = dark orange
-        (0.5, 0.2, 0.1),    # 8 = brownish red
-        (0.6, 0.9, 0.6),    # 9 = light green
-        (0.7, 1.0, 0.7),    # 10 = lighter green
-        (0.5, 0.5, 0.5),    # 11 = grey
-        (1.0, 1.0, 0.0),    # 12 = yellow
+        (0.8, 0.9, 1.0),    # 0 = very light blue: sky
+        (0.0, 0.4, 0.0),    # 1 = dark green: left upper lip of pipe
+        (0.0, 0.2, 0.0),    # 2 = darker green: right upper lip of pipe
+        (1.0, 0.7, 0.9),    # 3 = pink: question block with power up
+        (0.0, 0.0, 0.0),    # 4 = black: Cannon head
+        (1.0, 0.0, 0.0),    # 5 = bright red: enemy
+        (0.6, 0.4, 0.0),    # 6 = dark gold: question block with coin
+        (0.8, 0.4, 0.0),    # 7 = dark orange: breakable brick block
+        (0.5, 0.2, 0.1),    # 8 = brownish red: solid block/floor
+        (0.6, 0.9, 0.6),    # 9 = light green: left edge of pipe body
+        (0.7, 1.0, 0.7),    # 10 = lighter green: right edge of pipe body
+        (0.5, 0.5, 0.5),    # 11 = grey: Cannon support
+        (1.0, 1.0, 0.0),    # 12 = yellow: coin
         (1.0, 1.0, 1.0),    # 13 = white
         (0.6, 0.0, 0.9),    # 14 = violet
         (0.3, 0.3, 0.3)     # 15 (extra color just in case)
