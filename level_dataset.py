@@ -150,10 +150,25 @@ class LevelDataset(Dataset):
         else:
             return caption # Same as original
 
-    def _augment_scene_and_caption(self, scene, caption): # augments by flipping
+    def _augment_scene_and_caption(self, scene_tensor, caption): # augments by flipping
         """swapping directional tokens for consistency with flipped scenes"""
 
-        scene_tensor = torch.flip(scene, dims=[-1]) # Had to make -1 to work, which seems odd, but results look right
+        # 1. Flip the scene horizontally
+        flipped_scene = torch.flip(scene_tensor, dims=[-1])
+
+        # 2. Swap channels for tile types 1 and 2 (tops of pipes)
+        channel_1 = flipped_scene[1].clone()  # Clone to avoid overwriting
+        channel_2 = flipped_scene[2].clone()
+        flipped_scene[1] = channel_2
+        flipped_scene[2] = channel_1
+
+        # 3. Swap channels for tile types 9 and 10 (bodies of pipes)
+        channel_9 = flipped_scene[9].clone()
+        channel_10 = flipped_scene[10].clone()
+        flipped_scene[9] = channel_10
+        flipped_scene[10] = channel_9
+
+        # Change left to right and vice versar
         caption_tensor = torch.tensor(self._swap_caption_tokens(caption), dtype=torch.long)
 
         return scene_tensor, caption_tensor
