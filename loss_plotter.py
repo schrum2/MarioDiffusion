@@ -11,8 +11,7 @@ class LossPlotter:
         self.log_file = log_file
         self.update_interval = update_interval
         self.running = True
-        
-        # Use non-interactive backend
+
         matplotlib.use('Agg')
         
         self.fig, self.ax = plt.subplots(figsize=(10, 6))
@@ -65,8 +64,8 @@ class LossPlotter:
                 print(f"Error parsing log file: {e}")
     
     def start_plotting(self):
-        """Method for non-interactive plotting to run in thread"""
-        print("Starting non-interactive plotting in background")
+        """Method for plotting to run in thread"""
+        print("Starting plotting in background")
         while self.running:
             self.update_plot()
             time.sleep(self.update_interval)
