@@ -8,11 +8,16 @@ from diffusers import UNet2DModel, DDPMScheduler
 from tqdm.auto import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
+import threading
+import json
+import os
 
 # From me
 from level_dataset import LevelDataset, visualize_samples
 from tokenizer import Tokenizer 
 from torch.utils.data import DataLoader
+from loss_plotter import LossPlotter
+from datetime import datetime
 
 class TileDiffusionTrainer:
     def __init__(
@@ -69,7 +74,30 @@ class TileDiffusionTrainer:
     
     def train(self, dataloader, num_epochs=100, save_interval=10, save_path="tile_diffusion_model.pt"):
         """Train the diffusion model"""
-        
+
+        # Get formatted timestamp for filenames
+        formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
+
+        # Create log files
+        log_file = os.path.join("diff2", f"training_log_{formatted_date}.jsonl")
+
+        # Add function to log metrics
+        def log_metrics(epoch, loss, lr, step):
+            log_entry = {
+                "epoch": epoch,
+                "loss": loss,
+                "lr": lr,
+                "step": step,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            with open(log_file, 'a') as f:
+                f.write(json.dumps(log_entry) + '\n')
+
+        plotter = LossPlotter(log_file, update_interval=5.0)  # Update every 5 seconds
+        plot_thread = threading.Thread(target=plotter.start_plotting)
+        plot_thread.daemon = True
+        plot_thread.start()
+
         # Set up tracking for losses
         epoch_losses = []
         best_loss = float('inf')
@@ -114,6 +142,9 @@ class TileDiffusionTrainer:
             avg_epoch_loss = epoch_loss / len(dataloader)
             epoch_losses.append(avg_epoch_loss)
             print(f"Epoch {epoch+1} average loss: {avg_epoch_loss:.6f}")
+
+            # Log to JSONL file
+            log_metrics(epoch+1, avg_epoch_loss, self.learning_rate, step=(epoch+1) * len(dataloader))
             
             # Save model checkpoint
             if (epoch + 1) % save_interval == 0:
@@ -124,7 +155,7 @@ class TileDiffusionTrainer:
                     'loss': avg_epoch_loss,
                 }, f"{save_path.split('.')[0]}_epoch{epoch+1}.pt")
 
-                self.generate_samples(num_samples=4, f"{save_path.split('.')[0]}_epoch{epoch+1}_samples")
+                self.generate_samples(num_samples=4, save_dir=f"{save_path.split('.')[0]}_epoch{epoch+1}_samples")
             
             # Save best model
             if avg_epoch_loss < best_loss:
@@ -145,10 +176,16 @@ class TileDiffusionTrainer:
         plt.ylabel('Loss')
         plt.savefig('training_loss.png')
         plt.close()
-        
+    
+        if plot_thread and plot_thread.is_alive():
+            plotter.stop_plotting()
+            plot_thread.join(timeout=5.0)
+            if plot_thread.is_alive():
+                print("Warning: Plot thread did not terminate properly")
+    
         return epoch_losses
     
-    def generate_samples(self, num_samples=1, save_dir):
+    def generate_samples(self, num_samples=1, save_dir="."):
         """Generate new samples using the trained diffusion model"""
         self.model.eval()
         
@@ -261,7 +298,7 @@ if __name__ == "__main__":
     )
     
     # Generate some samples
-    samples = trainer.generate_samples(num_samples=4)
+    samples = trainer.generate_samples(num_samples=4, save_dir=f"{save_path.split('.')[0]}_FINAL_samples")
     categorical_samples = trainer.convert_to_categorical(samples)
     
     print("Generation complete. Sample shapes:", categorical_samples.shape)
