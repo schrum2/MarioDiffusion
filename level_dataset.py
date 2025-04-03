@@ -147,23 +147,32 @@ class LevelDataset(Dataset):
         else:
             return caption # Same as original
 
-    def _augment_scene_and_caption(self, scene_tensor, caption): # augments by flipping
-        """swapping directional tokens for consistency with flipped scenes"""
+    def _augment_scene_and_caption(self, scene, caption): # augments by flipping
+        """
+            swapping directional tokens for consistency with flipped scenes
+            scene: list of lists of integers level scene representation
+        """
+
+        if len(scene.shape) != 2:
+            print(scene)
+            raise ValueError("Only augment integer encoded scene")
 
         # 1. Flip the scene horizontally
-        flipped_scene = torch.flip(scene_tensor.clone(), dims=[-1])
+        flipped_scene = torch.flip(scene.clone(), dims=[-1])
 
-        # 2. Swap channels for tile types 1 and 2 (tops of pipes)
-        channel_1 = flipped_scene[1].clone()  # Clone to avoid overwriting
-        channel_2 = flipped_scene[2].clone()
-        flipped_scene[1] = channel_2
-        flipped_scene[2] = channel_1
+        # 2. Swap tile types 1 and 2 (tops of pipes)
+        mask_1 = (flipped_scene == 1)
+        mask_2 = (flipped_scene == 2)
+        # Swap values using masks
+        flipped_scene[mask_1] = 2
+        flipped_scene[mask_2] = 1
 
-        # 3. Swap channels for tile types 9 and 10 (bodies of pipes)
-        channel_9 = flipped_scene[9].clone()
-        channel_10 = flipped_scene[10].clone()
-        flipped_scene[9] = channel_10
-        flipped_scene[10] = channel_9
+        # 3. Swap tile types 9 and 10 (bodies of pipes)
+        mask_9 = (flipped_scene == 9)
+        mask_10 = (flipped_scene == 10)
+        # Swap values using masks
+        flipped_scene[mask_9] = 10
+        flipped_scene[mask_10] = 9
 
         # Change left to right and vice versar
         caption_tensor = torch.tensor(self._swap_caption_tokens(caption), dtype=torch.long)
@@ -230,6 +239,7 @@ class LevelDataset(Dataset):
         
         # Apply augmentation if enabled
         if self.augment and random.choice([True, False]):
+            #print("AUGMENT!", idx)
             scene_tensor, caption_tensor = self._augment_scene_and_caption(scene_tensor, caption_tokens)
 
         # Convert to one-hot encoding for diffusion model
@@ -314,13 +324,17 @@ if __name__ == "__main__":
 
     print("-----------")
 
+    diffusion_dataset.augment = False
     scene, caption = diffusion_dataset[290]
     print(torch.tensor(diffusion_dataset.decode_scene(scene)))
     print(diffusion_dataset.tokenizer.decode(caption.tolist()))
-    scene, caption = diffusion_dataset._augment_scene_and_caption(scene, caption)
+    diffusion_dataset.augment = True # Augmentation is random, so won't always be different
+    scene, caption = diffusion_dataset[290]
     print(torch.tensor(diffusion_dataset.decode_scene(scene)))
     print(diffusion_dataset.tokenizer.decode(caption.tolist()))
 
     print("-----------")
+    itr = iter(diffusion_dataloader)
+    for i in range(17): next(itr) # Skip batches
     # batch is (scenes, captions) so the [0] gets just the scenes
-    visualize_samples(next(iter(diffusion_dataloader))[0], "TEMP")
+    visualize_samples(next(itr)[0], "TEMP")
