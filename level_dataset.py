@@ -7,6 +7,7 @@ from tokenizer import Tokenizer
 import os
 import matplotlib.pyplot as plt
 import matplotlib
+from torch.utils.data import DataLoader
 
 def colors():
     # Create custom colormap for integers 0-15
@@ -36,12 +37,19 @@ def visualize_samples(samples, output_dir):
     Visualize generated samples and save as images.
     
     Args:
-        samples: One-hot encoded samples from the diffusion model
+        samples: One-hot encoded samples from the diffusion model: [samples, channels, height, width]
         output_dir: Directory to save visualizations
     
     Returns:
         List of tile index maps for the samples
     """
+    if len(samples.shape) != 4:
+        print(samples.shape)
+        raise ValueError("Shape of input should be [samples, channels, height, width]")
+    if samples.shape[1] != 15:
+        print(samples.shape)
+        raise ValueError("Hard coded for 15 channels (change code to generalize beyond Mario)")
+
     # Create directory for the samples
     os.makedirs(output_dir, exist_ok=True)
     
@@ -82,13 +90,12 @@ def visualize_samples(samples, output_dir):
     
     return sample_indices
 
-class LevelDataset:
-    def __init__(self, json_path, tokenizer, batch_size=32, shuffle=True, max_length=None, mode="diffusion", random_seed=1, augment=True, limit=-1, num_tiles=15):
+class LevelDataset(Dataset):
+    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", random_seed=1, augment=True, limit=-1, num_tiles=15):
         """
             Args:
             json_path (str): Path to JSON file with captions.
             tokenizer (Tokenizer): Tokenizer instance.
-            batch_size (int): Number of samples per batch.
             shuffle (bool): Whether to shuffle data at the start of an epoch.
             max_length (int, optional): Maximum length for tokenized captions.
             mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training.
@@ -101,7 +108,6 @@ class LevelDataset:
         self.random_seed = random_seed
         random.seed(self.random_seed)  # Ensure reproducibility
 
-        self.batch_size = batch_size
         self.shuffle = shuffle
         self.tokenizer = tokenizer
         self.max_length = max_length
@@ -239,7 +245,6 @@ class LevelDataset:
     
         Args:
             one_hot_scene (Tensor): One-hot encoded scene tensor with shape [num_tiles, height, width]
-                                   or [batch_size, num_tiles, height, width] if batched
     
         Returns:
             List of lists of integers representing the original scene layout
@@ -248,9 +253,8 @@ class LevelDataset:
         is_batched = len(one_hot_scene.shape) == 4
     
         if is_batched:
-            # For batched input, we'll just process the first example
-            # You could extend this to process all examples if needed
-            one_hot_scene = one_hot_scene[0]
+            print(one_hot_scene.shape)
+            raise ValueError("Call decode_scene with a single scene, not a batch")
     
         # Permute back to [height, width, num_tiles] format
         one_hot_permuted = one_hot_scene.permute(1, 2, 0)
@@ -268,16 +272,28 @@ if __name__ == "__main__":
     tokenizer.load('SMB1_Tokenizer.pkl')
 
     # Create MLM dataset
-    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="mlm", random_seed=9999)
-    batch = mlm_dataset.get_batch(0)
-    print("MLM Batch Shape:", batch.shape)  # Should be (16, max_length)
+    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, mode="mlm", random_seed=9999)
+    sample = mlm_dataset[0]
+    print("MLM sample shape:", sample.shape)  # Should be (max_length)
+    print(sample)
+    print(mlm_dataset.tokenizer.decode(sample.tolist()))
 
+    mlm_dataloader = DataLoader(mlm_dataset, batch_size=16, shuffle=True)
+    batch = next(iter(mlm_dataloader))
+    print("MLM batch shape:", batch.shape)  # Should be (16, max_length)
     print(batch[0])
     print(mlm_dataset.tokenizer.decode(batch[0].tolist()))
 
     # Create Diffusion dataset
-    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, batch_size=16, mode="diffusion", random_seed=9999)
-    scenes, captions = diffusion_dataset.get_batch(0)
+    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, mode="diffusion", random_seed=9999)
+    scene, caption = diffusion_dataset[0]
+    print("Diffusion Sample Shapes:", scene.shape, caption.shape) 
+    print(scene)
+    print(torch.tensor(diffusion_dataset.decode_scene(scene)))
+    print(diffusion_dataset.tokenizer.decode(caption.tolist()))
+
+    diffusion_dataloader = DataLoader(diffusion_dataset, batch_size=16, shuffle=True)
+    scenes, captions = next(iter(diffusion_dataloader))
     print("Diffusion Batch Shapes:", scenes.shape, captions.shape) 
 
     print(scenes[0])
@@ -294,5 +310,5 @@ if __name__ == "__main__":
     print("-----------")
     scene, caption = diffusion_dataset[100]
     print(scene)
-
-    visualize_samples(diffusion_dataset.get_batch(0)[0][0:4], "TEMP")
+    # batch is (scenes, captions) so the [0] gets just the scenes
+    visualize_samples(next(iter(diffusion_dataloader))[0], "TEMP")
