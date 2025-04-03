@@ -91,7 +91,7 @@ def visualize_samples(samples, output_dir):
     return sample_indices
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", random_seed=1, augment=True, limit=-1, num_tiles=15):
+    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, limit=-1, num_tiles=15):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -104,9 +104,6 @@ class LevelDataset(Dataset):
             num_tiles (int): Number of different tile types for one-hot encoding
         """
         assert mode in ["mlm", "diffusion"], "Mode must be 'mlm' or 'diffusion'."
-
-        self.random_seed = random_seed
-        random.seed(self.random_seed)  # Ensure reproducibility
 
         self.shuffle = shuffle
         self.tokenizer = tokenizer
@@ -154,7 +151,7 @@ class LevelDataset(Dataset):
         """swapping directional tokens for consistency with flipped scenes"""
 
         # 1. Flip the scene horizontally
-        flipped_scene = torch.flip(scene_tensor, dims=[-1])
+        flipped_scene = torch.flip(scene_tensor.clone(), dims=[-1])
 
         # 2. Swap channels for tile types 1 and 2 (tops of pipes)
         channel_1 = flipped_scene[1].clone()  # Clone to avoid overwriting
@@ -171,7 +168,7 @@ class LevelDataset(Dataset):
         # Change left to right and vice versar
         caption_tensor = torch.tensor(self._swap_caption_tokens(caption), dtype=torch.long)
 
-        return scene_tensor, caption_tensor
+        return flipped_scene, caption_tensor
 
     def _shuffle_data(self):
         """Shuffles the dataset."""
@@ -287,7 +284,7 @@ if __name__ == "__main__":
     tokenizer.load('SMB1_Tokenizer.pkl')
 
     # Create MLM dataset
-    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, mode="mlm", random_seed=9999)
+    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, mode="mlm")
     sample = mlm_dataset[0]
     print("MLM sample shape:", sample.shape)  # Should be (max_length)
     print(sample)
@@ -300,14 +297,14 @@ if __name__ == "__main__":
     print(mlm_dataset.tokenizer.decode(batch[0].tolist()))
 
     # Create Diffusion dataset
-    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, mode="diffusion", random_seed=9999)
+    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, mode="diffusion", shuffle=False)
     scene, caption = diffusion_dataset[0]
     print("Diffusion Sample Shapes:", scene.shape, caption.shape) 
     print(scene)
     print(torch.tensor(diffusion_dataset.decode_scene(scene)))
     print(diffusion_dataset.tokenizer.decode(caption.tolist()))
 
-    diffusion_dataloader = DataLoader(diffusion_dataset, batch_size=16, shuffle=True)
+    diffusion_dataloader = DataLoader(diffusion_dataset, batch_size=16, shuffle=False)
     scenes, captions = next(iter(diffusion_dataloader))
     print("Diffusion Batch Shapes:", scenes.shape, captions.shape) 
 
@@ -317,13 +314,13 @@ if __name__ == "__main__":
 
     print("-----------")
 
-    scene, caption = diffusion_dataset[100]
+    scene, caption = diffusion_dataset[290]
     print(torch.tensor(diffusion_dataset.decode_scene(scene)))
+    print(diffusion_dataset.tokenizer.decode(caption.tolist()))
     scene, caption = diffusion_dataset._augment_scene_and_caption(scene, caption)
     print(torch.tensor(diffusion_dataset.decode_scene(scene)))
+    print(diffusion_dataset.tokenizer.decode(caption.tolist()))
 
     print("-----------")
-    scene, caption = diffusion_dataset[100]
-    print(scene)
     # batch is (scenes, captions) so the [0] gets just the scenes
     visualize_samples(next(iter(diffusion_dataloader))[0], "TEMP")
