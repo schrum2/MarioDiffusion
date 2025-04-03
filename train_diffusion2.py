@@ -78,8 +78,13 @@ class TileDiffusionTrainer:
         # Get formatted timestamp for filenames
         formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
 
+        output_dir = "diff2" # Make into command line param
+
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+
         # Create log files
-        log_file = os.path.join("diff2", f"training_log_{formatted_date}.jsonl")
+        log_file = os.path.join(output_dir, f"training_log_{formatted_date}.jsonl")
 
         # Add function to log metrics
         def log_metrics(epoch, loss, lr, step):
