@@ -59,7 +59,7 @@ python .\masked_token_prediction.py --model_file .\mlm_transformer.pth
 
 Train unconditional diffusion model?
 ```
-python train_diffusion.py --augment --num_epochs 1000 --learning_rate 1e-4
+python train_diffusion.py --augment 
 ```
 Run trained diffusion model and save 100 random levels to json
 ```
