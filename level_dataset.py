@@ -331,4 +331,4 @@ if __name__ == "__main__":
     scene, caption = diffusion_dataset[100]
     print(scene)
 
-    diffusion_dataset.visualize_samples(diffusion_dataset.get_batch(0)[0][0:4], "TEST", "TEMP")
+    visualize_samples(diffusion_dataset.get_batch(0)[0][0:4], "TEMP")
