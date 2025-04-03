@@ -223,8 +223,8 @@ class LevelDataset:
         return one_hot_scenes, caption_tensor
 
     def __len__(self):
-        """Returns number of batches."""
-        return (len(self.tokenized_captions) + self.batch_size - 1) // self.batch_size
+        """Returns the number of samples in the dataset."""
+        return len(self.tokenized_captions)
 
     def __getitem__(self, idx):
         """
