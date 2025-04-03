@@ -176,7 +176,6 @@ def main():
     dataset = LevelDataset(
         json_path=args.json,
         tokenizer=tokenizer,
-        batch_size=args.batch_size,
         shuffle=True,
         mode="diffusion",
         augment=args.augment,
