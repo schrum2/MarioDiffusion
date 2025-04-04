@@ -53,26 +53,46 @@ class Tokenizer:
             encoded.append(self.token_to_id[tok])
         return encoded
 
-    def encode_batch(self, texts):
+    def encode_batch(self, texts, pad_to_length=None):
         """
-        Encode a batch of texts into token IDs.
+        Encode a batch of texts into token IDs with padding to ensure uniform length.
     
         Args:
             texts (list): A list of strings to encode
+            pad_to_length (int, optional): Length to pad all sequences to. If None,
+                                          will pad to the length of the longest sequence.
         
         Returns:
             list: A list of lists, where each inner list contains the token IDs for a text
         """
-        results = []
+        # Get the padding token ID
+        pad_token = self.token_to_id["[PAD]"]
+    
+        # First encode all texts
+        encoded_texts = []
         for text in texts:
             try:
                 encoded = self.encode(text)
-                results.append(encoded)
+                encoded_texts.append(encoded)
             except ValueError as e:
-                # You can choose to either raise the exception or handle it differently
                 raise ValueError(f"Error encoding text: {text}. {str(e)}")
     
-        return results
+        # Determine padding length
+        if pad_to_length is None:
+            pad_to_length = max(len(seq) for seq in encoded_texts)
+    
+        # Pad sequences to uniform length
+        padded_texts = []
+        for seq in encoded_texts:
+            if len(seq) > pad_to_length:
+                # Truncate if too long
+                padded_texts.append(seq[:pad_to_length])
+            else:
+                # Pad if too short
+                padding = [pad_token] * (pad_to_length - len(seq))
+                padded_texts.append(seq + padding)
+    
+        return padded_texts
 
     def decode(self, token_ids):
         return ' '.join(self.id_to_token[tok_id] for tok_id in token_ids)
