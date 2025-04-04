@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from diffusers import UNet2DModel, DDPMScheduler, DDPMPipeline
+from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler, DDPMPipeline
 from diffusers.optimization import get_cosine_schedule_with_warmup 
 from tqdm.auto import tqdm
 import pickle
@@ -20,6 +20,7 @@ import threading
 import time
 from datetime import datetime
 from loss_plotter import LossPlotter
+from models import TransformerModel
 
 # Create a custom pipeline for text-conditional generation
 class TextConditionalDDPMPipeline(DDPMPipeline):
@@ -92,8 +93,8 @@ def parse_args():
     
     # New text conditioning args
     parser.add_argument("--mlm_model_file", type=str, default=os.path.join("mlm","mlm_transformer.pth"), help="Path to pre-trained text embedding model")
-    parser.add_argument("--embedding_dim", type=int, default=256, help="Text embedding dimension")
-    parser.add_argument("--hidden_dim", type=int, default=512, help="Hidden dimension for text model")
+    parser.add_argument("--embedding_dim", type=int, default=128, help="Text embedding dimension")
+    parser.add_argument("--hidden_dim", type=int, default=256, help="Hidden dimension for text model")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--classifier_free_guidance_scale", type=float, default=7.5, 
                       help="Scale for classifier-free guidance during inference")
