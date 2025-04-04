@@ -364,7 +364,7 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder
-                )
+                ).to("cuda")
                 
                 # Generate sample levels with conditioning
                 sample_captions = [
