@@ -21,6 +21,9 @@ Before running any code, install all requirements with pip:
 pip install -r requirements.txt
 ```
 
+
+
+
 STEPS TO TRAIN A DISCRETE DIFFUSION MODEL:
 
 Extract a json data set of 16 by 16 level scenes from the VGLC data for Super Mario Bros with this command:
@@ -41,7 +44,7 @@ python tokenizer.py save
 ```
 Now, masked language modeling will be used to pre-train the text embedding model.
 ```
-python train_mlm.py --model transformer --epochs 3000
+python train_mlm.py
 ```
 A report evaluating the accuracy of the model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```
@@ -52,12 +55,7 @@ python .\masked_token_prediction.py --model_file .\mlm_transformer.pth
 
 
 
-
-
-
-
-
-Train unconditional diffusion model?
+To train an unconditional diffusion model without any text embeddings, run this command:
 ```
 python train_diffusion.py --augment 
 ```
@@ -69,6 +67,24 @@ View the saved levels in the data browser
 ```
 python ascii_data_browser.py generated_levels\\all_levels.json
 ```
+
+
+
+
+
+
+
+
+Train a diffusion model conditioned on text embeddings from the descriptive captions:
+```
+python train_diffusion.py --augment --text_conditional
+```
+
+
+
+
+
+
 
 
 

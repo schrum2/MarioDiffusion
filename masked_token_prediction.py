@@ -2,7 +2,7 @@ import argparse
 import torch
 import random
 from tokenizer import Tokenizer
-from models import LSTMModel, TransformerModel
+from models import TransformerModel
 from level_dataset import LevelDataset
 from torch.utils.data import DataLoader
 
@@ -77,17 +77,11 @@ if __name__ == "__main__":
     embedding_dim = args.embedding_dim
     hidden_dim = args.hidden_dim
     
-    if "lstm" in args.model_file.lower():
-        model = LSTMModel(vocab_size, embedding_dim, hidden_dim).to(device)
-    elif "transformer" in args.model_file.lower():
-        model = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
-    else:
-        raise ValueError("Model type could not be determined from filename.")
-    
+    model = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
     model.load_state_dict(torch.load(args.model_file, map_location=device))
     print(f"Loaded model from {args.model_file}")
     
-    dataset = LevelDataset(args.json, tokenizer, batch_size=16, mode="mlm")
+    dataset = LevelDataset(args.json, tokenizer, mode="mlm")
     dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
     
     evaluate_model(model, tokenizer, dataloader, device, args.mask_prob)
