@@ -382,7 +382,7 @@ def main():
                     # Generate samples
                     samples = pipeline(
                         batch_size=4,
-                        generator=torch.manual_seed(args.seed),
+                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                         num_inference_steps=args.num_train_timesteps,
                         output_type="tensor",
                         captions=sample_caption_tokens
@@ -403,7 +403,7 @@ def main():
                     # Generate samples from noise
                     samples = pipeline(
                         batch_size=4,
-                        generator=torch.manual_seed(args.seed),
+                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                         num_inference_steps=args.num_train_timesteps,
                         output_type="tensor",
                     ).images
@@ -421,7 +421,7 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder
-                )
+                ).to("cuda")
             else:
                 pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
                 
@@ -445,7 +445,7 @@ def main():
             unet=accelerator.unwrap_model(model), 
             scheduler=noise_scheduler,
             text_encoder=text_encoder
-        )
+        ).to("cuda")
     else:
         pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
         
