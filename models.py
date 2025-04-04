@@ -35,7 +35,7 @@ class TransformerModel(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
         return pe.unsqueeze(0)
     
-    def forward(self, x):
+    def get_embeddings(self, x):
         # Ensure positional encoding is on the same device as input
         pe = self.positional_encoding[:, :x.size(1), :].to(x.device)
         
@@ -44,8 +44,11 @@ class TransformerModel(nn.Module):
         
         # Pass through transformer
         transformer_out = self.transformer(embedded)
+
+        return transformer_out
         
+    def forward(self, x):
+        transformer_out = self.get_embeddings(x)
         # Project to vocabulary size
         output = self.fc(transformer_out)
-        
         return output

@@ -33,7 +33,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         # Process text embeddings if captions are provided
         text_embeddings = None
         if captions is not None and self.text_encoder is not None:
-            text_embeddings = self.text_encoder(captions)
+            text_embeddings = self.text_encoder.get_embeddings(captions)
         
         # Start from random noise
         if isinstance(generator, list) and len(generator) != batch_size:
@@ -305,13 +305,13 @@ def main():
                 
                 # Get text embeddings from the text encoder
                 with torch.no_grad():
-                    text_embeddings = text_encoder(captions)
+                    text_embeddings = text_encoder.get_embeddings(captions)
                 
                 # For classifier-free guidance, we need to create a negative prompt embedding
                 # We'll use the unconditional embedding
                 uncond_tokens = torch.zeros_like(captions)
                 with torch.no_grad():
-                    uncond_embeddings = text_encoder(uncond_tokens)
+                    uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
             else:
                 # For unconditional generation, we don't need captions
                 if isinstance(batch, list):
