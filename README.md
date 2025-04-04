@@ -44,7 +44,7 @@ python tokenizer.py save
 ```
 Now, masked language modeling will be used to pre-train the text embedding model.
 ```
-python train_mlm.py
+python train_mlm.py --epochs 300
 ```
 A report evaluating the accuracy of the model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```
@@ -57,7 +57,7 @@ python masked_token_prediction.py --model_file "mlm\\mlm_transformer.pth"
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --augment 
+python train_diffusion.py --augment --num_epochs 300
 ```
 Run trained diffusion model and save 100 random levels to json
 ```
@@ -77,7 +77,7 @@ python ascii_data_browser.py generated_levels\\all_levels.json
 
 Train a diffusion model conditioned on text embeddings from the descriptive captions:
 ```
-python train_diffusion.py --augment --text_conditional
+python train_diffusion.py --augment --text_conditional --num_epochs 300
 ```
 
 
