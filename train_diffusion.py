@@ -91,7 +91,7 @@ def parse_args():
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     
     # New text conditioning args
-    parser.add_argument("--model_file", type=str, default=None, help="Path to pre-trained text embedding model")
+    parser.add_argument("--mlm_model_file", type=str, default=os.path.join("mlm","mlm_transformer.pth"), help="Path to pre-trained text embedding model")
     parser.add_argument("--embedding_dim", type=int, default=256, help="Text embedding dimension")
     parser.add_argument("--hidden_dim", type=int, default=512, help="Hidden dimension for text model")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
@@ -163,14 +163,14 @@ def main():
     
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
-    if args.text_conditional and args.model_file:
+    if args.text_conditional and args.mlm_model_file:
         vocab_size = tokenizer.get_vocab_size()
         embedding_dim = args.embedding_dim
         hidden_dim = args.hidden_dim
         text_encoder = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
-        text_encoder.load_state_dict(torch.load(args.model_file, map_location=device))
+        text_encoder.load_state_dict(torch.load(args.mlm_model_file, map_location=device))
         text_encoder.eval()  # Set to evaluation mode
-        print(f"Loaded text encoder from {args.model_file}")
+        print(f"Loaded text encoder from {args.mlm_model_file}")
     
     # Initialize dataset
     dataset = LevelDataset(
