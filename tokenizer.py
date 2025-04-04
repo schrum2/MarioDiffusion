@@ -53,6 +53,27 @@ class Tokenizer:
             encoded.append(self.token_to_id[tok])
         return encoded
 
+    def encode_batch(self, texts):
+        """
+        Encode a batch of texts into token IDs.
+    
+        Args:
+            texts (list): A list of strings to encode
+        
+        Returns:
+            list: A list of lists, where each inner list contains the token IDs for a text
+        """
+        results = []
+        for text in texts:
+            try:
+                encoded = self.encode(text)
+                results.append(encoded)
+            except ValueError as e:
+                # You can choose to either raise the exception or handle it differently
+                raise ValueError(f"Error encoding text: {text}. {str(e)}")
+    
+        return results
+
     def decode(self, token_ids):
         return ' '.join(self.id_to_token[tok_id] for tok_id in token_ids)
 
