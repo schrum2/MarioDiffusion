@@ -8,6 +8,24 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib
 from torch.utils.data import DataLoader
+import io
+from PIL import Image
+
+def get_pil_image_from_plt(fig):
+    """
+    Converts a matplotlib figure to a PIL Image.
+
+    Args:
+        fig: The matplotlib Figure object.
+
+    Returns:
+        A PIL Image object representing the figure.
+    """
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    buf.seek(0)
+    img = Image.open(buf)
+    return img
 
 def colors():
     # Create custom colormap for integers 0-15
@@ -32,7 +50,7 @@ def colors():
 
     return colorslist
 
-def visualize_samples(samples, output_dir):
+def visualize_samples(samples, output_dir=None):
     """
     Visualize generated samples and save as images.
     
@@ -51,7 +69,8 @@ def visualize_samples(samples, output_dir):
         raise ValueError("Hard coded for 15 channels (change code to generalize beyond Mario)")
 
     # Create directory for the samples
-    os.makedirs(output_dir, exist_ok=True)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     
     # Create custom colormap for integers 0-15
     colorslist = colors()
@@ -77,8 +96,19 @@ def visualize_samples(samples, output_dir):
         plt.title(f"Sample {i+1}")
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "samples_grid.png"))
+        
+
+    if output_dir:
+        plt.savefig(os.path.join(output_dir, "samples_grid.png"))
+        result = None
+    else:
+        result = get_pil_image_from_plt(plt.gcf())
+
     plt.close()
+
+    # Returning an image instead of saving many images
+    if result: 
+        return result
     
     # Save individual samples
     for i, sample_index in enumerate(sample_indices):

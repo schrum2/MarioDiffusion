@@ -85,7 +85,7 @@ python run_diffusion.py --model_path level-diffusion-output --num_samples 100 --
 ```
 But to actually provide captions to guide the level generation, use this command
 ```
-TODO
+python text_to_level_diffusion.py --model_path level-diffusion-output
 ```
 
 
