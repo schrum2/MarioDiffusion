@@ -19,10 +19,14 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         text_embeddings = None
         if captions is not None and self.text_encoder is not None:
             text_embeddings = self.text_encoder.get_embeddings(captions)
+            #print(text_embeddings.shape)
         elif self.text_encoder is not None:
             # Use empty prompts for unconditional generation
             embedding_dim = self.text_encoder.embedding_dim
-            random_shape = (batch_size, 456, embedding_dim)
+            # This could be any number. It represents the length of the text caption.
+            # but this random generation does not use any real tokens.
+            seq_length = 10
+            random_shape = (batch_size, seq_length, embedding_dim)
             text_embeddings = torch.randn(random_shape, device=self.device)
         else:
             raise ValueError("text encoder needed")        
