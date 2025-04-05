@@ -79,7 +79,14 @@ Train a diffusion model conditioned on text embeddings from the descriptive capt
 ```
 python train_diffusion.py --augment --text_conditional --num_epochs 300
 ```
-
+To generate random levels (based on random text embeddings), use this command:
+```
+python run_diffusion.py --model_path level-diffusion-output --num_samples 100 --text_conditional
+```
+But to actually provide captions to guide the level generation, use this command
+```
+TODO
+```
 
 
 

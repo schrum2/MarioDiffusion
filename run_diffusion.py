@@ -32,6 +32,7 @@ def parse_args():
     parser.add_argument("--figsize", type=int, nargs=2, default=[10, 10], help="Figure size for individual level plots")
 
     # Text conditional model    
+    parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--mlm_model_file", type=str, default=os.path.join("mlm","mlm_transformer.pth"), help="Path to pre-trained text embedding model")
     parser.add_argument("--embedding_dim", type=int, default=128, help="Text embedding dimension")
@@ -63,7 +64,7 @@ def generate_levels(args):
     
     # Load the pipeline
     print(f"Loading model from {args.model_path}...")
-    if True:
+    if args.text_conditional:
         tokenizer = Tokenizer()
         tokenizer.load(args.pkl)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
