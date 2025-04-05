@@ -4,13 +4,16 @@ import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from diffusers import DDPMPipeline
+from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler, DDPMPipeline
 from level_dataset import visualize_samples
 import json
 import random
 from tqdm.auto import tqdm
 from PIL import Image
 import matplotlib.colors as mcolors
+from tokenizer import Tokenizer 
+from models import TransformerModel
+from text_diffusion_pipeline import TextConditionalDDPMPipeline
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")
@@ -27,7 +30,13 @@ def parse_args():
     # Visualization options
     parser.add_argument("--colormap", type=str, default="viridis", help="Matplotlib colormap for visualization")
     parser.add_argument("--figsize", type=int, nargs=2, default=[10, 10], help="Figure size for individual level plots")
-    
+
+    # Text conditional model    
+    parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
+    parser.add_argument("--mlm_model_file", type=str, default=os.path.join("mlm","mlm_transformer.pth"), help="Path to pre-trained text embedding model")
+    parser.add_argument("--embedding_dim", type=int, default=128, help="Text embedding dimension")
+    parser.add_argument("--hidden_dim", type=int, default=256, help="Hidden dimension for text model")
+
     return parser.parse_args()
 
 def convert_to_level_format(sample):
@@ -54,7 +63,23 @@ def generate_levels(args):
     
     # Load the pipeline
     print(f"Loading model from {args.model_path}...")
-    pipeline = DDPMPipeline.from_pretrained(args.model_path)
+    if True:
+        tokenizer = Tokenizer()
+        tokenizer.load(args.pkl)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        vocab_size = tokenizer.get_vocab_size()
+        embedding_dim = args.embedding_dim
+        hidden_dim = args.hidden_dim
+        text_encoder = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
+        text_encoder.load_state_dict(torch.load(args.mlm_model_file, map_location=device))
+        text_encoder.eval()  # Set to evaluation mode
+        pipeline = TextConditionalDDPMPipeline(
+            unet=UNet2DConditionModel.from_pretrained(os.path.join(args.model_path, "unet")),
+            scheduler=DDPMScheduler.from_pretrained(os.path.join(args.model_path, "scheduler")),
+            text_encoder=text_encoder
+        )
+    else:
+        pipeline = DDPMPipeline.from_pretrained(args.model_path)
     pipeline.to(device)
     
     #print(pipeline)
