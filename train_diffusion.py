@@ -21,6 +21,10 @@ import time
 from datetime import datetime
 from loss_plotter import LossPlotter
 from models import TransformerModel
+from typing import NamedTuple
+
+class PipelineOutput(NamedTuple):
+    images: torch.Tensor
 
 # Create a custom pipeline for text-conditional generation
 class TextConditionalDDPMPipeline(DDPMPipeline):
@@ -79,7 +83,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             # Apply softmax to get probabilities for each tile type
             sample = F.softmax(sample, dim=1)
             
-        return {"images": sample}
+        return PipelineOutput(images=sample)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -386,7 +390,9 @@ def main():
                         num_inference_steps=args.num_train_timesteps,
                         output_type="tensor",
                         captions=sample_caption_tokens
-                    ).images
+                    )
+                    print(samples)
+                    samples = samples.images
             else:
                 # For unconditional generation
                 pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
