@@ -390,9 +390,7 @@ def main():
                         num_inference_steps=args.num_train_timesteps,
                         output_type="tensor",
                         captions=sample_caption_tokens
-                    )
-                    print(samples)
-                    samples = samples.images
+                    ).images
             else:
                 # For unconditional generation
                 pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
