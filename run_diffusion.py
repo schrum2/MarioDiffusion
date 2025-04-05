@@ -26,10 +26,6 @@ def parse_args():
     parser.add_argument("--inference_steps", type=int, default=500, help="Number of denoising steps")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
-    
-    # Visualization options
-    parser.add_argument("--colormap", type=str, default="viridis", help="Matplotlib colormap for visualization")
-    parser.add_argument("--figsize", type=int, nargs=2, default=[10, 10], help="Figure size for individual level plots")
 
     # Text conditional model    
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
