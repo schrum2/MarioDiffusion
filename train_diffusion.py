@@ -375,7 +375,7 @@ def main():
                     "full floor. one enemy. a few question blocks. one platform at left middle. pipe at center bottom.",
                     "no floor. one enemy. a few coins. one coin line at right top. one platform at right top, one platform at right middle, one platform at left bottom.",
                     "floor with a few gaps. full ceiling. irregular block cluster at right top.",
-                    "floor with one gap. full ceiling. two enemies. one ascending staircase. pipe at left bottom, pipe at left bottom."
+                    "floor with one gap. full ceiling. two enemies. one ascending staircase. pipe at left bottom, pipe at right bottom."
                 ]
                 
                 # Convert captions to token IDs using the tokenizer
