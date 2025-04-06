@@ -57,6 +57,16 @@ class ParentBuilder:
 
         return False
 
+    def get_predefined_phrases(self):
+        # Behaves differently for LoRA vs plain diffusion model
+        # Define the specific phrases and their order
+        predefined_phrases = [
+            ("Level Type", ["overworld level", "underworld level"]),
+            ("Sky Type", ["blue sky", "night sky"]),
+            ("Floor Type", ["no floor", "full floor", "floor with gaps"])
+        ]
+        return predefined_phrases
+
     def create_checkboxes(self):
         for widget in self.checkbox_inner_frame.winfo_children():
             widget.destroy()
@@ -65,11 +75,7 @@ class ParentBuilder:
         self.collapsible_frames = {}  # Store references to collapsible frames
     
         # Define the specific phrases and their order
-        predefined_phrases = [
-            ("Level Type", ["overworld level", "underworld level"]),
-            ("Sky Type", ["blue sky", "night sky"]),
-            ("Floor Type", ["no floor", "full floor", "floor with gaps"])
-        ]
+        predefined_phrases = self.get_predefined_phrases()
     
         # Create a collapsible frame class
         class CollapsibleFrame(ttk.Frame):
@@ -143,11 +149,7 @@ class ParentBuilder:
             else:
                 return [phrase for phrase in self.all_phrases if pattern in phrase]
     
-        patterns = ["cloud", "tree", "bush", "hill", 
-                    "pipe", "coin", 
-                    "cannon", "staircase",
-                    "girder", "question block", "solid block", "metal block", "mushroom", "giant tree", "brick block",
-                    "bullet bill", "koopa", "goomba", "piranha plant", "spiny", "hammer bro", "helmet"]
+        patterns = self.get_patterns()
     
         for pattern in patterns:
             grouped_phrases = group_phrases_by_pattern(pattern)
@@ -157,3 +159,12 @@ class ParentBuilder:
         # Add remaining phrases
         if self.all_phrases:
             create_group("Other Phrases", self.all_phrases.copy())
+
+    def get_patterns(self):
+        # Different for LoRA and tile diffusion
+        patterns = ["cloud", "tree", "bush", "hill", 
+                    "pipe", "coin", 
+                    "cannon", "staircase",
+                    "girder", "question block", "solid block", "metal block", "mushroom", "giant tree", "brick block",
+                    "bullet bill", "koopa", "goomba", "piranha plant", "spiny", "hammer bro", "helmet"]
+        return patterns

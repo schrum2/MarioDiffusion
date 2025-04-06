@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
+import json
 import torch
 from PIL import Image, ImageTk
 import sys
@@ -75,6 +76,42 @@ class CaptionBuilder(ParentBuilder):
 
         self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet")
         self.loaded_model_label.pack()
+
+    def get_predefined_phrases(self):
+        # Behaves differently for LoRA vs plain diffusion model
+        # No phrases for plain diffusion model
+        predefined_phrases = [ ]
+        return predefined_phrases
+
+    def get_patterns(self):
+        # Different for LoRA and tile diffusion
+        patterns = ["floor", "giant gap", "ceiling", 
+                    "pipe", "coin", "platform", "tower", "wall"
+                    "cannon", "staircase", "irregular"
+                    "question block", "enem"]
+        return patterns
+
+    def load_data(self, filepath = None):
+        if filepath == None:
+            filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON", "*.json")])
+        if filepath:
+            try:
+                phrases_set = set()
+                with open(filepath, 'r') as f:
+                    dataset = json.load(f)
+                    for item in dataset:
+                        phrases = item['caption'].split('.')
+                        phrases_set.update(phrase.strip() for phrase in phrases if phrase.strip())
+                
+                self.all_phrases = sorted(list(phrases_set))
+                self.create_checkboxes()
+
+                return True
+            except FileNotFoundError as e:
+                print(f"Error loading data: {e}")
+                messagebox.showerror("Error", f"Error loading data: {e}")
+
+        return False
         
     def load_model(self, lora_model = None):
         if model == None:
