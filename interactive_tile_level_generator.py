@@ -4,8 +4,12 @@ import os
 import json
 import torch
 from PIL import Image, ImageTk
+from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler, DDPMPipeline
 import sys
 from gui_shared import ParentBuilder
+from tokenizer import Tokenizer 
+from models import TransformerModel
+from text_diffusion_pipeline import TextConditionalDDPMPipeline
 
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
@@ -113,13 +117,26 @@ class CaptionBuilder(ParentBuilder):
 
         return False
         
-    def load_model(self, lora_model = None):
+    def load_model(self, model = None):
         if model == None:
-            model = filedialog.askopenfilename(title="Select Model Weights", filetypes=[("SafeTensors", "*.safetensors")])
+            model = filedialog.askopenfilename(title="Select Model Index", filetypes=[("JSON", "*.json")])
         if model:
-
-            # TODO
-
+            model = os.path.dirname(model)
+            # Don't hard code all of this
+            self.tokenizer = Tokenizer()
+            self.tokenizer.load("SMB1_Tokenizer.pkl")
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            vocab_size = self.tokenizer.get_vocab_size()
+            embedding_dim = 128 # args.embedding_dim
+            hidden_dim = 256 # args.hidden_dim
+            self.text_encoder = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
+            self.text_encoder.load_state_dict(torch.load(os.path.join("mlm","mlm_transformer.pth"), map_location=device))
+            self.text_encoder.eval()  # Set to evaluation mode
+            self.pipeline = TextConditionalDDPMPipeline(
+                unet=UNet2DConditionModel.from_pretrained(os.path.join(model, "unet")),
+                scheduler=DDPMScheduler.from_pretrained(os.path.join(model, "scheduler")),
+                text_encoder=self.text_encoder
+            )
 
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"
