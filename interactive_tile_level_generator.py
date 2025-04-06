@@ -10,6 +10,7 @@ from gui_shared import ParentBuilder
 from tokenizer import Tokenizer 
 from models import TransformerModel
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
+from level_dataset import visualize_samples
 
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
@@ -25,11 +26,11 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text = tk.Text(self.caption_frame, height=5, wrap=tk.WORD, state=tk.DISABLED)
         self.caption_text.pack() 
                 
-        self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:")
-        self.negative_prompt_label.pack()
+        #self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:")
+        #self.negative_prompt_label.pack()
         
-        self.negative_prompt_entry = ttk.Entry(self.caption_frame)
-        self.negative_prompt_entry.pack()
+        #self.negative_prompt_entry = ttk.Entry(self.caption_frame)
+        #self.negative_prompt_entry.pack()
         
         self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:")
         self.num_images_label.pack()        
@@ -58,8 +59,8 @@ class CaptionBuilder(ParentBuilder):
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
                 
-        self.lora_button = ttk.Button(self.checkbox_frame, text="Load Model", command=self.load_model)
-        self.lora_button.pack(anchor=tk.E)
+        self.model_button = ttk.Button(self.checkbox_frame, text="Load Model", command=self.load_model)
+        self.model_button.pack(anchor=tk.E)
 
         # Frame for image display
         self.image_frame = ttk.Frame(master)
@@ -125,18 +126,18 @@ class CaptionBuilder(ParentBuilder):
             # Don't hard code all of this
             self.tokenizer = Tokenizer()
             self.tokenizer.load("SMB1_Tokenizer.pkl")
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             vocab_size = self.tokenizer.get_vocab_size()
             embedding_dim = 128 # args.embedding_dim
             hidden_dim = 256 # args.hidden_dim
-            self.text_encoder = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
-            self.text_encoder.load_state_dict(torch.load(os.path.join("mlm","mlm_transformer.pth"), map_location=device))
+            self.text_encoder = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(self.device)
+            self.text_encoder.load_state_dict(torch.load(os.path.join("mlm","mlm_transformer.pth"), map_location=self.device))
             self.text_encoder.eval()  # Set to evaluation mode
-            self.pipeline = TextConditionalDDPMPipeline(
+            self.pipe = TextConditionalDDPMPipeline(
                 unet=UNet2DConditionModel.from_pretrained(os.path.join(model, "unet")),
                 scheduler=DDPMScheduler.from_pretrained(os.path.join(model, "scheduler")),
                 text_encoder=self.text_encoder
-            )
+            ).to(self.device)
 
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"
@@ -151,20 +152,24 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text.config(state=tk.DISABLED)
     
     def generate_image(self):
+        print("Generating")
         prompt = self.caption_text.get("1.0", tk.END).strip()
-        negative_prompt = self.negative_prompt_entry.get().strip()
         num_images = int(self.num_images_entry.get())
+
+        sample_captions = [prompt] # batch of size 1
+        sample_caption_tokens = self.tokenizer.encode_batch(sample_captions)
+        sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
+
 
         # CHANGE BELOW THIS
         if True: return
 
         param_values = {
-            "prompt": prompt,
-            "negative_prompt": negative_prompt,
+            "captions" : sample_caption_tokens,
             "num_inference_steps": int(self.num_steps_entry.get()),
             "guidance_scale": float(self.guidance_entry.get()),
-            "height": int(self.height_entry.get()),
-            "width": int(self.width_entry.get()),
+            "output_type" : "tensor",
+            "batch_size" : 1
         }
         generator = torch.manual_seed(int(self.seed_entry.get()))
         
@@ -174,7 +179,7 @@ class CaptionBuilder(ParentBuilder):
 
         for _ in range(num_images):
             image = self.pipe(generator=generator, **param_values).images[0]
-            img_tk = ImageTk.PhotoImage(image)
+            img_tk = ImageTk.PhotoImage(visualize_samples(images))
             label = ttk.Label(self.image_inner_frame, image=img_tk)
             label.image = img_tk
             label.pack()
@@ -188,6 +193,6 @@ if len(sys.argv) > 1:
     app.load_data(sys.argv[1])
 
 if len(sys.argv) > 2:
-    app.load_lora(sys.argv[2])
+    app.load_model(sys.argv[2])
 
 root.mainloop()
