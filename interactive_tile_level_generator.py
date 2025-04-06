@@ -160,10 +160,6 @@ class CaptionBuilder(ParentBuilder):
         sample_caption_tokens = self.tokenizer.encode_batch(sample_captions)
         sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
 
-
-        # CHANGE BELOW THIS
-        if True: return
-
         param_values = {
             "captions" : sample_caption_tokens,
             "num_inference_steps": int(self.num_steps_entry.get()),
@@ -171,14 +167,16 @@ class CaptionBuilder(ParentBuilder):
             "output_type" : "tensor",
             "batch_size" : 1
         }
-        generator = torch.manual_seed(int(self.seed_entry.get()))
+        generator = torch.Generator(self.device).manual_seed(int(self.seed_entry.get()))
         
         self.image_inner_frame
         for widget in self.image_inner_frame.winfo_children():
             widget.destroy()
 
         for _ in range(num_images):
-            image = self.pipe(generator=generator, **param_values).images[0]
+            images = self.pipe(generator=generator, **param_values).images
+            #print(images)
+            #print(images.shape)
             img_tk = ImageTk.PhotoImage(visualize_samples(images))
             label = ttk.Label(self.image_inner_frame, image=img_tk)
             label.image = img_tk
