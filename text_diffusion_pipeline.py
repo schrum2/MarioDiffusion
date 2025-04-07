@@ -12,8 +12,26 @@ class PipelineOutput(NamedTuple):
 # Create a custom pipeline for text-conditional generation
 class TextConditionalDDPMPipeline(DDPMPipeline):
     def __init__(self, unet, scheduler, text_encoder=None):
-        super().__init__(unet, scheduler)
+        super().__init__(unet=unet, scheduler=scheduler)
         self.text_encoder = text_encoder
+
+        # Register the text_encoder so that .to(), .cpu(), .cuda(), etc. work correctly
+        self.register_modules(
+            unet=unet,
+            scheduler=scheduler,
+            text_encoder=text_encoder,
+        )
+    
+    # Override the to() method to ensure text_encoder is moved to the correct device
+    def to(self, device=None, dtype=None):
+        # Call the parent's to() method first
+        pipeline = super().to(device, dtype)
+        
+        # Additionally move the text_encoder to the device
+        if self.text_encoder is not None:
+            self.text_encoder.to(device)
+        
+        return pipeline
 
     def save_pretrained(self, save_directory):
         os.makedirs(save_directory, exist_ok=True)
@@ -25,21 +43,22 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
-        # Load unet and scheduler as usual
-        pipeline = super().from_pretrained(pretrained_model_path, **kwargs)
+        base_pipeline = super().from_pretrained(pretrained_model_path, **kwargs)
 
-        # Load the custom text encoder
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         if os.path.exists(text_encoder_path):
             text_encoder = TransformerModel.from_pretrained(text_encoder_path)
         else:
             text_encoder = None
 
-        return cls(
-            unet=pipeline.unet,
-            scheduler=pipeline.scheduler,
+        # Instantiate your custom class!
+        pipeline = cls(
+            unet=base_pipeline.unet,
+            scheduler=base_pipeline.scheduler,
             text_encoder=text_encoder
         )
+
+        return pipeline
         
     def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
                 output_type="pil", captions=None, **kwargs):
