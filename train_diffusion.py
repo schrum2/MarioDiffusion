@@ -1,23 +1,18 @@
 import argparse
 import os
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler, DDPMPipeline
 from diffusers.optimization import get_cosine_schedule_with_warmup 
 from tqdm.auto import tqdm
-import pickle
 import random
 import numpy as np
 from accelerate import Accelerator
-import matplotlib
-import matplotlib.pyplot as plt
 from level_dataset import LevelDataset, visualize_samples
 from tokenizer import Tokenizer 
 import json
 import threading
-import time
 from datetime import datetime
 from loss_plotter import LossPlotter
 from models import TransformerModel

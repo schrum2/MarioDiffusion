@@ -1,9 +1,8 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from typing import NamedTuple
 import os
-from diffusers import DDPMPipeline
+from diffusers import DDPMPipeline, UNet2DConditionModel, DDPMScheduler
 from models import TransformerModel  
             
 class PipelineOutput(NamedTuple):
@@ -43,7 +42,16 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
-        base_pipeline = super().from_pretrained(pretrained_model_path, **kwargs)
+        #from diffusers.utils import load_config, load_state_dict
+        # Load model_index.json
+        #model_index = load_config(pretrained_model_path)
+
+        # Load components manually
+        unet_path = os.path.join(pretrained_model_path, "unet")
+        unet = UNet2DConditionModel.from_pretrained(unet_path)
+
+        scheduler_path = os.path.join(pretrained_model_path, "scheduler")
+        scheduler = DDPMScheduler.from_pretrained(scheduler_path)
 
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         if os.path.exists(text_encoder_path):
@@ -51,11 +59,12 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         else:
             text_encoder = None
 
-        # Instantiate your custom class!
+        # Instantiate your pipeline
         pipeline = cls(
-            unet=base_pipeline.unet,
-            scheduler=base_pipeline.scheduler,
-            text_encoder=text_encoder
+            unet=unet,
+            scheduler=scheduler,
+            text_encoder=text_encoder,
+            **kwargs,
         )
 
         return pipeline
