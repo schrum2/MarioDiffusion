@@ -65,7 +65,6 @@ def parse_args():
     
     # Output args
     parser.add_argument("--output_dir", type=str, default="level-diffusion-output", help="Output directory")
-    parser.add_argument("--logging_dir", type=str, default="logs", help="Logging directory for TensorBoard")
     
     # Diffusion scheduler args
     parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
@@ -311,9 +310,9 @@ def main():
                 # Generate sample levels with conditioning
                 sample_captions = [
                     "full floor. one enemy. a few question blocks. one platform at left middle. pipe at center bottom.",
-                    "no floor. one enemy. a few coins. one coin line at right top. one platform at right top, one platform at right middle, one platform at left bottom.",
+                    "no floor. one enemy. a few coins. one coin line at right top. one platform at right top. one platform at right middle. one platform at left bottom.",
                     "floor with a few gaps. full ceiling. irregular block cluster at right top.",
-                    "floor with one gap. full ceiling. two enemies. one ascending staircase. pipe at left bottom, pipe at right bottom."
+                    "floor with one gap. full ceiling. two enemies. one ascending staircase. pipe at left bottom. two pipes at right bottom."
                 ]
                 
                 # Convert captions to token IDs using the tokenizer

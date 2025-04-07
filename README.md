@@ -57,11 +57,11 @@ python masked_token_prediction.py --model_file "mlm\\mlm_transformer.pth"
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --augment --num_epochs 300
+python train_diffusion.py --augment --output_dir "unconditional-model" --num_epochs 300
 ```
 Run trained diffusion model and save 100 random levels to json
 ```
-python run_diffusion.py --model_path level-diffusion-output --num_samples 100 --save_as_json
+python run_diffusion.py --model_path unconditional-model --num_samples 100 --save_as_json
 ```
 View the saved levels in the data browser
 ```
@@ -77,15 +77,15 @@ python ascii_data_browser.py generated_levels\\all_levels.json
 
 Train a diffusion model conditioned on text embeddings from the descriptive captions:
 ```
-python train_diffusion.py --augment --text_conditional --num_epochs 300
+python train_diffusion.py --augment --text_conditional --output_dir "conditional-model" --num_epochs 300
 ```
 To generate random levels (based on random text embeddings), use this command:
 ```
-python run_diffusion.py --model_path level-diffusion-output --num_samples 100 --text_conditional
+python run_diffusion.py --model_path conditional-model --num_samples 100 --text_conditional
 ```
 But to actually provide captions to guide the level generation, use this command
 ```
-python text_to_level_diffusion.py --model_path level-diffusion-output
+python text_to_level_diffusion.py --model_path conditional-model
 ```
 
 
