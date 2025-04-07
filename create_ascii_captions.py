@@ -233,14 +233,9 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
     return lines
 
 def describe_horizontal_lines(lines, label):
-    """
-    Outputs phrases like:
-      "3 platforms at rows 4 (cols 5-10), 7 (cols 3-8), 9 (cols 12-15)."
-    """
     if not lines:
         return ""
-    
-    
+        
     if coarse_locations:
         location_counts = {}
         for y, start_x, end_x in sorted(lines):
@@ -250,7 +245,7 @@ def describe_horizontal_lines(lines, label):
             else:
                 location_counts[location_str] = 1
 
-        return " " + ", ".join([f"{describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''} at {location}" for location, count in location_counts.items()]) + "."
+        return " " + ". ".join([f"{describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''} at {location}" for location, count in location_counts.items()]) + "."
         
     else:
         parts = []
