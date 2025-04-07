@@ -31,6 +31,13 @@ def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
     os.makedirs(args.output_dir, exist_ok=True)
     # Create log files
     log_file = os.path.join(args.output_dir, f"mlm_training_log_{formatted_date}.jsonl")
+    config_file = os.path.join(args.output_dir, f"hyperparams_{formatted_date}.json")
+
+    # Save hyperparameters to JSON file
+    hyperparams = vars(args)
+    with open(config_file, "w") as f:
+        json.dump(hyperparams, f, indent=4)
+    print(f"Saved configuration to: {config_file}")
 
     plotter = None
     plot_thread = None
