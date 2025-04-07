@@ -34,12 +34,8 @@ def parse_args():
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     
     # New text conditioning args
-    parser.add_argument("--mlm_model_file", type=str, default=os.path.join("mlm","mlm_transformer.pth"), help="Path to pre-trained text embedding model")
-    parser.add_argument("--embedding_dim", type=int, default=128, help="Text embedding dimension")
-    parser.add_argument("--hidden_dim", type=int, default=256, help="Hidden dimension for text model")
+    parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
-    parser.add_argument("--classifier_free_guidance_scale", type=float, default=7.5, 
-                      help="Scale for classifier-free guidance during inference")
     
     # Model args
     parser.add_argument("--model_dim", type=int, default=128, help="Base dimension of UNet model")
@@ -105,14 +101,10 @@ def main():
     
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
-    if args.text_conditional and args.mlm_model_file:
-        vocab_size = tokenizer.get_vocab_size()
-        embedding_dim = args.embedding_dim
-        hidden_dim = args.hidden_dim
-        text_encoder = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
-        text_encoder.load_state_dict(torch.load(args.mlm_model_file, map_location=device))
+    if args.text_conditional and args.mlm_model_dir:
+        text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(device)
         text_encoder.eval()  # Set to evaluation mode
-        print(f"Loaded text encoder from {args.mlm_model_file}")
+        print(f"Loaded text encoder from {args.mlm_model_dir}")
     
     # Initialize dataset
     dataset = LevelDataset(
@@ -143,7 +135,7 @@ def main():
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types=args.down_block_types,
             up_block_types=args.up_block_types,
-            cross_attention_dim=args.embedding_dim,  # Match the embedding dimension
+            cross_attention_dim=text_encoder.embedding_dim,  # Match the embedding dimension
         )
     else:
         model = UNet2DModel(
