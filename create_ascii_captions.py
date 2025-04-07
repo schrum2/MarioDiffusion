@@ -1,6 +1,7 @@
 import json
 import sys
 import os
+from collections import Counter
 
 WIDTH = 16
 HEIGHT = 16
@@ -405,8 +406,35 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False):
         descriptions.append(desc)
     
     if descriptions:
-        return " " + ", ".join(descriptions) + "."
+        # Count occurrences
+        counts = Counter(descriptions)
+
+        # Prepare formatted phrases
+        phrases = []
+        for desc, count in counts.items():
+            if count == 1:
+                phrases.append(desc)
+            else:
+                # Pluralize the first word (basic pluralization: add 's')
+                words = desc.split()
+                for i in range(len(words)):
+                    if words[i] == "pipe":
+                        words[i] = "pipes"
+                    elif words[i] == "tower":
+                        words[i] = "towers"
+                    elif words[i] == "wall":
+                        words[i] = "walls"
+                    elif words[i] == "cluster":
+                        words[i] = "clusters"
+
+                phrases.append(f"{count_to_words(count)} " + " ".join(words))
+
+        return " " + ". ".join(phrases) + "."
     return ""
+
+def count_to_words(n):
+    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+    return words[n - 1] if 1 <= n <= 10 else str(n)
 
 def generate_captions(dataset_path, tileset_path, output_path):
     """Processes the dataset and generates captions for each level scene."""
