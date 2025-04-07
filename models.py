@@ -2,13 +2,16 @@ import torch
 import torch.nn as nn
 import math
 import os
+import json
 from safetensors.torch import save_file, load_file
+import pickle
+from tokenizer import Tokenizer
 
 # Transformer model for MLM training
 
 class TransformerModel(nn.Module):
-    def __init__(self, vocab_size, embedding_dim, hidden_dim, num_heads=8, num_layers=4, max_seq_length=60):
-        super(TransformerModel, self).__init__()
+    def __init__(self, vocab_size, embedding_dim, hidden_dim, tokenizer, num_heads=8, num_layers=4, max_seq_length=60):
+        super().__init__()
         self.embedding_dim = embedding_dim
         self.vocab_size = vocab_size
         self.hidden_dim = hidden_dim
@@ -20,13 +23,15 @@ class TransformerModel(nn.Module):
         self.positional_encoding = self.create_positional_encoding(max_seq_length, embedding_dim)
 
         encoder_layers = nn.TransformerEncoderLayer(
-            d_model=embedding_dim, 
-            nhead=num_heads, 
+            d_model=embedding_dim,
+            nhead=num_heads,
             dim_feedforward=hidden_dim,
             batch_first=True
         )
         self.transformer = nn.TransformerEncoder(encoder_layers, num_layers)
         self.fc = nn.Linear(embedding_dim, vocab_size)
+
+        self.tokenizer = tokenizer
 
     def create_positional_encoding(self, max_seq_length, embedding_dim):
         # The implementation uses a sinusoidal positional encoding, which creates a unique pattern for each position in the sequence.
@@ -56,6 +61,7 @@ class TransformerModel(nn.Module):
 
     def save_pretrained(self, save_directory):
         os.makedirs(save_directory, exist_ok=True)
+
         config = {
             "vocab_size": self.vocab_size,
             "embedding_dim": self.embedding_dim,
@@ -64,15 +70,32 @@ class TransformerModel(nn.Module):
             "num_layers": self.num_layers,
             "max_seq_length": self.max_seq_length,
         }
-        torch.save(config, os.path.join(save_directory, "config.json"))
+        with open(os.path.join(save_directory, "config.json"), "w") as f:
+            json.dump(config, f)
+
+        # Save model weights
         save_file(self.state_dict(), os.path.join(save_directory, "model.safetensors"))
+
+        # Save tokenizer if present
+        if self.tokenizer is not None:
+            self.tokenizer.save(os.path.join(save_directory, "tokenizer.pkl"))
 
     @classmethod
     def from_pretrained(cls, load_directory):
-        import json
         with open(os.path.join(load_directory, "config.json")) as f:
             config = json.load(f)
+
         model = cls(**config)
+
+        # Load weights
         state_dict = load_file(os.path.join(load_directory, "model.safetensors"))
         model.load_state_dict(state_dict)
+
+        # Load tokenizer if available
+        tokenizer_path = os.path.join(load_directory, "tokenizer.pkl")
+        if os.path.exists(tokenizer_path):
+            tokenizer = Tokenizer()
+            tokenizer.load(tokenizer_path)
+            model.tokenizer = tokenizer
+
         return model
