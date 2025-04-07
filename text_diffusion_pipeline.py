@@ -3,8 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import NamedTuple
 import os
-from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler, DDPMPipeline
-
+from diffusers import DDPMPipeline
+from models import TransformerModel  
+            
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
 
@@ -30,7 +31,6 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         # Load the custom text encoder
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         if os.path.exists(text_encoder_path):
-            from transformer_model import TransformerModel  # import your custom model
             text_encoder = TransformerModel.from_pretrained(text_encoder_path)
         else:
             text_encoder = None
