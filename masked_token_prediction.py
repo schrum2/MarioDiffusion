@@ -61,27 +61,17 @@ def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_file", type=str, required=True, help="Path to trained model .pth file")
-    parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
+    parser.add_argument("--model_path", type=str, required=True, help="Path to trained transformer model")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_samples", type=int, default=10, help="Number of captions to evaluate")
     parser.add_argument("--mask_prob", type=float, default=0.15, help="Probability of masking each token")
-    parser.add_argument("--embedding_dim", type=int, default=128, help="Length of text embedding vectors")
-    parser.add_argument("--hidden_dim", type=int, default=256, help="Units in hidden layers")
     args = parser.parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    tokenizer = Tokenizer()
-    tokenizer.load(args.pkl)
-    vocab_size = tokenizer.get_vocab_size()
-    embedding_dim = args.embedding_dim
-    hidden_dim = args.hidden_dim
+    model = TransformerModel.from_pretrained(args.model_path).to(device)
+    print(f"Loaded model from {args.model_path}")
     
-    model = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
-    model.load_state_dict(torch.load(args.model_file, map_location=device))
-    print(f"Loaded model from {args.model_file}")
-    
-    dataset = LevelDataset(args.json, tokenizer, mode="mlm")
+    dataset = LevelDataset(args.json, model.tokenizer, mode="mlm")
     dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
     
-    evaluate_model(model, tokenizer, dataloader, device, args.mask_prob)
+    evaluate_model(model, model.tokenizer, dataloader, device, args.mask_prob)

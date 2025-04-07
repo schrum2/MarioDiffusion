@@ -10,7 +10,7 @@ from tokenizer import Tokenizer
 # Transformer model for MLM training
 
 class TransformerModel(nn.Module):
-    def __init__(self, vocab_size, embedding_dim, hidden_dim, tokenizer, num_heads=8, num_layers=4, max_seq_length=60):
+    def __init__(self, vocab_size, embedding_dim, hidden_dim, tokenizer=None, num_heads=8, num_layers=4, max_seq_length=60):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.vocab_size = vocab_size

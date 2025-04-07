@@ -48,7 +48,7 @@ python train_mlm.py --epochs 300
 ```
 A report evaluating the accuracy of the model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```
-python masked_token_prediction.py --model_file "mlm\\mlm_transformer.pth"
+python masked_token_prediction.py --model_path mlm
 ```
 
 

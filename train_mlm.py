@@ -101,9 +101,9 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_dim", type=int, default=256, help="Units in hidden layers")
     parser.add_argument("--batch_size", type=int, default=16, help="Training samples per batch")
     parser.add_argument("--data_limit", type=int, default=-1, help="If not negative, only train with this many examples")
-    parser.add_argument("--save_model_name", type=str, default="mlm_transformer.pth", help="Name of text model to save")
     parser.add_argument("--output_dir", type=str, default="mlm", help="Directory for training logs and model")
     parser.add_argument('--no-augment', action='store_false', dest='augment', help='Disable data augmentation (default: True)')
+    
     global args
     args = parser.parse_args()
     
@@ -120,13 +120,11 @@ if __name__ == "__main__":
     embedding_dim = args.embedding_dim
     hidden_dim = args.hidden_dim
     
-    model = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(device)
-    model_name = args.save_model_name
+    model = TransformerModel(vocab_size, embedding_dim, hidden_dim, tokenizer).to(device)
     
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.token_to_id["[PAD]"])
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     
     train(model, dataloader, criterion, optimizer, device, args.epochs, tokenizer)
-    model_save = os.path.join(args.output_dir, model_name)
-    torch.save(model.state_dict(), model_save)
-    print(f"Model saved as {model_save}")
+    model.save_pretrained(args.output_dir)
+    print(f"Model saved in {args.output_dir}")
