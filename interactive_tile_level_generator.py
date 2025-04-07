@@ -121,23 +121,11 @@ class CaptionBuilder(ParentBuilder):
     def load_model(self, model = None):
         if model == None:
             model = filedialog.askopenfilename(title="Select Model Index", filetypes=[("JSON", "*.json")])
+            if model: # removed model model_index.json
+                model = os.path.dirname(model)
         if model:
-            model = os.path.dirname(model)
-            # Don't hard code all of this
-            self.tokenizer = Tokenizer()
-            self.tokenizer.load("SMB1_Tokenizer.pkl")
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            vocab_size = self.tokenizer.get_vocab_size()
-            embedding_dim = 128 # args.embedding_dim
-            hidden_dim = 256 # args.hidden_dim
-            self.text_encoder = TransformerModel(vocab_size, embedding_dim, hidden_dim).to(self.device)
-            self.text_encoder.load_state_dict(torch.load(os.path.join("mlm","mlm_transformer.pth"), map_location=self.device))
-            self.text_encoder.eval()  # Set to evaluation mode
-            self.pipe = TextConditionalDDPMPipeline(
-                unet=UNet2DConditionModel.from_pretrained(os.path.join(model, "unet")),
-                scheduler=DDPMScheduler.from_pretrained(os.path.join(model, "scheduler")),
-                text_encoder=self.text_encoder
-            ).to(self.device)
+            self.pipe = TextConditionalDDPMPipeline.from_pretrained(model).to(self.device)
 
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"
@@ -157,7 +145,7 @@ class CaptionBuilder(ParentBuilder):
         num_images = int(self.num_images_entry.get())
 
         sample_captions = [prompt] # batch of size 1
-        sample_caption_tokens = self.tokenizer.encode_batch(sample_captions)
+        sample_caption_tokens = self.pipe.text_encoder.tokenizer.encode_batch(sample_captions)
         sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
 
         param_values = {

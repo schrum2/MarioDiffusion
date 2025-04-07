@@ -87,6 +87,10 @@ But to actually provide captions to guide the level generation, use this command
 ```
 python text_to_level_diffusion.py --model_path conditional-model
 ```
+An easier to use GUI interface will let you select known caption phrases to send to the model.
+```
+python interactive_tile_level_generator.py SMB1_LevelsAndCaptions.json conditional-model
+```
 
 
 
