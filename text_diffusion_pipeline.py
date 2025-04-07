@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import NamedTuple
+import os
 from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler, DDPMPipeline
 
 class PipelineOutput(NamedTuple):
