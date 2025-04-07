@@ -12,6 +12,33 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
     def __init__(self, unet, scheduler, text_encoder=None):
         super().__init__(unet, scheduler)
         self.text_encoder = text_encoder
+
+    def save_pretrained(self, save_directory):
+        os.makedirs(save_directory, exist_ok=True)
+        super().save_pretrained(save_directory)  # saves UNet and scheduler
+
+        # Save custom text encoder
+        if self.text_encoder is not None:
+            self.text_encoder.save_pretrained(os.path.join(save_directory, "text_encoder"))
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_path, **kwargs):
+        # Load unet and scheduler as usual
+        pipeline = super().from_pretrained(pretrained_model_path, **kwargs)
+
+        # Load the custom text encoder
+        text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
+        if os.path.exists(text_encoder_path):
+            from transformer_model import TransformerModel  # import your custom model
+            text_encoder = TransformerModel.from_pretrained(text_encoder_path)
+        else:
+            text_encoder = None
+
+        return cls(
+            unet=pipeline.unet,
+            scheduler=pipeline.scheduler,
+            text_encoder=text_encoder
+        )
         
     def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
                 output_type="pil", captions=None, **kwargs):
