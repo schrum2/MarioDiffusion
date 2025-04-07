@@ -65,7 +65,6 @@ def parse_args():
     
     # Output args
     parser.add_argument("--output_dir", type=str, default="level-diffusion-output", help="Output directory")
-    parser.add_argument("--logging_dir", type=str, default="logs", help="Logging directory for TensorBoard")
     
     # Diffusion scheduler args
     parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
