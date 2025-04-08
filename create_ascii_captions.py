@@ -122,7 +122,7 @@ def count_caption_phrase(scene, tiles, name, names, offset = 0):
     if count > 0: 
         return f" {describe_quantity(count) if coarse_counts else count} " + (names if pluralize and count > 1 else name) + "."
     else:
-        return ""
+        return f" no {names}."
 
 def in_column(scene, x, tile):
     for row in scene:
@@ -424,6 +424,21 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False):
 
                 phrases.append(f"{count_to_words(count)} " + " ".join(words))
 
+        counts = Counter()
+        counts["pipe"] = 0
+        counts["tower"] = 0
+        counts["wall"] = 0
+        counts["cluster"] = 0
+        for phrase in phrases:
+            for key in counts:
+                if key in phrase:
+                    counts[key] += 1
+                    break
+
+        for key in counts:
+            if counts[key] == 0:
+                phrases.append(f"no {key}s")
+
         return " " + ". ".join(phrases) + "."
     return ""
 
@@ -487,9 +502,13 @@ def generate_captions(dataset_path, tileset_path, output_path):
             already_accounted=already_accounted
         )
         caption += describe_horizontal_lines(platform_lines, "platform")
+        ascending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=already_accounted)
+        caption += ascending_caption
+        descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=already_accounted)
+        caption += descending_caption
 
-        caption += analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=already_accounted)
-        caption += analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=already_accounted)
+        if ascending_caption == "" and descending_caption == "":
+            caption += " no staircases."
 
         structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
         caption += describe_structures(structures, pipes=True)
