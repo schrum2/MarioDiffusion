@@ -428,7 +428,7 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False):
         counts["pipe"] = 0
         counts["tower"] = 0
         counts["wall"] = 0
-        counts["cluster"] = 0
+        counts["irregular block cluster"] = 0
         for phrase in phrases:
             for key in counts:
                 if key in phrase:
