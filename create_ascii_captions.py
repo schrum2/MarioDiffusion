@@ -400,48 +400,48 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False):
             desc += f" from row {min_row} to {max_row}, columns {min_col} to {max_col}"
         descriptions.append(desc)
     
-    if descriptions:
-        # Count occurrences
-        counts = Counter(descriptions)
+    # Count occurrences
+    counts = Counter(descriptions)
 
-        # Prepare formatted phrases
-        phrases = []
-        for desc, count in counts.items():
-            if count == 1:
-                phrases.append(desc)
-            else:
-                # Pluralize the first word (basic pluralization: add 's')
-                words = desc.split()
-                for i in range(len(words)):
-                    if words[i] == "pipe":
-                        words[i] = "pipes"
-                    elif words[i] == "tower":
-                        words[i] = "towers"
-                    elif words[i] == "wall":
-                        words[i] = "walls"
-                    elif words[i] == "cluster":
-                        words[i] = "clusters"
+    # Prepare formatted phrases
+    phrases = []
+    for desc, count in counts.items():
+        if count == 1:
+            phrases.append(desc)
+        else:
+            # Pluralize the first word (basic pluralization: add 's')
+            words = desc.split()
+            for i in range(len(words)):
+                if words[i] == "pipe":
+                    words[i] = "pipes"
+                elif words[i] == "tower":
+                    words[i] = "towers"
+                elif words[i] == "wall":
+                    words[i] = "walls"
+                elif words[i] == "cluster":
+                    words[i] = "clusters"
 
-                phrases.append(f"{count_to_words(count)} " + " ".join(words))
+            phrases.append(f"{count_to_words(count)} " + " ".join(words))
 
-        counts = Counter()
+    counts = Counter()
+    if pipes:
         counts["pipe"] = 0
+    else:
         counts["tower"] = 0
         counts["wall"] = 0
         counts["irregular block cluster"] = 0
-        for phrase in phrases:
-            for key in counts:
-                if key in phrase:
-                    counts[key] += 1
-                    break
-
+    for phrase in phrases:
         for key in counts:
-            if counts[key] == 0:
-                phrases.append(f"no {key}s")
+            if key in phrase:
+                counts[key] += 1
+                break
 
-        return " " + ". ".join(phrases) + "."
-    return ""
+    for key in counts:
+        if counts[key] == 0:
+            phrases.append(f"no {key}s")
 
+    return " " + ". ".join(phrases) + "."
+    
 def count_to_words(n):
     words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
     return words[n - 1] if 1 <= n <= 10 else str(n)

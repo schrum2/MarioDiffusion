@@ -110,6 +110,14 @@ def main():
         augment=args.augment,
         num_tiles=args.num_tiles
     )
+
+    if args.text_conditional:
+        sample_captions = [
+            "full floor. one enemy. a few question blocks. no cannons. no coins. one platform at right middle. no staircases. no pipes. no towers. no walls. no irregular block clusters.",
+            "floor with one gap. one enemy. no question blocks. no cannons. no coins. one ascending staircase. pipe at center bottom. no towers. no walls. no irregular block clusters.",
+            "giant gap with two chunks of floor. a few enemies. no question blocks. no cannons. no coins. one ascending staircase. no pipes. tall tower at right bottom. no walls. no irregular block clusters.",
+            "full floor. two enemies. no question blocks. two cannons. no coins. no staircases. pipe at left middle. pipe at center bottom. no towers. no walls. no irregular block clusters."
+        ]
     
     # Create dataloader
     dataloader = DataLoader(
@@ -293,14 +301,6 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder
                 ).to("cuda")
-                
-                # Generate sample levels with conditioning
-                sample_captions = [
-                    "full floor. one enemy. a few question blocks. one platform at left middle. pipe at center bottom.",
-                    "no floor. one enemy. a few coins. one coin line at right top. one platform at right top. one platform at right middle. one platform at left bottom.",
-                    "floor with a few gaps. full ceiling. irregular block cluster at right top.",
-                    "floor with one gap. full ceiling. two enemies. one ascending staircase. pipe at left bottom. two pipes at right bottom."
-                ]
                 
                 # Convert captions to token IDs using the tokenizer
                 sample_caption_tokens = tokenizer.encode_batch(sample_captions)
