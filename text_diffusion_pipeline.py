@@ -70,12 +70,25 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         return pipeline
         
     def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
-                output_type="tensor", captions=None, **kwargs):
+                output_type="tensor", captions=None, guidance_scale=7.5, **kwargs):
+        
+        # Create unconditional embeddings for classifier-free guidance
+        # Use PAD tokens for the null/empty conditioning
+        pad_token_id = self.text_encoder.tokenizer.token_to_id["[PAD]"]
+
         # Process text embeddings if captions are provided
-        text_embeddings = None
         if captions is not None and self.text_encoder is not None:
+            # Get text embeddings for conditioned generation
             text_embeddings = self.text_encoder.get_embeddings(captions)
-            #print(text_embeddings.shape)
+            
+            seq_length = text_embeddings.shape[1]  # Match the length of your conditional embeddings
+            # Create sequences of PAD tokens
+            pad_tokens = torch.full((batch_size, seq_length), pad_token_id, device=self.device)
+            # Get embeddings for these PAD sequences
+            uncond_embeddings = self.text_encoder(pad_tokens)  # Adjust based on your encoder's input format
+
+            # Concatenate unconditional and conditional embeddings
+            text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
         elif self.text_encoder is not None:
             # Use empty prompts for unconditional generation
             embedding_dim = self.text_encoder.embedding_dim
@@ -108,14 +121,20 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         
         # Denoising loop
         for t in self.progress_bar(self.scheduler.timesteps):
-            # Get model prediction
-            model_input = torch.cat([sample] * 2) if text_embeddings is None else sample
+            # Duplicate sample for classifier-free guidance
+            model_input = torch.cat([sample] * 2) if captions is not None else sample
+
             model_kwargs = {}
             if text_embeddings is not None:
                 model_kwargs["encoder_hidden_states"] = text_embeddings
                 
             # Predict noise residual
             noise_pred = self.unet(model_input, t, **model_kwargs).sample
+            
+            # Perform guidance if using text conditioning
+            if captions is not None:
+                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
             
             # Compute previous sample: x_{t-1} = scheduler(x_t, noise_pred)
             sample = self.scheduler.step(noise_pred, t, sample).prev_sample
@@ -128,3 +147,4 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             raise ValueError("Unsupported output type: {}".format(output_type))
             
         return PipelineOutput(images=sample)
+    
