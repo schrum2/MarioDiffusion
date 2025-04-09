@@ -16,6 +16,9 @@ class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
         super().__init__(master) 
                 
+        # Holds tensors of levels currently on display
+        self.current_levels = []
+
         # Frame for caption display
         self.caption_frame = ttk.Frame(master)
         self.caption_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -161,8 +164,10 @@ class CaptionBuilder(ParentBuilder):
         for widget in self.image_inner_frame.winfo_children():
             widget.destroy()
 
+        self.current_levels = []
         for _ in range(num_images):
             images = self.pipe(generator=generator, **param_values).images
+            self.current_levels.append(torch.argmax(images[0], dim=0).cpu().numpy())
             #print(images)
             #print(images.shape)
             img_tk = ImageTk.PhotoImage(visualize_samples(images))
@@ -171,6 +176,7 @@ class CaptionBuilder(ParentBuilder):
             label.pack()
 
         print("Generation done")
+        #print(self.current_levels)
         
 root = tk.Tk()
 app = CaptionBuilder(root)
