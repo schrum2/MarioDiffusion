@@ -112,12 +112,8 @@ def main():
     )
 
     if args.text_conditional:
-        sample_captions = [
-            "full floor. one enemy. a few question blocks. no cannons. no coins. one platform at right middle. no staircases. no pipes. no towers. no walls. no irregular block clusters.",
-            "floor with one gap. one enemy. no question blocks. no cannons. no coins. one ascending staircase. pipe at center bottom. no towers. no walls. no irregular block clusters.",
-            "giant gap with two chunks of floor. a few enemies. no question blocks. no cannons. no coins. one ascending staircase. no pipes. tall tower at right bottom. no walls. no irregular block clusters.",
-            "full floor. two enemies. no question blocks. two cannons. no coins. no staircases. pipe at left middle. pipe at center bottom. no towers. no walls. no irregular block clusters."
-        ]
+        # Sample four random captions from the dataset
+        sample_captions = [dataset[random.randint(0, len(dataset) - 1)][1] for _ in range(4)]
     
     # Create dataloader
     dataloader = DataLoader(
