@@ -223,8 +223,9 @@ class LevelDataset(Dataset):
     def _swap_caption_tokens(self, caption_tensor):
         """swapping directional tokens for consistency with flipped scenes"""
 
-        left_id = self.tokenizer.token_to_id["left"]
-        right_id = self.tokenizer.token_to_id["right"]
+        # If locations are not in captions, then left/right will not exist
+        left_id = self.tokenizer.token_to_id["left"] if "left" in self.tokenizer.token_to_id else -1
+        right_id = self.tokenizer.token_to_id["right"] if "right" in self.tokenizer.token_to_id else -1
         ascending_id = self.tokenizer.token_to_id["ascending"]
         descending_id = self.tokenizer.token_to_id["descending"]
         
