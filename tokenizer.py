@@ -21,6 +21,11 @@ class Tokenizer:
             modified_list.append(modified_s)
         return modified_list
 
+    def pad_sequence(self, tokens, length):
+        """Pads tokenized sequences to length with a padding token (assumed to be '[PAD]')."""
+        pad_token = self.token_to_id["[PAD]"]
+        return tokens + [pad_token] * (length - len(tokens))
+
     def build_vocab(self, dataset_path, min_freq=1):
         token_counter = Counter()
 

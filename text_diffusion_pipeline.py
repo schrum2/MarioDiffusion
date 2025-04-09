@@ -82,8 +82,14 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             # This could be any number. It represents the length of the text caption.
             # but this random generation does not use any real tokens.
             seq_length = 10
-            random_shape = (batch_size, seq_length, embedding_dim)
-            text_embeddings = torch.randn(random_shape, device=self.device)
+            blank_embedding = torch.zeros(seq_length, embedding_dim, device=self.device)
+
+            # Repeat blank_embedding batch_size times to create text_embeddings
+            text_embeddings = blank_embedding.unsqueeze(0).repeat(batch_size, 1, 1)
+            #print(text_embeddings.shape)
+            # These unconditional embeddings used to be totally random
+            #random_shape = (batch_size, seq_length, embedding_dim)
+            #text_embeddings = torch.randn(random_shape, device=self.device)
         else:
             raise ValueError("text encoder needed")        
 

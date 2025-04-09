@@ -215,11 +215,6 @@ class LevelDataset(Dataset):
         random.shuffle(combined)
         self.data, self.tokenized_captions = zip(*combined)
 
-    def _pad_sequence(self, tokens):
-        """Pads tokenized sequences to max_length with a padding token (assumed to be '[PAD]')."""
-        pad_token = self.tokenizer.token_to_id["[PAD]"]
-        return tokens + [pad_token] * (self.max_length - len(tokens))
-
     def _swap_caption_tokens(self, caption_tensor):
         """swapping directional tokens for consistency with flipped scenes"""
 
@@ -260,7 +255,7 @@ class LevelDataset(Dataset):
         sample = self.data[idx]
         augmented_caption = self._augment_caption(sample["caption"])
         caption_tokens = self.tokenizer.encode(augmented_caption)
-        caption_tokens = self._pad_sequence(caption_tokens)
+        caption_tokens = self.tokenizer.pad_sequence(caption_tokens, self.max_length)
         caption_tensor = torch.tensor(caption_tokens, dtype=torch.long)
 
         if self.mode == "mlm":
