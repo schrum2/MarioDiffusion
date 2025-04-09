@@ -22,7 +22,11 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
+
+    # Used to generate captions when generating images
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
+    parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     return parser.parse_args()
 
