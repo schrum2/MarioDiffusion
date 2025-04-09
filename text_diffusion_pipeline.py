@@ -70,7 +70,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         return pipeline
         
     def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
-                output_type="pil", captions=None, **kwargs):
+                output_type="tensor", captions=None, **kwargs):
         # Process text embeddings if captions are provided
         text_embeddings = None
         if captions is not None and self.text_encoder is not None:
@@ -121,14 +121,10 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             sample = self.scheduler.step(noise_pred, t, sample).prev_sample
             
         # Convert to output format
-        if output_type == "pil":
-            # Convert to PIL images
-            # This would need to be adapted for one-hot level representation
-            sample = (sample / 2 + 0.5).clamp(0, 1)
-            sample = sample.cpu().permute(0, 2, 3, 1).numpy()
-            
-        elif output_type == "tensor":
+        if output_type == "tensor":
             # Apply softmax to get probabilities for each tile type
             sample = F.softmax(sample, dim=1)
+        else:
+            raise ValueError("Unsupported output type: {}".format(output_type))
             
         return PipelineOutput(images=sample)
