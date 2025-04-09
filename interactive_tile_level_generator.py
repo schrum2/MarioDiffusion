@@ -167,6 +167,7 @@ class CaptionBuilder(ParentBuilder):
         self.current_levels = []
         for _ in range(num_images):
             images = self.pipe(generator=generator, **param_values).images
+            # Converts one-hot encoded images to numpy array of tile indices
             self.current_levels.append(torch.argmax(images[0], dim=0).cpu().numpy())
             #print(images)
             #print(images.shape)
