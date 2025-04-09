@@ -140,7 +140,7 @@ def generate_levels(args):
         scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
         level_data = {
             "scene": scene, 
-            "caption": "unknown" if not args.tileset else assign_caption(scene, id_to_char, tile_descriptors, args.describe_locations, args.describe_absence)
+            "caption": "unknown" if not args.tileset else assign_caption(scene, id_to_char, char_to_id, tile_descriptors, args.describe_locations, args.describe_absence)
         }
         all_levels.append(level_data)
     

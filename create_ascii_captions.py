@@ -485,7 +485,7 @@ def generate_captions(dataset_path, tileset_path, output_path, describe_location
     # Generate captions
     captioned_dataset = []
     for scene in dataset:
-        caption = assign_caption(scene, id_to_char, tile_descriptors, describe_locations, describe_absence)
+        caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
         captioned_dataset.append({
             "scene": scene,
@@ -498,7 +498,7 @@ def generate_captions(dataset_path, tileset_path, output_path, describe_location
 
     print(f"Captioned dataset saved to {output_path}")
 
-def assign_caption(scene, id_to_char, tile_descriptors, describe_locations, describe_absence):
+def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence):
     already_accounted = set()
     # Include all of floor, even empty tiles
     for x in range(WIDTH):
