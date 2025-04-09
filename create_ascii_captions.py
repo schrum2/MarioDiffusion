@@ -358,6 +358,10 @@ def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptor
 
         # Check neighbors
         for d_row, d_col in [(-1,0), (1,0), (0,-1), (0,1)]:
+            # Weird special case for adjacent pipes
+            if (id_to_char[tile] == '>' or id_to_char[tile] == ']') and d_col == 1: # if on the right edge of a pipe
+                continue # Don't go right if on the right edge of a pipe
+
             n_row, n_col = row + d_row, col + d_col
             if 0 <= n_row < len(scene) and 0 <= n_col < len(scene[0]):
                 stack.append((n_row, n_col))
