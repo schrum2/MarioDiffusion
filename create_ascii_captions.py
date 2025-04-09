@@ -485,59 +485,7 @@ def generate_captions(dataset_path, tileset_path, output_path):
     # Generate captions
     captioned_dataset = []
     for scene in dataset:
-        already_accounted = set()
-        # Include all of floor, even empty tiles
-        for x in range(WIDTH):
-            already_accounted.add( (FLOOR - 1,x) )
-
-        floor_caption = analyze_floor(scene, id_to_char, tile_descriptors)
-        caption = floor_caption
-        if floor_caption:
-            caption += "."
-        ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors)
-        caption += ceiling
-
-        if ceiling != "":
-            # Include all of ceiling, even empty tiles
-            for x in range(WIDTH):
-                already_accounted.add( (CEILING,x) )
-        
-        caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies")
-        caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks")
-        caption += count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons")
-
-        caption += count_caption_phrase(scene, [char_to_id['o']], "coin", "coins")
-        # Coin lines - no passable/solid requirements
-        coin_lines = find_horizontal_lines(
-            scene, id_to_char, tile_descriptors, 
-            target_descriptor="coin",
-            min_run_length=2
-        )
-        caption += describe_horizontal_lines(coin_lines, "coin line")
-
-        # Platforms - solid tiles with passable above and below, no pipes
-        platform_lines = find_horizontal_lines(
-            scene, id_to_char, tile_descriptors, 
-            target_descriptor="solid",
-            min_run_length=2,
-            require_above_below_not_solid=True,
-            exclude_rows = [] if ceiling == "" else [4], # ceiling is not a platform
-            already_accounted=already_accounted
-        )
-        caption += describe_horizontal_lines(platform_lines, "platform")
-        ascending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=already_accounted)
-        caption += ascending_caption
-        descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=already_accounted)
-        caption += descending_caption
-
-        if args.describe_absence and ascending_caption == "" and descending_caption == "":
-            caption += " no staircases."
-
-        structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
-        caption += describe_structures(structures, pipes=True)
-
-        structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
-        caption += describe_structures(structures)
+        caption = assign_caption(scene, id_to_char, tile_descriptors)
 
         captioned_dataset.append({
             "scene": scene,
@@ -549,6 +497,62 @@ def generate_captions(dataset_path, tileset_path, output_path):
         json.dump(captioned_dataset, f, indent=4)
 
     print(f"Captioned dataset saved to {output_path}")
+
+def assign_caption(scene, id_to_char, tile_descriptors):
+    already_accounted = set()
+    # Include all of floor, even empty tiles
+    for x in range(WIDTH):
+        already_accounted.add( (FLOOR - 1,x) )
+
+    floor_caption = analyze_floor(scene, id_to_char, tile_descriptors)
+    caption = floor_caption
+    if floor_caption:
+        caption += "."
+    ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors)
+    caption += ceiling
+
+    if ceiling != "":
+        # Include all of ceiling, even empty tiles
+        for x in range(WIDTH):
+            already_accounted.add( (CEILING,x) )
+    
+    caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies")
+    caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks")
+    caption += count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons")
+
+    caption += count_caption_phrase(scene, [char_to_id['o']], "coin", "coins")
+    # Coin lines - no passable/solid requirements
+    coin_lines = find_horizontal_lines(
+        scene, id_to_char, tile_descriptors, 
+        target_descriptor="coin",
+        min_run_length=2
+    )
+    caption += describe_horizontal_lines(coin_lines, "coin line")
+
+    # Platforms - solid tiles with passable above and below, no pipes
+    platform_lines = find_horizontal_lines(
+        scene, id_to_char, tile_descriptors, 
+        target_descriptor="solid",
+        min_run_length=2,
+        require_above_below_not_solid=True,
+        exclude_rows = [] if ceiling == "" else [4], # ceiling is not a platform
+        already_accounted=already_accounted
+    )
+    caption += describe_horizontal_lines(platform_lines, "platform")
+    ascending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=already_accounted)
+    caption += ascending_caption
+    descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=already_accounted)
+    caption += descending_caption
+
+    if args.describe_absence and ascending_caption == "" and descending_caption == "":
+        caption += " no staircases."
+
+    structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
+    caption += describe_structures(structures, pipes=True)
+
+    structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
+    caption += describe_structures(structures)
+    return caption
 
 if __name__ == "__main__":
     import argparse
