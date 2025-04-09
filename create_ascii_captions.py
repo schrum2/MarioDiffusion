@@ -68,7 +68,10 @@ def analyze_floor(scene, id_to_char, tile_descriptors):
     if solid_count == WIDTH:
         return "full floor"
     elif passable_count == WIDTH:
-        return "no floor"
+        if args.describe_absence:
+            return "no floor"
+        else:
+            return ""
     elif solid_count > passable_count:
         # Count contiguous groups of passable tiles
         gaps = 0
@@ -121,8 +124,10 @@ def count_caption_phrase(scene, tiles, name, names, offset = 0):
     count = offset + count_in_scene(scene, tiles)
     if count > 0: 
         return f" {describe_quantity(count) if coarse_counts else count} " + (names if pluralize and count > 1 else name) + "."
-    else:
+    elif args.describe_absence:
         return f" no {names}."
+    else:
+        return ""
 
 def in_column(scene, x, tile):
     for row in scene:
@@ -137,7 +142,7 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors):
     Returns a caption phrase or an empty string if no ceiling is detected.
     """
     ceiling_row = CEILING 
-    if ceiling_row >= len(scene):
+    if ceiling_row >= len(scene): # I don't think I need this ...
         return ""  # Scene too short to have a ceiling
 
     row = scene[ceiling_row]
@@ -158,6 +163,8 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors):
             else:
                 in_gap = False
         return f" ceiling with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps > 1 else "") + "."
+    elif args.describe_absence:
+        return " no ceiling."
     else:
         return ""  # Not enough solid tiles for a ceiling
 
@@ -236,26 +243,32 @@ def describe_horizontal_lines(lines, label):
     if not lines:
         return ""
         
-    if coarse_locations:
-        location_counts = {}
-        for y, start_x, end_x in sorted(lines):
-            location_str = f"{describe_location((end_x + start_x)/2.0, y)}"
-            if location_str in location_counts:
-                location_counts[location_str] += 1
-            else:
-                location_counts[location_str] = 1
-
-        return " " + ". ".join([f"{describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''} at {location}" for location, count in location_counts.items()]) + "."
+    if args.describe_locations:
         
-    else:
-        parts = []
-        for y, start_x, end_x in sorted(lines):
-            parts.append(f"{y} (cols {start_x}-{end_x})")
-        location_description = f"at row{'s' if pluralize and count > 1 else ''} " + ", ".join(parts)
-    
+        if coarse_locations:
+            location_counts = {}
+            for y, start_x, end_x in sorted(lines):
+                location_str = f"{describe_location((end_x + start_x)/2.0, y)}"
+                if location_str in location_counts:
+                    location_counts[location_str] += 1
+                else:
+                    location_counts[location_str] = 1
+
+            return " " + ". ".join([f"{describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''} at {location}" for location, count in location_counts.items()]) + "."
+            
+        else:
+            parts = []
+            for y, start_x, end_x in sorted(lines):
+                parts.append(f"{y} (cols {start_x}-{end_x})")
+            location_description = f"at row{'s' if pluralize and count > 1 else ''} " + ", ".join(parts)
+        
+            count = len(lines)
+            plural = label + "s" if pluralize and count > 1 else label
+            return f" {describe_quantity(count) if coarse_counts else count} {plural} " + location_description + "."
+
+    else: # Not describing locations at all
         count = len(lines)
-        plural = label + "s" if pluralize and count > 1 else label
-        return f" {describe_quantity(count) if coarse_counts else count} {plural} " + location_description + "."
+        return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''}."
 
 def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
     """
@@ -394,10 +407,12 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False):
             if attached_to_ceiling:
                 desc += " attached to the ceiling"
 
-        if coarse_locations:
-            desc += " at " + describe_location((min_col + max_col) / 2.0, (min_row + max_row) / 2.0)
-        else:
-            desc += f" from row {min_row} to {max_row}, columns {min_col} to {max_col}"
+        if args.describe_locations:
+            if coarse_locations:
+                desc += " at " + describe_location((min_col + max_col) / 2.0, (min_row + max_row) / 2.0)
+            else:
+                desc += f" from row {min_row} to {max_row}, columns {min_col} to {max_col}"
+
         descriptions.append(desc)
     
     # Count occurrences
@@ -421,30 +436,31 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False):
                 elif words[i] == "cluster":
                     words[i] = "clusters"
 
-            phrases.append(f"{count_to_words(count)} " + " ".join(words))
+            phrases.append(f"{describe_quantity(count)} " + " ".join(words))
 
-    counts = Counter()
-    if pipes:
-        counts["pipe"] = 0
-    else:
-        counts["tower"] = 0
-        counts["wall"] = 0
-        counts["irregular block cluster"] = 0
-    for phrase in phrases:
+    if args.describe_absence:
+        counts = Counter()
+        if pipes:
+            counts["pipe"] = 0
+        else:
+            counts["tower"] = 0
+            counts["wall"] = 0
+            counts["irregular block cluster"] = 0
+        for phrase in phrases:
+            for key in counts:
+                if key in phrase:
+                    counts[key] += 1
+                    break
+
         for key in counts:
-            if key in phrase:
-                counts[key] += 1
-                break
-
-    for key in counts:
-        if counts[key] == 0:
-            phrases.append(f"no {key}s")
+            if counts[key] == 0:
+                phrases.append(f"no {key}s")
 
     return " " + ". ".join(phrases) + "."
     
-def count_to_words(n):
-    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
-    return words[n - 1] if 1 <= n <= 10 else str(n)
+#def count_to_words(n):
+#    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+#    return words[n - 1] if 1 <= n <= 10 else str(n)
 
 def generate_captions(dataset_path, tileset_path, output_path):
     """Processes the dataset and generates captions for each level scene."""
@@ -507,7 +523,7 @@ def generate_captions(dataset_path, tileset_path, output_path):
         descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=already_accounted)
         caption += descending_caption
 
-        if ascending_caption == "" and descending_caption == "":
+        if args.describe_absence and ascending_caption == "" and descending_caption == "":
             caption += " no staircases."
 
         structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
@@ -534,7 +550,8 @@ if __name__ == "__main__":
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
     parser.add_argument("--output", required=True, help="Output JSON file path")
     parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
-
+    parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    global args
     args = parser.parse_args()
 
     dataset_file = args.dataset
