@@ -123,7 +123,9 @@ def main():
         # Remove spaces directly preceding a period
         sample_captions = [caption.replace(" .", ".") for caption in sample_captions]
 
-        print(f"Sample captions: {sample_captions}")
+        print("Sample captions:")
+        for caption in sample_captions:
+            print(caption)
 
     # Create dataloader
     dataloader = DataLoader(
