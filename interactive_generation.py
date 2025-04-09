@@ -18,15 +18,19 @@ class InteractiveGeneration:
             end_seed = param_values["end_seed"]
             del param_values["end_seed"]
 
-            extra_params = self.get_extra_params(param_values)
-            for seed in range(start_seed, end_seed+1):
-                generator = torch.Generator("cuda").manual_seed(seed)
-                image = self.generate_image(param_values, generator, **extra_params)
-                if isinstance(image, list):
-                    # Assume this represents an animation
-                    webbrowser.open("test.gif")
-                else:
-                    image.show()
-
+            try:
+                extra_params = self.get_extra_params(param_values)
+                for seed in range(start_seed, end_seed+1):
+                    generator = torch.Generator("cuda").manual_seed(seed)
+                    image = self.generate_image(param_values, generator, **extra_params)
+                    if isinstance(image, list):
+                        # Assume this represents an animation
+                        webbrowser.open("test.gif")
+                    else:
+                        image.show()
+            except Exception as e:
+                print(f"Error: {e}")
+                continue
+            
     def get_extra_params(self, param_values): # Default nothing
         return dict()
