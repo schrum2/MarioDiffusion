@@ -113,8 +113,18 @@ def main():
 
     if args.text_conditional:
         # Sample four random captions from the dataset
-        sample_captions = [dataset[random.randint(0, len(dataset) - 1)][1] for _ in range(4)]
-    
+        sample_embedding_vectors = [dataset[random.randint(0, len(dataset) - 1)][1] for _ in range(4)]
+        sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
+        pad_token = tokenizer.token_to_id["[PAD]"]
+        sample_captions = [
+            tokenizer.decode([token for token in caption if token != pad_token]) for caption in sample_embedding_vectors
+        ]
+
+        # Remove spaces directly preceding a period
+        sample_captions = [caption.replace(" .", ".") for caption in sample_captions]
+
+        print(f"Sample captions: {sample_captions}")
+
     # Create dataloader
     dataloader = DataLoader(
         dataset,
