@@ -81,7 +81,7 @@ python train_diffusion.py --augment --text_conditional --output_dir "conditional
 ```
 To generate random levels (based on random text embeddings), use this command:
 ```
-python run_diffusion.py --model_path conditional-model --num_samples 100 --text_conditional
+python run_diffusion.py --model_path conditional-model --num_samples 100 --text_conditional --save_as_json
 ```
 But to actually provide captions to guide the level generation, use this command
 ```

@@ -8,6 +8,7 @@ from level_dataset import visualize_samples
 import json
 import random
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
+from create_ascii_captions import assign_caption, get_tile_descriptors
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")
@@ -21,6 +22,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
+    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
 
     return parser.parse_args()
 
@@ -114,6 +116,16 @@ def generate_levels(args):
     # Prepare a list to store all levels
     all_levels = []
 
+    # Load tileset
+    if args.tileset:
+        with open(args.tileset, "r") as f:
+            tileset = json.load(f)
+            #print(f"tileset: {tileset}")
+            tile_chars = sorted(tileset['tiles'].keys())
+            id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+            char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+            tile_descriptors = get_tile_descriptors(tileset)
+
     # Process and collect individual samples
     for _, sample in enumerate(samples_list):
         # Convert to indices
@@ -121,9 +133,10 @@ def generate_levels(args):
         sample_indices = convert_to_level_format(sample_tensor)
         
         # Add level data to the list
+        scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
         level_data = {
-            "scene": sample_indices[0].tolist(), # Always just one scene: (1,16,16)
-            "caption": "unknown" # TODO: extract this as I do in create_ascii_captions.py
+            "scene": scene, 
+            "caption": "unknown" if not args.tileset else assign_caption(scene, id_to_char, tile_descriptors)
         }
         all_levels.append(level_data)
     
