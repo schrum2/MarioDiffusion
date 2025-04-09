@@ -49,7 +49,8 @@ def describe_location(x, y):
     return f"{x_desc} {y_desc}"
 
 def describe_quantity(count):
-    if count == 1: return "one"
+    if count == 0: return "no"
+    elif count == 1: return "one"
     elif count == 2: return "two"
     elif count < 5: return "a few"
     elif count < 10: return "several"
@@ -268,7 +269,7 @@ def describe_horizontal_lines(lines, label):
 
     else: # Not describing locations at all
         count = len(lines)
-        return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''}."
+        return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count != 1 else ''}."
 
 def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
     """
@@ -456,8 +457,11 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False):
             if counts[key] == 0:
                 phrases.append(f"no {key}s")
 
-    return " " + ". ".join(phrases) + "."
-    
+    if len(phrases) > 0:
+        return " " + ". ".join(phrases) + "."
+    else:
+        return ""
+
 #def count_to_words(n):
 #    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
 #    return words[n - 1] if 1 <= n <= 10 else str(n)
@@ -486,7 +490,10 @@ def generate_captions(dataset_path, tileset_path, output_path):
         for x in range(WIDTH):
             already_accounted.add( (FLOOR - 1,x) )
 
-        caption = analyze_floor(scene, id_to_char, tile_descriptors) + "."
+        floor_caption = analyze_floor(scene, id_to_char, tile_descriptors)
+        caption = floor_caption
+        if floor_caption:
+            caption += "."
         ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors)
         caption += ceiling
 
