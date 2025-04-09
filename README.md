@@ -61,11 +61,11 @@ python train_diffusion.py --augment --output_dir "unconditional-model" --num_epo
 ```
 Run trained diffusion model and save 100 random levels to json
 ```
-python run_diffusion.py --model_path unconditional-model --num_samples 100 --save_as_json
+python run_diffusion.py --model_path unconditional-model --num_samples 100 --save_as_json --output_dir "generated_unconditional_samples"
 ```
 View the saved levels in the data browser
 ```
-python ascii_data_browser.py generated_levels\\all_levels.json
+python ascii_data_browser.py generated_unconditional_samples\\all_levels.json
 ```
 
 
@@ -81,7 +81,11 @@ python train_diffusion.py --augment --text_conditional --output_dir "conditional
 ```
 To generate random levels (based on random text embeddings), use this command:
 ```
-python run_diffusion.py --model_path conditional-model --num_samples 100 --text_conditional
+python run_diffusion.py --model_path conditional-model --num_samples 100 --text_conditional --save_as_json --output_dir "generated_conditional_samples"
+```
+Captions will be automatically assigned to the levels, and you can browse that data with this command:
+```
+python ascii_data_browser.py generated_conditional_samples\\all_levels.json
 ```
 But to actually provide captions to guide the level generation, use this command
 ```
