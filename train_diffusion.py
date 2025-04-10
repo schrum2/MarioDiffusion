@@ -251,11 +251,37 @@ def main():
                 with torch.no_grad():
                     text_embeddings = text_encoder.get_embeddings(captions)
                 
-                # For classifier-free guidance, we need to create a negative prompt embedding
-                # We'll use the unconditional embedding
+                # For classifier-free guidance, we need unconditional embeddings
                 uncond_tokens = torch.zeros_like(captions)
                 with torch.no_grad():
                     uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
+
+                # Concatenate for training with classifier-free guidance
+                # This way the model learns both conditional and unconditional generation
+                batch_size = scenes.shape[0]
+                scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes for both cond and uncond
+                timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps
+                combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+    
+                # Add noise to the clean scenes
+                noise = torch.randn_like(scenes_for_train)
+                noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
+    
+                with accelerator.accumulate(model):
+                    # Predict the noise with conditioning
+                    noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
+        
+                    # Compute loss
+                    loss = F.mse_loss(noise_pred, noise)
+        
+                    # Backpropagation
+                    accelerator.backward(loss)
+        
+                    # Update the model parameters
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
+
             else:
                 # For unconditional generation, we don't need captions
                 if isinstance(batch, list):
@@ -263,29 +289,25 @@ def main():
                 else:
                     scenes = batch
 
-            # Add noise to the clean scenes
-            noise = torch.randn_like(scenes)
-            timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
-            noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
+                # Add noise to the clean scenes
+                noise = torch.randn_like(scenes)
+                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
+                noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
             
-            with accelerator.accumulate(model):
-                if args.text_conditional:
-                    # Predict the noise with conditioning
-                    noise_pred = model(noisy_scenes, timesteps, encoder_hidden_states=text_embeddings).sample
-                else:
+                with accelerator.accumulate(model):
                     # Predict the noise
                     noise_pred = model(noisy_scenes, timesteps).sample
 
-                # Compute loss
-                loss = F.mse_loss(noise_pred, noise)
+                    # Compute loss
+                    loss = F.mse_loss(noise_pred, noise)
                 
-                # Backpropagation
-                accelerator.backward(loss)
+                    # Backpropagation
+                    accelerator.backward(loss)
                 
-                # Update the model parameters
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
+                    # Update the model parameters
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
             
             # Update progress bar
             progress_bar.update(1)
