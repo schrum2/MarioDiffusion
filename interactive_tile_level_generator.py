@@ -11,6 +11,7 @@ from tokenizer import Tokenizer
 from models import TransformerModel
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples
+from sampler import SampleOutput
 
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
@@ -207,11 +208,23 @@ class CaptionBuilder(ParentBuilder):
         tensor = torch.tensor(self.current_levels[idx])
         tile_numbers = torch.argmax(tensor, dim=0).numpy()
         print(tile_numbers)
+        tile_chars = sorted(tileset['tiles'].keys())
+        id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+        char_grid = []
+        for row in tile_numbers:
+            char_row = "".join([id_to_char[num] for num in row])
+            char_grid.append(char_row)
+
+        print(char_grid)
+        level = SampleOutput(
+            level = char_grid
+        )
+        level.play()
 
     def use_astar(self, idx):
         tensor = torch.tensor(self.current_levels[idx])
         tile_numbers = torch.argmax(tensor, dim=0).numpy()
-        print(tile_numbers)
+        print(tile_numbers) 
   
 root = tk.Tk()
 app = CaptionBuilder(root)
@@ -221,5 +234,13 @@ if len(sys.argv) > 1:
 
 if len(sys.argv) > 2:
     app.load_model(sys.argv[2])
+
+global tileset
+tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+if len(sys.argv) > 3:
+    tileset_path = sys.argv[3]
+
+with open(tileset_path, 'r') as f:
+    tileset = json.load(f)
 
 root.mainloop()
