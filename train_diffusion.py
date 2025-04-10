@@ -242,20 +242,24 @@ def main():
         model.train()
         
         for batch_idx, batch in enumerate(dataloader):
+
             # Process batch data
             if args.text_conditional:
                 # Unpack scenes and captions
                 scenes, captions = batch
-                
+    
                 # Get text embeddings from the text encoder
                 with torch.no_grad():
                     text_embeddings = text_encoder.get_embeddings(captions)
-                
+    
                 # For classifier-free guidance, we need unconditional embeddings
                 uncond_tokens = torch.zeros_like(captions)
                 with torch.no_grad():
                     uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
-
+    
+                # First generate timesteps before we duplicate anything
+                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
+    
                 # Concatenate for training with classifier-free guidance
                 # This way the model learns both conditional and unconditional generation
                 batch_size = scenes.shape[0]
@@ -281,7 +285,6 @@ def main():
                     optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
-
             else:
                 # For unconditional generation, we don't need captions
                 if isinstance(batch, list):
@@ -290,20 +293,20 @@ def main():
                     scenes = batch
 
                 # Add noise to the clean scenes
-                noise = torch.randn_like(scenes)
                 timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
+                noise = torch.randn_like(scenes)
                 noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
-            
+    
                 with accelerator.accumulate(model):
                     # Predict the noise
                     noise_pred = model(noisy_scenes, timesteps).sample
 
                     # Compute loss
                     loss = F.mse_loss(noise_pred, noise)
-                
+        
                     # Backpropagation
                     accelerator.backward(loss)
-                
+        
                     # Update the model parameters
                     optimizer.step()
                     lr_scheduler.step()
