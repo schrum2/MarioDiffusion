@@ -427,7 +427,7 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False, describe_a
     phrases = []
     for desc, count in counts.items():
         if count == 1:
-            phrases.append(desc)
+            phrases.append(f"one {desc}")
         else:
             # Pluralize the first word (basic pluralization: add 's')
             words = desc.split()
