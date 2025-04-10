@@ -203,11 +203,11 @@ class CaptionBuilder(ParentBuilder):
 
         print("Generation done")
         #print(self.current_levels)
-      
-    def play_level(self, idx):
+
+    def get_sample_output(self, idx):
         tensor = torch.tensor(self.current_levels[idx])
         tile_numbers = torch.argmax(tensor, dim=0).numpy()
-        print(tile_numbers)
+        #print(tile_numbers)
         tile_chars = sorted(tileset['tiles'].keys())
         id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
         char_grid = []
@@ -215,16 +215,19 @@ class CaptionBuilder(ParentBuilder):
             char_row = "".join([id_to_char[num] for num in row])
             char_grid.append(char_row)
 
-        print(char_grid)
+        #print(char_grid)
         level = SampleOutput(
             level = char_grid
         )
+        return level
+      
+    def play_level(self, idx):
+        level = self.get_sample_output(idx)
         level.play()
 
     def use_astar(self, idx):
-        tensor = torch.tensor(self.current_levels[idx])
-        tile_numbers = torch.argmax(tensor, dim=0).numpy()
-        print(tile_numbers) 
+        level = self.get_sample_output(idx)
+        level.run_astar()
   
 root = tk.Tk()
 app = CaptionBuilder(root)
