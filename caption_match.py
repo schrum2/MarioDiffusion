@@ -1,73 +1,108 @@
-def compare_captions(reference_caption, generated_caption):
-    topics = [
-        "floor", "ceiling", "pipe", "coin line", "coin", "platform",
-        "tower", "wall", "cannon", "ascending staircase",
-        "descending staircase", "irregular", "question block", "enem"
-    ]
-    quantity_terms = ["one", "two", "a few", "several", "many"]
+import re
 
-    def phrase_map(caption):
-        """Map topics to phrases from the caption."""
-        phrases = [p.strip() for p in caption.split(".") if p.strip()]
-        topic_to_phrase = {}
-        for topic in topics:
-            for phrase in phrases:
-                # Exact match for 'coin line' before 'coin'
-                if topic == "coin line" and "coin line" in phrase:
-                    topic_to_phrase[topic] = phrase
-                    break
-                elif topic != "coin line" and topic in phrase:
-                    topic_to_phrase[topic] = phrase
-                    break
-        return topic_to_phrase
+# Quantity order for scoring partial matches
+QUANTITY_TERMS = ["one", "two", "a few", "several", "many"]
 
-    def is_negative(phrase):
-        return phrase.lower().startswith("no ")
+# Topics to compare
+TOPIC_KEYWORDS = [
+    "floor", "ceiling", "pipe", "coin line", "coin",
+    "platform", "tower", "wall", "cannon",
+    "ascending staircase", "descending staircase",
+    "irregular", "question block", "enem"  # catch "enemy"/"enemies"
+]
 
-    ref_map = phrase_map(reference_caption)
-    gen_map = phrase_map(generated_caption)
+# Plural normalization map (irregulars)
+PLURAL_EXCEPTIONS = {
+    "enemies": "enemy",
+}
+
+def normalize_plural(phrase):
+    # Normalize known irregular plurals
+    for plural, singular in PLURAL_EXCEPTIONS.items():
+        phrase = phrase.replace(plural, singular)
+
+    # Normalize regular plurals (basic "s" endings)
+    words = phrase.split()
+    normalized_words = []
+    for word in words:
+        if word.endswith('s') and not word.endswith('ss'):  # avoid "class" etc.
+            singular = word[:-1]
+            normalized_words.append(singular)
+        else:
+            normalized_words.append(word)
+    return ' '.join(normalized_words)
+
+def extract_phrases(caption):
+    phrases = [phrase.strip() for phrase in caption.split('.') if phrase.strip()]
+    topic_to_phrase = {}
+    for topic in TOPIC_KEYWORDS:
+        matching_phrases = [p for p in phrases if topic in p]
+        if matching_phrases:
+            # Filter out "no ..." phrases as equivalent to absence
+            phrase = matching_phrases[0]
+            if phrase.lower().startswith("no "):
+                topic_to_phrase[topic] = None
+            else:
+                topic_to_phrase[topic] = phrase
+        else:
+            topic_to_phrase[topic] = None
+    return topic_to_phrase
+
+def quantity_score(phrase1, phrase2):
+    # Extract quantity terms
+    def find_quantity(phrase):
+        for term in QUANTITY_TERMS:
+            if term in phrase:
+                return term
+        return None
+
+    qty1 = find_quantity(phrase1)
+    qty2 = find_quantity(phrase2)
+
+    # If both have quantity terms, compare positions
+    if qty1 and qty2:
+        idx1 = QUANTITY_TERMS.index(qty1)
+        idx2 = QUANTITY_TERMS.index(qty2)
+        diff = abs(idx1 - idx2)
+        max_diff = len(QUANTITY_TERMS) - 1
+        return 1.0 - (diff / max_diff)  # scaled: adjacent = high score
+    return 0.1  # fallback for other differences
+
+def compare_captions(correct_caption, generated_caption):
+    correct_phrases = extract_phrases(correct_caption)
+    generated_phrases = extract_phrases(generated_caption)
 
     total_score = 0.0
-    num_topics = len(topics)
+    num_topics = len(TOPIC_KEYWORDS)
 
-    for topic in topics:
-        ref_phrase = ref_map.get(topic)
-        gen_phrase = gen_map.get(topic)
+    for topic in TOPIC_KEYWORDS:
+        correct = correct_phrases[topic]
+        generated = generated_phrases[topic]
 
-        # Normalize "no" phrases to None for consistency
-        if ref_phrase and is_negative(ref_phrase):
-            ref_phrase = None
-        if gen_phrase and is_negative(gen_phrase):
-            gen_phrase = None
+        if correct is None and generated is None:
+            total_score += 1.0
+        elif correct is None or generated is None:
+            total_score += -1.0
+        else:
+            # Normalize pluralization before comparison
+            norm_correct = normalize_plural(correct)
+            norm_generated = normalize_plural(generated)
 
-        if ref_phrase is None and gen_phrase is None:
-            # Neither mentions the topic: neutral score
-            score = 0.0
-        elif ref_phrase is not None and gen_phrase is not None:
-            if ref_phrase == gen_phrase:
-                score = 1.0
+            if norm_correct == norm_generated:
+                total_score += 1.0
+            elif any(term in norm_correct for term in QUANTITY_TERMS) and any(term in norm_generated for term in QUANTITY_TERMS):
+                total_score += quantity_score(norm_correct, norm_generated)
             else:
-                # Check for quantity difference
-                ref_quantity = next((q for q in quantity_terms if q in ref_phrase), None)
-                gen_quantity = next((q for q in quantity_terms if q in gen_phrase), None)
-
-                if (ref_quantity and gen_quantity and
-                    ref_phrase.replace(ref_quantity, "").strip() == gen_phrase.replace(gen_quantity, "").strip()):
-                    # Only quantity difference
-                    distance = abs(quantity_terms.index(ref_quantity) - quantity_terms.index(gen_quantity))
-                    max_distance = len(quantity_terms) - 1
-                    score = 1.0 - (distance / max_distance) * 0.75
-                    score = max(score, 0.25)  # Ensure lower bound of 0.25
-                else:
-                    # Other differences
-                    score = 0.1
-        elif ref_phrase is not None and gen_phrase is None:
-            # Reference mentions topic, generated does not
-            score = -1.0
-        else:  # ref_phrase is None and gen_phrase is not None
-            # Generated mentions topic, reference does not
-            score = -1.0
-
-        total_score += score
+                total_score += 0.1  # generic partial credit for same topic
 
     return total_score / num_topics
+
+if __name__ == '__main__':
+
+    ref = "floor with one gap. two enemies. one platform. tall tower."
+    gen = "floor with two gap. two enemies. one platform. tall tower."
+
+    score = compare_captions(ref, gen)
+    print(f"Should be: {ref}")
+    print(f"  but was: {gen}")
+    print(f"Score: {score}")
