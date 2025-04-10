@@ -70,37 +70,36 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         return pipeline
         
     def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
-                output_type="tensor", captions=None, **kwargs):
+                output_type="tensor", captions=None, guidance_scale=7.5, **kwargs):
         # Process text embeddings if captions are provided
-        text_embeddings = None
         if captions is not None and self.text_encoder is not None:
+            # Conditional embeddings from provided captions
             text_embeddings = self.text_encoder.get_embeddings(captions)
-            #print(text_embeddings.shape)
+        
+            # Unconditional embeddings for classifier-free guidance
+            # Use empty/zero tokens for the unconditional case
+            uncond_tokens = torch.zeros_like(captions)
+            uncond_embeddings = self.text_encoder.get_embeddings(uncond_tokens)
+        
+            # Concatenate unconditional and conditional embeddings for CFG
+            text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+        
         elif self.text_encoder is not None:
-            # Use empty prompts for unconditional generation
+            # For unconditional generation, we still need embeddings
             embedding_dim = self.text_encoder.embedding_dim
-            # This could be any number. It represents the length of the text caption.
-            # but this random generation does not use any real tokens.
-            seq_length = 10
-            blank_embedding = torch.zeros(seq_length, embedding_dim, device=self.device)
-
-            # Repeat blank_embedding batch_size times to create text_embeddings
-            text_embeddings = blank_embedding.unsqueeze(0).repeat(batch_size, 1, 1)
-            #print(text_embeddings.shape)
-            # These unconditional embeddings used to be totally random
-            #random_shape = (batch_size, seq_length, embedding_dim)
-            #text_embeddings = torch.randn(random_shape, device=self.device)
+            seq_length = 10  # Any reasonable sequence length
+            text_embeddings = torch.zeros(batch_size, seq_length, embedding_dim, device=self.device)
         else:
-            raise ValueError("text encoder needed")        
-
+            raise ValueError("Text encoder needed")
+    
         # Start from random noise
         if isinstance(generator, list) and len(generator) != batch_size:
             raise ValueError("Must provide a generator for each sample if passing a list of generators")
-            
+        
         device = self.device
         sample_shape = (batch_size, self.unet.config.in_channels, 
                         self.unet.config.sample_size[0], self.unet.config.sample_size[1])
-        
+    
         if isinstance(generator, list):
             sample = torch.cat([
                 torch.randn(1, *sample_shape[1:], generator=gen, device=device)
@@ -108,29 +107,40 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             ])
         else:
             sample = torch.randn(sample_shape, generator=generator, device=device)
-            
+        
         # Set number of inference steps
         self.scheduler.set_timesteps(num_inference_steps)
-        
+    
         # Denoising loop
         for t in self.progress_bar(self.scheduler.timesteps):
-            # Get model prediction
-            model_input = torch.cat([sample] * 2) if text_embeddings is None else sample
+            # For classifier-free guidance, we need to do two forward passes:
+            # one with the unconditional embedding and one with conditional embedding
+        
+            # Expand latents for classifier-free guidance
+            latent_model_input = torch.cat([sample] * 2) if captions is not None else sample
+        
+            # Prepare model inputs
             model_kwargs = {}
             if text_embeddings is not None:
                 model_kwargs["encoder_hidden_states"] = text_embeddings
-                
-            # Predict noise residual
-            noise_pred = self.unet(model_input, t, **model_kwargs).sample
             
+            # Predict noise residual
+            noise_pred = self.unet(latent_model_input, t, **model_kwargs).sample
+        
+            # Perform guidance if using text conditioning
+            if captions is not None:
+                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                # Combine predictions with classifier-free guidance
+                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+        
             # Compute previous sample: x_{t-1} = scheduler(x_t, noise_pred)
             sample = self.scheduler.step(noise_pred, t, sample).prev_sample
-            
+        
         # Convert to output format
         if output_type == "tensor":
             # Apply softmax to get probabilities for each tile type
             sample = F.softmax(sample, dim=1)
         else:
-            raise ValueError("Unsupported output type: {}".format(output_type))
-            
+            raise ValueError(f"Unsupported output type: {output_type}")
+        
         return PipelineOutput(images=sample)
