@@ -165,20 +165,54 @@ class CaptionBuilder(ParentBuilder):
             widget.destroy()
 
         self.current_levels = []
-        for _ in range(num_images):
+        for i in range(num_images):
             images = self.pipe(generator=generator, **param_values).images
-            # Converts one-hot encoded images to numpy array of tile indices
-            self.current_levels.append(torch.argmax(images[0], dim=0).cpu().numpy())
-            #print(images)
-            #print(images.shape)
+            # Save each generated level
+            self.current_levels.append(images[0].cpu().detach().numpy())
+            
+            # Create a frame for each image and its buttons
+            img_frame = ttk.Frame(self.image_inner_frame)
+            img_frame.pack(pady=10)
+    
+            # Display the image
             img_tk = ImageTk.PhotoImage(visualize_samples(images))
-            label = ttk.Label(self.image_inner_frame, image=img_tk)
+            label = ttk.Label(img_frame, image=img_tk)
             label.image = img_tk
             label.pack()
+    
+            # Create a frame for buttons
+            button_frame = ttk.Frame(img_frame)
+            button_frame.pack(pady=5)
+    
+            # Add Play button
+            play_button = ttk.Button(
+                button_frame, 
+                text="Play", 
+                command=lambda idx=i: self.play_level(idx)
+            )
+            play_button.pack(side=tk.LEFT, padx=5)
+    
+            # Add Use A* button
+            astar_button = ttk.Button(
+                button_frame, 
+                text="Use A*", 
+                command=lambda idx=i: self.use_astar(idx)
+            )
+            astar_button.pack(side=tk.LEFT, padx=5)
 
         print("Generation done")
         #print(self.current_levels)
-        
+      
+    def play_level(self, idx):
+        tensor = torch.tensor(self.current_levels[idx])
+        tile_numbers = torch.argmax(tensor, dim=0).numpy()
+        print(tile_numbers)
+
+    def use_astar(self, idx):
+        tensor = torch.tensor(self.current_levels[idx])
+        tile_numbers = torch.argmax(tensor, dim=0).numpy()
+        print(tile_numbers)
+  
 root = tk.Tk()
 app = CaptionBuilder(root)
 
