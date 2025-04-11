@@ -37,11 +37,12 @@ def parse_args():
     parser.add_argument("--dim_mults", nargs="+", type=int, default=[1, 2, 4], help="Dimension multipliers for UNet")
     parser.add_argument("--num_res_blocks", type=int, default=2, help="Number of residual blocks per downsampling")
     parser.add_argument("--down_block_types", nargs="+", type=str, 
-                       default=["DownBlock2D", "CrossAttnDownBlock2D", "DownBlock2D"], 
+                       default=["CrossAttnDownBlock2D", "CrossAttnDownBlock2D", "CrossAttnDownBlock2D"], 
                        help="Down block types for UNet")
     parser.add_argument("--up_block_types", nargs="+", type=str, 
-                       default=["UpBlock2D", "CrossAttnUpBlock2D", "UpBlock2D"], 
+                       default=["CrossAttnUpBlock2D", "CrossAttnUpBlock2D", "CrossAttnUpBlock2D"], 
                        help="Up block types for UNet")
+    parser.add_argument("--attention_head_dim", type=int, default=8, help="Number of attention heads")
     
     # Training args
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
@@ -147,6 +148,7 @@ def main():
             down_block_types=args.down_block_types,
             up_block_types=args.up_block_types,
             cross_attention_dim=text_encoder.embedding_dim,  # Match the embedding dimension
+            attention_head_dim=args.attention_head_dim,  # Number of attention heads
         )
     else:
         model = UNet2DModel(
