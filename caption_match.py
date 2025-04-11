@@ -134,7 +134,7 @@ def compare_captions(correct_caption, generated_caption, debug=False):
 
 if __name__ == '__main__':
 
-    ref = "floor with one gap. two enemies. one platform. tall tower."
+    ref = "floor with one gap. two enemies. one platform. one tall tower."
     gen = "floor with one gap. two enemies. one platform. two tall towers."
 
     score = compare_captions(ref, gen, debug=True)
