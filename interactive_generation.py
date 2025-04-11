@@ -7,18 +7,18 @@ class InteractiveGeneration:
 
     def start(self):
         while True:
-            param_values = dict()
-            for param, param_type in self.input_parameters.items():
-                param_values[param] = input(f"{param} (q to quit): ")
-                if param_values[param] == "q": quit()
-                param_values[param] = param_type(param_values[param])
-
-            start_seed = param_values["start_seed"]
-            del param_values["start_seed"]
-            end_seed = param_values["end_seed"]
-            del param_values["end_seed"]
-
             try:
+                param_values = dict()
+                for param, param_type in self.input_parameters.items():
+                    param_values[param] = input(f"{param} (q to quit): ")
+                    if param_values[param] == "q": quit()
+                    param_values[param] = param_type(param_values[param])
+
+                start_seed = param_values["start_seed"]
+                del param_values["start_seed"]
+                end_seed = param_values["end_seed"]
+                del param_values["end_seed"]
+
                 extra_params = self.get_extra_params(param_values)
                 for seed in range(start_seed, end_seed+1):
                     generator = torch.Generator("cuda").manual_seed(seed)
