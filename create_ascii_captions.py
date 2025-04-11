@@ -386,7 +386,7 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
 
     return structures
 
-def describe_structures(structures, ceiling_row=CEILING, pipes=False, describe_absence=False, describe_locations=False):
+def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False):
     descriptions = []
     for struct in structures:
         min_row = min(pos[0] for pos in struct)
@@ -401,10 +401,13 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False, describe_a
             desc = "pipe"
         else:
             #attached_to_ceiling = any(r == ceiling_row for r, c in struct)
+        
+            # Check if the structure is in contact with the floor
+            in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
 
-            if width <= 2 and height >= 4:
+            if width <= 2 and height >= 4 and in_contact_with_floor:
                 desc = "tall tower"
-            elif width >= 4 and height <= 2:
+            elif width >= 4 and height <= 2 and in_contact_with_floor:
                 desc = "wide wall"
             else:
                 desc = "irregular block cluster"
