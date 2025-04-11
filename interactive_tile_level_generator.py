@@ -184,6 +184,8 @@ class CaptionBuilder(ParentBuilder):
             scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False) # Incorporate these later: self.args.describe_locations, self.args.describe_absence)
 
+            compare_score = compare_captions(prompt, actual_caption)
+
             # Create a frame for each image and its buttons
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.pack(pady=10)
@@ -197,6 +199,9 @@ class CaptionBuilder(ParentBuilder):
             # Display the caption
             caption_label = ttk.Label(img_frame, text=actual_caption, wraplength=300)
             caption_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
+            # And score
+            score_label = ttk.Label(img_frame, text=f"Comparison Score: {compare_score}", wraplength=300)
+            score_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
     
             # Create a frame for buttons
             button_frame = ttk.Frame(img_frame)
