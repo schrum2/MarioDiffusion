@@ -193,6 +193,10 @@ class CaptionBuilder(ParentBuilder):
             label = ttk.Label(img_frame, image=img_tk)
             label.image = img_tk
             label.pack()
+
+            # Display the caption
+            caption_label = ttk.Label(img_frame, text=actual_caption, wraplength=300)
+            caption_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
     
             # Create a frame for buttons
             button_frame = ttk.Frame(img_frame)
