@@ -12,6 +12,9 @@ from models import TransformerModel
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples
 from sampler import SampleOutput
+from caption_match import compare_captions
+from create_ascii_captions import assign_caption, get_tile_descriptors
+from run_diffusion import convert_to_level_format
 
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
@@ -104,6 +107,11 @@ class CaptionBuilder(ParentBuilder):
         if filepath == None:
             filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON", "*.json")])
         if filepath:
+            tile_chars = sorted(tileset['tiles'].keys())
+            self.id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+            self.char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+            self.tile_descriptors = get_tile_descriptors(tileset)
+
             try:
                 phrases_set = set()
                 with open(filepath, 'r') as f:
@@ -171,6 +179,11 @@ class CaptionBuilder(ParentBuilder):
             # Save each generated level
             self.current_levels.append(images[0].cpu().detach().numpy())
             
+            sample_tensor = images[0].unsqueeze(0)
+            sample_indices = convert_to_level_format(sample_tensor)
+            scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
+            actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False) # Incorporate these later: self.args.describe_locations, self.args.describe_absence)
+
             # Create a frame for each image and its buttons
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.pack(pady=10)
@@ -208,11 +221,9 @@ class CaptionBuilder(ParentBuilder):
         tensor = torch.tensor(self.current_levels[idx])
         tile_numbers = torch.argmax(tensor, dim=0).numpy()
         #print(tile_numbers)
-        tile_chars = sorted(tileset['tiles'].keys())
-        id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
         char_grid = []
         for row in tile_numbers:
-            char_row = "".join([id_to_char[num] for num in row])
+            char_row = "".join([self.id_to_char[num] for num in row])
             char_grid.append(char_row)
 
         #print(char_grid)
@@ -232,12 +243,6 @@ class CaptionBuilder(ParentBuilder):
 root = tk.Tk()
 app = CaptionBuilder(root)
 
-if len(sys.argv) > 1:
-    app.load_data(sys.argv[1])
-
-if len(sys.argv) > 2:
-    app.load_model(sys.argv[2])
-
 global tileset
 tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
 if len(sys.argv) > 3:
@@ -245,5 +250,11 @@ if len(sys.argv) > 3:
 
 with open(tileset_path, 'r') as f:
     tileset = json.load(f)
+
+if len(sys.argv) > 1:
+    app.load_data(sys.argv[1])
+
+if len(sys.argv) > 2:
+    app.load_model(sys.argv[2])
 
 root.mainloop()
