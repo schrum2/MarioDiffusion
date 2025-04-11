@@ -405,10 +405,10 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
             # Check if the structure is in contact with the floor
             in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
 
-            if not attached_to_ceiling and width <= 2 and height >= 4 and in_contact_with_floor:
-                desc = "tall tower"
-            elif not attached_to_ceiling and width >= 4 and height <= 2 and in_contact_with_floor:
-                desc = "wide wall"
+            if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
+                desc = "tower"
+            elif not attached_to_ceiling and width >= 3 and height <= 2 and in_contact_with_floor:
+                desc = "wall"
             else:
                 desc = "irregular block cluster"
 
