@@ -20,7 +20,8 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             # "negative_prompt" : str,
             "start_seed" : int,
             "end_seed" : int,
-            "num_inference_steps" : int
+            "num_inference_steps" : int,
+            "guidance_scale" : float
         })
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
