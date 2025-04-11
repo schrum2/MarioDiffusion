@@ -400,7 +400,7 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False, describe_a
         if pipes:
             desc = "pipe"
         else:
-            attached_to_ceiling = any(r == ceiling_row for r, c in struct)
+            #attached_to_ceiling = any(r == ceiling_row for r, c in struct)
 
             if width <= 2 and height >= 4:
                 desc = "tall tower"
@@ -409,8 +409,9 @@ def describe_structures(structures, ceiling_row=CEILING, pipes=False, describe_a
             else:
                 desc = "irregular block cluster"
 
-            if attached_to_ceiling:
-                desc += " attached to the ceiling"
+            # Overcomplicates the captions
+            #if attached_to_ceiling:
+            #    desc += " attached to the ceiling"
 
         if describe_locations:
             if coarse_locations:
