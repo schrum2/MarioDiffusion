@@ -3,12 +3,19 @@ import torch
 from level_dataset import visualize_samples
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples
+from caption_match import compare_captions
+from create_ascii_captions import assign_caption, get_tile_descriptors
+from run_diffusion import convert_to_level_format
+import json
 import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")    
     # Model and generation parameters
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
+    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
+    parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     return parser.parse_args()
 
@@ -29,11 +36,32 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         self.pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(self.device)
         #print(next(self.pipe.text_encoder.parameters()).device)
 
+        if args.tileset:
+            with open(args.tileset, "r") as f:
+                tileset = json.load(f)
+                tile_chars = sorted(tileset['tiles'].keys())
+                self.id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+                self.char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+                self.tile_descriptors = get_tile_descriptors(tileset)
+
+        self.args = args
+
     def generate_image(self, param_values, generator, **extra_params):
         images = self.pipe(
             generator=generator,
             **param_values
         ).images
+
+        # Convert to indices
+        sample_tensor = images[0].unsqueeze(0)
+        sample_indices = convert_to_level_format(sample_tensor)
+        
+        # Add level data to the list
+        scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
+ 
+        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
+
+        print(f"Describe resulting image: {actual_caption}")
 
         return visualize_samples(images)
 
