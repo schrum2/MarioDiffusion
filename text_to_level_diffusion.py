@@ -62,6 +62,8 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
 
         print(f"Describe resulting image: {actual_caption}")
+        compare_score = compare_captions(self.prompt, actual_caption)
+        print(f"Comparison score: {compare_score}")
 
         return visualize_samples(images)
 
@@ -70,10 +72,10 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         param_values["batch_size"] = 1
         param_values["output_type"] = "tensor" 
 
-        prompt = param_values["prompt"]
+        self.prompt = param_values["prompt"]
         del param_values["prompt"]
 
-        sample_captions = [prompt] # batch of size 1
+        sample_captions = [self.prompt] # batch of size 1
         sample_caption_tokens = self.pipe.text_encoder.tokenizer.encode_batch(sample_captions)
         sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
 
