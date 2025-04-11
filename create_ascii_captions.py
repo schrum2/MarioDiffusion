@@ -6,7 +6,8 @@ from collections import Counter
 WIDTH = 16
 HEIGHT = 16
 
-FLOOR = 16
+# The floor is the last row of the scene (0-indexed)
+FLOOR = HEIGHT - 1
 CEILING = 4
 
 LEFT = WIDTH / 3
@@ -386,7 +387,7 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
 
     return structures
 
-def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False):
+def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False):
     descriptions = []
     for struct in structures:
         min_row = min(pos[0] for pos in struct)
@@ -397,20 +398,22 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         width = max_col - min_col + 1
         height = max_row - min_row + 1
 
+        attached_to_ceiling = any(r == ceiling_row for r, c in struct)
+        # Check if the structure is in contact with the floor
+        in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
+
         if pipes:
             desc = "pipe"
         else:
-            attached_to_ceiling = any(r == ceiling_row for r, c in struct)
-        
-            # Check if the structure is in contact with the floor
-            in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
-
             if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
                 desc = "tower"
             elif not attached_to_ceiling and width >= 3 and height <= 2 and in_contact_with_floor:
                 desc = "wall"
             else:
                 desc = "irregular block cluster"
+
+        if debug:
+            print(f"{desc} at {min_row} {max_row} {min_col} {max_col}: {struct}: attached_to_ceiling: {attached_to_ceiling}, in_contact_with_floor: {in_contact_with_floor}")
 
             # Overcomplicates the captions
             #if attached_to_ceiling:
@@ -506,11 +509,12 @@ def generate_captions(dataset_path, tileset_path, output_path, describe_location
 
     print(f"Captioned dataset saved to {output_path}")
 
-def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence):
+def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, debug = False):
+    """Assigns a caption to a level scene based on its contents."""
     already_accounted = set()
     # Include all of floor, even empty tiles
     for x in range(WIDTH):
-        already_accounted.add( (FLOOR - 1,x) )
+        already_accounted.add( (FLOOR,x) )
 
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
     caption = floor_caption
@@ -556,10 +560,10 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         caption += " no staircases."
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
-    caption += describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence)
+    caption += describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
-    caption += describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence)
+    caption += describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
     return caption
 
 if __name__ == "__main__":

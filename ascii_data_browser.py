@@ -4,6 +4,7 @@ import json
 import sys
 import os
 import level_dataset
+from create_ascii_captions import assign_caption, get_tile_descriptors
 
 class TileViewer(tk.Tk):
     def __init__(self, dataset_path=None, tileset_path=None):
@@ -29,6 +30,16 @@ class TileViewer(tk.Tk):
         if dataset_path and tileset_path:
             self.load_files_from_paths(dataset_path, tileset_path)
 
+    def regenerate_caption(self):
+        print("Regenerating caption...")
+        if not self.dataset:
+            return
+        sample = self.dataset[self.current_sample_idx]
+        caption = assign_caption(sample['scene'], self.id_to_char, self.char_to_id, self.tile_descriptors, describe_locations = False, describe_absence = False, debug = True)
+        sample['caption'] = caption
+        print(f"New caption: {caption}")
+        self.redraw()
+
     def create_widgets(self):
         frame = tk.Frame(self)
         frame.pack(pady=5)
@@ -36,8 +47,12 @@ class TileViewer(tk.Tk):
         load_button = tk.Button(frame, text="Load Dataset & Tileset", command=self.load_files)
         load_button.pack()
 
-        self.checkbox = tk.Checkbutton(self, text="Show numeric IDs", variable=self.show_ids, command=self.redraw)
-        self.checkbox.pack()
+        checkbox_frame = tk.Frame(self)
+        checkbox_frame.pack(pady=5)
+        self.checkbox = tk.Checkbutton(checkbox_frame, text="Show numeric IDs", variable=self.show_ids, command=self.redraw)
+        self.checkbox.pack(side=tk.LEFT, padx=5)
+        regenerate_button = tk.Button(checkbox_frame, text="Regenerate Caption", command=self.regenerate_caption)
+        regenerate_button.pack(side=tk.LEFT, padx=5)
 
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size)
         self.canvas.pack()
@@ -77,6 +92,8 @@ class TileViewer(tk.Tk):
                 tileset = json.load(f)
                 tile_chars = sorted(tileset['tiles'].keys())
                 self.id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+                self.char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+                self.tile_descriptors = get_tile_descriptors(tileset)
                 #print(self.id_to_char)
             self.current_sample_idx = 0
             self.redraw()
