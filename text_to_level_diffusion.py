@@ -24,6 +24,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
     def __init__(self, args):
         InteractiveGeneration.__init__(self, {
             "prompt" : str,
+            "width" : int,
             # "negative_prompt" : str,
             "start_seed" : int,
             "end_seed" : int,

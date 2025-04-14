@@ -70,7 +70,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         return pipeline
         
     def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
-                output_type="tensor", captions=None, guidance_scale=7.5, **kwargs):
+                output_type="tensor", captions=None, guidance_scale=7.5, 
+                height=16, width=16, **kwargs):
         # Process text embeddings if captions are provided
         if captions is not None and self.text_encoder is not None:
             # Conditional embeddings from provided captions
@@ -97,8 +98,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             raise ValueError("Must provide a generator for each sample if passing a list of generators")
         
         device = self.device
-        sample_shape = (batch_size, self.unet.config.in_channels, 
-                        self.unet.config.sample_size[0], self.unet.config.sample_size[1])
+        sample_shape = (batch_size, self.unet.config.in_channels, height, width)
     
         if isinstance(generator, list):
             sample = torch.cat([
