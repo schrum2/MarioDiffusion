@@ -62,6 +62,12 @@ class CaptionBuilder(ParentBuilder):
         self.guidance_entry = ttk.Entry(self.caption_frame)
         self.guidance_entry.pack()
         self.guidance_entry.insert(0, "7.5")
+
+        self.width_label = ttk.Label(self.caption_frame, text="Width (in tiles):")
+        self.width_label.pack()
+        self.width_entry = ttk.Entry(self.caption_frame)
+        self.width_entry.pack()
+        self.width_entry.insert(0, "16")
                 
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
@@ -164,6 +170,7 @@ class CaptionBuilder(ParentBuilder):
             "captions" : sample_caption_tokens,
             "num_inference_steps": int(self.num_steps_entry.get()),
             "guidance_scale": float(self.guidance_entry.get()),
+            "width": int(self.width_entry.get()),
             "output_type" : "tensor",
             "batch_size" : 1
         }
