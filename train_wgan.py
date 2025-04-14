@@ -238,7 +238,7 @@ def main():
             f.write(json.dumps(log_entry) + '\n')
 
     # Initialize plotter
-    plotter = LossPlotter(log_file, update_interval=5.0)  # Update every 5 seconds
+    plotter = LossPlotter(log_file, update_interval=5.0, left_key="loss_d", right_key="loss_g", left_label="Discriminator Loss", right_label="Generator Loss")  # Update every 5 seconds
     plot_thread = threading.Thread(target=plotter.start_plotting)
     plot_thread.daemon = True
     plot_thread.start()
