@@ -6,6 +6,8 @@ from wgan_model import WGAN_Generator
 from tokenizer import Tokenizer
 from level_dataset import visualize_samples
 import random
+import json
+from create_ascii_captions import assign_caption, get_tile_descriptors
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate samples from a trained WGAN generator")
@@ -26,7 +28,12 @@ def parse_args():
     # Output args
     parser.add_argument("--output_dir", type=str, default="generated_samples", help="Output directory")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use (cuda, cpu)")
-    
+        
+    parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
+    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
+    parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+
     return parser.parse_args()
 
 def main():
@@ -76,6 +83,7 @@ def main():
     
     print(f"Generating {args.num_samples} samples...")
     
+    all_samples = []
     # Generate samples in batches
     for batch_idx in range(num_batches):
         # Calculate batch size for the current batch
@@ -84,22 +92,67 @@ def main():
         # Generate random noise
         noise = torch.randn(current_batch_size, args.nz, 1, 1, device=device)
         
-        # Generate samples
-        with torch.no_grad():
-            fake_samples = netG(noise)
-        
-        # Convert samples to the right format for visualization
-        samples_cpu = fake_samples.detach().cpu()
-        
-        # Visualize and save samples
-        output_path = os.path.join(args.output_dir, f"samples_batch_{batch_idx}")
-        visualize_samples(samples_cpu, output_path)
+        samples_cpu = generate_level_scene_from_latent(netG, noise)
         
         # Update counter
         samples_generated += current_batch_size
         print(f"Generated {samples_generated}/{args.num_samples} samples")
-    
+        all_samples.append(samples_cpu)
+
     print(f"Sample generation complete. Results saved to {args.output_dir}")
+    # Concatenate all batches
+    all_samples = torch.cat(all_samples, dim=0)[:samples_generated]
+
+    # Visualize and save samples
+    visualize_samples(all_samples, args.output_dir)
+
+    # CODE BENEATH HERE IS LITERALLY COPIED FROM run_diffusion.py. Refactor.
+
+    # Convert to list
+    samples_list = [all_samples[i] for i in range(len(all_samples))]
+    
+    # Prepare a list to store all levels
+    all_levels = []
+
+    # Load tileset
+    if args.tileset:
+        with open(args.tileset, "r") as f:
+            tileset = json.load(f)
+            #print(f"tileset: {tileset}")
+            tile_chars = sorted(tileset['tiles'].keys())
+            id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+            char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+            tile_descriptors = get_tile_descriptors(tileset)
+
+    # Process and collect individual samples
+    for _, sample in enumerate(samples_list):
+        # Convert to indices
+        sample_tensor = sample.unsqueeze(0) if sample.shape[0] == num_tiles else sample
+        sample_indices = convert_to_level_format(sample_tensor)
+        
+        # Add level data to the list
+        scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
+        level_data = {
+            "scene": scene, 
+            "caption": "unknown" if not args.tileset else assign_caption(scene, id_to_char, char_to_id, tile_descriptors, args.describe_locations, args.describe_absence)
+        }
+        all_levels.append(level_data)
+    
+    # Save all levels to a single JSON file if requested
+    if args.save_as_json:
+        json_path = os.path.join(args.output_dir, "all_levels.json")
+        with open(json_path, 'w') as f:
+            json.dump(all_levels, f, indent=2)
+
+def generate_level_scene_from_latent(netG, latent_noise):
+    # Generate samples
+    with torch.no_grad():
+        fake_samples = netG(latent_noise)
+        
+    # Convert samples to the right format for visualization
+    samples_cpu = fake_samples.detach().cpu()
+
+    return samples_cpu
 
 if __name__ == "__main__":
     main()
