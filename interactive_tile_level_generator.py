@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog, messagebox
 import os
 import json
 import torch
+import gc
 from PIL import Image, ImageTk
 from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler, DDPMPipeline
 import sys
@@ -229,6 +230,10 @@ class CaptionBuilder(ParentBuilder):
                 command=lambda idx=i: self.use_astar(idx)
             )
             astar_button.pack(side=tk.LEFT, padx=5)
+
+            del images, sample_tensor, sample_indices, scene  # Delete unused tensors
+            torch.cuda.empty_cache()  # Clear the cache
+            gc.collect()  # Force garbage collection
 
         print("Generation done")
         #print(self.current_levels)
