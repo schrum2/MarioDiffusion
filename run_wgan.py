@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from wgan_model import WGAN_Generator
 from tokenizer import Tokenizer
-from level_dataset import visualize_samples
+from level_dataset import visualize_samples, convert_to_level_format
 import random
 import json
 from create_ascii_captions import assign_caption, get_tile_descriptors
@@ -127,7 +127,7 @@ def main():
     # Process and collect individual samples
     for _, sample in enumerate(samples_list):
         # Convert to indices
-        sample_tensor = sample.unsqueeze(0) if sample.shape[0] == num_tiles else sample
+        sample_tensor = sample.unsqueeze(0) if sample.shape[0] == args.num_tiles else sample
         sample_indices = convert_to_level_format(sample_tensor)
         
         # Add level data to the list

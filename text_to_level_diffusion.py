@@ -2,10 +2,9 @@ from interactive_generation import InteractiveGeneration
 import torch
 from level_dataset import visualize_samples
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
-from level_dataset import visualize_samples
+from level_dataset import visualize_samples, convert_to_level_format
 from caption_match import compare_captions
 from create_ascii_captions import assign_caption, get_tile_descriptors
-from run_diffusion import convert_to_level_format
 import json
 import argparse
 

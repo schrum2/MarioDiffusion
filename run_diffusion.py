@@ -4,7 +4,7 @@ import os
 import torch
 import numpy as np
 from diffusers import DDPMPipeline
-from level_dataset import visualize_samples
+from level_dataset import visualize_samples, convert_to_level_format
 import json
 import random
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
@@ -29,12 +29,6 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     return parser.parse_args()
-
-def convert_to_level_format(sample):
-    """Convert model output to level indices"""
-    sample_indices = torch.argmax(sample, dim=1).cpu().numpy()
-    #print(sample_indices.shape)
-    return sample_indices
 
 def generate_levels(args):
     """Generate level designs using a trained diffusion model"""

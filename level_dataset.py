@@ -11,6 +11,12 @@ from torch.utils.data import DataLoader
 import io
 from PIL import Image
 
+def convert_to_level_format(sample):
+    """Convert model output to level indices"""
+    sample_indices = torch.argmax(sample, dim=1).cpu().numpy()
+    #print(sample_indices.shape)
+    return sample_indices
+
 def get_pil_image_from_plt(fig):
     """
     Converts a matplotlib figure to a PIL Image.
