@@ -99,6 +99,15 @@ python interactive_tile_level_generator.py SMB1_LevelsAndCaptions.json condition
 
 
 
+Train a GAN
+```
+python train_wgan.py --augment
+```
+Create samples from final GAN
+```
+python run_wgan.py --model_path wgan-output\final_models\generator.pth --num_samples 100 --output_dir wgan_samples
+```
+
 
 
 

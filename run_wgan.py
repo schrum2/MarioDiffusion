@@ -93,7 +93,7 @@ def main():
         
         # Visualize and save samples
         output_path = os.path.join(args.output_dir, f"samples_batch_{batch_idx}")
-        visualize_samples(samples_cpu, output_path, save_individual=True)
+        visualize_samples(samples_cpu, output_path)
         
         # Update counter
         samples_generated += current_batch_size
