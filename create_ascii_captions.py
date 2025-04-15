@@ -540,7 +540,10 @@ def generate_captions(dataset_path, tileset_path, output_path, describe_location
     # Load dataset
     with open(dataset_path, "r") as f:
         dataset = json.load(f)
+    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence)
+    print(f"Captioned dataset saved to {output_path}")
 
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence):
     # Load tileset
     with open(tileset_path, "r") as f:
         tileset = json.load(f)
@@ -564,8 +567,6 @@ def generate_captions(dataset_path, tileset_path, output_path, describe_location
     # Save new dataset with captions
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
-
-    print(f"Captioned dataset saved to {output_path}")
 
 def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, debug = False):
     """Assigns a caption to a level scene based on its contents."""
