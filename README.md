@@ -65,7 +65,7 @@ python run_diffusion.py --model_path unconditional-model --num_samples 100 --sav
 ```
 View the saved levels in the data browser
 ```
-python ascii_data_browser.py unconditional_model_samples\\all_levels.json
+python ascii_data_browser.py unconditional_model_samples\all_levels.json
 ```
 
 
@@ -85,7 +85,7 @@ python run_diffusion.py --model_path conditional-model --num_samples 100 --text_
 ```
 Captions will be automatically assigned to the levels, and you can browse that data with this command:
 ```
-python ascii_data_browser.py conditional_model_unconditional_samples\\all_levels.json
+python ascii_data_browser.py conditional_model_unconditional_samples\all_levels.json
 ```
 But to actually provide captions to guide the level generation, use this command
 ```
@@ -107,7 +107,10 @@ Create samples from final GAN
 ```
 python run_wgan.py --model_path wgan-output\final_models\generator.pth --num_samples 100 --output_dir wgan_samples --save_as_json
 ```
-
+View the saved levels in the data browser
+```
+python ascii_data_browser.py wgan_samples\all_levels.json
+```
 
 
 
