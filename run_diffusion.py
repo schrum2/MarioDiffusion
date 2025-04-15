@@ -4,11 +4,10 @@ import os
 import torch
 import numpy as np
 from diffusers import DDPMPipeline
-from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
-import json
+from level_dataset import visualize_samples, samples_to_scenes
 import random
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
-from create_ascii_captions import assign_caption, get_tile_descriptors, save_level_data
+from create_ascii_captions import save_level_data
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")
