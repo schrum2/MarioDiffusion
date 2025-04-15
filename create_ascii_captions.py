@@ -387,7 +387,62 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
 
     return structures
 
-def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False):
+def valid_pipe(top_row, left_column, scene, char_to_id):
+    """
+        Is this a valid pipe or not?
+
+        <>
+        []
+       ...
+        []
+    """
+    # Case: left edge of screen
+    if left_column == 0 and scene[top_row][left_column] == char_to_id['>']:
+        # go down looking for ] or >
+        row = top_row+1
+        while row < len(scene):
+            if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
+                return False
+            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
+                row += 1
+            else:
+                return True
+
+        return True
+    # Case: right edge of screen
+    elif left_column == len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<']:
+        # go down looking for [ or <
+        row = top_row+1
+        while row < len(scene):
+            if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
+                row += 1
+            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
+                return False
+            else:
+                return True
+
+        return True
+
+    # Case: Full pipe
+    elif left_column < len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<'] and scene[top_row][left_column+1] == char_to_id['>']:
+        # go down looking for [] or <>
+        row = top_row+1
+        while row < len(scene):
+            if (scene[row][left_column] == char_to_id['<'] and scene[row][left_column+1] == char_to_id['>']) or (scene[row][left_column] == char_to_id['['] and scene[row][left_column+1] == char_to_id[']']):
+                row += 1
+            elif scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']] or scene[row][left_column+1] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']]:
+                return False
+            else:
+                return True
+
+        return True
+
+    return False
+
+def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None):
+    """
+        scene and char_to_id are needed when pipes is True so that the specific tiles can be checked.
+    """
     descriptions = []
     for struct in structures:
         min_row = min(pos[0] for pos in struct)
@@ -403,7 +458,10 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
 
         if pipes:
-            desc = "pipe"
+            if valid_pipe(min_row, min_col, scene, char_to_id):
+                desc = "pipe"
+            else:
+                desc = "broken pipe"
         else:
             if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
                 desc = "tower"
@@ -560,7 +618,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         caption += " no staircases."
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
-    caption += describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
+    caption += describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id)
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
     caption += describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
