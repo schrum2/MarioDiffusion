@@ -85,49 +85,51 @@ def main():
     total_count = 0
     all_samples = []
     for batch_idx, batch in enumerate(dataloader):
-        # Unpack scenes and captions
-        scenes, sample_caption_tokens = batch
+        with torch.no_grad():  # Disable gradient computation to save memory
+            # Unpack scenes and captions
+            scenes, sample_caption_tokens = batch
 
-        param_values = {
-            "captions" : sample_caption_tokens.to(device),
-            "num_inference_steps": args.inference_steps,
-            "guidance_scale": args.guidance_scale,
-            #"width": 16, # Might consider changing this later
-            "output_type" : "tensor",
-            "batch_size" : len(sample_caption_tokens)
-        }
-        generator = torch.Generator(device).manual_seed(int(args.seed))
-        
-        samples = pipe(generator=generator, **param_values).images
+            param_values = {
+                "captions" : sample_caption_tokens.to(device),
+                "num_inference_steps": args.inference_steps,
+                "guidance_scale": args.guidance_scale,
+                #"width": 16, # Might consider changing this later
+                "output_type" : "tensor",
+                "batch_size" : len(sample_caption_tokens)
+            }
+            generator = torch.Generator(device).manual_seed(int(args.seed))
+            
+            samples = pipe(generator=generator, **param_values).images
 
-        # Convert shape if needed (DO I EVEN NEED THIS?)
-        if isinstance(samples, torch.Tensor):
-            if len(samples.shape) == 4 and samples.shape[1] == 16:  # BHWC format
-                samples = samples.permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
-        elif isinstance(samples, np.ndarray):
-            if len(samples.shape) == 4 and samples.shape[3] == args.num_tiles:  # BHWC format
-                samples = np.transpose(samples, (0, 3, 1, 2))  # Convert (B, H, W, C) -> (B, C, H, W)
-            samples = torch.tensor(samples)        
-        
-        # Iterate over captions and corresponding generated images
-        for caption_tokens, image in zip(sample_caption_tokens, samples):
-            sample_tensor = image.unsqueeze(0)
-            sample_indices = convert_to_level_format(sample_tensor)
-            scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
-            actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, args.describe_locations, args.describe_absence)
+            # Convert shape if needed (DO I EVEN NEED THIS?)
+            if isinstance(samples, torch.Tensor):
+                if len(samples.shape) == 4 and samples.shape[1] == 16:  # BHWC format
+                    samples = samples.permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
+            elif isinstance(samples, np.ndarray):
+                if len(samples.shape) == 4 and samples.shape[3] == args.num_tiles:  # BHWC format
+                    samples = np.transpose(samples, (0, 3, 1, 2))  # Convert (B, H, W, C) -> (B, C, H, W)
+                samples = torch.tensor(samples)        
+            
+            # Iterate over captions and corresponding generated images
+            for caption_tokens, image in zip(sample_caption_tokens, samples):
+                sample_tensor = image.unsqueeze(0)
+                sample_indices = convert_to_level_format(sample_tensor)
+                scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
+                actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, args.describe_locations, args.describe_absence)
 
-            caption = pipe.text_encoder.tokenizer.decode(caption_tokens.tolist())
-            caption = caption.replace("[PAD]", "").replace(" .", ".").strip()
-            #print(caption)
+                caption = pipe.text_encoder.tokenizer.decode(caption_tokens.tolist())
+                caption = caption.replace("[PAD]", "").replace(" .", ".").strip()
+                print(f"\t{caption}")
 
-            compare_score = compare_captions(caption, actual_caption)
+                compare_score = compare_captions(caption, actual_caption)
 
-            #quit()
+                score_sum += compare_score
+                total_count += 1
 
-            score_sum += compare_score
-            total_count += 1
+            del samples, sample_tensor, sample_indices, scene, actual_caption  # Remove unused variables
+        torch.cuda.empty_cache()  # Clear GPU VRAM cache
 
-        all_samples.append(samples)
+        print(f"Batch {batch_idx+1}/{len(dataloader)}:")
 
     avg_score = score_sum / total_count
     print(f"Average caption adherence score: {avg_score:.4f}")
