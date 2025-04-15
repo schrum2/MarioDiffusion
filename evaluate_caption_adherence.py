@@ -126,7 +126,9 @@ def main():
                 score_sum += compare_score
                 total_count += 1
 
+            all_samples.append(samples)  # Append the generated samples to the list
             del samples, sample_tensor, sample_indices, scene, actual_caption  # Remove unused variables
+
         torch.cuda.empty_cache()  # Clear GPU VRAM cache
 
         print(f"Batch {batch_idx+1}/{len(dataloader)}:")
