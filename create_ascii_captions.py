@@ -401,7 +401,7 @@ def valid_pipe(top_row, left_column, scene, char_to_id):
         # go down looking for ] or >
         row = top_row+1
         while row < len(scene):
-            if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
+            if scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['-']]: # emptiness under base also invalid
                 return False
             elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
                 row += 1
@@ -416,7 +416,7 @@ def valid_pipe(top_row, left_column, scene, char_to_id):
         while row < len(scene):
             if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
                 row += 1
-            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
+            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']'], char_to_id['-']]:
                 return False
             else:
                 return True
@@ -430,7 +430,7 @@ def valid_pipe(top_row, left_column, scene, char_to_id):
         while row < len(scene):
             if (scene[row][left_column] == char_to_id['<'] and scene[row][left_column+1] == char_to_id['>']) or (scene[row][left_column] == char_to_id['['] and scene[row][left_column+1] == char_to_id[']']):
                 row += 1
-            elif scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']] or scene[row][left_column+1] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']]:
+            elif scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']'], char_to_id['-']] or scene[row][left_column+1] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']'], char_to_id['-']]:
                 return False
             else:
                 return True
