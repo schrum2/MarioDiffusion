@@ -21,10 +21,10 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
-    parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
+    parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") 
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--inference_steps", type=int, default=500, help="Number of denoising steps")
+    parser.add_argument("--inference_steps", type=int, default=50, help="Number of denoising steps") # Large reduction from the 500 used during training
     parser.add_argument("--guidance_scale", type=float, default=7.5, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
 

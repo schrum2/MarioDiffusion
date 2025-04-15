@@ -95,6 +95,10 @@ An easier to use GUI interface will let you select known caption phrases to send
 ```
 python interactive_tile_level_generator.py SMB1_LevelsAndCaptions.json conditional-model
 ```
+Evaluate the model's ability to adhere to input captions:
+```
+python evaluate_caption_adherence.py --model_path conditional-model --save_as_json
+```
 
 
 
