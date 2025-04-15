@@ -11,6 +11,22 @@ from torch.utils.data import DataLoader
 import io
 from PIL import Image
 
+def samples_to_scenes(all_samples):
+    # Convert to list
+    samples_list = [all_samples[i] for i in range(len(all_samples))]
+    scenes = []
+    # Process and collect individual samples
+    for _, sample in enumerate(samples_list):
+        # Convert to indices
+        sample_tensor = sample.unsqueeze(0) # if sample.shape[0] == args.num_tiles else sample
+        sample_indices = convert_to_level_format(sample_tensor)
+        
+        # Add level data to the list
+        scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
+        scenes.append(scene)
+
+    return scenes
+
 def convert_to_level_format(sample):
     """Convert model output to level indices"""
     sample_indices = torch.argmax(sample, dim=1).cpu().numpy()

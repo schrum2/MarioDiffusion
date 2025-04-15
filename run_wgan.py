@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from wgan_model import WGAN_Generator
 from tokenizer import Tokenizer
-from level_dataset import visualize_samples, convert_to_level_format
+from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
 import random
 import json
 from create_ascii_captions import assign_caption, get_tile_descriptors, save_level_data
@@ -109,23 +109,6 @@ def main():
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)
         save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), args.describe_locations, args.describe_absence)
-
-
-def samples_to_scenes(all_samples):
-    # Convert to list
-    samples_list = [all_samples[i] for i in range(len(all_samples))]
-    scenes = []
-    # Process and collect individual samples
-    for _, sample in enumerate(samples_list):
-        # Convert to indices
-        sample_tensor = sample.unsqueeze(0) # if sample.shape[0] == args.num_tiles else sample
-        sample_indices = convert_to_level_format(sample_tensor)
-        
-        # Add level data to the list
-        scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
-        scenes.append(scene)
-
-    return scenes
 
 def generate_level_scene_from_latent(netG, latent_noise):
     # Generate samples
