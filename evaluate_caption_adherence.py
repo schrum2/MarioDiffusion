@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
-    parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") 
+    parser.add_argument("--batch_size", type=int, default=4, help="Training batch size") 
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--inference_steps", type=int, default=50, help="Number of denoising steps") # Large reduction from the 500 used during training
@@ -86,13 +86,10 @@ def main():
     all_samples = []
     for batch_idx, batch in enumerate(dataloader):
         # Unpack scenes and captions
-        scenes, captions = batch
-
-        sample_caption_tokens = pipe.text_encoder.tokenizer.encode_batch(captions)
-        sample_caption_tokens = torch.tensor(sample_caption_tokens).to(device)
+        scenes, sample_caption_tokens = batch
 
         param_values = {
-            "captions" : sample_caption_tokens,
+            "captions" : sample_caption_tokens.to(device),
             "num_inference_steps": args.inference_steps,
             "guidance_scale": args.guidance_scale,
             #"width": 16, # Might consider changing this later
@@ -108,18 +105,25 @@ def main():
             if len(samples.shape) == 4 and samples.shape[1] == 16:  # BHWC format
                 samples = samples.permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
         elif isinstance(samples, np.ndarray):
-            if len(samples.shape) == 4 and samples.shape[3] == num_tiles:  # BHWC format
+            if len(samples.shape) == 4 and samples.shape[3] == args.num_tiles:  # BHWC format
                 samples = np.transpose(samples, (0, 3, 1, 2))  # Convert (B, H, W, C) -> (B, C, H, W)
             samples = torch.tensor(samples)        
         
         # Iterate over captions and corresponding generated images
-        for caption, image in zip(captions, samples):
+        for caption_tokens, image in zip(sample_caption_tokens, samples):
             sample_tensor = image.unsqueeze(0)
             sample_indices = convert_to_level_format(sample_tensor)
             scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
             actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, args.describe_locations, args.describe_absence)
 
+            caption = pipe.text_encoder.tokenizer.decode(caption_tokens.tolist())
+            caption = caption.replace("[PAD]", "").replace(" .", ".").strip()
+            #print(caption)
+
             compare_score = compare_captions(caption, actual_caption)
+
+            #quit()
+
             score_sum += compare_score
             total_count += 1
 

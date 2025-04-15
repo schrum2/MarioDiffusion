@@ -83,7 +83,7 @@ def generate_levels(args):
                 output_type="tensor"
             ).images
 
-            # Convert shape if needed (DDPMPipeline might return different format)
+            # Convert shape if needed (DDPMPipeline might return different format) (DO I EVEN NEED THIS?)
             if isinstance(samples, torch.Tensor):
                 if len(samples.shape) == 4 and samples.shape[1] == 16:  # BHWC format
                     samples = samples.permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
