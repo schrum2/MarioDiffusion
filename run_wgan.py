@@ -7,7 +7,7 @@ from tokenizer import Tokenizer
 from level_dataset import visualize_samples, convert_to_level_format
 import random
 import json
-from create_ascii_captions import assign_caption, get_tile_descriptors
+from create_ascii_captions import assign_caption, get_tile_descriptors, save_level_data
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate samples from a trained WGAN generator")
@@ -106,43 +106,26 @@ def main():
     # Visualize and save samples
     visualize_samples(all_samples, args.output_dir)
 
-    # CODE BENEATH HERE IS LITERALLY COPIED FROM run_diffusion.py. Refactor.
+    if args.save_as_json:
+        scenes = samples_to_scenes(all_samples)
+        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), args.describe_locations, args.describe_absence)
 
+
+def samples_to_scenes(all_samples):
     # Convert to list
     samples_list = [all_samples[i] for i in range(len(all_samples))]
-    
-    # Prepare a list to store all levels
-    all_levels = []
-
-    # Load tileset
-    if args.tileset:
-        with open(args.tileset, "r") as f:
-            tileset = json.load(f)
-            #print(f"tileset: {tileset}")
-            tile_chars = sorted(tileset['tiles'].keys())
-            id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
-            char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-            tile_descriptors = get_tile_descriptors(tileset)
-
+    scenes = []
     # Process and collect individual samples
     for _, sample in enumerate(samples_list):
         # Convert to indices
-        sample_tensor = sample.unsqueeze(0) if sample.shape[0] == args.num_tiles else sample
+        sample_tensor = sample.unsqueeze(0) # if sample.shape[0] == args.num_tiles else sample
         sample_indices = convert_to_level_format(sample_tensor)
         
         # Add level data to the list
         scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
-        level_data = {
-            "scene": scene, 
-            "caption": "unknown" if not args.tileset else assign_caption(scene, id_to_char, char_to_id, tile_descriptors, args.describe_locations, args.describe_absence)
-        }
-        all_levels.append(level_data)
-    
-    # Save all levels to a single JSON file if requested
-    if args.save_as_json:
-        json_path = os.path.join(args.output_dir, "all_levels.json")
-        with open(json_path, 'w') as f:
-            json.dump(all_levels, f, indent=2)
+        scenes.append(scene)
+
+    return scenes
 
 def generate_level_scene_from_latent(netG, latent_noise):
     # Generate samples
