@@ -5,7 +5,9 @@ QUANTITY_TERMS = ["one", "two", "a few", "several", "many"]
 
 # Topics to compare
 TOPIC_KEYWORDS = [
-    "floor", "ceiling", "pipe", "coin line", "coin",
+    "floor", "ceiling", 
+    "broken pipe", "pipe", 
+    "coin line", "coin",
     "platform", "tower", "wall", "cannon",
     "ascending staircase", "descending staircase",
     "irregular", "question block", "enem"  # catch "enemy"/"enemies"
@@ -35,8 +37,16 @@ def normalize_plural(phrase):
 def extract_phrases(caption, debug=False):
     phrases = [phrase.strip() for phrase in caption.split('.') if phrase.strip()]
     topic_to_phrase = {}
+    already_matched_phrases = set()  # Track phrases that have been matched
+    
     for topic in TOPIC_KEYWORDS:
-        matching_phrases = [p for p in phrases if topic in p]
+        matching_phrases = []
+        
+        for p in phrases:
+            # Only consider phrases that haven't been matched to longer topics
+            if topic in p and p not in already_matched_phrases:
+                matching_phrases.append(p)
+        
         if matching_phrases:
             # Filter out "no ..." phrases as equivalent to absence
             phrase = matching_phrases[0]
@@ -46,12 +56,14 @@ def extract_phrases(caption, debug=False):
                     print(f"[Extract] Topic '{topic}': detected 'no ...', treating as None")
             else:
                 topic_to_phrase[topic] = phrase
+                already_matched_phrases.add(phrase)  # Mark this phrase as matched
                 if debug:
                     print(f"[Extract] Topic '{topic}': found phrase '{phrase}'")
         else:
             topic_to_phrase[topic] = None
             if debug:
                 print(f"[Extract] Topic '{topic}': no phrase found")
+    
     return topic_to_phrase
 
 def quantity_score(phrase1, phrase2, debug=False):
