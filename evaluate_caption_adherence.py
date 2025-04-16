@@ -34,7 +34,7 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     # Output args
-    parser.add_argument("--output_dir", type=str, default="text_to_level_samples", help="Output directory")
+    parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory")
 
 
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
@@ -85,7 +85,33 @@ def main():
     )
 
     if args.compare_checkpoints:
-        x = 5 # TODO
+        scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors)
+
+        # Save scores_by_epoch to a JSON file
+        scores_json_path = os.path.join(args.output_dir, "scores_by_epoch.json")
+        with open(scores_json_path, "w") as f:
+            json.dump(scores_by_epoch, f, indent=4)
+        print(f"Saved scores by epoch to {scores_json_path}")
+
+        # Plot the scores
+        import matplotlib.pyplot as plt
+
+        epochs = [entry[0] for entry in scores_by_epoch]
+        scores = [entry[1] for entry in scores_by_epoch]
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(epochs, scores, marker="o", label="Caption Score")
+        plt.xlabel("Epoch")
+        plt.ylabel("Caption Score")
+        plt.ylim(-1.0, 1.0)
+        plt.title("Caption Adherence Score by Epoch")
+        plt.grid(True)
+        plt.legend()
+
+        plot_path = os.path.join(args.output_dir, "caption_scores_plot.png")
+        plt.savefig(plot_path)
+        plt.close()
+        print(f"Saved caption scores plot to {plot_path}")
     else:
         # Just run on one model and get samples as well
         avg_score, all_samples = calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors)
@@ -100,18 +126,19 @@ def main():
             save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), args.describe_locations, args.describe_absence)
 
 
-def track_caption_adherence(args, device, text_encoder, dataloader, id_to_char, char_to_id, tile_descriptors):
+def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
     checkpoint_dirs = [
-        (int(d.split("-")[-1]), os.path.join(args.output_dir, d))
-        for d in os.listdir(args.output_dir)
-        if os.path.isdir(os.path.join(args.output_dir, d)) and d.startswith("checkpoint-")
+        (int(d.split("-")[-1]), os.path.join(args.model_path, d))
+        for d in os.listdir(args.model_path)
+        if os.path.isdir(os.path.join(args.model_path, d)) and d.startswith("checkpoint-")
     ]
     
     # Sort directories by epoch number
     checkpoint_dirs = sorted(checkpoint_dirs, key=lambda x: x[0])
     # Final model is saved in the output directory itself rather than a subdirectory
-    checkpoint_dirs.append(checkpoint_dirs[-1][0] + 1 , args.output_dir)
+    checkpoint_dirs.append(checkpoint_dirs[-1][0] + 1 , args.model_path)
 
+    scores_by_epoch = []
     for epoch, checkpoint_dir in checkpoint_dirs:
         print(f"Evaluating checkpoint: {checkpoint_dir}")
         pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
@@ -121,13 +148,9 @@ def track_caption_adherence(args, device, text_encoder, dataloader, id_to_char, 
         )
         
         print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
-                 
+        scores_by_epoch.append((epoch, avg_score, checkpoint_dir))
 
-
-
-
-
-                 
+    return scores_by_epoch
 
 def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors):
     score_sum = 0.0
