@@ -35,7 +35,10 @@ def parse_args():
 
     # Output args
     parser.add_argument("--output_dir", type=str, default="text_to_level_samples", help="Output directory")
-    
+
+
+    parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
+
     return parser.parse_args()
 
 def main():
@@ -81,16 +84,50 @@ def main():
         drop_last=False
     )
 
-    avg_score, all_samples = calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors)
+    if args.compare_checkpoints:
+        x = 5 # TODO
+    else:
+        # Just run on one model and get samples as well
+        avg_score, all_samples = calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors)
 
-    print(f"Average caption adherence score: {avg_score:.4f}")
-    print(f"Generated {len(all_samples)} level samples")
+        print(f"Average caption adherence score: {avg_score:.4f}")
+        print(f"Generated {len(all_samples)} level samples")
     
-    visualize_samples(all_samples, args.output_dir)
+        visualize_samples(all_samples, args.output_dir)
 
-    if args.save_as_json:
-        scenes = samples_to_scenes(all_samples)
-        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), args.describe_locations, args.describe_absence)
+        if args.save_as_json:
+            scenes = samples_to_scenes(all_samples)
+            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), args.describe_locations, args.describe_absence)
+
+
+def track_caption_adherence(args, device, text_encoder, dataloader, id_to_char, char_to_id, tile_descriptors):
+    checkpoint_dirs = [
+        (int(d.split("-")[-1]), os.path.join(args.output_dir, d))
+        for d in os.listdir(args.output_dir)
+        if os.path.isdir(os.path.join(args.output_dir, d)) and d.startswith("checkpoint-")
+    ]
+    
+    # Sort directories by epoch number
+    checkpoint_dirs = sorted(checkpoint_dirs, key=lambda x: x[0])
+    # Final model is saved in the output directory itself rather than a subdirectory
+    checkpoint_dirs.append(checkpoint_dirs[-1][0] + 1 , args.output_dir)
+
+    for epoch, checkpoint_dir in checkpoint_dirs:
+        print(f"Evaluating checkpoint: {checkpoint_dir}")
+        pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
+        
+        avg_score, _ = calculate_caption_score_and_samples(
+            args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors
+        )
+        
+        print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
+                 
+
+
+
+
+
+                 
 
 def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors):
     score_sum = 0.0
