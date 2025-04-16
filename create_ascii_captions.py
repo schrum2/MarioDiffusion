@@ -83,7 +83,8 @@ def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
         gaps = 0
         in_gap = False
         for tile in last_row:
-            if "passable" in tile_descriptors.get(id_to_char[tile], []):
+            # Enemies are also a gap since they immediately fall into the gap
+            if "passable" in tile_descriptors.get(id_to_char[tile], []) or "enemy" in tile_descriptors.get(id_to_char[tile], []):
                 if not in_gap:
                     gaps += 1
                     in_gap = True
@@ -92,9 +93,10 @@ def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
             else:
                 print("error")
                 print(tile)
+                print(id_to_char[tile])
                 print(tile_descriptors)
-                print(tile_descriptors.get(tile, []))
-                raise ValueError("Every tile should be either passable or solid")
+                print(tile_descriptors.get(id_to_char[tile], []))
+                raise ValueError("Every tile should be passable, solid, or enemy")
         return f"floor with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps > 1 else "")
     else:
         # Count contiguous groups of solid tiles
@@ -571,13 +573,13 @@ def extract_tileset(tileset_path):
         # now. However, this requires me to add some bogus tiles to the list.
         tile_chars.append('!') 
         tile_chars.append('*') 
-        print(f"tile_chars: {tile_chars}")
+        #print(f"tile_chars: {tile_chars}")
         id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
-        print(f"id_to_char: {id_to_char}")
+        #print(f"id_to_char: {id_to_char}")
         char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-        print(f"char_to_id: {char_to_id}")
+        #print(f"char_to_id: {char_to_id}")
         tile_descriptors = get_tile_descriptors(tileset)
-        print(f"tile_descriptors: {tile_descriptors}")
+        #print(f"tile_descriptors: {tile_descriptors}")
 
     return tile_chars, id_to_char, char_to_id, tile_descriptors
 
