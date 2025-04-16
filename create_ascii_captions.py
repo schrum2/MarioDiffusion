@@ -60,9 +60,9 @@ def describe_quantity(count):
 def get_tile_descriptors(tileset):
     """Creates a mapping from tile character to its list of descriptors."""
     result = {char: set(attrs) for char, attrs in tileset["tiles"].items()}
-    # Fake tiles. Should these contain anything?
-    result["!"] = {}
-    result["*"] = {}
+    # Fake tiles. Should these contain anything? Note that code elsewhere expects everything to be passable or solid
+    result["!"] = {"passable"}
+    result["*"] = {"passable"}
     return result
 
 def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
