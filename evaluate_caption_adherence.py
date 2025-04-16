@@ -9,9 +9,8 @@ import json
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
 import json
-import random
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
-from create_ascii_captions import assign_caption, get_tile_descriptors, save_level_data, extract_tileset
+from create_ascii_captions import assign_caption, save_level_data, extract_tileset
 from caption_match import compare_captions
 
 def parse_args():
@@ -58,6 +57,7 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
+    # TODO: This won't work if training terminated early, but there are still valid checkpoints I want to evaluate
     pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
 
     # Initialize dataset
