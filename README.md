@@ -99,6 +99,10 @@ Evaluate the model's ability to adhere to input captions:
 ```
 python evaluate_caption_adherence.py --model_path conditional-model --save_as_json
 ```
+Evaluate the how caption adherence changed during training:
+```
+python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints
+```
 
 
 

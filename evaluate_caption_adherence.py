@@ -87,11 +87,12 @@ def main():
     if args.compare_checkpoints:
         scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors)
 
-        # Save scores_by_epoch to a JSON file
-        scores_json_path = os.path.join(args.output_dir, "scores_by_epoch.json")
-        with open(scores_json_path, "w") as f:
-            json.dump(scores_by_epoch, f, indent=4)
-        print(f"Saved scores by epoch to {scores_json_path}")
+        if args.save_as_json:
+            # Save scores_by_epoch to a JSON file
+            scores_json_path = os.path.join(args.output_dir, "scores_by_epoch.json")
+            with open(scores_json_path, "w") as f:
+                json.dump(scores_by_epoch, f, indent=4)
+            print(f"Saved scores by epoch to {scores_json_path}")
 
         # Plot the scores
         import matplotlib.pyplot as plt
