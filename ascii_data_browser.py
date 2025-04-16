@@ -4,7 +4,7 @@ import json
 import sys
 import os
 import level_dataset
-from create_ascii_captions import assign_caption, get_tile_descriptors
+from create_ascii_captions import assign_caption, get_tile_descriptors, extract_tileset
 
 class TileViewer(tk.Tk):
     def __init__(self, dataset_path=None, tileset_path=None):
@@ -88,13 +88,7 @@ class TileViewer(tk.Tk):
         try:
             with open(dataset_path, 'r') as f:
                 self.dataset = json.load(f)
-            with open(tileset_path, 'r') as f:
-                tileset = json.load(f)
-                tile_chars = sorted(tileset['tiles'].keys())
-                self.id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
-                self.char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-                self.tile_descriptors = get_tile_descriptors(tileset)
-                #print(self.id_to_char)
+            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
             self.current_sample_idx = 0
             self.redraw()
         except Exception as e:

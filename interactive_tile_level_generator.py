@@ -11,7 +11,7 @@ from text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from sampler import SampleOutput
 from caption_match import compare_captions
-from create_ascii_captions import assign_caption, get_tile_descriptors
+from create_ascii_captions import assign_caption, extract_tileset
 
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
@@ -110,10 +110,7 @@ class CaptionBuilder(ParentBuilder):
         if filepath == None:
             filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON", "*.json")])
         if filepath:
-            tile_chars = sorted(tileset['tiles'].keys())
-            self.id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
-            self.char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-            self.tile_descriptors = get_tile_descriptors(tileset)
+            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
             try:
                 phrases_set = set()
@@ -260,13 +257,10 @@ class CaptionBuilder(ParentBuilder):
 root = tk.Tk()
 app = CaptionBuilder(root)
 
-global tileset
+global tileset_path
 tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
 if len(sys.argv) > 3:
     tileset_path = sys.argv[3]
-
-with open(tileset_path, 'r') as f:
-    tileset = json.load(f)
 
 if len(sys.argv) > 1:
     app.load_data(sys.argv[1])

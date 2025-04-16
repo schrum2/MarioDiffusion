@@ -59,7 +59,11 @@ def describe_quantity(count):
 
 def get_tile_descriptors(tileset):
     """Creates a mapping from tile character to its list of descriptors."""
-    return {char: set(attrs) for char, attrs in tileset["tiles"].items()}
+    result = {char: set(attrs) for char, attrs in tileset["tiles"].items()}
+    # Fake tiles. Should these contain anything?
+    result["!"] = {}
+    result["*"] = {}
+    return result
 
 def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
     """Analyzes the last row of the 16x16 scene and generates a floor description."""
@@ -556,16 +560,30 @@ def generate_captions(dataset_path, tileset_path, output_path, describe_location
     save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence)
     print(f"Captioned dataset saved to {output_path}")
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence):
+def extract_tileset(tileset_path):
     # Load tileset
     with open(tileset_path, "r") as f:
         tileset = json.load(f)
         #print(f"tileset: {tileset}")
         tile_chars = sorted(tileset['tiles'].keys())
+        # I've been saying everywhere that the number of tiles is 15, but there are really only
+        # 13 types. I can't remember why I wanted the wiggle room, but I think I should keep it for
+        # now. However, this requires me to add some bogus tiles to the list.
+        tile_chars.append('!') 
+        tile_chars.append('*') 
+        print(f"tile_chars: {tile_chars}")
         id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+        print(f"id_to_char: {id_to_char}")
         char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+        print(f"char_to_id: {char_to_id}")
         tile_descriptors = get_tile_descriptors(tileset)
-        #print(f"tile_descriptors: {tile_descriptors}")
+        print(f"tile_descriptors: {tile_descriptors}")
+
+    return tile_chars, id_to_char, char_to_id, tile_descriptors
+
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence):
+
+    tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
     # Generate captions
     captioned_dataset = []

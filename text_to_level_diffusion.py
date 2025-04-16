@@ -4,7 +4,7 @@ from level_dataset import visualize_samples
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from caption_match import compare_captions
-from create_ascii_captions import assign_caption, get_tile_descriptors
+from create_ascii_captions import assign_caption, extract_tileset
 import json
 import argparse
 
@@ -37,12 +37,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         #print(next(self.pipe.text_encoder.parameters()).device)
 
         if args.tileset:
-            with open(args.tileset, "r") as f:
-                tileset = json.load(f)
-                tile_chars = sorted(tileset['tiles'].keys())
-                self.id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
-                self.char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-                self.tile_descriptors = get_tile_descriptors(tileset)
+            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(args.tileset)
 
         self.args = args
 

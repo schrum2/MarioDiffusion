@@ -11,7 +11,7 @@ from level_dataset import visualize_samples, convert_to_level_format, samples_to
 import json
 import random
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
-from create_ascii_captions import assign_caption, get_tile_descriptors, save_level_data
+from create_ascii_captions import assign_caption, get_tile_descriptors, save_level_data, extract_tileset
 from caption_match import compare_captions
 
 def parse_args():
@@ -49,12 +49,7 @@ def main():
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
 
-    with open(args.tileset, "r") as f:
-        tileset = json.load(f)
-        tile_chars = sorted(tileset['tiles'].keys())
-        id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
-        char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-        tile_descriptors = get_tile_descriptors(tileset)    
+    _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
         
     # Set seeds for reproducibility
     random.seed(args.seed)
