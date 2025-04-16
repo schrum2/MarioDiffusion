@@ -138,7 +138,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     checkpoint_dirs = sorted(checkpoint_dirs, key=lambda x: x[0])
     # Final model is saved in the output directory itself rather than a subdirectory
     if os.path.isdir(os.path.join(args.model_path, "unet")): # Make sure final successful save occurred
-        checkpoint_dirs.append(checkpoint_dirs[-1][0] + 1 , args.model_path)
+        checkpoint_dirs.append( (checkpoint_dirs[-1][0] + 1 , args.model_path) )
 
     scores_by_epoch = []
     for epoch, checkpoint_dir in checkpoint_dirs:
