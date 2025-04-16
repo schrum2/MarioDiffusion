@@ -107,7 +107,7 @@ def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
                 if not in_chunk:
                     chunks += 1
                     in_chunk = True
-            elif "passable" in tile_descriptors.get(id_to_char[tile], []):
+            elif "passable" in tile_descriptors.get(id_to_char[tile], []) or "enemy" in tile_descriptors.get(id_to_char[tile], []):
                 in_chunk = False
             else:
                 print("error")
