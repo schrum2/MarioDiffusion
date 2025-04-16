@@ -43,6 +43,16 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu" 
 
+    # Create output directory
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    with open(args.tileset, "r") as f:
+        tileset = json.load(f)
+        tile_chars = sorted(tileset['tiles'].keys())
+        id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+        char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+        tile_descriptors = get_tile_descriptors(tileset)    
+        
     # Set seeds for reproducibility
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -71,23 +81,25 @@ def main():
         drop_last=False
     )
 
-    with open(args.tileset, "r") as f:
-        tileset = json.load(f)
-        tile_chars = sorted(tileset['tiles'].keys())
-        id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
-        char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-        tile_descriptors = get_tile_descriptors(tileset)    
-        
-    # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    avg_score, all_samples = calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors)
 
+    print(f"Average caption adherence score: {avg_score:.4f}")
+    print(f"Generated {len(all_samples)} level samples")
+    
+    visualize_samples(all_samples, args.output_dir)
+
+    if args.save_as_json:
+        scenes = samples_to_scenes(all_samples)
+        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), args.describe_locations, args.describe_absence)
+
+def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors):
     score_sum = 0.0
     total_count = 0
     all_samples = []
     for batch_idx, batch in enumerate(dataloader):
         with torch.no_grad():  # Disable gradient computation to save memory
             # Unpack scenes and captions
-            scenes, sample_caption_tokens = batch
+            _, sample_caption_tokens = batch
 
             param_values = {
                 "captions" : sample_caption_tokens.to(device),
@@ -134,18 +146,10 @@ def main():
         print(f"Batch {batch_idx+1}/{len(dataloader)}:")
 
     avg_score = score_sum / total_count
-    print(f"Average caption adherence score: {avg_score:.4f}")
-    print(f"Total number of captions evaluated: {total_count}")
-
     # Concatenate all batches
     all_samples = torch.cat(all_samples, dim=0)[:total_count]
-    print(f"Generated {len(all_samples)} level samples")
-    
-    visualize_samples(all_samples, args.output_dir)
 
-    if args.save_as_json:
-        scenes = samples_to_scenes(all_samples)
-        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), args.describe_locations, args.describe_absence)
+    return (avg_score, all_samples)
 
 if __name__ == "__main__":
     main()
