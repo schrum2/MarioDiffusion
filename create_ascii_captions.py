@@ -131,6 +131,19 @@ def count_caption_phrase(scene, tiles, name, names, offset = 0, describe_absence
     else:
         return ""
 
+def describe_broken_cannons(scene, char_to_id):
+    count = 0
+    for r in range(len(scene)):
+        for c in range(len(scene[r])):
+            if scene[r][c] == char_to_id['b']:
+                if r == 0 or scene[r-1][c] != char_to_id['B']:
+                    count += 1
+
+    if count > 0:
+        return f" {describe_quantity(count) if coarse_counts else count} broken " + ("cannons" if pluralize and count > 1 else "cannon") + "."
+    else:
+        return ""
+
 def in_column(scene, x, tile):
     for row in scene:
         if row[x] == tile:
@@ -590,6 +603,8 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies", describe_absence=describe_absence)
     caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks", describe_absence=describe_absence)
     caption += count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons", describe_absence=describe_absence)
+
+    caption += describe_broken_cannons(scene, char_to_id)
 
     caption += count_caption_phrase(scene, [char_to_id['o']], "coin", "coins", describe_absence=describe_absence)
     # Coin lines - no passable/solid requirements
