@@ -23,13 +23,14 @@ def perturb_latents(latents):
     return latents + LATENT_NOISE_SCALE * torch.randn_like(latents)
 
 class DiffusionGenome:
-    def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None):
+    def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None, scene = None):
         self.width = width
         self.seed = seed
         self.num_inference_steps = steps
         self.guidance_scale = guidance_scale
         self.strength = strength
         self.latents = latents
+        self.scene = scene
         
         if randomize: 
             # Randomize all aspects of picture. Seed will drastically change it
@@ -67,6 +68,7 @@ class DiffusionGenome:
             f"steps={self.num_inference_steps},\n"
             f"guidance={self.guidance_scale},\n"
             f"strength={self.strength},\n"
+            f"scene={self.scene},\n"
             f"latents={display_embeddings(self.latents)})"
         )
     
@@ -79,6 +81,7 @@ class DiffusionGenome:
             "num_inference_steps" : self.num_inference_steps,
             "guidance_scale" : self.guidance_scale,
             "strength" : self.strength,
+            "scene" : self.scene,
             "latents" : self.latents
         }
 
