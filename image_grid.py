@@ -299,40 +299,68 @@ class ImageGridViewer:
                 photo = ImageTk.PhotoImage(thumb)
                 self.photo_images.append(photo)
                 
-                # Create button
+                # Create a container frame for image + buttons
+                frame = tk.Frame(self.image_frame)
+
+                # Image button
                 btn = tk.Button(
-                    self.image_frame,
+                    frame,
                     image=photo,
                     relief='solid',
                     borderwidth=2
                 )
-                
-                # Add tooltip
+                btn.pack()
+
+                # Tooltip for image
                 self._create_tooltip(btn, self.genomes[idx].__str__())
-                
-                # Configure selection behavior
+
+                # Selection behavior
                 btn.configure(
                     command=lambda i=idx, b=btn: self._toggle_selection(i, b)
                 )
-                
-                # Add double-click to expand image
+
+                # Double-click to expand
                 btn.bind('<Double-Button-1>', lambda event, i=idx: self._toggle_expanded_view(i))
-                
+
+                # "Play" button
+                play_button = tk.Button(
+                    frame,
+                    text="Play",
+                    command=lambda g=self.genomes[idx]: self._play_genome(g)
+                )
+                play_button.pack(fill='x', pady=(2, 0))
+
+                # "A* Agent" button
+                astar_button = tk.Button(
+                    frame,
+                    text="A* Agent",
+                    command=lambda g=self.genomes[idx]: self._run_astar_agent(g)
+                )
+                astar_button.pack(fill='x', pady=(0, 2))
+
                 # Position in grid
                 row = idx // grid_size
                 col = idx % grid_size
-                btn.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
+                frame.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
                 
                 # Configure grid weights to make buttons resize
                 self.image_frame.grid_rowconfigure(row, weight=1)
                 self.image_frame.grid_columnconfigure(col, weight=1)
                 
-                self.buttons.append(btn)
+                self.buttons.append(frame)
                 
                 # Update selected state if necessary
                 if idx in self.selected_images:
                     btn.configure(bg='blue')
-    
+
+    def _play_genome(self, genome):
+        print("Playing genome:", genome)
+        # Add actual play logic here
+
+    def _run_astar_agent(self, genome):
+        print("Running A* on genome:", genome)
+        # Add A* logic here
+
     def _toggle_selection(self, idx, button):
         # Don't toggle selection if in expanded view
         if self.expanded_view:
