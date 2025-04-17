@@ -1,7 +1,7 @@
 from diffusers import DDPMPipeline
 import torch
 from typing import Optional, Union, List, Tuple
-from diffusers.utils import randn_tensor
+from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.ddpm.pipeline_ddpm import ImagePipelineOutput
 
 class UnconditionalDDPMPipeline(DDPMPipeline):
