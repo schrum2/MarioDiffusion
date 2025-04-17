@@ -1,6 +1,5 @@
 """
-Represents a bunch of configuration settings for a call
-to Stable Diffusion. Can be mutated to change the configuration.
+Latent noise for diffusion model input. Can be mutated to change the configuration.
 """
 
 import random
@@ -10,8 +9,6 @@ MUTATE_MAX_STEP_DELTA = 10
 MUTATE_MAX_GUIDANCE_DELTA = 1.0
 
 SEED_CHANGE_RATE = 0.1
-USE_PROMPT_EMBEDDING_MUTATION_RATE = 0.5
-USE_INITIAL_LATENTS_MUTATION_RATE = 0.5
 LATENT_NOISE_SCALE = 0.1
 
 genome_id = 0
@@ -25,20 +22,12 @@ def display_embeddings(embeds):
 def perturb_latents(latents):
     return latents + LATENT_NOISE_SCALE * torch.randn_like(latents)
 
-class SDGenome:
-    def __init__(self, model, text_embedding_capture, size, prompt, negative_prompt, seed, steps, guidance_scale, randomize = True, parent_id = None, prompt_embeds = None, negative_prompt_embeds = None, pooled_prompt_embeds = None, negative_pooled_prompt_embeds = None, strength = 0.0, latents = None):
-        self.model = model
-        self.text_embedding_capture = text_embedding_capture
+class DiffusionGenome:
+    def __init__(self, size, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None):
         self.size = size
-        self.prompt = prompt
-        self.negative_prompt = negative_prompt
         self.seed = seed
         self.num_inference_steps = steps
         self.guidance_scale = guidance_scale
-        self.prompt_embeds = prompt_embeds
-        self.negative_prompt_embeds = negative_prompt_embeds
-        self.pooled_prompt_embeds = pooled_prompt_embeds
-        self.negative_pooled_prompt_embeds = negative_pooled_prompt_embeds
         self.strength = strength
         self.latents = latents
         
@@ -71,42 +60,29 @@ class SDGenome:
 
     def __str__(self):
         return (
-            f"SDGenome(model={self.model},\n"
-            f"size={self.size},\n"
+            f"DiffusionGenome(size={self.size},\n"
             f"id={self.id},\n"
             f"parent_id={self.parent_id},\n"
-            f"prompt=\"{self.prompt}\",\n"
-            f"negative_prompt=\"{self.negative_prompt}\",\n"
             f"seed={self.seed},\n"
             f"steps={self.num_inference_steps},\n"
             f"guidance={self.guidance_scale},\n"
-            f"prompt_embeds={display_embeddings(self.prompt_embeds)},\n"
-            f"negative_prompt_embeds={display_embeddings(self.negative_prompt_embeds)},\n"
-            f"pooled_prompt_embeds={display_embeddings(self.pooled_prompt_embeds)},\n"
-            f"negative_pooled_prompt_embeds={display_embeddings(self.negative_pooled_prompt_embeds)},\n"
             f"strength={self.strength},\n"
             f"latents={display_embeddings(self.latents)})"
         )
     
     def metadata(self):
         return {
-            "model" : self.model,
             "size" : self.size,
             "id" : self.id,
             "parent_id" : self.parent_id,
-            "prompt" : self.prompt,
-            "negative_prompt" : self.negative_prompt,
             "seed" : self.seed,
             "num_inference_steps" : self.num_inference_steps,
             "guidance_scale" : self.guidance_scale,
-            "prompt_embeds" : self.prompt_embeds,
-            "negative_prompt_embeds" : self.negative_prompt_embeds,
-            "pooled_prompt_embeds" : self.pooled_prompt_embeds,
-            "negative_pooled_prompt_embeds" : self.negative_pooled_prompt_embeds,
             "strength" : self.strength,
             "latents" : self.latents
         }
 
+    # DELETE THIS?
     def store_latents_in_genome(self):
         if self.latents == None:
             # Create the initial noise latents (this is what the pipeline does internally)
@@ -121,26 +97,7 @@ class SDGenome:
                 dtype=torch.float16
             ).to("cpu")
 
-    def store_text_embeddings_in_genome(self):
-        if self.prompt_embeds == None:
-            self.text_embedding_capture(self)
-
     def mutate(self):
-        if random.random() < USE_INITIAL_LATENTS_MUTATION_RATE:
-            if self.latents != None:
-                self.latents = None
-            else:
-                self.store_latents_in_genome()
-
-        if random.random() < USE_PROMPT_EMBEDDING_MUTATION_RATE:
-            if self.prompt_embeds != None:
-                self.prompt_embeds = None
-                self.negative_prompt_embeds = None
-                self.pooled_prompt_embeds = None
-                self.negative_pooled_prompt_embeds = None
-            else:
-                self.text_embedding_capture(self)
-
         if random.random() < SEED_CHANGE_RATE:
             # will be a big change
             self.set_seed(random.getrandbits(64))
@@ -148,29 +105,16 @@ class SDGenome:
             # Should be a small change
             self.change_inference_steps(random.randint(-MUTATE_MAX_STEP_DELTA, MUTATE_MAX_STEP_DELTA))
             self.change_guidance_scale(random.uniform(-MUTATE_MAX_GUIDANCE_DELTA, MUTATE_MAX_GUIDANCE_DELTA))
-            # Embeddings have been derived
-            if isinstance(self.prompt_embeds, torch.Tensor):
-                self.prompt_embeds = perturb_latents(self.prompt_embeds)
-                self.negative_prompt_embeds = perturb_latents(self.negative_prompt_embeds)
-            if isinstance(self.latents, torch.Tensor):
-                self.latents = perturb_latents(self.latents)
+            self.latents = perturb_latents(self.latents)
                 
     def mutated_child(self):
-        child = SDGenome(
-            self.model,
-            self.text_embedding_capture,
+        child = DiffusionGenome(
             self.size,
-            self.prompt,
-            self.negative_prompt,
             self.seed,
             self.num_inference_steps,
             self.guidance_scale,
             False,
             self.id,
-            self.prompt_embeds,
-            self.negative_prompt_embeds,
-            self.pooled_prompt_embeds,
-            self.negative_pooled_prompt_embeds,
             self.strength,
             self.latents
         )
