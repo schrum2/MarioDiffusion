@@ -25,7 +25,7 @@ class WGANEvolver(Evolver):
 
         # Load trained model
         try:
-            netG.load_state_dict(torch.load(args.model_path, map_location=device))
+            self.netG.load_state_dict(torch.load(args.model_path, map_location=self.device))
             print(f"Successfully loaded generator model from {args.model_path}")
         except Exception as e:
             print(f"Error loading model: {e}")
@@ -54,10 +54,10 @@ class WGANEvolver(Evolver):
         samples_cpu = generate_level_scene_from_latent(self.netG, noise)
         g.latents.to("cpu")
 
-        print(samples_cpu)
-        print(samples_cpu.shape)
+        #print(samples_cpu)
+        #print(samples_cpu.shape)
         sample_indices = convert_to_level_format(samples_cpu)
-        print(sample_indices)
+        #print(sample_indices)
         
         # Add level data to the list
         scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
