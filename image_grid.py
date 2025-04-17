@@ -322,21 +322,25 @@ class ImageGridViewer:
                 # Double-click to expand
                 btn.bind('<Double-Button-1>', lambda event, i=idx: self._toggle_expanded_view(i))
 
+                # Button container for horizontal layout
+                button_row = tk.Frame(frame)
+                button_row.pack(pady=(2, 2))
+
                 # "Play" button
                 play_button = tk.Button(
-                    frame,
+                    button_row,
                     text="Play",
                     command=lambda g=self.genomes[idx]: self._play_genome(g)
                 )
-                play_button.pack(fill='x', pady=(2, 0))
+                play_button.pack(side='left', padx=(0, 5))
 
                 # "A* Agent" button
                 astar_button = tk.Button(
-                    frame,
+                    button_row,
                     text="A* Agent",
                     command=lambda g=self.genomes[idx]: self._run_astar_agent(g)
                 )
-                astar_button.pack(fill='x', pady=(0, 2))
+                astar_button.pack(side='left')
 
                 # Position in grid
                 row = idx // grid_size
