@@ -98,27 +98,43 @@ class ImageGridViewer:
         )
         self.playall_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+        self.astarall_button = tk.Button(
+            self.button_frame,
+            text="Combine And A*",
+            command=self._run_astar_agent_all,
+            width=20
+        )
+        self.playall_button.pack(side=tk.LEFT, padx=5, pady=5)
+
         # Bind resize event
         self.root.bind('<Configure>', self._on_window_resize)
 
+    def _merge_selected(self):
+        selected_scenes = [self.genomes[i].scene for i in self.selected_images if self.genomes[i].scene]
+
+        # Ensure all selected scenes have the same number of rows
+        num_rows = len(selected_scenes[0])
+        if not all(len(scene) == num_rows for scene in selected_scenes):
+            raise ValueError("The selected genomes' scenes must have the same number of rows.")
+
+        concatenated_scene = []
+        for row_index in range(num_rows):
+            new_row = []
+            for scene in selected_scenes:
+                new_row.extend(scene[row_index])
+            concatenated_scene.append(new_row)
+
+        return concatenated_scene
+
     def _play_all(self):
         if self.selected_images:
-            selected_scenes = [self.genomes[i].scene for i in self.selected_images if self.genomes[i].scene]
-
-            # Ensure all selected scenes have the same number of rows
-            num_rows = len(selected_scenes[0])
-            if not all(len(scene) == num_rows for scene in selected_scenes):
-                raise ValueError("The selected genomes' scenes must have the same number of rows.")
-
-            concatenated_scene = []
-            for row_index in range(num_rows):
-                new_row = []
-                for scene in selected_scenes:
-                    new_row.extend(scene[row_index])
-                concatenated_scene.append(new_row)
-
-            level = self.get_sample_output(concatenated_scene)
+            level = self.get_sample_output(self._merge_selected())
             level.play()
+
+    def _run_astar_agent_all(self):
+        if self.selected_images:
+            level = self.get_sample_output(self._merge_selected())
+            level.run_astar()
 
     def clear_images(self):
         """Clears all images from the grid and resets selections."""
