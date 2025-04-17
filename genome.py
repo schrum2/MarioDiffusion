@@ -82,21 +82,6 @@ class DiffusionGenome:
             "latents" : self.latents
         }
 
-    # DELETE THIS?
-    def store_latents_in_genome(self):
-        if self.latents == None:
-            # Create the initial noise latents (this is what the pipeline does internally)
-            height = 16
-            width = self.width
-            num_channels_latents = 4 # Always 4? # self.pipe.unet.config.in_channels
-            latents_shape = (1, num_channels_latents, height // 8, width // 8)
-            self.latents = torch.randn(
-                latents_shape, 
-                generator=torch.Generator("cuda").manual_seed(self.seed), 
-                device="cuda", 
-                dtype=torch.float16
-            ).to("cpu")
-
     def mutate(self):
         if random.random() < SEED_CHANGE_RATE:
             # will be a big change
