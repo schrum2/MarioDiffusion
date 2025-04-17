@@ -4,6 +4,7 @@ from math import ceil, sqrt
 import io
 import re
 import json
+from sampler import SampleOutput
 
 """
 This class was made by Claude: https://claude.ai/
@@ -24,6 +25,8 @@ class ImageGridViewer:
         self.expanded_view = False  # Tracks if an image is currently expanded
         self.expanded_image_idx = None  # Tracks which image is expanded
         
+        self.id_to_char = None # Will come later
+
         # Initial window sizing
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
@@ -357,13 +360,27 @@ class ImageGridViewer:
                 if idx in self.selected_images:
                     btn.configure(bg='blue')
 
+    def get_sample_output(self, genome):
+        tile_numbers = genome.scene
+        #print(tile_numbers)
+        char_grid = []
+        for row in tile_numbers:
+            char_row = "".join([self.id_to_char[num] for num in row])
+            char_grid.append(char_row)
+
+        #print(char_grid)
+        level = SampleOutput(
+            level = char_grid
+        )
+        return level
+
     def _play_genome(self, genome):
-        print("Playing genome:", genome)
-        # Add actual play logic here
+        level = self.get_sample_output(genome)
+        level.play()
 
     def _run_astar_agent(self, genome):
-        print("Running A* on genome:", genome)
-        # Add A* logic here
+        level = self.get_sample_output(genome)
+        level.run_astar()
 
     def _toggle_selection(self, idx, button):
         # Don't toggle selection if in expanded view
