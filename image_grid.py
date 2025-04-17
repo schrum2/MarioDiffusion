@@ -362,6 +362,7 @@ class ImageGridViewer:
 
     def get_sample_output(self, genome):
         tile_numbers = genome.scene
+        #print(self.id_to_char)
         #print(tile_numbers)
         char_grid = []
         for row in tile_numbers:
