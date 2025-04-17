@@ -69,7 +69,7 @@ python ascii_data_browser.py unconditional_model_samples\all_levels.json
 ```
 Evolve level scenes in the latent space of the model:
 ```
-python evolution.py --model_path unconditional-model
+python evolve_unconditional_diffusion.py --model_path unconditional-model
 ```
 
 
