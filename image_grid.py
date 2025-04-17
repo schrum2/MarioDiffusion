@@ -104,7 +104,7 @@ class ImageGridViewer:
             command=self._run_astar_agent_all,
             width=20
         )
-        self.playall_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.astarall_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         # Bind resize event
         self.root.bind('<Configure>', self._on_window_resize)
