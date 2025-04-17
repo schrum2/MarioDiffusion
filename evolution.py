@@ -11,6 +11,7 @@ from latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from caption_match import compare_captions
 from create_ascii_captions import assign_caption, extract_tileset
+import numpy as np
 import argparse
 
 class Evolver(ABC):
@@ -147,12 +148,14 @@ class DiffusionEvolver(Evolver):
 
         g.latents.to("cpu")
 
+        images = torch.tensor(images).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
+
         # Convert to indices
-        sample_tensor = images[0].unsqueeze(0)
-        sample_indices = convert_to_level_format(sample_tensor)
+        #sample_tensor = torch.tensor(images[0])
+        #sample_indices = convert_to_level_format(sample_tensor)
         
         # Add level data to the list
-        scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
+        #scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
  
         # actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False) # self.args.describe_locations, self.args.describe_absence)
 

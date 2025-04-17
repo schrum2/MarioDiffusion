@@ -41,7 +41,7 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
             image = self.scheduler.step(model_output, t, image, generator=generator).prev_sample
 
         image = (image / 2 + 0.5).clamp(0, 1)
-        image = image.cpu().permute(0, 2, 3, 1).numpy()
+        image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
 
         if output_type == "pil":
             image = self.numpy_to_pil(image)
