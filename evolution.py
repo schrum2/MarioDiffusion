@@ -6,6 +6,7 @@ import torch
 from abc import ABC, abstractmethod
 from level_dataset import visualize_samples
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
+from diffusers import DDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from caption_match import compare_captions
 from create_ascii_captions import assign_caption, extract_tileset
@@ -105,7 +106,7 @@ class DiffusionEvolver(Evolver):
 
         self.width = width
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.pipe = TextConditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
+        self.pipe = DDPMPipeline.from_pretrained(model_path).to(self.device)
 
         _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
