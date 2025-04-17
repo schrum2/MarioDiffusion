@@ -23,8 +23,8 @@ def perturb_latents(latents):
     return latents + LATENT_NOISE_SCALE * torch.randn_like(latents)
 
 class DiffusionGenome:
-    def __init__(self, size, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None):
-        self.size = size
+    def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None):
+        self.width = width
         self.seed = seed
         self.num_inference_steps = steps
         self.guidance_scale = guidance_scale
@@ -60,7 +60,7 @@ class DiffusionGenome:
 
     def __str__(self):
         return (
-            f"DiffusionGenome(size={self.size},\n"
+            f"DiffusionGenome(width={self.width},\n"
             f"id={self.id},\n"
             f"parent_id={self.parent_id},\n"
             f"seed={self.seed},\n"
@@ -72,7 +72,7 @@ class DiffusionGenome:
     
     def metadata(self):
         return {
-            "size" : self.size,
+            "width" : self.width,
             "id" : self.id,
             "parent_id" : self.parent_id,
             "seed" : self.seed,
@@ -86,8 +86,8 @@ class DiffusionGenome:
     def store_latents_in_genome(self):
         if self.latents == None:
             # Create the initial noise latents (this is what the pipeline does internally)
-            height = self.size
-            width = self.size
+            height = 16
+            width = self.width
             num_channels_latents = 4 # Always 4? # self.pipe.unet.config.in_channels
             latents_shape = (1, num_channels_latents, height // 8, width // 8)
             self.latents = torch.randn(
@@ -109,7 +109,7 @@ class DiffusionGenome:
                 
     def mutated_child(self):
         child = DiffusionGenome(
-            self.size,
+            self.width,
             self.seed,
             self.num_inference_steps,
             self.guidance_scale,
