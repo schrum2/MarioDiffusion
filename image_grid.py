@@ -24,6 +24,7 @@ class ImageGridViewer:
         self.generation_fn = generation_fn # get current generation number
         self.expanded_view = False  # Tracks if an image is currently expanded
         self.expanded_image_idx = None  # Tracks which image is expanded
+        self.added_image_indexes = []
         
         self.id_to_char = None # Will come later
 
@@ -36,23 +37,37 @@ class ImageGridViewer:
         window_height = int(screen_height * 0.75)
         root.geometry(f"{window_width}x{window_height}")
 
-        # Create main container frame
+
         self.main_container = tk.Frame(self.root)
         self.main_container.pack(expand=True, fill=tk.BOTH)
-        
-        # Create frame for images with weight=1 to allow expansion
+
+        self.main_container.rowconfigure(0, weight=1)  # Image grid gets priority
+        self.main_container.rowconfigure(1, weight=0)  # Bottom frame is fixed
+        self.main_container.columnconfigure(0, weight=1)
+
+        # Image grid
         self.image_frame = tk.Frame(self.main_container)
-        self.image_frame.pack(expand=True, fill=tk.BOTH, pady=10)
+        self.image_frame.grid(row=0, column=0, sticky="nsew", pady=(10, 5))
+
+        # Constructed level frame
+        self.bottom_frame = tk.Frame(self.main_container, height=150, bg="lightgrey")
+        self.bottom_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
+        self.bottom_frame.grid_propagate(False)
+
         
         # Create frame for control buttons and text inputs
-        self.control_frame = tk.Frame(self.main_container, height=120)  # Increased height for text fields
-        self.control_frame.pack(fill=tk.X, pady=5, padx=10)
-        self.control_frame.pack_propagate(False)  # Prevent frame from shrinking
+        self.control_frame = tk.Frame(self.main_container, height=120)
+        self.control_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
+        self.control_frame.grid_propagate(False)
+
+        #self.control_frame.pack_propagate(False)  # Prevent frame from shrinking
         
         # Create button frame
         self.button_frame = tk.Frame(self.control_frame)
         self.button_frame.pack(fill=tk.X)
         
+        self.main_container.rowconfigure(2, weight=0)  # Ensure control frame doesn't expand
+
         # Add Back button
         self.back_button = tk.Button(
             self.button_frame,
@@ -114,13 +129,21 @@ class ImageGridViewer:
         )
         self.play_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.added_image_indexes = []
-        self.bottom_frame = tk.Frame(self.main_container, height=150, bg="lightgrey")
-        self.bottom_frame.pack(fill=tk.X, padx=10, pady=5)
-        self.bottom_frame.pack_propagate(False)
+        self.clear_composed_button = tk.Button(
+            self.button_frame,
+            text="Clear Composed Level",
+            command=self._clear_composed_level,
+            width=20
+        )
+        self.clear_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         # Bind resize event
         self.root.bind('<Configure>', self._on_window_resize)
+
+    def _clear_composed_level(self):
+        self.added_image_indexes.clear()
+        for widget in self.bottom_frame.winfo_children():
+            widget.destroy()
 
     def _play_composed_level(self):
         if self.added_image_indexes:
