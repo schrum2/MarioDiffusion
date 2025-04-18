@@ -106,21 +106,22 @@ class ImageGridViewer:
         )
         self.close_button.pack(side=tk.LEFT, padx=5, pady=5)
         
-        self.playall_button = tk.Button(
-            self.button_frame,
-            text="Combine And Play",
-            command=self._play_all,
-            width=20
-        )
-        self.playall_button.pack(side=tk.LEFT, padx=5, pady=5)
+        # Don't need these now that levels can be built
+        #self.playall_button = tk.Button(
+        #    self.button_frame,
+        #    text="Combine And Play",
+        #    command=self._play_all,
+        #    width=20
+        #)
+        #self.playall_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.astarall_button = tk.Button(
-            self.button_frame,
-            text="Combine And A*",
-            command=self._run_astar_agent_all,
-            width=20
-        )
-        self.astarall_button.pack(side=tk.LEFT, padx=5, pady=5)
+        #self.astarall_button = tk.Button(
+        #    self.button_frame,
+        #    text="Combine And A*",
+        #    command=self._run_astar_agent_all,
+        #    width=20
+        #)
+        #self.astarall_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.play_composed_button = tk.Button(
             self.button_frame,
@@ -129,6 +130,14 @@ class ImageGridViewer:
             width=20
         )
         self.play_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.astar_composed_button = tk.Button(
+            self.button_frame,
+            text="A* Composed Level",
+            command=self._astar_composed_level,
+            width=20
+        )
+        self.astar_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.clear_composed_button = tk.Button(
             self.button_frame,
@@ -151,6 +160,11 @@ class ImageGridViewer:
         if self.added_image_indexes:
             level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
             level.play()
+
+    def _astar_composed_level(self):
+        if self.added_image_indexes:
+            level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
+            level.run_astar()
 
     def _merge_selected(self, indexes=None):
         if indexes is None:
