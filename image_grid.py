@@ -88,14 +88,15 @@ class ImageGridViewer:
         )
         self.done_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+        # This saves images, so not needed
         # Add Save button
-        self.save_button = tk.Button(
-            self.button_frame,
-            text="Save Selected",
-            command=self._save_selected,
-            width=20
-        )
-        self.save_button.pack(side=tk.LEFT, padx=5, pady=5)
+        #self.save_button = tk.Button(
+        #    self.button_frame,
+        #    text="Save Selected",
+        #    command=self._save_selected,
+        #    width=20
+        #)
+        #self.save_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         # Add Close button
         self.close_button = tk.Button(
@@ -139,6 +140,14 @@ class ImageGridViewer:
         )
         self.astar_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+        self.save_composed_button = tk.Button(
+            self.button_frame,
+            text="Save Composed Level",
+            command=self._save_composed_level,
+            width=20
+        )
+        self.save_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
+
         self.clear_composed_button = tk.Button(
             self.button_frame,
             text="Clear Composed Level",
@@ -155,6 +164,13 @@ class ImageGridViewer:
         self.bottom_thumbnails.clear()
         for widget in self.bottom_frame.winfo_children():
             widget.destroy()
+
+    def _save_composed_level(self):
+        if self.added_image_indexes:
+            level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
+            filename = "MarioLevel.txt"
+            level.save(filename)
+            print(f"Saved {filename}")
 
     def _play_composed_level(self):
         if self.added_image_indexes:
