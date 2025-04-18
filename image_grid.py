@@ -106,11 +106,31 @@ class ImageGridViewer:
         )
         self.astarall_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+        self.play_composed_button = tk.Button(
+            self.button_frame,
+            text="Play Composed Level",
+            command=self._play_composed_level,
+            width=20
+        )
+        self.play_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.added_image_indexes = []
+        self.bottom_frame = tk.Frame(self.main_container, height=150, bg="lightgrey")
+        self.bottom_frame.pack(fill=tk.X, padx=10, pady=5)
+        self.bottom_frame.pack_propagate(False)
+
         # Bind resize event
         self.root.bind('<Configure>', self._on_window_resize)
 
-    def _merge_selected(self):
-        selected_scenes = [self.genomes[i].scene for i in self.selected_images if self.genomes[i].scene]
+    def _play_composed_level(self):
+        if self.added_image_indexes:
+            level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
+            level.play()
+
+    def _merge_selected(self, indexes=None):
+        if indexes is None:
+            indexes = self.selected_images
+        selected_scenes = [self.genomes[i].scene for i in indexes if self.genomes[i].scene]
 
         # Ensure all selected scenes have the same number of rows
         num_rows = len(selected_scenes[0])
@@ -388,6 +408,14 @@ class ImageGridViewer:
                 )
                 astar_button.pack(side='left')
 
+                # "Add To Level" button
+                add_button = tk.Button(
+                    button_row,
+                    text="Add To Level",
+                    command=lambda i=idx: self._add_to_level(i)
+                )
+                add_button.pack(side='left', padx=(5, 0))
+
                 # Position in grid
                 row = idx // grid_size
                 col = idx % grid_size
@@ -402,6 +430,17 @@ class ImageGridViewer:
                 # Update selected state if necessary
                 if idx in self.selected_images:
                     btn.configure(bg='blue')
+
+    def _add_to_level(self, idx):
+        self.added_image_indexes.append(idx)
+        # Display thumbnail in bottom frame
+        img = self.images[idx].copy()
+        img.thumbnail((64, 64), Image.Resampling.LANCZOS)
+        photo = ImageTk.PhotoImage(img)
+        self.photo_images.append(photo)  # Prevent GC
+
+        label = tk.Label(self.bottom_frame, image=photo)
+        label.pack(side=tk.LEFT, padx=2)
 
     def get_sample_output(self, scene):
         tile_numbers = scene
