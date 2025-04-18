@@ -224,6 +224,8 @@ class ImageGridViewer:
         max_thumb_height = (window_height - (grid_size + 1) * 10 - padding) // grid_size
         
         # Ensure thumbnail has equal width and height
+        button_height = 40  # Estimated height for buttons below image
+        max_thumb_height -= button_height
         thumbnail_size = min(max_thumb_width, max_thumb_height)
         
         return (thumbnail_size, thumbnail_size)
