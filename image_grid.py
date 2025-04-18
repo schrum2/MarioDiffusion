@@ -17,6 +17,7 @@ class ImageGridViewer:
         self.images = []  # Stores PIL Image objects
         self.genomes = []
         self.photo_images = []  # Stores PhotoImage objects (needed to prevent garbage collection)
+        self.bottom_thumbnails = []  # Prevent GC for bottom frame thumbnails
         self.selected_images = set()  # Tracks which images are selected
         self.buttons = []  # Stores the button widgets
         self.callback_fn = callback_fn
@@ -142,6 +143,7 @@ class ImageGridViewer:
 
     def _clear_composed_level(self):
         self.added_image_indexes.clear()
+        self.bottom_thumbnails.clear()
         for widget in self.bottom_frame.winfo_children():
             widget.destroy()
 
@@ -462,7 +464,7 @@ class ImageGridViewer:
         img = self.images[idx].copy()
         img.thumbnail((64, 64), Image.Resampling.LANCZOS)
         photo = ImageTk.PhotoImage(img)
-        self.photo_images.append(photo)  # Prevent GC
+        self.bottom_thumbnails.append(photo)  # Prevent GC
 
         label = tk.Label(self.bottom_frame, image=photo)
         label.pack(side=tk.LEFT, padx=2)
@@ -509,6 +511,9 @@ class ImageGridViewer:
 
     def _handle_done(self):
         """Called when Evolve button is clicked"""
+
+        # It might be nice to built up the level across generations, but is easier to clear it each time
+        self._clear_composed_level()
 
         self.done_button.config(text="Reset")
         if self.callback_fn:
