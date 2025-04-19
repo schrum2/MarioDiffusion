@@ -658,7 +658,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
     caption += describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
-    return caption
+    return caption.strip()
 
 if __name__ == "__main__":
     import argparse

@@ -158,7 +158,7 @@ if __name__ == "__main__":
     print("\nValidation of example sentences:")
     for sentence in example_sentences:
         is_valid = generator.is_valid_sentence(sentence)
-        print(f"- {'✓' if is_valid else '✗'} {sentence}")
+        print(f"- {'GOOD' if is_valid else ' BAD'} {sentence}")
         if not is_valid:
             print(f"  Topics found: {generator.parse_sentence(sentence)}")
     
