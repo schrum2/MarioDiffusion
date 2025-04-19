@@ -67,7 +67,9 @@ def main():
         if len(validation_captions) % 10 == 0:
             print(f"Valid captions so far {len(validation_captions)}")
 
-
+    with open(args.save_file, 'w') as f:
+        json.dump(validation_captions, f, indent=4)
+    print(f"List successfully saved to '{args.save_file}'")
 
 if __name__ == "__main__":
     main()
