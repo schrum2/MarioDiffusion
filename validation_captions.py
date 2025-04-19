@@ -39,7 +39,7 @@ def main():
     )
 
     for i in range(len(dataset)):
-        caption = dataset[i]
+        caption = dataset.get_sample_caption(i)
         print(caption)
 
 
