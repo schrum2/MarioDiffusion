@@ -370,7 +370,7 @@ def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptor
             continue
         tile = scene[row][col]
         descriptors = tile_descriptors.get(id_to_char[tile], [])
-        if "solid" not in descriptors or (not pipes and "pipe" in descriptors):
+        if "solid" not in descriptors or (not pipes and "pipe" in descriptors) or (pipes and "pipe" not in descriptors):
             continue
 
         visited.add((row, col))
@@ -381,6 +381,8 @@ def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptor
             # Weird special case for adjacent pipes
             if (id_to_char[tile] == '>' or id_to_char[tile] == ']') and d_col == 1: # if on the right edge of a pipe
                 continue # Don't go right if on the right edge of a pipe
+            if (id_to_char[tile] == '<' or id_to_char[tile] == '[') and d_col == -1: # if on the left edge of a pipe
+                continue # Don't go left if on the left edge of a pipe
 
             n_row, n_col = row + d_row, col + d_col
             if 0 <= n_row < len(scene) and 0 <= n_col < len(scene[0]):
@@ -456,6 +458,17 @@ def valid_pipe(top_row, left_column, scene, char_to_id):
 
         return True
 
+    #for r in scene: print(r)
+    #print(left_column == len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<'])
+    #print(left_column == len(scene[0]) - 1)
+    #print(scene[top_row][left_column] == char_to_id['<'])
+    #print(left_column)
+    #print(top_row)
+    #print(scene[top_row][left_column])
+    #print(char_to_id['<'])
+    #print(char_to_id)
+    #raise ValueError("broken pipe how?")
+
     return False
 
 def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None):
@@ -480,6 +493,9 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
             if valid_pipe(min_row, min_col, scene, char_to_id):
                 desc = "pipe"
             else:
+                #print(struct)
+                #for r in scene: print(r)
+                #raise ValueError("why broken?")
                 desc = "broken pipe"
         else:
             if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
