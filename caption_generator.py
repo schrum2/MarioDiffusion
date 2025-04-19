@@ -28,19 +28,23 @@ class GrammarGenerator:
         # These are the keywords used to identify topics
         self.topic_keywords = [
             "floor", "ceiling", 
-            "broken pipe", "pipe", 
+            # "broken pipe", 
+            "pipe", 
             "coin line", "coin",
             "platform", "tower", "wall", 
-            "broken cannon", "cannon",
+            # "broken cannon", 
+            "cannon",
             "ascending staircase", "descending staircase",
             "irregular", "question block", "enem"
         ]
         
         # Define topic groups that are mutually exclusive
-        self.exclusive_groups = [
-            {"broken pipe", "pipe"},
-            {"broken cannon", "cannon"}
-        ]
+        # Wrong: there can be a mix of valid and broken pipes
+        #self.exclusive_groups = [
+        #    {"broken pipe", "pipe"},
+        #    {"broken cannon", "cannon"}
+        #]
+        self.exclusive_groups = []
 
     def get_topic_from_phrase(self, phrase: str) -> Optional[str]:
         """Identify which topic a phrase belongs to."""
@@ -49,7 +53,7 @@ class GrammarGenerator:
                 return keyword
         return None
 
-    def generate_sentence(self, min_topics: int = 3, max_topics: int = 6) -> str:
+    def generate_sentence(self, min_topics: int = 1, max_topics: int = 10) -> str:
         """Generate a random sentence with a specified number of topics."""
         # Decide how many topics to include
         num_topics = random.randint(min_topics, max_topics)
@@ -72,7 +76,7 @@ class GrammarGenerator:
             available_topics.remove(topic)
             used_topics.add(topic)
             
-            # Remove any topics that are exclusive with the selected topic
+            # Remove any topics that are exclusive with the selected topic (should not be needed, but doesn't hurt)
             for group in self.exclusive_groups:
                 if topic in group:
                     for exclusive_topic in group:
@@ -163,5 +167,5 @@ if __name__ == "__main__":
             print(f"  Topics found: {generator.parse_sentence(sentence)}")
     
     # Test custom sentence
-    custom_sentence = "full floor. one pipe. one broken pipe."  # This should be invalid due to exclusive groups
+    custom_sentence = "full floor. one pipe. one broken pipe."  # This should be invalid due to "broken"
     print(f"\nCustom test - '{custom_sentence}': {'Valid' if generator.is_valid_sentence(custom_sentence) else 'Invalid'}")
