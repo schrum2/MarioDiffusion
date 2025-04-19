@@ -592,6 +592,13 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     for scene in dataset:
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
+        if "broken" in caption:
+            print(caption)
+            for row in scene:
+                print(row)
+            print(f"Samples so far: {len(captioned_dataset)}")
+            raise ValueError(f"{caption}: should not contain 'broken' from valid training data.")
+
         captioned_dataset.append({
             "scene": scene,
             "caption": caption

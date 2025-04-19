@@ -54,7 +54,7 @@ class Tokenizer:
         encoded = []
         for tok in tokens:
             if tok not in self.token_to_id:
-                raise ValueError(f"Unknown token encountered: {tok}")
+                raise ValueError(f"Unknown token encountered: {tok} in {text}")
             encoded.append(self.token_to_id[tok])
         return encoded
 
