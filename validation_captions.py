@@ -6,7 +6,8 @@ import numpy as np
 from level_dataset import LevelDataset, visualize_samples
 from tokenizer import Tokenizer 
 import json
-
+from caption_generator import GrammarGenerator
+from caption_match import compare_captions
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Create validation set of captions")
@@ -17,7 +18,8 @@ def parse_args():
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
     
     # Output args
-    parser.add_argument("--output_dir", type=str, default="level-diffusion-output", help="Output directory")
+    parser.add_argument("--save_file", type=str, default="SMB1_ValidationCaptions.json", help="Output file")
+    parser.add_argument("--validation_set_size", type=int, default=100, help="Number of captions for validating generation abilities of model")
     
     return parser.parse_args()
 
@@ -38,9 +40,33 @@ def main():
         num_tiles=args.num_tiles
     )
 
-    for i in range(len(dataset)):
-        caption = dataset.get_sample_caption(i)
-        print(caption)
+    #for i in range(len(dataset)):
+    #    caption = dataset.get_sample_caption(i)
+    #    print(caption)
+
+    generator = GrammarGenerator()
+
+    validation_captions = []
+    while len(validation_captions) < args.validation_set_size:
+        new_caption = generator.generate_sentence()
+        caption_is_new = True
+        # Compare against every caption of original dataset
+        for i in range(len(dataset)):
+            caption = dataset.get_sample_caption(i)
+            compare_score = compare_captions(caption, new_caption)
+            caption_is_new = compare_score != 1.0 # Perfect score of 1.0 if captions are the same
+            if not caption_is_new:
+                break
+
+        if not caption_is_new:
+            print(f"Discarded duplicate: {new_caption} same as {caption}")
+            continue
+        else:
+            validation_captions.append(new_caption)
+
+        if len(validation_captions) % 10 == 0:
+            print(f"Valid captions so far {len(validation_captions)}")
+
 
 
 if __name__ == "__main__":

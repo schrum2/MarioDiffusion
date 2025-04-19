@@ -5,6 +5,7 @@ QUANTITY_TERMS = ["one", "two", "a few", "several", "many"]
 
 # Topics to compare
 TOPIC_KEYWORDS = [
+    "giant gap", 
     "floor", "ceiling", 
     "broken pipe", "pipe", 
     "coin line", "coin",
@@ -148,7 +149,7 @@ def compare_captions(correct_caption, generated_caption, debug=False):
 if __name__ == '__main__':
 
     ref = "floor with one gap. two enemies. one platform. one tower."
-    gen = "floor with one gap. two enemies. one platform. two towers."
+    gen = "giant gap with one chunk of floor. two enemies. one platform. one tower."
 
     score = compare_captions(ref, gen, debug=True)
     print(f"Should be: {ref}")
