@@ -40,7 +40,7 @@ python ascii_data_browser.py SMB1_LevelsAndCaptions.json
 ```
 Make a separate validate set of captions with this command:
 ```
-python validation_captions.py
+python validation_captions.py --save_file "SMB1_ValidationCaptions.json"
 ```
 
 
