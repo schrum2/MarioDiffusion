@@ -24,7 +24,7 @@ pip install -r requirements.txt
 
 
 
-STEPS TO TRAIN A DISCRETE DIFFUSION MODEL:
+CREATE DIFFUSION DATASETS
 
 Extract a json data set of 16 by 16 level scenes from the VGLC data for Super Mario Bros with this command:
 ```
@@ -38,6 +38,17 @@ Now you can browse the level scenes and their captions with this command:
 ```
 python ascii_data_browser.py SMB1_LevelsAndCaptions.json 
 ```
+Make a separate validate set of captions with this command:
+```
+python validation_captions.py
+```
+
+
+
+
+TEXT TO LEVEL MODEL
+
+
 Create a tokenizer for this data with this command:
 ```
 python tokenizer.py save
