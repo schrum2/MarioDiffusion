@@ -4,7 +4,7 @@ from math import ceil, sqrt
 import io
 import re
 import json
-from sampler import SampleOutput
+from util.sampler import SampleOutput
 
 """
 Handles evolution in the latent space for generating level scenes.

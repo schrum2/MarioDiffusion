@@ -13,7 +13,7 @@ import os
 import threading
 import time
 from datetime import datetime
-from loss_plotter import LossPlotter
+from util.loss_plotter import LossPlotter
 
 def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
 

@@ -10,7 +10,7 @@ from level_dataset import LevelDataset, visualize_samples
 import json
 import threading
 from datetime import datetime
-from loss_plotter import LossPlotter
+from util.loss_plotter import LossPlotter
 from tokenizer import Tokenizer
 from wgan_model import WGAN_Generator, WGAN_Discriminator
 

@@ -14,7 +14,7 @@ from tokenizer import Tokenizer
 import json
 import threading
 from datetime import datetime
-from loss_plotter import LossPlotter
+from util.loss_plotter import LossPlotter
 from models import TransformerModel
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
 
