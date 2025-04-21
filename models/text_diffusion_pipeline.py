@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from typing import NamedTuple
 import os
 from diffusers import DDPMPipeline, UNet2DConditionModel, DDPMScheduler
-from models import TransformerModel  
+from models.text_model import TransformerModel  
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
