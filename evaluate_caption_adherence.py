@@ -141,7 +141,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
         
         avg_score, _ = calculate_caption_score_and_samples(
-            args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors
+            args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors, output=False
         )
         
         print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
@@ -149,7 +149,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors):
+def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors, output=True):
     score_sum = 0.0
     total_count = 0
     all_samples = []
@@ -168,7 +168,7 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
             }
             generator = torch.Generator(device).manual_seed(int(args.seed))
             
-            samples = pipe(generator=generator, **param_values).images
+            samples = pipe(generator=generator, progress_bar=False, **param_values).images
 
             # Convert shape if needed (DO I EVEN NEED THIS?)
             if isinstance(samples, torch.Tensor):
@@ -188,7 +188,7 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
 
                 caption = pipe.text_encoder.tokenizer.decode(caption_tokens.tolist())
                 caption = caption.replace("[PAD]", "").replace(" .", ".").strip()
-                print(f"\t{caption}")
+                if output: print(f"\t{caption}")
 
                 compare_score = compare_captions(caption, actual_caption)
 
