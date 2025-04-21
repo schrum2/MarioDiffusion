@@ -68,7 +68,7 @@ python masked_token_prediction.py --model_path mlm
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --augment --output_dir "unconditional-model" --num_epochs 300
+python train_diffusion.py --augment --output_dir "unconditional-model" --num_epochs 200
 ```
 Run trained diffusion model and save 100 random levels to json
 ```
@@ -91,7 +91,7 @@ python evolve_unconditional_diffusion.py --model_path unconditional-model
 
 Train a diffusion model conditioned on text embeddings from the descriptive captions:
 ```
-python train_diffusion.py --augment --text_conditional --output_dir "conditional-model" --num_epochs 300
+python train_diffusion.py --augment --text_conditional --output_dir "conditional-model" --num_epochs 200
 ```
 To generate random levels (based on random text embeddings), use this command:
 ```
@@ -113,10 +113,16 @@ Evaluate the model's ability to adhere to input captions:
 ```
 python evaluate_caption_adherence.py --model_path conditional-model --save_as_json
 ```
-Evaluate the how caption adherence changed during training:
+Evaluate the how caption adherence changed during training with respect to the training set:
 ```
-python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints
+python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints --output_dir text_to_level_training
 ```
+Evaluate the how caption adherence changed during training with respect to a validation set:
+```
+python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints --json SMB1_ValidationCaptions.json --output_dir text_to_level_validation
+```
+
+
 
 
 
