@@ -66,7 +66,7 @@ def main():
         json_path=args.json,
         tokenizer=pipe.text_encoder.tokenizer,
         shuffle=False,
-        mode="diffusion",
+        mode="mlm",
         augment=False,
         num_tiles=args.num_tiles
     )
