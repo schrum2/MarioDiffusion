@@ -7,7 +7,7 @@ from tqdm import tqdm
 from level_dataset import LevelDataset
 from tokenizer import Tokenizer
 from models.text_model import TransformerModel
-from masked_token_prediction import evaluate_model, masked_inputs
+from evaluate_masked_token_prediction import evaluate_model, masked_inputs
 import json
 import os
 import threading
