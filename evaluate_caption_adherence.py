@@ -157,7 +157,7 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
     for batch_idx, batch in enumerate(dataloader):
         with torch.no_grad():  # Disable gradient computation to save memory
             # Unpack scenes and captions
-            _, sample_caption_tokens = batch
+            sample_caption_tokens = batch
 
             param_values = {
                 "captions" : sample_caption_tokens.to(device),
