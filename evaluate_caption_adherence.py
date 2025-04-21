@@ -6,10 +6,9 @@ import random
 import numpy as np
 from level_dataset import LevelDataset, visualize_samples
 import json
-from text_diffusion_pipeline import TextConditionalDDPMPipeline
+from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
 import json
-from text_diffusion_pipeline import TextConditionalDDPMPipeline
 from create_ascii_captions import assign_caption, save_level_data, extract_tileset
 from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
