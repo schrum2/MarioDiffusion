@@ -1,4 +1,4 @@
-from image_grid import ImageGridViewer
+from evolution.image_grid import ImageGridViewer
 import tkinter as tk
 import random
 from abc import ABC, abstractmethod
@@ -89,5 +89,5 @@ class Evolver(ABC):
             # Update the GUI to show new image
             self.root.update()
     
-        print("Make selections and click \"Evolve\"")        
+        print("Make selections and click \"Evolve\"")
 

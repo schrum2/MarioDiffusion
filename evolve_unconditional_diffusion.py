@@ -1,4 +1,4 @@
-from evolution import Evolver
+from evolution.evolution import Evolver
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from create_ascii_captions import extract_tileset
