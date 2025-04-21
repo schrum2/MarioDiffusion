@@ -10,7 +10,7 @@ from gui_shared import ParentBuilder
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from util.sampler import SampleOutput
-from caption_match import compare_captions
+from captions.caption_match import compare_captions
 from create_ascii_captions import assign_caption, extract_tileset
 
 class CaptionBuilder(ParentBuilder):

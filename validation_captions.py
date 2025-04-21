@@ -2,8 +2,8 @@ import argparse
 from level_dataset import LevelDataset
 from tokenizer import Tokenizer 
 import json
-from caption_generator import GrammarGenerator
-from caption_match import compare_captions
+from captions.caption_generator import GrammarGenerator
+from captions.caption_match import compare_captions
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Create validation set of captions")
