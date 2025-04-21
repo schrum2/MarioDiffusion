@@ -12,6 +12,7 @@ import json
 from text_diffusion_pipeline import TextConditionalDDPMPipeline
 from create_ascii_captions import assign_caption, save_level_data, extract_tileset
 from caption_match import compare_captions
+from tqdm.auto import tqdm
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
@@ -136,14 +137,14 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         checkpoint_dirs.append( (checkpoint_dirs[-1][0] + 1 , args.model_path) )
 
     scores_by_epoch = []
-    for epoch, checkpoint_dir in checkpoint_dirs:
+    for epoch, checkpoint_dir in tqdm(checkpoint_dirs, desc="Evaluating Checkpoints"):
         print(f"Evaluating checkpoint: {checkpoint_dir}")
         pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
-        
+
         avg_score, _ = calculate_caption_score_and_samples(
             args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors, output=False
         )
-        
+
         print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
         scores_by_epoch.append((epoch, avg_score, checkpoint_dir))
 
