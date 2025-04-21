@@ -15,7 +15,7 @@ class GrammarGenerator:
             "coin": ["one coin", "two coins", "several coins", "a few coins", "many coins"],
             "platform": ["one platform", "two platforms", "a few platforms", "several platforms"],
             "tower": ["one tower", "two towers", "a few towers"],
-            "wall": ["one wall", "two walls"],
+            "wall": ["one wall"], # "walls" is not a token in the original data # , "two walls"],
             # "broken cannon": ["one broken cannon", "two broken cannons"],
             "cannon": ["one cannon", "two cannons", "a few cannons"],
             "ascending staircase": ["one ascending staircase", "two ascending staircases"],
