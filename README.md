@@ -37,7 +37,7 @@ python ascii_data_browser.py SMB1_LevelsAndCaptions.json
 ```
 Make a separate validation set of captions with this command. These randomly generated captions are used for validation later:
 ```
-python validation_captions.py --save_file "SMB1_ValidationCaptions.json"
+python create_validation_captions.py --save_file "SMB1_ValidationCaptions.json"
 ```
 
 ## Train text encoder
