@@ -1,9 +1,5 @@
 import argparse
-import os
-from torch.utils.data import DataLoader
-import random
-import numpy as np
-from level_dataset import LevelDataset, visualize_samples
+from level_dataset import LevelDataset
 from tokenizer import Tokenizer 
 import json
 from caption_generator import GrammarGenerator

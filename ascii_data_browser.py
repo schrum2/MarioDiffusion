@@ -4,7 +4,7 @@ import json
 import sys
 import os
 import level_dataset
-from create_ascii_captions import assign_caption, get_tile_descriptors, extract_tileset
+from create_ascii_captions import assign_caption, extract_tileset
 
 class TileViewer(tk.Tk):
     def __init__(self, dataset_path=None, tileset_path=None):

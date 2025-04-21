@@ -1,8 +1,6 @@
 from evolution import Evolver
 from level_dataset import visualize_samples, convert_to_level_format
-from caption_match import compare_captions
-from create_ascii_captions import assign_caption, extract_tileset
-import numpy as np
+from create_ascii_captions import extract_tileset
 import argparse
 import torch
 from wgan_model import WGAN_Generator

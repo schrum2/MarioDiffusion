@@ -6,7 +6,6 @@ from wgan_model import WGAN_Generator
 from tokenizer import Tokenizer
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
 import random
-import json
 from create_ascii_captions import assign_caption, get_tile_descriptors, save_level_data
 
 def parse_args():

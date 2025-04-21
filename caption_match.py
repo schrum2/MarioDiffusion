@@ -1,4 +1,3 @@
-import re
 
 # Quantity order for scoring partial matches
 QUANTITY_TERMS = ["one", "two", "a few", "several", "many"]

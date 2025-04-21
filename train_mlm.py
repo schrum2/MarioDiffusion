@@ -11,7 +11,6 @@ from masked_token_prediction import evaluate_model, masked_inputs
 import json
 import os
 import threading
-import time
 from datetime import datetime
 from util.loss_plotter import LossPlotter
 

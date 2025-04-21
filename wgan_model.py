@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.parallel
 
 class WGAN_Discriminator(nn.Module):
     def __init__(self, isize, nc, ndf, ngpu=1, n_extra_layers=0):

@@ -1,11 +1,7 @@
 from image_grid import ImageGridViewer
 import tkinter as tk
 import random
-import torch
 from abc import ABC, abstractmethod
-from level_dataset import visualize_samples
-#from text_diffusion_pipeline import TextConditionalDDPMPipeline
-#from diffusers import DDPMPipeline
 
 
 class Evolver(ABC):

@@ -1,7 +1,5 @@
 import argparse
 import torch
-import random
-from tokenizer import Tokenizer
 from models import TransformerModel
 from level_dataset import LevelDataset
 from torch.utils.data import DataLoader

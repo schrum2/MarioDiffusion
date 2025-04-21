@@ -1,9 +1,7 @@
 import tkinter as tk
 from PIL import Image, ImageTk, PngImagePlugin
 from math import ceil, sqrt
-import io
 import re
-import json
 from util.sampler import SampleOutput
 
 """

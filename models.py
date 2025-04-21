@@ -4,7 +4,6 @@ import math
 import os
 import json
 from safetensors.torch import save_file, load_file
-import pickle
 from tokenizer import Tokenizer
 
 # Transformer model for MLM training
