@@ -7,17 +7,7 @@ torchaudio
 numpy
 diffusers
 transformers
-scipy
-ftfy
 accelerate
-compel
-opencv-python
-opencv-contrib-python
-controlnet_aux
-peft
-rembg
-onnxruntime-gpu
-imageio-ffmpeg
 safetensors
 datasets
 matplotlib
