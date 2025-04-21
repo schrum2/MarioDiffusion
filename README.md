@@ -139,35 +139,3 @@ View the saved levels in the data browser
 ```
 python ascii_data_browser.py wgan_samples\all_levels.json
 ```
-
-
-
-
-
-STEPS BELOW CREATE IMAGES TO TRAIN A STABLE DIFFUSION LORA:
-
-From here, extract an image dataset of level scenes from the level images in TheVGLC:
-```
-python create_level_squares.py "..\\TheVGLC\\Super Mario Bros\\Original" SMB1
-```
-The directory `SMB1` now contains level scenes from Super Mario Bros derived from TheVGLC. The following command automatically captions each scene and saves the captions in `metadata.jsonl`:
-```
-python create_level_captions.py SMB1 mario_elements SMB1\\metadata.jsonl
-```
-Once the captions have been created, you can browse them using a GUI with this command:
-```
-python data_browser.py SMB1\\metadata.jsonl
-```
-Before training, some of the images in `SMB1` need to be deleted, because they contain sprites that are not captioned. Run this command:
-```
-python filter_training_data.py
-```
-The remaining data and captions are used to train the LoRA model with this command:
-```
-python train_sd15_lora.py -t SMB1 -o SMB1_LoRA -r 256 -s mario --plot_loss
-```
-Note that the resolution is set to 256, since that is the size of the training images. This will take some time to train, but once it is done, you can interactively generate level scenes using the GUI produced by this command:
-```
-python interactive_level_generator.py SMB1\\metadata.jsonl <safetensors file>
-```
-You will have to supply the path to the trained safetensors LoRA model. Or you could simply leave these parameters out and use the buttons in the GUI to load the needed files.
