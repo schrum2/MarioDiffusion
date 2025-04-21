@@ -6,7 +6,7 @@ import numpy as np
 from diffusers import DDPMPipeline
 from level_dataset import visualize_samples, samples_to_scenes
 import random
-from text_diffusion_pipeline import TextConditionalDDPMPipeline
+from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from create_ascii_captions import save_level_data
 
 def parse_args():

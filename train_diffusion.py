@@ -15,8 +15,8 @@ import json
 import threading
 from datetime import datetime
 from util.loss_plotter import LossPlotter
-from models import TransformerModel
-from text_diffusion_pipeline import TextConditionalDDPMPipeline
+from models.models import TransformerModel
+from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")

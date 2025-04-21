@@ -2,7 +2,7 @@ import argparse
 import os
 import torch
 import numpy as np
-from wgan_model import WGAN_Generator
+from models.wgan_model import WGAN_Generator
 from tokenizer import Tokenizer
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
 import random

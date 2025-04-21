@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from util.loss_plotter import LossPlotter
 from tokenizer import Tokenizer
-from wgan_model import WGAN_Generator, WGAN_Discriminator
+from models.wgan_model import WGAN_Generator, WGAN_Discriminator
 
 # For learning rate scheduler
 from torch.optim.lr_scheduler import LambdaLR

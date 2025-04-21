@@ -1,6 +1,6 @@
 import argparse
 import torch
-from models import TransformerModel
+from models.models import TransformerModel
 from level_dataset import LevelDataset
 from torch.utils.data import DataLoader
 

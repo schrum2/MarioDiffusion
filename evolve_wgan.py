@@ -3,7 +3,7 @@ from level_dataset import visualize_samples, convert_to_level_format
 from create_ascii_captions import extract_tileset
 import argparse
 import torch
-from wgan_model import WGAN_Generator
+from models.wgan_model import WGAN_Generator
 from run_wgan import generate_level_scene_from_latent
 
 from genome import DiffusionGenome

@@ -1,5 +1,5 @@
 from evolution import Evolver
-from latent_diffusion_pipeline import UnconditionalDDPMPipeline
+from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from create_ascii_captions import extract_tileset
 import argparse
