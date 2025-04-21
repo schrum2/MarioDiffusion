@@ -129,7 +129,7 @@ python evaluate_caption_adherence.py --model_path conditional-model --save_as_js
 
 Train a GAN
 ```
-python train_wgan.py --augment
+python train_wgan.py --augment --num_epochs 5000 --nz 32
 ```
 Create samples from final GAN
 ```
