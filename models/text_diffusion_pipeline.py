@@ -71,7 +71,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         
     def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
                 output_type="tensor", captions=None, guidance_scale=7.5, 
-                height=16, width=16, **kwargs):
+                height=16, width=16, raw_latent_sample=None, **kwargs):
         # Process text embeddings if captions are provided
         if captions is not None and self.text_encoder is not None:
             # Conditional embeddings from provided captions
@@ -100,7 +100,9 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         device = self.device
         sample_shape = (batch_size, self.unet.config.in_channels, height, width)
     
-        if isinstance(generator, list):
+        if raw_latent_sample:
+            sample = raw_latent_sample
+        elif isinstance(generator, list):
             sample = torch.cat([
                 torch.randn(1, *sample_shape[1:], generator=gen, device=device)
                 for gen in generator
