@@ -49,13 +49,13 @@ class ImageGridViewer:
         self.image_frame.grid(row=0, column=0, sticky="nsew", pady=(10, 5))
 
         # Constructed level frame
-        self.bottom_frame = tk.Frame(self.main_container, height=150, bg="lightgrey")
+        self.bottom_frame = tk.Frame(self.main_container, height=80, bg="lightgrey")
         self.bottom_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
         self.bottom_frame.grid_propagate(False)
 
         
         # Create frame for control buttons and text inputs
-        self.control_frame = tk.Frame(self.main_container, height=120)
+        self.control_frame = tk.Frame(self.main_container, height=60)
         self.control_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
         self.control_frame.grid_propagate(False)
 
