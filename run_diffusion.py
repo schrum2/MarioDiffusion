@@ -3,7 +3,7 @@ import argparse
 import os
 import torch
 import numpy as np
-from diffusers import DDPMPipeline
+from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from level_dataset import visualize_samples, samples_to_scenes
 import random
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
@@ -50,7 +50,7 @@ def generate_levels(args):
     if args.text_conditional:
         pipeline = TextConditionalDDPMPipeline.from_pretrained(args.model_path)
     else:
-        pipeline = DDPMPipeline.from_pretrained(args.model_path)
+        pipeline = UnconditionalDDPMPipeline.from_pretrained(args.model_path)
     pipeline.to(device)
     
     #print(pipeline)
