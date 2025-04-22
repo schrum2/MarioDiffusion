@@ -3,7 +3,7 @@ import os
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler, DDPMPipeline
+from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup 
 from tqdm.auto import tqdm
 import random
@@ -17,6 +17,7 @@ from datetime import datetime
 from util.loss_plotter import LossPlotter
 from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
+from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -352,7 +353,7 @@ def main():
                     ).images
             else:
                 # For unconditional generation
-                pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+                pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
                 
                 # Generate sample levels
                 with torch.no_grad():
@@ -387,7 +388,7 @@ def main():
                     text_encoder=text_encoder
                 ).to("cuda")
             else:
-                pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+                pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
                 
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
     
@@ -411,7 +412,7 @@ def main():
             text_encoder=text_encoder
         ).to("cuda")
     else:
-        pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+        pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
         
     pipeline.save_pretrained(args.output_dir)
 
