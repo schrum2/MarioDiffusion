@@ -154,7 +154,8 @@ class ImageGridViewer:
         )
         self.clear_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        if allow_prompt:
+        self.allow_prompt = allow_prompt
+        if self.allow_prompt:
             # Create prompt input frame
             self.prompt_frame = tk.Frame(self.control_frame)
             self.prompt_frame.pack(fill=tk.X, padx=5)
@@ -557,7 +558,11 @@ class ImageGridViewer:
         self.done_button.config(text="Reset")
         if self.callback_fn:
             selected = self.get_selected_images()
-            self.callback_fn(selected)
+            param_values = dict()
+            if self.allow_prompt:
+                prompt = self.prompt_entry.get()
+                param_values["prompt"] = prompt
+            self.callback_fn(selected, **param_values)
 
         self.update_back_button_status()
 

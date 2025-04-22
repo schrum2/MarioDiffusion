@@ -41,7 +41,8 @@ class Evolver(ABC):
     def initialize_population(self):
         pass
 
-    def next_generation(self,selected_images):
+    def next_generation(self,selected_images,prompt=None):
+        self.prompt = prompt
         if selected_images == []:
             print("Resetting population and generations--------------------")
             self.evolution_history = []
@@ -63,6 +64,7 @@ class Evolver(ABC):
             # Fill remaining slots with mutated children
             for i in range(len(keepers), self.population_size):
                 g = random.choice(keepers).mutated_child() # New genome
+                g.prompt = prompt
                 children.append(g)
 
             # combined population

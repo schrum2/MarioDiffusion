@@ -29,7 +29,7 @@ class TextDiffusionEvolver(Evolver):
         return latents
 
     def initialize_population(self):
-        self.genomes = [DiffusionGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed)) for seed in range(self.population_size)]
+        self.genomes = [DiffusionGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), prompt=self.prompt) for seed in range(self.population_size)]
         self.viewer.id_to_char = self.id_to_char
 
     def generate_image(self, g):
@@ -45,6 +45,15 @@ class TextDiffusionEvolver(Evolver):
             "output_type" : "tensor",
             "raw_latent_sample" : g.latents.to("cuda")
         }
+
+        # Include caption if desired
+        prompt = g.prompt
+        if prompt.strip() != "":
+            sample_captions = [prompt] # batch of size 1
+            sample_caption_tokens = self.pipe.text_encoder.tokenizer.encode_batch(sample_captions)
+            sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
+
+            settings["captions"] = sample_caption_tokens
         
         images = self.pipe(
             generator=generator,
