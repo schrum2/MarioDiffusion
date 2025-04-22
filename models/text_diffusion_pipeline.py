@@ -100,7 +100,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         device = self.device
         sample_shape = (batch_size, self.unet.config.in_channels, height, width)
     
-        if raw_latent_sample:
+        if raw_latent_sample != None:
             sample = raw_latent_sample
         elif isinstance(generator, list):
             sample = torch.cat([

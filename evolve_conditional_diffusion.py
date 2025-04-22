@@ -53,7 +53,10 @@ class TextDiffusionEvolver(Evolver):
 
         g.latents.to("cpu")
         #print("----------------------")
-        images = torch.tensor(images).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
+        # This conversion is required for the unconditional model, but incorrect for the conditional one, 
+        # which is why it is commented out. However, this is confusing, and I should adjust the pipelines
+        # so that they both behave the same.
+        #images = torch.tensor(images).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
         #print(images)
         # Convert to indices
         sample_tensor = torch.tensor(images)
