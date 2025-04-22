@@ -91,4 +91,4 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     evolver = TextDiffusionEvolver(args.model_path, args.width, args.tileset_path)
-    evolver.start_evolution()
+    evolver.start_evolution(allow_prompt = True)
