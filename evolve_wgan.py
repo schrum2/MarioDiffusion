@@ -6,7 +6,7 @@ import torch
 from models.wgan_model import WGAN_Generator
 from run_wgan import generate_level_scene_from_latent
 
-from genome import DiffusionGenome
+from evolution.genome import DiffusionGenome
 
 class WGANEvolver(Evolver):
     def __init__(self, args):

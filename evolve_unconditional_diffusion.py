@@ -4,7 +4,7 @@ from level_dataset import visualize_samples, convert_to_level_format
 from create_ascii_captions import extract_tileset
 import argparse
 import torch
-from genome import DiffusionGenome
+from evolution.genome import DiffusionGenome
 
 class DiffusionEvolver(Evolver):
     def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json'):
