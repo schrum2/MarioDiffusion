@@ -23,7 +23,7 @@ def perturb_latents(latents):
     return latents + LATENT_NOISE_SCALE * torch.randn_like(latents)
 
 class DiffusionGenome:
-    def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None, scene = None):
+    def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None, scene = None, prompt = None, caption = None):
         self.width = width
         self.seed = seed
         self.num_inference_steps = steps
@@ -31,6 +31,8 @@ class DiffusionGenome:
         self.strength = strength
         self.latents = latents
         self.scene = scene
+        self.prompt = prompt
+        self.caption = caption
         
         if randomize: 
             # Randomize all aspects of picture. Seed will drastically change it
@@ -69,7 +71,9 @@ class DiffusionGenome:
             f"guidance={self.guidance_scale},\n"
             f"strength={self.strength},\n"
             f"scene={self.scene},\n"
-            f"latents={display_embeddings(self.latents)})"
+            f"latents={display_embeddings(self.latents)},\n"
+            f"caption={self.caption},\n"
+            f"prompt={self.prompt})"
         )
     
     def metadata(self):
@@ -82,7 +86,9 @@ class DiffusionGenome:
             "guidance_scale" : self.guidance_scale,
             "strength" : self.strength,
             "scene" : self.scene,
-            "latents" : self.latents
+            "latents" : self.latents,
+            "prompt" : self.prompt,
+            "caption" : self.caption
         }
 
     def mutate(self):
@@ -104,7 +110,10 @@ class DiffusionGenome:
             False,
             self.id,
             self.strength,
-            self.latents
+            self.latents,
+            self.scene,
+            self.prompt,
+            self.caption
         )
         child.mutate()
         return child

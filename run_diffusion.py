@@ -3,7 +3,7 @@ import argparse
 import os
 import torch
 import numpy as np
-from diffusers import DDPMPipeline
+from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from level_dataset import visualize_samples, samples_to_scenes
 import random
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
@@ -50,7 +50,7 @@ def generate_levels(args):
     if args.text_conditional:
         pipeline = TextConditionalDDPMPipeline.from_pretrained(args.model_path)
     else:
-        pipeline = DDPMPipeline.from_pretrained(args.model_path)
+        pipeline = UnconditionalDDPMPipeline.from_pretrained(args.model_path)
     pipeline.to(device)
     
     #print(pipeline)
@@ -82,15 +82,6 @@ def generate_levels(args):
                 num_inference_steps=args.inference_steps,
                 output_type="tensor"
             ).images
-
-            # Convert shape if needed (DDPMPipeline might return different format) (DO I EVEN NEED THIS?)
-            if isinstance(samples, torch.Tensor):
-                if len(samples.shape) == 4 and samples.shape[1] == 16:  # BHWC format
-                    samples = samples.permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
-            elif isinstance(samples, np.ndarray):
-                if len(samples.shape) == 4 and samples.shape[3] == num_tiles:  # BHWC format
-                    samples = np.transpose(samples, (0, 3, 1, 2))  # Convert (B, H, W, C) -> (B, C, H, W)
-                samples = torch.tensor(samples)
 
             #for i in range(16):
             #    for j in range(16):

@@ -80,6 +80,10 @@ An easier to use GUI interface will let you select and combine known caption phr
 ```
 python interactive_tile_level_generator.py SMB1_LevelsAndCaptions.json conditional-model
 ```
+Interactively evolve level scenes in the latent space of the conditional model:
+```
+python evolve_conditional_diffusion.py --model_path conditional-model
+```
 
 ## Evaluate caption adherence of text-to-level model
 
@@ -113,7 +117,7 @@ View the saved levels in the data browser
 ```
 python ascii_data_browser.py unconditional_model_samples\all_levels.json
 ```
-Evolve level scenes in the latent space of the unconditional model:
+Interactively evolve level scenes in the latent space of the unconditional model:
 ```
 python evolve_unconditional_diffusion.py --model_path unconditional-model
 ```
@@ -135,7 +139,7 @@ View the saved levels in the data browser
 ```
 python ascii_data_browser.py wgan_samples\all_levels.json
 ```
-Evolve level scenes in the latent space of the GAN model:
+Interactively evolve level scenes in the latent space of the GAN model:
 ```
 python evolve_wgan.py --model_path wgan-output\final_models\generator.pth
 ```

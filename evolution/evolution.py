@@ -16,7 +16,7 @@ class Evolver(ABC):
     def get_generation(self):
         return self.generation
 
-    def start_evolution(self):
+    def start_evolution(self, allow_prompt=False):
         self.genomes = []
         self.generation = 0
 
@@ -25,7 +25,8 @@ class Evolver(ABC):
             self.root, 
             callback_fn=self.next_generation,
             back_fn=self.previous_generation,
-            generation_fn=self.get_generation
+            generation_fn=self.get_generation,
+            allow_prompt=allow_prompt
         )
         # Start the GUI event loop
         self.root.mainloop()
@@ -40,7 +41,8 @@ class Evolver(ABC):
     def initialize_population(self):
         pass
 
-    def next_generation(self,selected_images):
+    def next_generation(self,selected_images,prompt=None):
+        self.prompt = prompt
         if selected_images == []:
             print("Resetting population and generations--------------------")
             self.evolution_history = []
@@ -62,6 +64,7 @@ class Evolver(ABC):
             # Fill remaining slots with mutated children
             for i in range(len(keepers), self.population_size):
                 g = random.choice(keepers).mutated_child() # New genome
+                g.prompt = prompt
                 children.append(g)
 
             # combined population

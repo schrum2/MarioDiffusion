@@ -42,8 +42,8 @@ def parse_args():
     parser.add_argument("--beta1", type=float, default=0.5, help="Beta1 for Adam optimizer")
     parser.add_argument("--use_rmsprop", action="store_true", help="Use RMSprop optimizer instead of Adam")
     parser.add_argument("--num_epochs", type=int, default=1000, help="Number of training epochs")
-    parser.add_argument("--save_image_epochs", type=int, default=10, help="Save generated levels every N epochs")
-    parser.add_argument("--save_model_epochs", type=int, default=10, help="Save model every N epochs")
+    parser.add_argument("--save_image_epochs", type=int, default=100, help="Save generated levels every N epochs")
+    parser.add_argument("--save_model_epochs", type=int, default=100, help="Save model every N epochs")
     
     # Learning rate scheduling (optional)
     parser.add_argument("--use_lr_scheduler", action="store_true", help="Use learning rate scheduler")

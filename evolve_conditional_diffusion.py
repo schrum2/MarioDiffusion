@@ -1,5 +1,5 @@
 from evolution.evolution import Evolver
-from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
+from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from create_ascii_captions import extract_tileset
 import argparse
@@ -7,14 +7,14 @@ import torch
 from evolution.genome import DiffusionGenome
 from create_ascii_captions import assign_caption
 
-class DiffusionEvolver(Evolver):
-    def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json', args=None):
+class TextDiffusionEvolver(Evolver):
+    def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json', args = None):
         Evolver.__init__(self)
 
         self.args = args
         self.width = width
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.pipe = UnconditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
+        self.pipe = TextConditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
 
         _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
@@ -31,7 +31,7 @@ class DiffusionEvolver(Evolver):
         return latents
 
     def initialize_population(self):
-        self.genomes = [DiffusionGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed)) for seed in range(self.population_size)]
+        self.genomes = [DiffusionGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), prompt=self.prompt) for seed in range(self.population_size)]
         self.viewer.id_to_char = self.id_to_char
 
     def generate_image(self, g):
@@ -45,8 +45,17 @@ class DiffusionEvolver(Evolver):
             "num_inference_steps" : g.num_inference_steps,
             # "strength" : g.strength, # Definitely don't need this
             "output_type" : "tensor",
-            "latents" : g.latents.to("cuda")
+            "raw_latent_sample" : g.latents.to("cuda")
         }
+
+        # Include caption if desired
+        prompt = g.prompt
+        if prompt.strip() != "":
+            sample_captions = [prompt] # batch of size 1
+            sample_caption_tokens = self.pipe.text_encoder.tokenizer.encode_batch(sample_captions)
+            sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
+
+            settings["captions"] = sample_caption_tokens
         
         images = self.pipe(
             generator=generator,
@@ -54,7 +63,6 @@ class DiffusionEvolver(Evolver):
         ).images
 
         g.latents.to("cpu")
-
         # Convert to indices
         sample_indices = convert_to_level_format(images)
         
@@ -85,5 +93,5 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    evolver = DiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
-    evolver.start_evolution()
+    evolver = TextDiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
+    evolver.start_evolution(allow_prompt = True)

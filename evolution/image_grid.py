@@ -9,7 +9,7 @@ Handles evolution in the latent space for generating level scenes.
 """
 
 class ImageGridViewer:
-    def __init__(self, root, callback_fn=None, back_fn=None, generation_fn = None):
+    def __init__(self, root, callback_fn=None, back_fn=None, generation_fn = None, allow_prompt = False):
         self.root = root
         self.root.title("Generated Images")
         self.images = []  # Stores PIL Image objects
@@ -49,13 +49,13 @@ class ImageGridViewer:
         self.image_frame.grid(row=0, column=0, sticky="nsew", pady=(10, 5))
 
         # Constructed level frame
-        self.bottom_frame = tk.Frame(self.main_container, height=150, bg="lightgrey")
+        self.bottom_frame = tk.Frame(self.main_container, height=80, bg="lightgrey")
         self.bottom_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
         self.bottom_frame.grid_propagate(False)
 
         
         # Create frame for control buttons and text inputs
-        self.control_frame = tk.Frame(self.main_container, height=120)
+        self.control_frame = tk.Frame(self.main_container, height=60)
         self.control_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
         self.control_frame.grid_propagate(False)
 
@@ -153,6 +153,18 @@ class ImageGridViewer:
             width=20
         )
         self.clear_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.allow_prompt = allow_prompt
+        if self.allow_prompt:
+            # Create prompt input frame
+            self.prompt_frame = tk.Frame(self.control_frame)
+            self.prompt_frame.pack(fill=tk.X, padx=5)
+        
+            # Add prompt label and entry
+            tk.Label(self.prompt_frame, text="Prompt: ").pack(side=tk.LEFT)
+            self.prompt_entry = tk.Entry(self.prompt_frame)
+            self.prompt_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            self.prompt_entry.insert(0, "")
 
         # Bind resize event
         self.root.bind('<Configure>', self._on_window_resize)
@@ -546,7 +558,11 @@ class ImageGridViewer:
         self.done_button.config(text="Reset")
         if self.callback_fn:
             selected = self.get_selected_images()
-            self.callback_fn(selected)
+            param_values = dict()
+            if self.allow_prompt:
+                prompt = self.prompt_entry.get()
+                param_values["prompt"] = prompt
+            self.callback_fn(selected, **param_values)
 
         self.update_back_button_status()
 

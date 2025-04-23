@@ -10,7 +10,7 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
         batch_size: int = 1,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
         num_inference_steps: int = 1000,
-        output_type: Optional[str] = "pil",
+        output_type: Optional[str] = "tensor",
         return_dict: bool = True,
         latents: Optional[torch.FloatTensor] = None,
     ) -> Union[ImagePipelineOutput, Tuple]:
@@ -41,10 +41,7 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
             image = self.scheduler.step(model_output, t, image, generator=generator).prev_sample
 
         image = (image / 2 + 0.5).clamp(0, 1)
-        image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
-
-        if output_type == "pil":
-            image = self.numpy_to_pil(image)
+        image = image.detach().cpu() 
 
         if not return_dict:
             return (image,)
