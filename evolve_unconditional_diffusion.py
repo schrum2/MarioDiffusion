@@ -52,9 +52,10 @@ class DiffusionEvolver(Evolver):
         ).images
 
         g.latents.to("cpu")
-        #print("----------------------")
-        images = torch.tensor(images).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
-        #print(images)
+        print("----------------------")
+        #print(images.shape)
+        #images = torch.tensor(images).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
+        #print(images.shape)
         # Convert to indices
         sample_tensor = torch.tensor(images)
         #print(sample_tensor)
