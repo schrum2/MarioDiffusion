@@ -5,11 +5,13 @@ from create_ascii_captions import extract_tileset
 import argparse
 import torch
 from evolution.genome import DiffusionGenome
+from create_ascii_captions import assign_caption
 
 class DiffusionEvolver(Evolver):
-    def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json'):
+    def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json', args=None):
         Evolver.__init__(self)
 
+        self.args = args
         self.width = width
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.pipe = UnconditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
@@ -54,15 +56,15 @@ class DiffusionEvolver(Evolver):
         g.latents.to("cpu")
 
         # Convert to indices
-        sample_tensor = torch.tensor(images) # Probably don't need this line
-        sample_indices = convert_to_level_format(sample_tensor)
+        sample_indices = convert_to_level_format(images)
         
         # Add level data to the list
         scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
         #print(scene)
         g.scene = scene 
 
-        # actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False) # self.args.describe_locations, self.args.describe_absence)
+        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
+        g.caption = actual_caption
 
         #print(f"Describe resulting image: {actual_caption}")
         #compare_score = compare_captions(self.prompt, actual_caption)
@@ -83,5 +85,5 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    evolver = DiffusionEvolver(args.model_path, args.width, args.tileset_path)
+    evolver = DiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
     evolver.start_evolution()
