@@ -5,8 +5,8 @@ import argparse
 import torch
 from models.wgan_model import WGAN_Generator
 from run_wgan import generate_level_scene_from_latent
-
 from evolution.genome import DiffusionGenome
+from create_ascii_captions import assign_caption
 
 class WGANEvolver(Evolver):
     def __init__(self, args):
@@ -62,7 +62,8 @@ class WGANEvolver(Evolver):
         #print(scene)
         g.scene = scene 
 
-        # actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False) # self.args.describe_locations, self.args.describe_absence)
+        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
+        g.caption = actual_caption
 
         #print(f"Describe resulting image: {actual_caption}")
         #compare_score = compare_captions(self.prompt, actual_caption)
