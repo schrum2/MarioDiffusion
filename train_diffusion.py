@@ -372,9 +372,6 @@ def main():
                         output_type="tensor",
                     ).images
 
-                    # Seems odd that conditional model does not need this, but unconditional does
-                    samples = torch.tensor(samples).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
-
             # Convert one-hot samples to tile indices and visualize
             visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
             
