@@ -83,15 +83,6 @@ def generate_levels(args):
                 output_type="tensor"
             ).images
 
-            # Convert shape if needed (DDPMPipeline might return different format) (DO I EVEN NEED THIS?)
-            if isinstance(samples, torch.Tensor):
-                if len(samples.shape) == 4 and samples.shape[1] == 16:  # BHWC format
-                    samples = samples.permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
-            elif isinstance(samples, np.ndarray):
-                if len(samples.shape) == 4 and samples.shape[3] == num_tiles:  # BHWC format
-                    samples = np.transpose(samples, (0, 3, 1, 2))  # Convert (B, H, W, C) -> (B, C, H, W)
-                samples = torch.tensor(samples)
-
             #for i in range(16):
             #    for j in range(16):
             #        values = samples[0, :, i, j]  # Get channel values at (i, j)
