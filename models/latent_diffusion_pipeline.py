@@ -41,10 +41,7 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
             image = self.scheduler.step(model_output, t, image, generator=generator).prev_sample
 
         image = (image / 2 + 0.5).clamp(0, 1)
-        #print(image.shape)
-        image = image.detach().cpu() #.permute(0, 2, 3, 1).numpy()
-        #print(image.shape)
-        #print(output_type)
+        image = image.detach().cpu() 
 
         if not return_dict:
             return (image,)

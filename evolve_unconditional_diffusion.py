@@ -52,15 +52,10 @@ class DiffusionEvolver(Evolver):
         ).images
 
         g.latents.to("cpu")
-        print("----------------------")
-        #print(images.shape)
-        #images = torch.tensor(images).permute(0, 3, 1, 2)  # Convert (B, H, W, C) -> (B, C, H, W)
-        #print(images.shape)
+
         # Convert to indices
-        sample_tensor = torch.tensor(images)
-        #print(sample_tensor)
+        sample_tensor = torch.tensor(images) # Probably don't need this line
         sample_indices = convert_to_level_format(sample_tensor)
-        #print(sample_indices)
         
         # Add level data to the list
         scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
