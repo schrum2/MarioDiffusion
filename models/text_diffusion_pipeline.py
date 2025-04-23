@@ -71,7 +71,16 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         
     def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
                 output_type="tensor", captions=None, guidance_scale=7.5, 
-                height=16, width=16, raw_latent_sample=None, **kwargs):
+                height=16, width=16, raw_latent_sample=None, input_scene=None, **kwargs):
+        """
+            Neither raw_latent_sample nor input_scene are needed, in which case
+            random latent noise is the starting point for the diffusion. If 
+            raw_latent_sample is provided, it is taken as the diffusion starting
+            point. This means raw_latent_sample should have a shape that matches
+            the unet (correct number of channels).
+        """
+
+
         # Process text embeddings if captions are provided
         if captions is not None and self.text_encoder is not None:
             # Conditional embeddings from provided captions
@@ -102,6 +111,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
     
         if raw_latent_sample != None:
             sample = raw_latent_sample
+            if sample.shape[1] != sample_shape[1]:
+                raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but sample had {sample.shape[1]} channels")
         elif isinstance(generator, list):
             sample = torch.cat([
                 torch.randn(1, *sample_shape[1:], generator=gen, device=device)
