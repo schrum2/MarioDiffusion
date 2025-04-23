@@ -78,6 +78,11 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             raw_latent_sample is provided, it is taken as the diffusion starting
             point. This means raw_latent_sample should have a shape that matches
             the unet (correct number of channels).
+
+            Only raw_latent_sample or input_scene should be provided, not both.
+            If input_scene is provided, it is a 2D int tile map where the number
+            of ints matches the number of channels of the unet. The input_scene
+            is broken down into a latent starting point for diffusion.
         """
 
 
@@ -110,9 +115,20 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         sample_shape = (batch_size, self.unet.config.in_channels, height, width)
     
         if raw_latent_sample != None:
+            if input_scene != None:
+                raise ValueError("Cannot provide both raw_latent_sample and input_scene. Need to pick one.")
+
             sample = raw_latent_sample
             if sample.shape[1] != sample_shape[1]:
                 raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but sample had {sample.shape[1]} channels")
+        elif input_scene != None:
+            scene_tensor = torch.tensor(input_scene, dtype=torch.long)
+            # Convert to one-hot encoding for diffusion model
+            one_hot_scene = F.one_hot(scene_tensor, num_classes=self.unet.config.in_channels).float()
+            # Permute dimensions to [num_tiles, height, width]
+            one_hot_scene = one_hot_scene.permute(2, 0, 1)
+            one_hot_scene = one_hot_scene.unsqueeze(0) # Change shape to (1, num_tiles, height, width)
+            sample = one_hot_scene.repeat(batch_size, 1, 1, 1) # batch_size number of copies of the tensor
         elif isinstance(generator, list):
             sample = torch.cat([
                 torch.randn(1, *sample_shape[1:], generator=gen, device=device)
