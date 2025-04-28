@@ -165,7 +165,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
             
                 # Compute previous sample: x_{t-1} = scheduler(x_t, noise_pred)
-                sample = self.scheduler.step(noise_pred, t, sample).prev_sample
+                sample = self.scheduler.step(noise_pred, t, sample, generator=generator).prev_sample
             
             # Convert to output format
             if output_type == "tensor":
