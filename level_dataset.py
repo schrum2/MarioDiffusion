@@ -114,14 +114,15 @@ def tiles():
 
     return tile_images
 
-def visualize_samples(samples, output_dir=None):
+def visualize_samples(samples, output_dir=None, use_tiles=False):
     """
     Visualize generated samples and save as images.
-    
+
     Args:
         samples: One-hot encoded samples from the diffusion model: [samples, channels, height, width]
         output_dir: Directory to save visualizations
-    
+        use_tiles: If True, use tile images instead of colors for visualization
+
     Returns:
         List of tile index maps for the samples
     """
@@ -135,53 +136,65 @@ def visualize_samples(samples, output_dir=None):
     # Create directory for the samples
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
-    
-    # Create custom colormap for integers 0-15
-    colorslist = colors()
-    custom_cmap = matplotlib.colors.ListedColormap(colorslist[:15])
-    
+
     # Convert from one-hot to tile indices
     sample_indices = []
     num_samples = len(samples)
     grid_cols = min(4, num_samples)  # Limit to 4 columns
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
-    
-    plt.figure(figsize=(4 * grid_cols, 4 * grid_rows))  # Adjust figure size dynamically
-    
-    for i, sample in enumerate(samples):
-        # Convert one-hot back to indices (get most likely tile for each position)
-        # [num_tiles, height, width] -> [height, width]
-        sample_index = torch.argmax(sample, dim=0).cpu().numpy()
-        sample_indices.append(sample_index)
-        
-        # Plot and save
-        plt.subplot(grid_rows, grid_cols, i + 1)
-        plt.imshow(sample_index, cmap=custom_cmap, vmin=0, vmax=14)  # Set vmin and vmax to ensure color mapping
-        plt.title(f"Sample {i+1}")
-    
-    plt.tight_layout()
-        
 
-    if output_dir:
-        plt.savefig(os.path.join(output_dir, "samples_grid.png"))
-        result = None
+    if use_tiles:
+        tile_images = tiles()
+        tile_size = 16
+        for i, sample in enumerate(samples):
+            sample_index = torch.argmax(sample, dim=0).cpu().numpy()
+            sample_indices.append(sample_index)
+
+            # Create a blank image to hold the tile-based visualization
+            height, width = sample_index.shape
+            composite_image = Image.new('RGB', (width * tile_size, height * tile_size))
+
+            for row in range(height):
+                for col in range(width):
+                    tile_id = sample_index[row, col]
+                    tile_image = tile_images[tile_id]
+                    composite_image.paste(tile_image, (col * tile_size, row * tile_size))
+
+            if output_dir:
+                composite_image.save(os.path.join(output_dir, f"sample_{i}.png"))
+            else:
+                return composite_image
+
     else:
-        result = get_pil_image_from_plt(plt.gcf())
+        # Create custom colormap for integers 0-15
+        colorslist = colors()
+        custom_cmap = matplotlib.colors.ListedColormap(colorslist[:15])
 
-    plt.close()
+        plt.figure(figsize=(4 * grid_cols, 4 * grid_rows))  # Adjust figure size dynamically
 
-    # Returning an image instead of saving many images
-    if result: 
-        return result
-    
-    # Save individual samples
-    for i, sample_index in enumerate(sample_indices):
-        plt.figure(figsize=(8, 8))
-        plt.imshow(sample_index, cmap=custom_cmap, vmin=0, vmax=14)
-        plt.title(f"Sample {i+1}")
-        plt.savefig(os.path.join(output_dir, f"sample_{i}.png"))
+        for i, sample in enumerate(samples):
+            sample_index = torch.argmax(sample, dim=0).cpu().numpy()
+            sample_indices.append(sample_index)
+
+            # Plot and save
+            plt.subplot(grid_rows, grid_cols, i + 1)
+            plt.imshow(sample_index, cmap=custom_cmap, vmin=0, vmax=14)  # Set vmin and vmax to ensure color mapping
+            plt.title(f"Sample {i+1}")
+
+        plt.tight_layout()
+
+        if output_dir:
+            plt.savefig(os.path.join(output_dir, "samples_grid.png"))
+            result = None
+        else:
+            result = get_pil_image_from_plt(plt.gcf())
+
         plt.close()
-    
+
+        # Returning an image instead of saving many images
+        if result:
+            return result
+
     return sample_indices
 
 class LevelDataset(Dataset):
