@@ -176,9 +176,12 @@ class ImageGridViewer:
             level.run_astar()
 
     def _merge_selected(self, indexes=None):
+
+        scenes = list(map(lambda g: g.scene, self.genomes))
+
         if indexes is None:
             indexes = self.selected_images
-        selected_scenes = [self.genomes[i].scene for i in indexes if self.genomes[i].scene]
+        selected_scenes = [scenes[i] for i in indexes if scenes[i] is not None]
 
         # Ensure all selected scenes have the same number of rows
         num_rows = len(selected_scenes[0])
