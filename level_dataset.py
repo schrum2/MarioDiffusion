@@ -104,7 +104,7 @@ def tiles():
 
     # Extract each tile as a 16x16 image
     tile_images = []
-    for row, col in tile_coordinates:
+    for col, row in tile_coordinates:
         left = col * 16
         upper = row * 16
         right = left + 16
@@ -114,7 +114,7 @@ def tiles():
 
     return tile_images
 
-def visualize_samples(samples, output_dir=None, use_tiles=False):
+def visualize_samples(samples, output_dir=None, use_tiles=True):
     """
     Visualize generated samples and save as images.
 
