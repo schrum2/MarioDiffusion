@@ -84,61 +84,62 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             of ints matches the number of channels of the unet. The input_scene
             is broken down into a latent starting point for diffusion.
         """
-
-
-        # Process text embeddings if captions are provided
-        if captions is not None and self.text_encoder is not None:
-            # Conditional embeddings from provided captions
-            text_embeddings = self.text_encoder.get_embeddings(captions)
-        
-            # Unconditional embeddings for classifier-free guidance
-            # Use empty/zero tokens for the unconditional case
-            uncond_tokens = torch.zeros_like(captions)
-            uncond_embeddings = self.text_encoder.get_embeddings(uncond_tokens)
-        
-            # Concatenate unconditional and conditional embeddings for CFG
-            text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
-        
-        elif self.text_encoder is not None:
-            # For unconditional generation, we still need embeddings
-            embedding_dim = self.text_encoder.embedding_dim
-            seq_length = 10  # Any reasonable sequence length
-            text_embeddings = torch.zeros(batch_size, seq_length, embedding_dim, device=self.device)
-        else:
-            raise ValueError("Text encoder needed")
-    
-        # Start from random noise
-        if isinstance(generator, list) and len(generator) != batch_size:
-            raise ValueError("Must provide a generator for each sample if passing a list of generators")
-        
-        device = self.device
-        sample_shape = (batch_size, self.unet.config.in_channels, height, width)
-    
-        if raw_latent_sample != None:
-            if input_scene != None:
-                raise ValueError("Cannot provide both raw_latent_sample and input_scene. Need to pick one.")
-
-            sample = raw_latent_sample
-            if sample.shape[1] != sample_shape[1]:
-                raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but sample had {sample.shape[1]} channels")
-        elif input_scene != None:
-            scene_tensor = torch.tensor(input_scene, dtype=torch.long)
-            # Convert to one-hot encoding for diffusion model
-            one_hot_scene = F.one_hot(scene_tensor, num_classes=self.unet.config.in_channels).float()
-            # Permute dimensions to [num_tiles, height, width]
-            one_hot_scene = one_hot_scene.permute(2, 0, 1)
-            one_hot_scene = one_hot_scene.unsqueeze(0) # Change shape to (1, num_tiles, height, width)
-            sample = one_hot_scene.repeat(batch_size, 1, 1, 1) # batch_size number of copies of the tensor
-        elif isinstance(generator, list):
-            sample = torch.cat([
-                torch.randn(1, *sample_shape[1:], generator=gen, device=device)
-                for gen in generator
-            ])
-        else:
-            sample = torch.randn(sample_shape, generator=generator, device=device)
-        
         self.unet.eval()
+        self.text_encoder.eval() if self.text_encoder is not None else None # Code will crash below if text_encoder is None
         with torch.no_grad():
+
+            # Process text embeddings if captions are provided
+            if captions is not None and self.text_encoder is not None:
+                # Conditional embeddings from provided captions
+                text_embeddings = self.text_encoder.get_embeddings(captions)
+            
+                # Unconditional embeddings for classifier-free guidance
+                # Use empty/zero tokens for the unconditional case
+                uncond_tokens = torch.zeros_like(captions)
+                uncond_embeddings = self.text_encoder.get_embeddings(uncond_tokens)
+            
+                # Concatenate unconditional and conditional embeddings for CFG
+                text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+            
+            elif self.text_encoder is not None:
+                # For unconditional generation, we still need embeddings
+                embedding_dim = self.text_encoder.embedding_dim
+                seq_length = 10  # Any reasonable sequence length
+                text_embeddings = torch.zeros(batch_size, seq_length, embedding_dim, device=self.device)
+            else:
+                raise ValueError("Text encoder needed")
+        
+            # Start from random noise
+            if isinstance(generator, list) and len(generator) != batch_size:
+                raise ValueError("Must provide a generator for each sample if passing a list of generators")
+            
+            device = self.device
+            sample_shape = (batch_size, self.unet.config.in_channels, height, width)
+        
+            if raw_latent_sample != None:
+                if input_scene != None:
+                    raise ValueError("Cannot provide both raw_latent_sample and input_scene. Need to pick one.")
+
+                sample = raw_latent_sample
+                if sample.shape[1] != sample_shape[1]:
+                    raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but sample had {sample.shape[1]} channels")
+            elif input_scene != None:
+                scene_tensor = torch.tensor(input_scene, dtype=torch.long)
+                # Convert to one-hot encoding for diffusion model
+                one_hot_scene = F.one_hot(scene_tensor, num_classes=self.unet.config.in_channels).float()
+                # Permute dimensions to [num_tiles, height, width]
+                one_hot_scene = one_hot_scene.permute(2, 0, 1)
+                one_hot_scene = one_hot_scene.unsqueeze(0) # Change shape to (1, num_tiles, height, width)
+                sample = one_hot_scene.repeat(batch_size, 1, 1, 1) # batch_size number of copies of the tensor
+            elif isinstance(generator, list):
+                sample = torch.cat([
+                    torch.randn(1, *sample_shape[1:], generator=gen, device=device)
+                    for gen in generator
+                ])
+            else:
+                sample = torch.randn(sample_shape, generator=generator, device=device)
+            
+            
             # Set number of inference steps
             self.scheduler.set_timesteps(num_inference_steps)
         
