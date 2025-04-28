@@ -69,11 +69,12 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         self.prompt = param_values["prompt"]
         del param_values["prompt"]
 
-        sample_captions = [self.prompt] # batch of size 1
-        sample_caption_tokens = self.pipe.text_encoder.tokenizer.encode_batch(sample_captions)
-        sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
+        if self.prompt.strip() != "":
+            sample_captions = [self.prompt] # batch of size 1
+            sample_caption_tokens = self.pipe.text_encoder.tokenizer.encode_batch(sample_captions)
+            sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
 
-        param_values["captions"] = sample_caption_tokens
+            param_values["captions"] = sample_caption_tokens
 
         return dict() # nothing extra here
 
