@@ -4,6 +4,7 @@ import json
 import sys
 import os
 import level_dataset
+import torch
 from create_ascii_captions import assign_caption, extract_tileset
 
 class TileViewer(tk.Tk):
@@ -40,6 +41,11 @@ class TileViewer(tk.Tk):
         print(f"New caption: {caption}")
         self.redraw()
 
+    def toggle_view_mode(self):
+        """Toggle between numeric/character grid and image view modes."""
+        self.show_images = not getattr(self, 'show_images', False)
+        self.redraw()
+
     def create_widgets(self):
         frame = tk.Frame(self)
         frame.pack(pady=5)
@@ -53,6 +59,9 @@ class TileViewer(tk.Tk):
         self.checkbox.pack(side=tk.LEFT, padx=5)
         regenerate_button = tk.Button(checkbox_frame, text="Regenerate Caption", command=self.regenerate_caption)
         regenerate_button.pack(side=tk.LEFT, padx=5)
+
+        toggle_view_button = tk.Button(checkbox_frame, text="Toggle View Mode", command=self.toggle_view_mode)
+        toggle_view_button.pack(side=tk.LEFT, padx=5)
 
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size)
         self.canvas.pack()
@@ -101,23 +110,41 @@ class TileViewer(tk.Tk):
         self.canvas.delete("all")
         sample = self.dataset[self.current_sample_idx]
 
-        font = ("Courier", self.font_size)
-        colors = level_dataset.colors()
-        for y in range(16):
-            for x in range(16):
-                tile_id = sample['scene'][y][x]
-                text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
-                # Convert (r, g, b) float tuple to hex color string
-                r, g, b = colors[tile_id]
-                color_hex = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
-                self.canvas.create_text(
-                    x * self.tile_size + self.tile_size // 2,
-                    y * self.tile_size + self.tile_size // 2,
-                    text=text,
-                    font=font,
-                    anchor="center",
-                    fill=color_hex
-                )
+        if getattr(self, 'show_images', False):
+            # Display as image using visualize_samples
+            from level_dataset import visualize_samples
+            import PIL.ImageTk
+
+            one_hot_scene = torch.nn.functional.one_hot(
+                torch.tensor(sample['scene'], dtype=torch.long),
+                num_classes=15
+            ).float().permute(2, 0, 1).unsqueeze(0)  # Add batch dimension
+
+            image = visualize_samples(one_hot_scene)
+            photo_image = PIL.ImageTk.PhotoImage(image)
+            self.canvas.create_image(
+                self.window_size // 2, self.window_size // 2, image=photo_image, anchor="center"
+            )
+            self.photo_image = photo_image  # Keep a reference to avoid garbage collection
+        else:
+            # Display as numeric/character grid
+            font = ("Courier", self.font_size)
+            colors = level_dataset.colors()
+            for y in range(16):
+                for x in range(16):
+                    tile_id = sample['scene'][y][x]
+                    text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
+                    # Convert (r, g, b) float tuple to hex color string
+                    r, g, b = colors[tile_id]
+                    color_hex = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
+                    self.canvas.create_text(
+                        x * self.tile_size + self.tile_size // 2,
+                        y * self.tile_size + self.tile_size // 2,
+                        text=text,
+                        font=font,
+                        anchor="center",
+                        fill=color_hex
+                    )
 
         self.canvas.create_text(
             8 * self.tile_size + self.tile_size // 2,
