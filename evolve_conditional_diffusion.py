@@ -41,7 +41,7 @@ class TextDiffusionEvolver(Evolver):
 
         settings = {
             "batch_size" : 1,
-            # "guidance_scale" : g.guidance_scale, # Remove this from genome?
+            "guidance_scale" : g.guidance_scale, 
             "num_inference_steps" : g.num_inference_steps,
             # "strength" : g.strength, # Definitely don't need this
             "output_type" : "tensor",
