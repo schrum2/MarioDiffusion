@@ -105,23 +105,6 @@ class ImageGridViewer:
         )
         self.close_button.pack(side=tk.LEFT, padx=5, pady=5)
         
-        # Don't need these now that levels can be built
-        #self.playall_button = tk.Button(
-        #    self.button_frame,
-        #    text="Combine And Play",
-        #    command=self._play_all,
-        #    width=20
-        #)
-        #self.playall_button.pack(side=tk.LEFT, padx=5, pady=5)
-
-        #self.astarall_button = tk.Button(
-        #    self.button_frame,
-        #    text="Combine And A*",
-        #    command=self._run_astar_agent_all,
-        #    width=20
-        #)
-        #self.astarall_button.pack(side=tk.LEFT, padx=5, pady=5)
-
         self.play_composed_button = tk.Button(
             self.button_frame,
             text="Play Composed Level",
