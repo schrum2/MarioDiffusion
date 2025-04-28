@@ -137,39 +137,41 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         else:
             sample = torch.randn(sample_shape, generator=generator, device=device)
         
-        # Set number of inference steps
-        self.scheduler.set_timesteps(num_inference_steps)
-    
-        # Denoising loop
-        for t in self.progress_bar(self.scheduler.timesteps):
-            # For classifier-free guidance, we need to do two forward passes:
-            # one with the unconditional embedding and one with conditional embedding
+        self.unet.eval()
+        with torch.no_grad():
+            # Set number of inference steps
+            self.scheduler.set_timesteps(num_inference_steps)
         
-            # Expand latents for classifier-free guidance
-            latent_model_input = torch.cat([sample] * 2) if captions is not None else sample
-        
-            # Prepare model inputs
-            model_kwargs = {}
-            if text_embeddings is not None:
-                model_kwargs["encoder_hidden_states"] = text_embeddings
+            # Denoising loop
+            for t in self.progress_bar(self.scheduler.timesteps):
+                # For classifier-free guidance, we need to do two forward passes:
+                # one with the unconditional embedding and one with conditional embedding
             
-            # Predict noise residual
-            noise_pred = self.unet(latent_model_input, t, **model_kwargs).sample
-        
-            # Perform guidance if using text conditioning
-            if captions is not None:
-                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                # Combine predictions with classifier-free guidance
-                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-        
-            # Compute previous sample: x_{t-1} = scheduler(x_t, noise_pred)
-            sample = self.scheduler.step(noise_pred, t, sample).prev_sample
-        
-        # Convert to output format
-        if output_type == "tensor":
-            # Apply softmax to get probabilities for each tile type
-            sample = F.softmax(sample, dim=1)
-        else:
-            raise ValueError(f"Unsupported output type: {output_type}")
+                # Expand latents for classifier-free guidance
+                latent_model_input = torch.cat([sample] * 2) if captions is not None else sample
+            
+                # Prepare model inputs
+                model_kwargs = {}
+                if text_embeddings is not None:
+                    model_kwargs["encoder_hidden_states"] = text_embeddings
+                
+                # Predict noise residual
+                noise_pred = self.unet(latent_model_input, t, **model_kwargs).sample
+            
+                # Perform guidance if using text conditioning
+                if captions is not None:
+                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                    # Combine predictions with classifier-free guidance
+                    noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+            
+                # Compute previous sample: x_{t-1} = scheduler(x_t, noise_pred)
+                sample = self.scheduler.step(noise_pred, t, sample).prev_sample
+            
+            # Convert to output format
+            if output_type == "tensor":
+                # Apply softmax to get probabilities for each tile type
+                sample = F.softmax(sample, dim=1)
+            else:
+                raise ValueError(f"Unsupported output type: {output_type}")
         
         return PipelineOutput(images=sample)
