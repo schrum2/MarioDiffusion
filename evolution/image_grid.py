@@ -194,16 +194,6 @@ class ImageGridViewer:
 
         return concatenated_scene
 
-    def _play_all(self):
-        if self.selected_images:
-            level = self.get_sample_output(self._merge_selected())
-            level.play()
-
-    def _run_astar_agent_all(self):
-        if self.selected_images:
-            level = self.get_sample_output(self._merge_selected())
-            level.run_astar()
-
     def clear_images(self):
         """Clears all images from the grid and resets selections."""
         self.images.clear()
