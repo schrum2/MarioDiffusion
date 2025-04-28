@@ -11,6 +11,9 @@ from torch.utils.data import DataLoader
 import io
 from PIL import Image
 
+# Global variable to store the loaded sprite sheet
+_sprite_sheet = None
+
 def samples_to_scenes(all_samples):
     # Convert to list
     samples_list = [all_samples[i] for i in range(len(all_samples))]
@@ -79,8 +82,11 @@ def tiles():
     Returns:
         A list of 16x16 pixel tile images.
     """
-    # Load the sprite sheet
-    sprite_sheet = Image.open("mapsheet.png")
+    global _sprite_sheet
+
+    # Load the sprite sheet only once
+    if _sprite_sheet is None:
+        _sprite_sheet = Image.open("mapsheet.png")
 
     # Hardcoded coordinates for the first 16 tiles (row, col)
     tile_coordinates = [
@@ -89,13 +95,13 @@ def tiles():
         (3,2),    # 2 = right upper lip of pipe
         (0,1),    # 3 = question block with power up
         (3,0),    # 4 = Cannon head
-        (7,4),    # 5 = enemy # CURRENTLY WRONG!
+        (7,4),    # 5 = enemy
         (2,1),    # 6 = question block with coin
         (2,6),    # 7 = breakable brick block
         (1,0),    # 8 = solid block/floor
         (4,2),    # 9 = left edge of pipe body
         (5,2),    # 10 = right edge of pipe body
-        (4,0),    # 11 = Cannon support (should be 5,0 somtimes?)
+        (4,0),    # 11 = Cannon support (should be 5,0 sometimes?)
         (7,1),    # 12 = coin
         (0,1),    # 13 = Nothing
         (0,6),    # 14 = Nothing
@@ -109,7 +115,7 @@ def tiles():
         upper = row * 16
         right = left + 16
         lower = upper + 16
-        tile = sprite_sheet.crop((left, upper, right, lower))
+        tile = _sprite_sheet.crop((left, upper, right, lower))
         tile_images.append(tile)
 
     return tile_images
