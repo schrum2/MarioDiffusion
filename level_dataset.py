@@ -72,6 +72,48 @@ def colors():
 
     return colorslist
 
+def tiles():
+    """
+    Maps integers 0-15 to 16x16 pixel sprites from mapsheet.png.
+
+    Returns:
+        A list of 16x16 pixel tile images.
+    """
+    # Load the sprite sheet
+    sprite_sheet = Image.open("mapsheet.png")
+
+    # Hardcoded coordinates for the first 16 tiles (row, col)
+    tile_coordinates = [
+        (2,5),    # 0 = Sky
+        (2,2),    # 1 = left upper lip of pipe
+        (3,2),    # 2 = right upper lip of pipe
+        (0,1),    # 3 = question block with power up
+        (3,0),    # 4 = Cannon head
+        (7,4),    # 5 = enemy # CURRENTLY WRONG!
+        (2,1),    # 6 = question block with coin
+        (2,6),    # 7 = breakable brick block
+        (1,0),    # 8 = solid block/floor
+        (4,2),    # 9 = left edge of pipe body
+        (5,2),    # 10 = right edge of pipe body
+        (4,0),    # 11 = Cannon support (should be 5,0 somtimes?)
+        (7,1),    # 12 = coin
+        (0,1),    # 13 = Nothing
+        (0,6),    # 14 = Nothing
+        (1,6)     # 15 = Nothing (extra just in case)
+    ]
+
+    # Extract each tile as a 16x16 image
+    tile_images = []
+    for row, col in tile_coordinates:
+        left = col * 16
+        upper = row * 16
+        right = left + 16
+        lower = upper + 16
+        tile = sprite_sheet.crop((left, upper, right, lower))
+        tile_images.append(tile)
+
+    return tile_images
+
 def visualize_samples(samples, output_dir=None):
     """
     Visualize generated samples and save as images.
