@@ -4,7 +4,7 @@ from level_dataset import visualize_samples, convert_to_level_format
 from create_ascii_captions import extract_tileset
 import argparse
 import torch
-from evolution.genome import DiffusionGenome
+from evolution.genome import LatentGenome
 from create_ascii_captions import assign_caption
 
 class DiffusionEvolver(Evolver):
@@ -31,7 +31,7 @@ class DiffusionEvolver(Evolver):
         return latents
 
     def initialize_population(self):
-        self.genomes = [DiffusionGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed)) for seed in range(self.population_size)]
+        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed)) for seed in range(self.population_size)]
         self.viewer.id_to_char = self.id_to_char
 
     def generate_image(self, g):

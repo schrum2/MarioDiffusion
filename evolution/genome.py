@@ -22,7 +22,7 @@ def display_embeddings(embeds):
 def perturb_latents(latents):
     return latents + LATENT_NOISE_SCALE * torch.randn_like(latents)
 
-class DiffusionGenome:
+class LatentGenome:
     def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None, scene = None, prompt = None, caption = None):
         self.width = width
         self.seed = seed
@@ -102,7 +102,7 @@ class DiffusionGenome:
             self.latents = perturb_latents(self.latents)
                 
     def mutated_child(self):
-        child = DiffusionGenome(
+        child = LatentGenome(
             self.width,
             self.seed,
             self.num_inference_steps,
