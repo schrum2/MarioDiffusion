@@ -175,9 +175,13 @@ class ImageGridViewer:
             level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
             level.run_astar()
 
+    def get_available_scenes(self):
+        """Returns a list of available scenes from the genomes."""
+        return [g.scene for g in self.genomes if g.scene is not None]
+
     def _merge_selected(self, indexes=None):
 
-        scenes = list(map(lambda g: g.scene, self.genomes))
+        scenes = self.get_available_scenes()
 
         if indexes is None:
             indexes = self.selected_images
