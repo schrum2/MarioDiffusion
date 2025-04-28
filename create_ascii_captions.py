@@ -97,7 +97,7 @@ def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
                 print(tile_descriptors)
                 print(tile_descriptors.get(id_to_char[tile], []))
                 raise ValueError("Every tile should be passable, solid, or enemy")
-        return f"floor with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps > 1 else "")
+        return f"floor with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps != 1 else "")
     else:
         # Count contiguous groups of solid tiles
         chunks = 0
@@ -115,7 +115,7 @@ def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
                 print(tile_descriptors)
                 print(tile_descriptors.get(tile, []))
                 raise ValueError("Every tile should be either passable or solid")
-        return f"giant gap with {describe_quantity(chunks) if coarse_counts else chunks} chunk"+("s" if pluralize and chunks > 1 else "")+" of floor"
+        return f"giant gap with {describe_quantity(chunks) if coarse_counts else chunks} chunk"+("s" if pluralize and chunks != 1 else "")+" of floor"
 
 def count_in_scene(scene, tiles):
     """ counts standalone tiles """
@@ -183,7 +183,7 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence):
                     in_gap = True
             else:
                 in_gap = False
-        return f" ceiling with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps > 1 else "") + "."
+        return f" ceiling with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps != 1 else "") + "."
     elif describe_absence:
         return " no ceiling."
     else:
