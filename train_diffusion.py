@@ -43,7 +43,7 @@ def parse_args():
     parser.add_argument("--up_block_types", nargs="+", type=str, 
                        default=["CrossAttnUpBlock2D", "CrossAttnUpBlock2D", "CrossAttnUpBlock2D"], 
                        help="Up block types for UNet")
-    parser.add_argument("--attention_head_dim", type=int, default=4, help="Number of attention heads")
+    parser.add_argument("--attention_head_dim", type=int, default=8, help="Number of attention heads")
     
     # Training args
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
