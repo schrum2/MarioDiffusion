@@ -51,8 +51,8 @@ def parse_args():
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps")
     parser.add_argument("--lr_warmup_percentage", type=float, default=0.05, help="Learning rate warmup portion") 
     parser.add_argument("--lr_scheduler_cycles", type=float, default=0.5, help="Number of cycles for the cosine learning rate scheduler")
-    parser.add_argument("--save_image_epochs", type=int, default=10, help="Save generated levels every N epochs")
-    parser.add_argument("--save_model_epochs", type=int, default=10, help="Save model every N epochs")
+    parser.add_argument("--save_image_epochs", type=int, default=20, help="Save generated levels every N epochs")
+    parser.add_argument("--save_model_epochs", type=int, default=20, help="Save model every N epochs")
     parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help="Mixed precision type")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     
