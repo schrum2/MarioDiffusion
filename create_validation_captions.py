@@ -7,7 +7,9 @@ from captions.caption_match import compare_captions
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Create validation set of captions")
-    
+
+    parser.add_argument("--seed", type=int, default=512, help="Random seed for reproducibility")
+
     # Dataset args
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
@@ -40,7 +42,7 @@ def main():
     #    caption = dataset.get_sample_caption(i)
     #    print(caption)
 
-    generator = GrammarGenerator()
+    generator = GrammarGenerator(seed = args.seed)
 
     validation_captions = []
     while len(validation_captions) < args.validation_set_size:

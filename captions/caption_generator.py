@@ -3,7 +3,8 @@ from typing import Dict, Optional
 
 
 class GrammarGenerator:
-    def __init__(self):
+    def __init__(self, seed=512):
+        random.seed(seed)  # Set the random seed for reproducibility
         # Define topics and their valid variations
         self.topic_phrases = {
             "floor": ["full floor", "floor with one gap", "floor with two gaps", 
