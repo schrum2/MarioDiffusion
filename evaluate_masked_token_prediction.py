@@ -115,7 +115,7 @@ if __name__ == "__main__":
             model = TransformerModel.from_pretrained(checkpoint_path).to(device)
             accuracy, correct, total = evaluate_model(
                 model, model.tokenizer, dataloader, device, args.mask_prob,
-                console_output=False, generator=eval_generator
+                console_output=False, eval_generator=eval_generator
             )
             log_entry = {
                 "epoch": epoch_num,
