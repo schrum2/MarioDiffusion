@@ -79,6 +79,6 @@ if __name__ == "__main__":
     dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
     
     if compare_checkpoints: # Evaluate all checkpoints and save a plot
-
+        # TODO! Call evaluate_model for each saved checkpoint and make a plot that shows how the accuracy score changes (y-axis) as the model is trained for more and more epochs (x-axis)
     else: # Just evaluate final and print results
         evaluate_model(model, model.tokenizer, dataloader, device, args.mask_prob)
