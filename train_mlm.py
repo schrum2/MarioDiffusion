@@ -15,6 +15,7 @@ from datetime import datetime
 from util.loss_plotter import LossPlotter
 
 def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
+    global args
 
     #for batch in dataloader:
     #    print("Batch shape:", batch.shape)
@@ -88,6 +89,14 @@ def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
         # Log to JSONL file
         log_metrics(epoch, avg_loss, args.lr)
 
+        # Save checkpoint if enabled and at the correct interval
+        if args.save_checkpoints and args.checkpoint_freq > 0 and (epoch + 1) % args.checkpoint_freq == 0:
+            checkpoint_dir = os.path.join(args.output_dir, f"checkpoint_epoch_{epoch+1}")
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            model.save_pretrained(checkpoint_dir)
+            print(f"Saved checkpoint to {checkpoint_dir}")
+
+
     evaluate_model(model, tokenizer, dataloader, device)
     
 if __name__ == "__main__":
@@ -102,6 +111,8 @@ if __name__ == "__main__":
     parser.add_argument("--data_limit", type=int, default=-1, help="If not negative, only train with this many examples")
     parser.add_argument("--output_dir", type=str, default="mlm", help="Directory for training logs and model")
     parser.add_argument('--no-augment', action='store_false', dest='augment', help='Disable data augmentation (default: True)')
+    parser.add_argument("--checkpoint_freq", type=int, default=20, help="Save checkpoint every N epochs (0 to disable)")
+    parser.add_argument("--save_checkpoints", action="store_true", help="Enable periodic checkpoint saving")
     
     global args
     args = parser.parse_args()

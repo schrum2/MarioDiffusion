@@ -48,7 +48,7 @@ python tokenizer.py save
 ```
 Now, masked language modeling will be used to pre-train the text embedding model.
 ```
-python train_mlm.py --epochs 300
+python train_mlm.py --epochs 300 --save_checkpoints
 ```
 A report evaluating the accuracy of the model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```
