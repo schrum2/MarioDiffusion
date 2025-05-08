@@ -35,9 +35,9 @@ Now you can browse the level scenes and their captions with this command:
 ```
 python ascii_data_browser.py SMB1_LevelsAndCaptions.json 
 ```
-Make a separate validation set of captions with this command. These randomly generated captions are used for validation later:
+Make a separate validation set of captions with this command. These randomly generated captions are used for validation later (using seed 0 will give you the same validation set used in our experiments):
 ```
-python create_validation_captions.py --save_file "SMB1_ValidationCaptions.json"
+python create_validation_captions.py --save_file "SMB1_ValidationCaptions.json" --seed 0
 ```
 
 ## Train text encoder
@@ -50,10 +50,13 @@ Now, masked language modeling will be used to pre-train the text embedding model
 ```
 python train_mlm.py --epochs 300 --save_checkpoints
 ```
-A report evaluating the accuracy of the model on the training data is provided after training, but you can repeat a similar evaluation with this command:
+A report evaluating the accuracy of the final model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```
 python evaluate_masked_token_prediction.py --model_path mlm
 ```
+
+TODO:
+
 
 ## Train text-to-level model
 
