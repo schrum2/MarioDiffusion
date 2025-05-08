@@ -14,10 +14,11 @@ def masked_inputs(input_batch, tokenizer, device, mask_prob=0.15, generator=None
     input_batch[mask] = mask_token
     return input_batch
 
-def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15, console_output=True):
+def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15, console_output=True, eval_generator = None):
 
-    eval_generator = torch.Generator(device=device)
-    eval_generator.manual_seed(0)  # Should this be a command line parameter? 
+    if eval_generator == None:
+        eval_generator = torch.Generator(device=device)
+        eval_generator.manual_seed(0)  # Should this be a command line parameter? 
 
     model.eval()
     mask_token = tokenizer.token_to_id["[MASK]"]
@@ -84,27 +85,49 @@ if __name__ == "__main__":
     if args.compare_checkpoints: # Evaluate all checkpoints and save a plot
         import os
         import re
+        import json
         import matplotlib.pyplot as plt
 
         checkpoint_pattern = re.compile(r"checkpoint_epoch_(\d+)")
-        checkpoint_scores = []
+        checkpoint_info = []
 
-        # List subdirectories that match the checkpoint naming scheme
-        for subdir in sorted(os.listdir(args.model_path)):
+        # Gather (epoch_num, path) pairs
+        for subdir in os.listdir(args.model_path):
             match = checkpoint_pattern.match(subdir)
             if match:
                 epoch_num = int(match.group(1))
                 checkpoint_path = os.path.join(args.model_path, subdir)
-                print(f"Evaluating checkpoint from epoch {epoch_num} at {checkpoint_path}")
-                model = TransformerModel.from_pretrained(checkpoint_path).to(device)
-                accuracy, _, _ = evaluate_model(model, model.tokenizer, dataloader, device, args.mask_prob, console_output=False)
-                checkpoint_scores.append((epoch_num, accuracy))
+                checkpoint_info.append((epoch_num, checkpoint_path))
 
-        # Sort scores by epoch
-        checkpoint_scores.sort(key=lambda x: x[0])
-        epochs, accuracies = zip(*checkpoint_scores)
+        # Sort by numeric epoch
+        checkpoint_info.sort(key=lambda x: x[0])
 
-        # Plot
+        # Create deterministic generator
+        eval_generator = torch.Generator(device=device)
+        eval_generator.manual_seed(0) # Should this be a command line parameter? 
+
+        # Evaluate and record stats
+        log_entries = []
+        epochs, accuracies = [], []
+
+        for epoch_num, checkpoint_path in checkpoint_info:
+            print(f"Evaluating checkpoint from epoch {epoch_num} at {checkpoint_path}")
+            model = TransformerModel.from_pretrained(checkpoint_path).to(device)
+            accuracy, correct, total = evaluate_model(
+                model, model.tokenizer, dataloader, device, args.mask_prob,
+                console_output=False, generator=eval_generator
+            )
+            log_entry = {
+                "epoch": epoch_num,
+                "accuracy": accuracy,
+                "correct": correct,
+                "total": total
+            }
+            log_entries.append(log_entry)
+            epochs.append(epoch_num)
+            accuracies.append(accuracy)
+
+        # Save plot
         plt.figure(figsize=(10, 5))
         plt.plot(epochs, accuracies, marker='o')
         plt.title("Masked Token Prediction Accuracy by Checkpoint")
@@ -115,6 +138,13 @@ if __name__ == "__main__":
         plot_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_checkpoint_accuracy_plot.png")
         plt.savefig(plot_path)
         print(f"Saved accuracy plot to {plot_path}")
+
+        # Save JSONL
+        jsonl_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_checkpoint_accuracy_log.jsonl")
+        with open(jsonl_path, "w") as f:
+            for entry in log_entries:
+                f.write(json.dumps(entry) + "\n")
+        print(f"Saved accuracy log to {jsonl_path}")
 
     else: # Just evaluate final and print results
         evaluate_model(model, model.tokenizer, dataloader, device, args.mask_prob)
