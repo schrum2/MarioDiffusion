@@ -97,8 +97,6 @@ if __name__ == "__main__":
                 checkpoint_path = os.path.join(args.model_path, subdir)
                 print(f"Evaluating checkpoint from epoch {epoch_num} at {checkpoint_path}")
                 model = TransformerModel.from_pretrained(checkpoint_path).to(device)
-                #dataset = LevelDataset(args.json, model.tokenizer, mode="mlm")
-                #dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
                 accuracy, _, _ = evaluate_model(model, model.tokenizer, dataloader, device, args.mask_prob, console_output=False)
                 checkpoint_scores.append((epoch_num, accuracy))
 
