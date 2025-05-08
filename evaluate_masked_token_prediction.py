@@ -14,7 +14,7 @@ def masked_inputs(input_batch, tokenizer, device, mask_prob=0.15):
     input_batch[mask] = mask_token
     return input_batch
 
-def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15):
+def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15, console_output=True):
     model.eval()
     mask_token = tokenizer.token_to_id["[MASK]"]
     pad_token = tokenizer.token_to_id["[PAD]"]
@@ -45,17 +45,21 @@ def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15):
                 except ValueError:
                     pad_index = len(ground_truth)
 
-                print(f"Original: {(tokenizer.decode(ground_truth.tolist()[:pad_index]))}")
-                print(f"Masked  : {(tokenizer.decode(masked_input.tolist()[:pad_index]))}")
-                print(f"Predicted: {predicted_token} | Expected: {expected_token}\n")
+                if console_output:
+                    print(f"Original: {(tokenizer.decode(ground_truth.tolist()[:pad_index]))}")
+                    print(f"Masked  : {(tokenizer.decode(masked_input.tolist()[:pad_index]))}")
+                    print(f"Predicted: {predicted_token} | Expected: {expected_token}\n")
                 
                 if predicted_token == expected_token:
                     correct += 1
                 total += 1
     
     accuracy = correct / total if total > 0 else 0
-    print(f"Mask Prediction Accuracy: {accuracy:.2%}")
-    print(f"Correct: {correct} | Total: {total}")
+    if console_output:
+        print(f"Mask Prediction Accuracy: {accuracy:.2%}")
+        print(f"Correct: {correct} | Total: {total}")
+
+    return (accuracy, correct, total)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -63,6 +67,8 @@ if __name__ == "__main__":
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_samples", type=int, default=10, help="Number of captions to evaluate")
     parser.add_argument("--mask_prob", type=float, default=0.15, help="Probability of masking each token")
+
+    parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
     args = parser.parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -72,4 +78,7 @@ if __name__ == "__main__":
     dataset = LevelDataset(args.json, model.tokenizer, mode="mlm")
     dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
     
-    evaluate_model(model, model.tokenizer, dataloader, device, args.mask_prob)
+    if compare_checkpoints: # Evaluate all checkpoints and save a plot
+
+    else: # Just evaluate final and print results
+        evaluate_model(model, model.tokenizer, dataloader, device, args.mask_prob)
