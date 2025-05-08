@@ -76,9 +76,44 @@ if __name__ == "__main__":
     print(f"Loaded model from {args.model_path}")
     
     dataset = LevelDataset(args.json, model.tokenizer, mode="mlm")
-    dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=16, shuffle=False) # No shuffle for post-eval
     
     if compare_checkpoints: # Evaluate all checkpoints and save a plot
-        # TODO! Call evaluate_model for each saved checkpoint and make a plot that shows how the accuracy score changes (y-axis) as the model is trained for more and more epochs (x-axis)
+        import os
+        import re
+        import matplotlib.pyplot as plt
+
+        checkpoint_pattern = re.compile(r"checkpoint_epoch_(\d+)")
+        checkpoint_scores = []
+
+        # List subdirectories that match the checkpoint naming scheme
+        for subdir in sorted(os.listdir(args.model_path)):
+            match = checkpoint_pattern.match(subdir)
+            if match:
+                epoch_num = int(match.group(1))
+                checkpoint_path = os.path.join(args.model_path, subdir)
+                print(f"Evaluating checkpoint from epoch {epoch_num} at {checkpoint_path}")
+                model = TransformerModel.from_pretrained(checkpoint_path).to(device)
+                #dataset = LevelDataset(args.json, model.tokenizer, mode="mlm")
+                #dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
+                accuracy, _, _ = evaluate_model(model, model.tokenizer, dataloader, device, args.mask_prob, console_output=False)
+                checkpoint_scores.append((epoch_num, accuracy))
+
+        # Sort scores by epoch
+        checkpoint_scores.sort(key=lambda x: x[0])
+        epochs, accuracies = zip(*checkpoint_scores)
+
+        # Plot
+        plt.figure(figsize=(10, 5))
+        plt.plot(epochs, accuracies, marker='o')
+        plt.title("Masked Token Prediction Accuracy by Checkpoint")
+        plt.xlabel("Epoch")
+        plt.ylabel("Accuracy")
+        plt.grid(True)
+        plt.tight_layout()
+        plot_path = os.path.join(args.model_path, "checkpoint_accuracy_plot.png")
+        plt.savefig(plot_path)
+        print(f"Saved accuracy plot to {plot_path}")
+
     else: # Just evaluate final and print results
         evaluate_model(model, model.tokenizer, dataloader, device, args.mask_prob)
