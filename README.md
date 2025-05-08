@@ -54,9 +54,14 @@ A report evaluating the accuracy of the final model on the training data is prov
 ```
 python evaluate_masked_token_prediction.py --model_path mlm
 ```
-
-TODO:
-
+You can also see how the accuracy on the training set changes throughout training by evaluating all checkpoints with this command:
+```
+python evaluate_masked_token_prediction.py --model_path mlm --compare_checkpoints
+```
+To see accuracy on the validation set over time instead, run this command:
+```
+python evaluate_masked_token_prediction.py --model_path mlm --compare_checkpoints --json SMB1_ValidationCaptions.json
+```
 
 ## Train text-to-level model
 
