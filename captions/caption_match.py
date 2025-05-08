@@ -1,4 +1,3 @@
-
 # Quantity order for scoring partial matches
 QUANTITY_TERMS = ["one", "two", "a few", "several", "many"]
 
@@ -93,12 +92,16 @@ def quantity_score(phrase1, phrase2, debug=False):
         print("[Quantity] At least one quantity missing, assigning partial score 0.1")
     return 0.1
 
-def compare_captions(correct_caption, generated_caption, debug=False):
+def compare_captions(correct_caption, generated_caption, debug=False, return_matches=False):
     correct_phrases = extract_phrases(correct_caption, debug=debug)
     generated_phrases = extract_phrases(generated_caption, debug=debug)
 
     total_score = 0.0
     num_topics = len(TOPIC_KEYWORDS)
+
+    exact_matches = []
+    partial_matches = []
+    excess_phrases = []
 
     if debug:
         print("\n--- Starting Topic Comparison ---\n")
@@ -116,6 +119,8 @@ def compare_captions(correct_caption, generated_caption, debug=False):
                 print(f"[Topic: {topic}] Both None — full score: 1.0\n")
         elif correct is None or generated is None:
             total_score += -1.0
+            if generated is not None:
+                excess_phrases.append(generated)
             if debug:
                 print(f"[Topic: {topic}] One is None — penalty: -1.0\n")
         else:
@@ -128,21 +133,28 @@ def compare_captions(correct_caption, generated_caption, debug=False):
 
             if norm_correct == norm_generated:
                 total_score += 1.0
+                exact_matches.append(generated)
                 if debug:
                     print(f"[Topic: {topic}] Exact match — score: 1.0\n")
             elif any(term in norm_correct for term in QUANTITY_TERMS) and any(term in norm_generated for term in QUANTITY_TERMS):
                 qty_score = quantity_score(norm_correct, norm_generated, debug=debug)
                 total_score += qty_score
+                partial_matches.append(generated)
                 if debug:
                     print(f"[Topic: {topic}] Quantity-based partial score: {qty_score:.2f}\n")
             else:
                 total_score += 0.1
+                partial_matches.append(generated)
                 if debug:
                     print(f"[Topic: {topic}] Partial match (topic overlap) — score: 0.1\n")
 
     final_score = total_score / num_topics
     if debug:
         print(f"--- Final score: {final_score:.4f} ---\n")
+
+    if return_matches:
+        return final_score, exact_matches, partial_matches, excess_phrases
+
     return final_score
 
 if __name__ == '__main__':

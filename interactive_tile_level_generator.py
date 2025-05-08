@@ -190,25 +190,21 @@ class CaptionBuilder(ParentBuilder):
             scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False) # Incorporate these later: self.args.describe_locations, self.args.describe_absence)
 
-            compare_score = compare_captions(prompt, actual_caption)
+            # Call compare_captions with return_matches=True to get detailed match information
+            compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True)
 
             # Create a frame for each image and its buttons
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.pack(pady=10)
-    
+
             # Display the image
             img_tk = ImageTk.PhotoImage(visualize_samples(images))
             label = ttk.Label(img_frame, image=img_tk)
             label.image = img_tk
             label.pack()
 
-            # Split the caption into two halves
-            mid_index = len(actual_caption) // 2
-            first_half = actual_caption[:mid_index]
-            second_half = actual_caption[mid_index:]
-
             # Create a Text widget to allow colored text
-            caption_text = tk.Text(img_frame, wrap=tk.WORD, width=40, height=3, state=tk.DISABLED)
+            caption_text = tk.Text(img_frame, wrap=tk.WORD, width=40, height=5, state=tk.DISABLED)
             caption_text.pack(pady=(5, 10))
 
             # Enable editing temporarily to insert text
@@ -216,11 +212,16 @@ class CaptionBuilder(ParentBuilder):
 
             # Define tags for different colors
             caption_text.tag_configure("green", foreground="green")
+            caption_text.tag_configure("yellow", foreground="yellow")
             caption_text.tag_configure("red", foreground="red")
 
             # Insert text with tags
-            caption_text.insert(tk.END, first_half, "green")
-            caption_text.insert(tk.END, second_half, "red")
+            for phrase in exact_matches:
+                caption_text.insert(tk.END, phrase + ". ", "green")
+            for phrase in partial_matches:
+                caption_text.insert(tk.END, phrase + ". ", "yellow")
+            for phrase in excess_phrases:
+                caption_text.insert(tk.END, phrase + ". ", "red")
 
             # Disable editing again
             caption_text.config(state=tk.DISABLED)
