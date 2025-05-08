@@ -212,7 +212,7 @@ class CaptionBuilder(ParentBuilder):
 
             # Define tags for different colors
             caption_text.tag_configure("green", foreground="green")
-            caption_text.tag_configure("yellow", foreground="yellow")
+            caption_text.tag_configure("yellow", foreground="#CCCC00")  # Darker yellow
             caption_text.tag_configure("red", foreground="red")
 
             # Insert text with tags
