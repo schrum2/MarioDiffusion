@@ -202,9 +202,29 @@ class CaptionBuilder(ParentBuilder):
             label.image = img_tk
             label.pack()
 
-            # Display the caption
-            caption_label = ttk.Label(img_frame, text=actual_caption, wraplength=300)
-            caption_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
+            # Split the caption into two halves
+            mid_index = len(actual_caption) // 2
+            first_half = actual_caption[:mid_index]
+            second_half = actual_caption[mid_index:]
+
+            # Create a Text widget to allow colored text
+            caption_text = tk.Text(img_frame, wrap=tk.WORD, width=40, height=3, state=tk.DISABLED)
+            caption_text.pack(pady=(5, 10))
+
+            # Enable editing temporarily to insert text
+            caption_text.config(state=tk.NORMAL)
+
+            # Define tags for different colors
+            caption_text.tag_configure("green", foreground="green")
+            caption_text.tag_configure("red", foreground="red")
+
+            # Insert text with tags
+            caption_text.insert(tk.END, first_half, "green")
+            caption_text.insert(tk.END, second_half, "red")
+
+            # Disable editing again
+            caption_text.config(state=tk.DISABLED)
+
             # And score
             score_label = ttk.Label(img_frame, text=f"Comparison Score: {compare_score}", wraplength=300)
             score_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
