@@ -15,13 +15,17 @@ def masked_inputs(input_batch, tokenizer, device, mask_prob=0.15, generator=None
     return input_batch
 
 def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15, console_output=True):
+
+    eval_generator = torch.Generator(device=device)
+    eval_generator.manual_seed(0)  # Should this be a command line parameter? 
+
     model.eval()
     mask_token = tokenizer.token_to_id["[MASK]"]
     pad_token = tokenizer.token_to_id["[PAD]"]
     correct, total = 0, 0
     for batch in dataloader:
         for item in batch:
-            masked_input = masked_inputs(item.clone(), tokenizer, device, mask_prob)
+            masked_input = masked_inputs(item.clone(), tokenizer, device, mask_prob, generator=eval_generator)
             ground_truth = item.clone()
             masked_indices = (masked_input == mask_token).nonzero().squeeze(1)
 
