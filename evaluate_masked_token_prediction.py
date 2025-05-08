@@ -82,7 +82,7 @@ if __name__ == "__main__":
     dataset = LevelDataset(args.json, model.tokenizer, mode="mlm")
     dataloader = DataLoader(dataset, batch_size=16, shuffle=False) # No shuffle for post-eval
     
-    if compare_checkpoints: # Evaluate all checkpoints and save a plot
+    if args.compare_checkpoints: # Evaluate all checkpoints and save a plot
         import os
         import re
         import matplotlib.pyplot as plt
@@ -115,7 +115,7 @@ if __name__ == "__main__":
         plt.ylabel("Accuracy")
         plt.grid(True)
         plt.tight_layout()
-        plot_path = os.path.join(args.model_path, "checkpoint_accuracy_plot.png")
+        plot_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_checkpoint_accuracy_plot.png")
         plt.savefig(plot_path)
         print(f"Saved accuracy plot to {plot_path}")
 
