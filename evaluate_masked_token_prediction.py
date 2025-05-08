@@ -4,13 +4,13 @@ from models.text_model import TransformerModel
 from level_dataset import LevelDataset
 from torch.utils.data import DataLoader
 
-def masked_inputs(input_batch, tokenizer, device, mask_prob=0.15):
+def masked_inputs(input_batch, tokenizer, device, mask_prob=0.15, generator=None):
     mask_token = tokenizer.token_to_id["[MASK]"]
-    pad_token = tokenizer.token_to_id["[PAD]"] # Don't mask [PAD] tokens
-    # Move input batch to the correct device
+    pad_token = tokenizer.token_to_id["[PAD]"]  # Don't mask [PAD] tokens
     input_batch = input_batch.to(device)
-    # Apply mask only to non-[PAD] tokens
-    mask = (torch.rand(input_batch.shape, device=device) < mask_prob) & (input_batch != pad_token)
+
+    rand_tensor = torch.rand(input_batch.shape, device=device, generator=generator)
+    mask = (rand_tensor < mask_prob) & (input_batch != pad_token)
     input_batch[mask] = mask_token
     return input_batch
 
