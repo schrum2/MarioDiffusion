@@ -3,6 +3,7 @@ import re
 from collections import Counter
 import pickle
 import sys
+import argparse
 
 class Tokenizer:
     def __init__(self):
@@ -122,11 +123,20 @@ class Tokenizer:
 if __name__ == "__main__":
     tokenizer = Tokenizer()
 
-    if sys.argv[1] == "save":
-        tokenizer.build_vocab('SMB1_LevelsAndCaptions.json')
-        tokenizer.save('SMB1_Tokenizer.pkl')
-    elif sys.argv[1] == "load":
-        tokenizer.load('SMB1_Tokenizer.pkl')
+    parser = argparse.ArgumentParser(description="Tokenizer utility for saving and loading vocabularies.")
+    parser.add_argument("action", choices=["save", "load"], help="Action to perform: 'save' or 'load'.")
+    parser.add_argument("--json_file", type=str, default='SMB1_LevelsAndCaptions.json', help="Path to the JSON file containing the dataset (required for 'save').")
+    parser.add_argument("--pkl_file", type=str, default='SMB1_Tokenizer.pkl', help="Path to the pickle file to save/load the tokenizer.")
+
+    args = parser.parse_args()
+
+    if args.action == "save":
+        if not args.json_file:
+            raise ValueError("The --json_file argument is required for the 'save' action.")
+        tokenizer.build_vocab(args.json_file)
+        tokenizer.save(args.pkl_file)
+    elif args.action == "load":
+        tokenizer.load(args.pkl_file)
 
     # Example usage
     #print(tokenizer.encode("floor with one gap. one enemy."))

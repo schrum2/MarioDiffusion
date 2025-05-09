@@ -48,13 +48,15 @@ python create_validation_captions.py --save_file "SMB1_ValidationCaptions.json" 
 
 ## Train text encoder
 
-First create a tokenizer for the caption data with this command:
+First create tokenizers for the caption data from both games with these commands:
 ```
 python tokenizer.py save
+python tokenizer.py save --json_file SMB2_LevelsAndCaptions.json --pkl_file SMB2_Tokenizer.pkl
 ```
 Now, masked language modeling will be used to pre-train the text embedding model.
 ```
 python train_mlm.py --epochs 300 --save_checkpoints
+python train_mlm.py --epochs 300 --save_checkpoints --json SMB2_LevelsAndCaptions.json --pkl SMB2_Tokenizer.pkl --output_dir mlm2
 ```
 A report evaluating the accuracy of the final model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```
@@ -77,7 +79,7 @@ python train_diffusion.py --augment --text_conditional --output_dir "conditional
 ```
 You can train on just the Mario 2 data with this command:
 ```
-python train_diffusion.py --augment --text_conditional --output_dir "SMB2-conditional-model" --num_epochs 200 --json SMB2_LevelsAndCaptions.json
+python train_diffusion.py --augment --text_conditional --output_dir "SMB2-conditional-model" --num_epochs 200 --json SMB2_LevelsAndCaptions.json --mlm_model_dir mlm2
 ```
 
 ## Generate levels from text-to-level model
