@@ -101,11 +101,11 @@ python evaluate_caption_adherence.py --model_path conditional-model --save_as_js
 ```
 You can also evaluate the how caption adherence changed during training with respect to the training set:
 ```
-python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints --output_dir text_to_level_training
+python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints
 ```
 However, it is easy to match the captions used during training. You can evaluate the how caption adherence changed during training with respect to a previously unseen validation set too:
 ```
-python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints --output_dir text_to_level_validation --json SMB1_ValidationCaptions.json 
+python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints --json SMB1_ValidationCaptions.json 
 ```
 
 ## Train unconditional diffusion model

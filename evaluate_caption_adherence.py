@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     # Output args
-    parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory")
+    parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory if not comparing checkpoints (subdir of model directory)")
 
 
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
@@ -45,8 +45,11 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu" 
 
-    # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    # Save within the model path directory
+    if not args.compare_checkpoints:
+        args.output_dir = os.path.join(args.model_path, args.output_dir)
+        # Create output directory
+        os.makedirs(args.output_dir, exist_ok=True)
 
     _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
         
@@ -84,7 +87,7 @@ def main():
 
         if args.save_as_json:
             # Save scores_by_epoch to a JSON file
-            scores_json_path = os.path.join(args.output_dir, "scores_by_epoch.json")
+            scores_json_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_scores_by_epoch.json")
             with open(scores_json_path, "w") as f:
                 json.dump(scores_by_epoch, f, indent=4)
             print(f"Saved scores by epoch to {scores_json_path}")
@@ -104,7 +107,7 @@ def main():
         plt.grid(True)
         plt.legend()
 
-        plot_path = os.path.join(args.output_dir, "caption_scores_plot.png")
+        plot_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_caption_scores_plot.png")
         plt.savefig(plot_path)
         plt.close()
         print(f"Saved caption scores plot to {plot_path}")
