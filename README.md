@@ -79,7 +79,7 @@ python train_diffusion.py --augment --text_conditional --output_dir "conditional
 ```
 You can train on just the Mario 2 data with this command:
 ```
-python train_diffusion.py --augment --text_conditional --output_dir "SMB2-conditional-model" --num_epochs 200 --json SMB2_LevelsAndCaptions.json --mlm_model_dir mlm2
+python train_diffusion.py --augment --text_conditional --output_dir "SMB2-conditional-model" --num_epochs 200 --json SMB2_LevelsAndCaptions.json --mlm_model_dir mlm2 --pkl SMB2_Tokenizer.pkl
 ```
 
 ## Generate levels from text-to-level model
