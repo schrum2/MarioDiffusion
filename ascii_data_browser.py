@@ -16,7 +16,7 @@ class TileViewer(tk.Tk):
         screen_height = self.winfo_screenheight()
         self.window_size = min(screen_width, screen_height) * 0.75
         self.tile_size = int(self.window_size / 20)
-        self.font_size = max(self.tile_size // 2, 8)
+        self.font_size = max(self.tile_size // 3, 6)  # Reduced font size for tighter display
 
         self.dataset = []
         self.id_to_char = {}
@@ -48,13 +48,13 @@ class TileViewer(tk.Tk):
 
     def create_widgets(self):
         frame = tk.Frame(self)
-        frame.pack(pady=5)
+        frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
 
         load_button = tk.Button(frame, text="Load Dataset & Tileset", command=self.load_files)
         load_button.pack()
 
         checkbox_frame = tk.Frame(self)
-        checkbox_frame.pack(pady=5)
+        checkbox_frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
         self.checkbox = tk.Checkbutton(checkbox_frame, text="Show numeric IDs", variable=self.show_ids, command=self.redraw)
         self.checkbox.pack(side=tk.LEFT, padx=5)
         regenerate_button = tk.Button(checkbox_frame, text="Regenerate Caption", command=self.regenerate_caption)
@@ -63,17 +63,17 @@ class TileViewer(tk.Tk):
         toggle_view_button = tk.Button(checkbox_frame, text="Toggle View Mode", command=self.toggle_view_mode)
         toggle_view_button.pack(side=tk.LEFT, padx=5)
 
-        self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size)
-        self.canvas.pack()
+        self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
+        self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
 
         nav_frame = tk.Frame(self)
-        nav_frame.pack(pady=5)
+        nav_frame.pack(pady=2, side=tk.BOTTOM)  # Moved navigation buttons closer to the canvas
         tk.Button(nav_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=5)
         tk.Button(nav_frame, text="Next >>", command=self.next_sample).pack(side=tk.LEFT, padx=5)
 
         # Sample info and jump
         info_frame = tk.Frame(self)
-        info_frame.pack(pady=5)
+        info_frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
         self.sample_label = tk.Label(info_frame, text="Sample: 0 / 0")
         self.sample_label.pack(side=tk.LEFT, padx=5)
 
@@ -146,9 +146,10 @@ class TileViewer(tk.Tk):
                         fill=color_hex
                     )
 
+        # Adjust caption placement to reduce space above and below
         self.canvas.create_text(
             8 * self.tile_size + self.tile_size // 2,
-            17 * self.tile_size + self.tile_size // 2,
+            16.5 * self.tile_size,  # Adjusted position to reduce space
             text=sample['caption'],
             anchor="center",
             width=self.tile_size * 16
@@ -186,7 +187,7 @@ if __name__ == "__main__":
     tileset_path = None
     if len(sys.argv) == 3 or len(sys.argv) == 2:
         dataset_path = sys.argv[1]
-        tileset_path = sys.argv[2] if len(sys.argv) == 3 else '..\TheVGLC\Super Mario Bros\smb.json'
+        tileset_path = sys.argv[2] if len(sys.argv) == 3 else r'..\TheVGLC\Super Mario Bros\smb.json'
         if not os.path.isfile(dataset_path) or not os.path.isfile(tileset_path):
             print("Invalid file paths provided. Ignoring command-line files.")
             dataset_path = tileset_path = None
