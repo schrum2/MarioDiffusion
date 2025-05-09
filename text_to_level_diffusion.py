@@ -3,7 +3,7 @@ import torch
 from level_dataset import visualize_samples
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
-from captions.caption_match import compare_captions
+from captions.caption_match import compare_captions, process_scene_segments
 from create_ascii_captions import assign_caption, extract_tileset
 import argparse
 
@@ -59,27 +59,18 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         compare_score = compare_captions(self.prompt, actual_caption)
         print(f"Comparison score: {compare_score}")
 
-        # Partition the scene into segments of width 16
-        segment_width = 16
-        segments = [
-            [row[i:i+segment_width] for row in scene]  # Properly slice each row of the scene
-            for i in range(0, len(scene[0]), segment_width)
-        ]
-
-        # Assign captions and compute scores for each segment
-        segment_scores = []
-        for idx, segment in enumerate(segments):
-            segment_caption = assign_caption(segment, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
-            segment_score = compare_captions(self.prompt, segment_caption)
-            segment_scores.append(segment_score)
-
-            print(f"Segment {idx + 1} caption: {segment_caption}")
-            print(f"Segment {idx + 1} comparison score: {segment_score}")
-
-        # Compute and print the average comparison score
-        if segment_scores:
-            average_score = sum(segment_scores) / len(segment_scores)
-            print(f"Average comparison score across all segments: {average_score}")
+        # Use the new function to process scene segments
+        average_score, segment_captions, segment_scores = process_scene_segments(
+            scene=scene,
+            segment_width=16,
+            prompt=self.prompt,
+            id_to_char=self.id_to_char,
+            char_to_id=self.char_to_id,
+            tile_descriptors=self.tile_descriptors,
+            describe_locations=self.args.describe_locations,
+            describe_absence=self.args.describe_absence,
+            verbose=True
+        )
 
         return visualize_samples(images)
 
