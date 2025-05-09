@@ -256,7 +256,32 @@ class CaptionBuilder(ParentBuilder):
             caption_text.config(state=tk.DISABLED)
 
             # And score
-            score_label = ttk.Label(img_frame, text=f"Comparison Score: {compare_score}", wraplength=300)
+            #score_label = ttk.Label(img_frame, text=f"Comparison Score: {compare_score}", wraplength=300)
+            #score_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
+
+            # Check if the scene is wider than 16 tiles and process segments if necessary
+            avg_segment_score = None
+            if len(scene[0]) > 16:
+                from captions.caption_match import process_scene_segments
+                avg_segment_score, _, _ = process_scene_segments(
+                    scene=scene,
+                    segment_width=16,
+                    prompt=prompt,
+                    id_to_char=self.id_to_char,
+                    char_to_id=self.char_to_id,
+                    tile_descriptors=self.tile_descriptors,
+                    describe_locations=False,
+                    describe_absence=False
+                )
+
+            # Update the score label text
+            if avg_segment_score is not None:
+                score_label_text = f"""Comparison Score: {compare_score}
+Average Segment Score: {avg_segment_score}"""
+            else:
+                score_label_text = f"Comparison Score: {compare_score}"
+
+            score_label = ttk.Label(img_frame, text=score_label_text, wraplength=300)
             score_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
     
             # Create a frame for buttons
