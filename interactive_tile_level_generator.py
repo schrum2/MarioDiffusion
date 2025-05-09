@@ -189,16 +189,18 @@ class CaptionBuilder(ParentBuilder):
         self.image_inner_frame.update_idletasks()  # Force an update to ensure the frame is fully rendered
         frame_width = self.image_inner_frame.winfo_width()
         print(f"Frame width after update_idletasks: {frame_width}")
-        if frame_width == 0:  # If the width is still not initialized
-            frame_width = 800  # Use a default fallback width
-            print("Frame width was 0, using fallback width of 800.")
 
-        # Ensure the GUI layout is updated before processing images
-        self.image_inner_frame.update_idletasks()  # Force an update to ensure the frame is fully rendered
-        frame_width = self.image_inner_frame.winfo_width()
-        if frame_width <= 1:  # If the width is invalid or too small
+        # Use a cached frame width if available and valid
+        if hasattr(self, 'cached_frame_width') and self.cached_frame_width > 1:
+            frame_width = self.cached_frame_width
+            print(f"Using cached frame width: {frame_width}")
+        elif frame_width <= 1:  # If the width is invalid or too small
             frame_width = self.image_canvas.winfo_width() // 2  # Use third of the parent canvas width as a fallback
             print(f"Frame width was invalid, using third of canvas width: {frame_width}")
+        else:
+            # Cache the valid frame width for future use
+            self.cached_frame_width = frame_width
+            print(f"Caching frame width: {frame_width}")
 
         for i in range(num_images):
             print(f"Generating image {i + 1} of {num_images}...")
