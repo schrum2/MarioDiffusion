@@ -53,6 +53,10 @@ class TileViewer(tk.Tk):
         load_button = tk.Button(frame, text="Load Dataset & Tileset", command=self.load_files)
         load_button.pack()
 
+        # Add a button to load a trained diffusion model
+        self.load_model_button = tk.Button(frame, text="Load Model", command=self.load_model)
+        self.load_model_button.pack(pady=2)
+
         checkbox_frame = tk.Frame(self)
         checkbox_frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
         self.checkbox = tk.Checkbutton(checkbox_frame, text="Show numeric IDs", variable=self.show_ids, command=self.redraw)
@@ -70,6 +74,10 @@ class TileViewer(tk.Tk):
         nav_frame.pack(pady=2, side=tk.BOTTOM)  # Moved navigation buttons closer to the canvas
         tk.Button(nav_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=5)
         tk.Button(nav_frame, text="Next >>", command=self.next_sample).pack(side=tk.LEFT, padx=5)
+
+        # Add a button to generate from the current scene (initially disabled)
+        self.generate_button = tk.Button(nav_frame, text="Generate From Scene", command=self.generate_from_scene, state=tk.DISABLED)
+        self.generate_button.pack(side=tk.LEFT, padx=5)
 
         # Sample info and jump
         info_frame = tk.Frame(self)
@@ -103,6 +111,47 @@ class TileViewer(tk.Tk):
         except Exception as e:
             print(f"Error loading files: {e}")
 
+    def load_model(self):
+        """Load a trained diffusion model."""
+        model_path = filedialog.askdirectory(title="Select Model Directory")
+        if model_path:
+            try:
+                self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
+                self.pipeline = TextConditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
+                print(f"Model loaded from {model_path}")
+                self.generate_button.config(state=tk.NORMAL)  # Enable the generate button
+            except Exception as e:
+                print(f"Error loading model: {e}")
+
+    def generate_from_scene(self):
+        """Generate a new level from the current scene using the loaded model."""
+        if not hasattr(self, 'pipeline') or not self.pipeline:
+            print("No model loaded.")
+            return
+
+        if not self.dataset:
+            print("No dataset loaded.")
+            return
+
+        sample = self.dataset[self.current_sample_idx]
+        input_scene = sample['scene']
+        input_scene = torch.tensor(input_scene, device=self.device)  # Ensure input_scene is on the same device as the model
+
+        try:
+            output = self.pipeline(
+                batch_size=1,
+                input_scene=input_scene,
+                num_inference_steps=50,
+                guidance_scale=7.5,
+                height=len(input_scene),
+                width=len(input_scene[0])
+            )
+            print("Generated new level from scene.")
+            # Optionally, visualize or save the output here
+        except Exception as e:
+            print(f"Error during generation: {e}")
+
     def redraw(self):
         if not self.dataset:
             return
@@ -114,13 +163,15 @@ class TileViewer(tk.Tk):
             # Display as image using visualize_samples
             from level_dataset import visualize_samples
             import PIL.ImageTk
-
+            from PIL import Image
             one_hot_scene = torch.nn.functional.one_hot(
                 torch.tensor(sample['scene'], dtype=torch.long),
                 num_classes=15
             ).float().permute(2, 0, 1).unsqueeze(0)  # Add batch dimension
 
             image = visualize_samples(one_hot_scene)
+            if isinstance(image, list):
+                image = image[0]  # Handle list case by taking the first element
             photo_image = PIL.ImageTk.PhotoImage(image)
             self.canvas.create_image(
                 self.window_size // 2, self.window_size // 2, image=photo_image, anchor="center"
