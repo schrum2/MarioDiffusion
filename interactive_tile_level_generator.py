@@ -197,8 +197,8 @@ class CaptionBuilder(ParentBuilder):
         self.image_inner_frame.update_idletasks()  # Force an update to ensure the frame is fully rendered
         frame_width = self.image_inner_frame.winfo_width()
         if frame_width <= 1:  # If the width is invalid or too small
-            frame_width = self.image_canvas.winfo_width()  # Use the parent canvas width as a fallback
-            print(f"Frame width was invalid, using canvas width: {frame_width}")
+            frame_width = self.image_canvas.winfo_width() // 2  # Use third of the parent canvas width as a fallback
+            print(f"Frame width was invalid, using third of canvas width: {frame_width}")
 
         for i in range(num_images):
             print(f"Generating image {i + 1} of {num_images}...")
