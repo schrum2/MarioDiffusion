@@ -75,6 +75,10 @@ Now that the text embedding model is ready, train a diffusion model conditioned 
 ```
 python train_diffusion.py --augment --text_conditional --output_dir "conditional-model" --num_epochs 200
 ```
+You can train on just the Mario 2 data with this command:
+```
+python train_diffusion.py --augment --text_conditional --output_dir "SMB2-conditional-model" --num_epochs 200 --json SMB2_LevelsAndCaptions.json
+```
 
 ## Generate levels from text-to-level model
 
