@@ -1,3 +1,5 @@
+from create_ascii_captions import assign_caption
+
 # Quantity order for scoring partial matches
 QUANTITY_TERMS = ["one", "two", "a few", "several", "many"]
 
@@ -156,6 +158,51 @@ def compare_captions(correct_caption, generated_caption, debug=False, return_mat
         return final_score, exact_matches, partial_matches, excess_phrases
 
     return final_score
+
+def process_scene_segments(scene, segment_width, prompt, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, verbose=False):
+    """
+    Process a scene by partitioning it into segments, assigning captions, and computing comparison scores.
+
+    Args:
+        scene (list): The scene to process, represented as a 2D list.
+        segment_width (int): The width of each segment.
+        prompt (str): The prompt to compare captions against.
+        id_to_char (dict): Mapping from tile IDs to characters.
+        char_to_id (dict): Mapping from characters to tile IDs.
+        tile_descriptors (dict): Descriptions of individual tile types.
+        describe_locations (bool): Whether to include location descriptions in captions.
+        describe_absence (bool): Whether to indicate absence of items in captions.
+        verbose (bool): If True, print captions and scores for each segment.
+
+    Returns:
+        tuple: A tuple containing the average comparison score, captions for each segment, and scores for each segment.
+    """
+    # Partition the scene into segments of the specified width
+    segments = [
+        [row[i:i+segment_width] for row in scene]  # Properly slice each row of the scene
+        for i in range(0, len(scene[0]), segment_width)
+    ]
+
+    # Assign captions and compute scores for each segment
+    segment_scores = []
+    segment_captions = []
+    for idx, segment in enumerate(segments):
+        segment_caption = assign_caption(segment, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
+        segment_score = compare_captions(prompt, segment_caption)
+        segment_scores.append(segment_score)
+        segment_captions.append(segment_caption)
+
+        if verbose:
+            print(f"Segment {idx + 1} caption: {segment_caption}")
+            print(f"Segment {idx + 1} comparison score: {segment_score}")
+
+    # Compute the average comparison score
+    average_score = sum(segment_scores) / len(segment_scores) if segment_scores else 0
+
+    if verbose:
+        print(f"Average comparison score across all segments: {average_score}")
+
+    return average_score, segment_captions, segment_scores
 
 if __name__ == '__main__':
 
