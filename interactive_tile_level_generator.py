@@ -183,8 +183,25 @@ class CaptionBuilder(ParentBuilder):
             widget.destroy()
 
         self.current_levels = []
-        # Adjust the size of img_tk if it exceeds the width of self.image_inner_frame
+
+        # Debugging print statements to trace the issue
+        print("Starting image generation...")
+        self.image_inner_frame.update_idletasks()  # Force an update to ensure the frame is fully rendered
+        frame_width = self.image_inner_frame.winfo_width()
+        print(f"Frame width after update_idletasks: {frame_width}")
+        if frame_width == 0:  # If the width is still not initialized
+            frame_width = 800  # Use a default fallback width
+            print("Frame width was 0, using fallback width of 800.")
+
+        # Ensure the GUI layout is updated before processing images
+        self.image_inner_frame.update_idletasks()  # Force an update to ensure the frame is fully rendered
+        frame_width = self.image_inner_frame.winfo_width()
+        if frame_width <= 1:  # If the width is invalid or too small
+            frame_width = self.image_canvas.winfo_width()  # Use the parent canvas width as a fallback
+            print(f"Frame width was invalid, using canvas width: {frame_width}")
+
         for i in range(num_images):
+            print(f"Generating image {i + 1} of {num_images}...")
             images = self.pipe(generator=generator, **param_values).images
             self.current_levels.append(images[0].cpu().detach().numpy())
 
@@ -199,14 +216,15 @@ class CaptionBuilder(ParentBuilder):
             img_frame.pack(pady=10)
 
             img_tk = ImageTk.PhotoImage(visualize_samples(images))
+            print(f"Image {i + 1} dimensions: width={img_tk.width()}, height={img_tk.height()}")
 
             # Check if the image width exceeds the frame width and scale it down if necessary
-            frame_width = self.image_inner_frame.winfo_width()
             if img_tk.width() > frame_width:
                 scale_factor = frame_width / img_tk.width()
                 new_width = frame_width
                 new_height = int(img_tk.height() * scale_factor)
                 img_tk = img_tk._PhotoImage__photo.subsample(img_tk.width() // new_width, img_tk.height() // new_height)
+                print(f"Image {i + 1} scaled to: width={new_width}, height={new_height}")
 
             label = ttk.Label(img_frame, image=img_tk)
             label.image = img_tk
@@ -263,7 +281,7 @@ class CaptionBuilder(ParentBuilder):
             torch.cuda.empty_cache()  # Clear the cache
             gc.collect()  # Force garbage collection
 
-        print("Generation done")
+        print("Image generation completed.")
         #print(self.current_levels)
 
     def get_sample_output(self, idx):
