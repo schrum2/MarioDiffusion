@@ -51,13 +51,35 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         sample_indices = convert_to_level_format(sample_tensor)
         
         # Add level data to the list
-        scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
+        scene = sample_indices[0].tolist() # Always just one scene: (1,16,16), but the width setting could be more than 16!
  
         actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
 
         print(f"Describe resulting image: {actual_caption}")
         compare_score = compare_captions(self.prompt, actual_caption)
         print(f"Comparison score: {compare_score}")
+
+        # Partition the scene into segments of width 16
+        segment_width = 16
+        segments = [
+            [row[i:i+segment_width] for row in scene]  # Properly slice each row of the scene
+            for i in range(0, len(scene[0]), segment_width)
+        ]
+
+        # Assign captions and compute scores for each segment
+        segment_scores = []
+        for idx, segment in enumerate(segments):
+            segment_caption = assign_caption(segment, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
+            segment_score = compare_captions(self.prompt, segment_caption)
+            segment_scores.append(segment_score)
+
+            print(f"Segment {idx + 1} caption: {segment_caption}")
+            print(f"Segment {idx + 1} comparison score: {segment_score}")
+
+        # Compute and print the average comparison score
+        if segment_scores:
+            average_score = sum(segment_scores) / len(segment_scores)
+            print(f"Average comparison score across all segments: {average_score}")
 
         return visualize_samples(images)
 
