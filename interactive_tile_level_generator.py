@@ -87,6 +87,9 @@ class CaptionBuilder(ParentBuilder):
         self.image_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.image_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
+        # Bind mousewheel scrolling to the scrollbar for image_inner_frame
+        self.image_canvas.bind_all("<MouseWheel>", lambda event: self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units"))
+        
         self.checkbox_vars = {}
 
         self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet")
