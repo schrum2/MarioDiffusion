@@ -1,6 +1,5 @@
 from interactive_generation import InteractiveGeneration
 import torch
-from level_dataset import visualize_samples
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from captions.caption_match import compare_captions, process_scene_segments

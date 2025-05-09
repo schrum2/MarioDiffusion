@@ -148,7 +148,13 @@ class TileViewer(tk.Tk):
                 width=len(input_scene[0])
             )
             print("Generated new level from scene.")
-            # Optionally, visualize or save the output here
+            from level_dataset import visualize_samples
+            # Convert the output tensor to an image using visualize_samples
+            generated_image = visualize_samples(output.images)
+            # Ensure the output from visualize_samples is a PIL Image
+            if isinstance(generated_image, list):
+                generated_image = generated_image[0]  # Handle list case by taking the first element
+            generated_image.show()  # Display the generated image
         except Exception as e:
             print(f"Error during generation: {e}")
 
