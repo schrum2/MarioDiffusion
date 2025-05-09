@@ -80,9 +80,11 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             the unet (correct number of channels).
 
             Only raw_latent_sample or input_scene should be provided, not both.
-            If input_scene is provided, it is a 2D int tile map where the number
-            of ints matches the number of channels of the unet. The input_scene
-            is broken down into a latent starting point for diffusion.
+            If input_scene is provided, it is a 2D int tile map where each int
+            corresponds to a channel of the unet. So, the ints range from 0 to
+            unet.config.in_channels - 1. The input_scene is converted to a one-hot
+            encoding, which is then repeated batch_size times. This means the 
+            input_scene should have a shape of (num_tiles, height, width), where
         """
         self.unet.eval()
         self.text_encoder.eval() if self.text_encoder is not None else None # Code will crash below if text_encoder is None
