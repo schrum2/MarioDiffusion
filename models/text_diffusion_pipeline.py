@@ -178,3 +178,14 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 raise ValueError(f"Unsupported output type: {output_type}")
         
         return PipelineOutput(images=sample)
+
+    def print_unet_architecture(self):
+        """Prints the architecture of the UNet model."""
+        print(self.unet)
+
+    def print_text_encoder_architecture(self):
+        """Prints the architecture of the text encoder model, if it exists."""
+        if self.text_encoder is not None:
+            print(self.text_encoder)
+        else:
+            print("No text encoder is set.")
