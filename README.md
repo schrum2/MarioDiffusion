@@ -31,15 +31,21 @@ You can also extract data from Super Mario Bros 2 with this command:
 ```
 python create_level_json_data.py --output "SMB2_Levels.json" --levels "..\\TheVGLC\\Super Mario Bros 2 (Japan)\\Processed"
 ```
-These files only contains the level scenes. Create captions for all level scenes in the dataset with these commands:
+And Super Mario Land:
+```
+python create_level_json_data.py --output "SML_Levels.json" --levels "..\\TheVGLC\\Super Mario Land\\Processed"
+```
+These files only contains the level scenes. Create captions for all level scenes in the datasets with these commands:
 ```
 python create_ascii_captions.py --dataset SMB1_Levels.json --output SMB1_LevelsAndCaptions.json
 python create_ascii_captions.py --dataset SMB2_Levels.json --output SMB2_LevelsAndCaptions.json
+python create_ascii_captions.py --dataset SML_Levels.json --output SML_LevelsAndCaptions.json
 ```
 Now you can browse the level scenes and their captions with these commands:
 ```
 python ascii_data_browser.py SMB1_LevelsAndCaptions.json 
 python ascii_data_browser.py SMB2_LevelsAndCaptions.json 
+python ascii_data_browser.py SML_LevelsAndCaptions.json 
 ```
 Make a separate validation set of captions with this command. These randomly generated captions are used for validation later (using seed 0 will give you the same validation set used in our experiments):
 ```
