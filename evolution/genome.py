@@ -7,6 +7,8 @@ import torch
 
 MUTATE_MAX_STEP_DELTA = 10
 MUTATE_MAX_GUIDANCE_DELTA = 1.0
+MUTATE_MAX_SEGMENTS_DELTA = 1
+MUTATE_MAX_WIDTH_DELTA = 3
 
 SEED_CHANGE_RATE = 0.1
 LATENT_NOISE_SCALE = 0.1
@@ -23,7 +25,8 @@ def perturb_latents(latents):
     return latents + LATENT_NOISE_SCALE * torch.randn_like(latents)
 
 class LatentGenome:
-    def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None, scene = None, prompt = None, caption = None):
+    def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None, scene = None, prompt = None, caption = None, num_segments = 1):
+        self.num_segments = num_segments
         self.width = width
         self.seed = seed
         self.num_inference_steps = steps
@@ -73,7 +76,9 @@ class LatentGenome:
             f"scene={self.scene},\n"
             f"latents={display_embeddings(self.latents)},\n"
             f"caption={self.caption},\n"
-            f"prompt={self.prompt})"
+            f"prompt={self.prompt},\n"
+            f"width={self.width},\n"
+            f"num_segments={self.num_segments})"
         )
     
     def metadata(self):
@@ -88,7 +93,8 @@ class LatentGenome:
             "scene" : self.scene,
             "latents" : self.latents,
             "prompt" : self.prompt,
-            "caption" : self.caption
+            "caption" : self.caption,
+            "num_segments" : self.num_segments
         }
 
     def mutate(self):
@@ -99,8 +105,38 @@ class LatentGenome:
             # Should be a small change
             self.change_inference_steps(random.randint(-MUTATE_MAX_STEP_DELTA, MUTATE_MAX_STEP_DELTA))
             self.change_guidance_scale(random.uniform(-MUTATE_MAX_GUIDANCE_DELTA, MUTATE_MAX_GUIDANCE_DELTA))
+            self.change_segments(random.randint(-MUTATE_MAX_SEGMENTS_DELTA, MUTATE_MAX_SEGMENTS_DELTA))
+            self.change_width(random.randint(-MUTATE_MAX_WIDTH_DELTA, MUTATE_MAX_WIDTH_DELTA))
             self.latents = perturb_latents(self.latents)
-                
+            
+    def change_width(self, delta):
+        """Change the width of the genome and adjust latents accordingly."""
+        new_width = self.width + delta
+
+        # Clip new_width to the range [16, 64]
+        new_width = max(16, min(new_width, 64))
+
+        # Adjust latents to match the new width
+        if self.latents is not None:
+            _, num_channels, height, current_width = self.latents.shape
+            if new_width < current_width:
+                # Chop off excess width
+                self.latents = self.latents[:, :, :, :new_width]
+            elif new_width > current_width:
+                # Expand width with random values
+                additional_width = new_width - current_width
+                random_values = LATENT_NOISE_SCALE * torch.randn((1, num_channels, height, additional_width), device=self.latents.device)
+                self.latents = torch.cat((self.latents, random_values), dim=3)
+
+            # Perturb latents after resizing
+            self.latents = perturb_latents(self.latents)
+
+        self.width = new_width
+
+    def change_segments(self, delta):
+        self.num_segments += delta
+        self.num_segments = max(1, self.num_segments)
+
     def mutated_child(self):
         child = LatentGenome(
             self.width,
@@ -113,7 +149,8 @@ class LatentGenome:
             self.latents,
             self.scene,
             self.prompt,
-            self.caption
+            self.caption,
+            self.num_segments
         )
         child.mutate()
         return child

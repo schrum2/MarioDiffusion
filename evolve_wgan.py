@@ -41,7 +41,7 @@ class WGANEvolver(Evolver):
         return noise
 
     def initialize_population(self):
-        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed)) for seed in range(self.population_size)]
+        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), num_segments=1) for seed in range(self.population_size)]
         self.viewer.id_to_char = self.id_to_char
 
     def generate_image(self, g):

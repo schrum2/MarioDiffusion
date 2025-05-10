@@ -33,6 +33,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         #print(self.device)
         self.pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(self.device)
         #print(next(self.pipe.text_encoder.parameters()).device)
+        self.pipe.print_unet_architecture()
 
         if args.tileset:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(args.tileset)

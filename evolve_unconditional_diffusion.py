@@ -31,7 +31,8 @@ class DiffusionEvolver(Evolver):
         return latents
 
     def initialize_population(self):
-        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed)) for seed in range(self.population_size)]
+        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), num_segments=1) for seed in range(self.population_size)]
+        # Removed generation_width from LatentGenome constructor
         self.viewer.id_to_char = self.id_to_char
 
     def generate_image(self, g):
@@ -83,7 +84,7 @@ def parse_args():
 
     return parser.parse_args()
 
-if __name__ == "__main__":
+if __name__ == "__main__": 
     args = parse_args()
     evolver = DiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
     evolver.start_evolution()
