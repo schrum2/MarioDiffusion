@@ -43,6 +43,7 @@ class TextDiffusionEvolver(Evolver):
             "batch_size" : 1,
             "guidance_scale" : g.guidance_scale, 
             "num_inference_steps" : g.num_inference_steps,
+            "width" : g.generation_width,
             # "strength" : g.strength, # Definitely don't need this
             "output_type" : "tensor",
             "raw_latent_sample" : g.latents.to("cuda")

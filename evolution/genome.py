@@ -7,6 +7,8 @@ import torch
 
 MUTATE_MAX_STEP_DELTA = 10
 MUTATE_MAX_GUIDANCE_DELTA = 1.0
+MUTATE_MAX_SEGMENTS_DELTA = 1
+MUTATE_MAX_WIDTH_DELTA = 3
 
 SEED_CHANGE_RATE = 0.1
 LATENT_NOISE_SCALE = 0.1
@@ -106,7 +108,19 @@ class LatentGenome:
             self.change_inference_steps(random.randint(-MUTATE_MAX_STEP_DELTA, MUTATE_MAX_STEP_DELTA))
             self.change_guidance_scale(random.uniform(-MUTATE_MAX_GUIDANCE_DELTA, MUTATE_MAX_GUIDANCE_DELTA))
             self.latents = perturb_latents(self.latents)
-                
+            self.change_segments(random.randint(-MUTATE_MAX_SEGMENTS_DELTA, MUTATE_MAX_SEGMENTS_DELTA))
+            self.change_width(random.randint(-MUTATE_MAX_WIDTH_DELTA, MUTATE_MAX_WIDTH_DELTA))
+            
+    def change_width(self, delta):
+        self.generation_width += delta
+        # 16 is default size of one segment. 64 is max for my GPU VRAM
+        self.generation_width = max(16, self.generation_width)
+        self.generation_width = min(64, self.generation_width)
+
+    def change_segments(self, delta):
+        self.num_segments += delta
+        self.num_segments = max(1, self.num_segments)
+
     def mutated_child(self):
         child = LatentGenome(
             self.width,
