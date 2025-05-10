@@ -11,13 +11,13 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=512, help="Random seed for reproducibility")
 
     # Dataset args
-    parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
-    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--pkl", type=str, default="Mario_Tokenizer.pkl", help="Path to tokenizer pkl file")
+    parser.add_argument("--json", type=str, default="Mario_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
     
     # Output args
-    parser.add_argument("--save_file", type=str, default="SMB1_ValidationCaptions.json", help="Output file")
-    parser.add_argument("--validation_set_size", type=int, default=100, help="Number of captions for validating generation abilities of model")
+    parser.add_argument("--save_file", type=str, default="Mario_ValidationCaptions.json", help="Output file")
+    parser.add_argument("--validation_set_size", type=int, default=1000, help="Number of captions for validating generation abilities of model")
     
     return parser.parse_args()
 

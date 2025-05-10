@@ -47,7 +47,7 @@ Now you can browse the level scenes and their captions with these commands:
 ```
 python ascii_data_browser.py Mario_LevelsAndCaptions.json 
 ```
-Make a separate validation set of captions with this command. These randomly generated captions are used for validation later (using seed 0 will give you the same validation set used in our experiments):
+Make a separate validation set of captions with this command. These randomly generated captions are used for validation later (using seed 0 will give you the same validation set used in our experiments) (THIS NEEDS THE TOKENIZER ... WHY?):
 ```
 python create_validation_captions.py --save_file "Mario_ValidationCaptions.json" --seed 0
 ```
@@ -61,10 +61,9 @@ python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC
 
 ## Train text encoder
 
-First create tokenizers for the caption data from both games with these commands:
+First create a tokenizer for the caption data from all Mario games:
 ```
-python tokenizer.py save
-python tokenizer.py save --json_file SMB2_LevelsAndCaptions.json --pkl_file SMB2_Tokenizer.pkl
+python tokenizer.py save --json_file Mario_LevelsAndCaptions.json --pkl_file Mario_Tokenizer.pkl
 ```
 Now, masked language modeling will be used to pre-train the text embedding model.
 ```

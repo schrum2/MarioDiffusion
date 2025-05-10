@@ -125,8 +125,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Tokenizer utility for saving and loading vocabularies.")
     parser.add_argument("action", choices=["save", "load"], help="Action to perform: 'save' or 'load'.")
-    parser.add_argument("--json_file", type=str, default='SMB1_LevelsAndCaptions.json', help="Path to the JSON file containing the dataset (required for 'save').")
-    parser.add_argument("--pkl_file", type=str, default='SMB1_Tokenizer.pkl', help="Path to the pickle file to save/load the tokenizer.")
+    parser.add_argument("--json_file", type=str, default='Mario_LevelsAndCaptions.json', help="Path to the JSON file containing the dataset (required for 'save').")
+    parser.add_argument("--pkl_file", type=str, default='Mario_Tokenizer.pkl', help="Path to the pickle file to save/load the tokenizer.")
 
     args = parser.parse_args()
 
