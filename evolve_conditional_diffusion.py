@@ -31,7 +31,7 @@ class TextDiffusionEvolver(Evolver):
         return latents
 
     def initialize_population(self):
-        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), prompt=self.prompt, num_segments=1, generation_width=16) for seed in range(self.population_size)]
+        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), prompt=self.prompt, num_segments=1) for seed in range(self.population_size)]
         self.viewer.id_to_char = self.id_to_char
 
     def generate_image(self, g):
@@ -43,7 +43,6 @@ class TextDiffusionEvolver(Evolver):
             "batch_size" : 1,
             "guidance_scale" : g.guidance_scale, 
             "num_inference_steps" : g.num_inference_steps,
-            "width" : g.generation_width,
             # "strength" : g.strength, # Definitely don't need this
             "output_type" : "tensor",
             "raw_latent_sample" : g.latents.to("cuda")
@@ -92,7 +91,7 @@ def parse_args():
 
     return parser.parse_args()
 
-if __name__ == "__main__":
+if __name__ == "__main__": 
     args = parse_args()
     evolver = TextDiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
     evolver.start_evolution(allow_prompt = True)
