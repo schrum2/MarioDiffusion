@@ -603,23 +603,28 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
+    num_excluded = 0
     # Generate captions
     captioned_dataset = []
     for scene in dataset:
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
-        # For troubleshooting
-        #if "broken" in caption:
-        #    print(caption)
-        #    for row in scene:
-        #        print(row)
-        #    print(f"Samples so far: {len(captioned_dataset)}")
-        #    raise ValueError(f"{caption}: should not contain 'broken' from valid training data.")
+        if "broken" in caption:
+            print("Broken pipe in training data")
+            print(caption)
+            current = len(captioned_dataset)
+            print(f"Excluding training sample: {current}")
+            num_excluded += 1
+            continue
 
         captioned_dataset.append({
             "scene": scene,
             "caption": caption
         })
+
+    # Probably need to fix the VGLC data manually.
+    # Should I make the script repair the data or make my own fork of VGLC with good data?
+    print(f"{num_excluded} samples excluded due to broken pipes")
 
     # Save new dataset with captions
     with open(output_path, "w") as f:
