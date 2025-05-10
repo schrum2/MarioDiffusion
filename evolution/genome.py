@@ -23,7 +23,9 @@ def perturb_latents(latents):
     return latents + LATENT_NOISE_SCALE * torch.randn_like(latents)
 
 class LatentGenome:
-    def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None, scene = None, prompt = None, caption = None):
+    def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None, scene = None, prompt = None, caption = None, num_segments = 1, generation_width = 16):
+        self.num_segments = num_segments
+        self.generation_width = generation_width
         self.width = width
         self.seed = seed
         self.num_inference_steps = steps
@@ -73,7 +75,9 @@ class LatentGenome:
             f"scene={self.scene},\n"
             f"latents={display_embeddings(self.latents)},\n"
             f"caption={self.caption},\n"
-            f"prompt={self.prompt})"
+            f"prompt={self.prompt},\n"
+            f"num_segments={self.num_segments},\n"
+            f"generation_width={self.generation_width})"
         )
     
     def metadata(self):
@@ -88,7 +92,9 @@ class LatentGenome:
             "scene" : self.scene,
             "latents" : self.latents,
             "prompt" : self.prompt,
-            "caption" : self.caption
+            "caption" : self.caption,
+            "num_segments" : self.num_segments,
+            "generation_width" : self.generation_width
         }
 
     def mutate(self):
@@ -113,7 +119,9 @@ class LatentGenome:
             self.latents,
             self.scene,
             self.prompt,
-            self.caption
+            self.caption,
+            self.num_segments,
+            self.generation_width
         )
         child.mutate()
         return child

@@ -31,7 +31,7 @@ class TextDiffusionEvolver(Evolver):
         return latents
 
     def initialize_population(self):
-        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), prompt=self.prompt) for seed in range(self.population_size)]
+        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), prompt=self.prompt, num_segments=1, generation_width=16) for seed in range(self.population_size)]
         self.viewer.id_to_char = self.id_to_char
 
     def generate_image(self, g):
