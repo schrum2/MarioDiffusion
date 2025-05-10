@@ -46,6 +46,13 @@ Make a separate validation set of captions with this command. These randomly gen
 python create_validation_captions.py --save_file "SMB1_ValidationCaptions.json" --seed 0
 ```
 
+## Can I also get Mega Man Data?
+
+This doesn't work yet
+```
+python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC\\MegaMan"
+```
+
 ## Train text encoder
 
 First create tokenizers for the caption data from both games with these commands:
