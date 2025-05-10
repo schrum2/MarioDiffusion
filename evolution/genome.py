@@ -77,6 +77,7 @@ class LatentGenome:
             f"latents={display_embeddings(self.latents)},\n"
             f"caption={self.caption},\n"
             f"prompt={self.prompt},\n"
+            f"width={self.width},\n"
             f"num_segments={self.num_segments})"
         )
     
