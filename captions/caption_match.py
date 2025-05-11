@@ -7,7 +7,7 @@ QUANTITY_TERMS = ["one", "two", "a few", "several", "many"]
 TOPIC_KEYWORDS = [
     "giant gap", 
     "floor", "ceiling", 
-    "broken pipe", "pipe", 
+    "broken pipe", "upside down pipe", "pipe", 
     "coin line", "coin",
     "platform", "tower", "wall", 
     "broken cannon", "cannon",
