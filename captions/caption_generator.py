@@ -11,6 +11,7 @@ class GrammarGenerator:
                      "giant gap with one chunk of floor", "giant gap with two chunks of floor"],
             "ceiling": ["full ceiling", "ceiling with one gap", "ceiling with two gaps"],
             # "broken pipe": ["one broken pipe", "two broken pipes"],
+            "upside down pipe": ["one upside down pipe", "two upside down pipes", "a few upside down pipes"],
             "pipe": ["one pipe", "two pipes", "a few pipes"],
             "coin line": ["one coin line", "two coin lines", "a few coin lines"],
             "coin": ["one coin", "two coins", "several coins", "a few coins", "many coins"],
@@ -30,7 +31,7 @@ class GrammarGenerator:
         self.topic_keywords = [
             "floor", "ceiling", 
             # "broken pipe", 
-            "pipe", 
+            "upside down pipe", "pipe", 
             "coin line", "coin",
             "platform", "tower", "wall", 
             # "broken cannon", 
