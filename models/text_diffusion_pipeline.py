@@ -51,6 +51,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         unet = UNet2DConditionModel.from_pretrained(unet_path)
 
         scheduler_path = os.path.join(pretrained_model_path, "scheduler")
+        # Have heard that DDIMScheduler might be faster for inference, though not necessarily better
         scheduler = DDPMScheduler.from_pretrained(scheduler_path)
 
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
