@@ -154,6 +154,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 # Expand latents for classifier-free guidance
                 latent_model_input = torch.cat([sample] * 2) if captions is not None else sample
             
+                #print(captions, latent_model_input.shape)
+
                 # Prepare model inputs
                 model_kwargs = {}
                 if text_embeddings is not None:

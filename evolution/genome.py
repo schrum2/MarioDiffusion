@@ -112,6 +112,14 @@ class LatentGenome:
     def change_width(self, delta):
         """Change the width of the genome and adjust latents accordingly."""
         new_width = self.width + delta
+        # A width divisible by 4 is required by the unconditional model
+        # because it has two downsampling layers with a stride of 2.
+        # At least, this is the default configuration. Different architectures
+        # would result in different requirements.
+        # Long-term, I should consider fixing the unconditional pipeline
+        # by sufficiently padding the inputs and cropping out the excess
+        # at the end.
+        new_width = (new_width + 3) // 4 * 4  # Round up to the nearest number divisible by 4
 
         # Clip new_width to the range [16, 64]
         new_width = max(16, min(new_width, 64))

@@ -35,6 +35,7 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
             self.scheduler.set_timesteps(num_inference_steps)
 
             for t in self.progress_bar(self.scheduler.timesteps):
+                #print(image.shape)
                 model_output = self.unet(image, t).sample
                 image = self.scheduler.step(model_output, t, image, generator=generator).prev_sample
 
