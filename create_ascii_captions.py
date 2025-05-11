@@ -458,17 +458,6 @@ def valid_pipe(top_row, left_column, scene, char_to_id):
 
         return True
 
-    #for r in scene: print(r)
-    #print(left_column == len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<'])
-    #print(left_column == len(scene[0]) - 1)
-    #print(scene[top_row][left_column] == char_to_id['<'])
-    #print(left_column)
-    #print(top_row)
-    #print(scene[top_row][left_column])
-    #print(char_to_id['<'])
-    #print(char_to_id)
-    #raise ValueError("broken pipe how?")
-
     return False
 
 def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None):
