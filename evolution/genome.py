@@ -8,7 +8,7 @@ import torch
 MUTATE_MAX_STEP_DELTA = 10
 MUTATE_MAX_GUIDANCE_DELTA = 1.0
 MUTATE_MAX_SEGMENTS_DELTA = 1
-MUTATE_MAX_WIDTH_DELTA = 3
+MUTATE_MAX_WIDTH_DELTA = 2
 
 SEED_CHANGE_RATE = 0.1
 LATENT_NOISE_SCALE = 0.1
@@ -111,7 +111,6 @@ class LatentGenome:
             
     def change_width(self, delta):
         """Change the width of the genome and adjust latents accordingly."""
-        new_width = self.width + delta
         # A width divisible by 4 is required by the unconditional model
         # because it has two downsampling layers with a stride of 2.
         # At least, this is the default configuration. Different architectures
@@ -119,7 +118,7 @@ class LatentGenome:
         # Long-term, I should consider fixing the unconditional pipeline
         # by sufficiently padding the inputs and cropping out the excess
         # at the end.
-        new_width = (new_width + 3) // 4 * 4  # Round up to the nearest number divisible by 4
+        new_width = self.width + 4*delta
 
         # Clip new_width to the range [16, 64]
         new_width = max(16, min(new_width, 64))
