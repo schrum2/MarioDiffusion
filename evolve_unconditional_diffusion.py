@@ -16,6 +16,8 @@ class DiffusionEvolver(Evolver):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.pipe = UnconditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
 
+        #self.pipe.print_unet_architecture()
+
         _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
     def random_latent(self, seed=1):
