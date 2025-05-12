@@ -104,8 +104,8 @@ class CaptionBuilder(ParentBuilder):
     def get_patterns(self):
         # Different for LoRA and tile diffusion
         patterns = ["floor", "ceiling", 
-                    "pipe", "coin", "platform", "tower", "wall",
-                    "cannon", "staircase", "irregular",
+                    "pipe", "coin", "platform", "tower", #"wall",
+                    "cannon", "staircase", "rectangular", "irregular",
                     "question block", "enem"]
         return patterns
 

@@ -17,11 +17,12 @@ class GrammarGenerator:
             "coin": ["one coin", "two coins", "several coins", "a few coins", "many coins"],
             "platform": ["one platform", "two platforms", "a few platforms", "several platforms"],
             "tower": ["one tower", "two towers", "a few towers"],
-            "wall": ["one wall"], # "walls" is not a token in the original data # , "two walls"],
+            #"wall": ["one wall"], # "walls" is not a token in the original data # , "two walls"],
             # "broken cannon": ["one broken cannon", "two broken cannons"],
             "cannon": ["one cannon", "two cannons", "a few cannons"],
             "ascending staircase": ["one ascending staircase", "two ascending staircases"],
             "descending staircase": ["one descending staircase", "two descending staircases"],
+            "rectangular": ["one rectangular block cluster", "two rectangular block clusters", "a few rectangular block clusters"],
             "irregular": ["one irregular block cluster", "two irregular block clusters", "a few irregular block clusters"],
             "question block": ["one question block", "two question blocks", "several question blocks", "a few question blocks", "many question blocks"],
             "enem": ["one enemy", "two enemies", "a few enemies", "several enemies"]
@@ -33,10 +34,11 @@ class GrammarGenerator:
             # "broken pipe", 
             "upside down pipe", "pipe", 
             "coin line", "coin",
-            "platform", "tower", "wall", 
+            "platform", "tower", #"wall", 
             # "broken cannon", 
             "cannon",
             "ascending staircase", "descending staircase",
+            "rectangular",
             "irregular", "question block", "enem"
         ]
         

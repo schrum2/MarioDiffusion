@@ -9,9 +9,10 @@ TOPIC_KEYWORDS = [
     "floor", "ceiling", 
     "broken pipe", "upside down pipe", "pipe", 
     "coin line", "coin",
-    "platform", "tower", "wall", 
+    "platform", "tower", #"wall", 
     "broken cannon", "cannon",
     "ascending staircase", "descending staircase",
+    "rectangular",
     "irregular", "question block", "enem"  # catch "enemy"/"enemies"
 ]
 

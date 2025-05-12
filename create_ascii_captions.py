@@ -543,8 +543,10 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         else:
             if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
                 desc = "tower"
-            elif not attached_to_ceiling and width >= 3 and height <= 2 and in_contact_with_floor:
-                desc = "wall"
+            elif all((r, c) in struct for r in range(min_row, max_row + 1) for c in range(min_col, max_col + 1)):
+                desc = "rectangular block cluster"
+            #elif not attached_to_ceiling and width >= 3 and height <= 2 and in_contact_with_floor:
+            #    desc = "wall"
             else:
                 desc = "irregular block cluster"
 
@@ -583,8 +585,8 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
                     words[i] = "pipes"
                 elif words[i] == "tower":
                     words[i] = "towers"
-                elif words[i] == "wall":
-                    words[i] = "walls"
+                #elif words[i] == "wall":
+                #    words[i] = "walls"
                 elif words[i] == "cluster":
                     words[i] = "clusters"
             phrase = f"{describe_quantity(count)} " + " ".join(words)
@@ -593,7 +595,7 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
 
     # Handle absence descriptions if needed
     if describe_absence:
-        absent_types = {"pipe": set()} if pipes else {"tower": set(), "wall": set(), "irregular block cluster": set()}
+        absent_types = {"pipe": set()} if pipes else {"tower": set(), "rectangular block cluster": set(), "irregular block cluster": set()}
         described_types = {desc.split()[1] if desc.startswith("one ") else desc.split()[1] 
                          for desc in desc_to_structs.keys()}
         
