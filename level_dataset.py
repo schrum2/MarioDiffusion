@@ -399,6 +399,9 @@ class LevelDataset(Dataset):
         return scene_list
 
 if __name__ == "__main__":
+
+    random.seed(0)
+
     tokenizer = Tokenizer()
     tokenizer.load('SMB1_Tokenizer.pkl')
 
