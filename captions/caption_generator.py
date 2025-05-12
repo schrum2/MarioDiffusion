@@ -3,8 +3,9 @@ from typing import Dict, Optional
 
 
 class GrammarGenerator:
-    def __init__(self, seed=512):
+    def __init__(self, seed=512, describe_absence=False):
         random.seed(seed)  # Set the random seed for reproducibility
+        self.describe_absence = describe_absence
         # Define topics and their valid variations
         self.topic_phrases = {
             "floor": ["full floor", "floor with one gap", "floor with two gaps", 
@@ -27,6 +28,26 @@ class GrammarGenerator:
             "question block": ["one question block", "two question blocks", "several question blocks", "a few question blocks", "many question blocks"],
             "loose block": ["one loose block", "two loose blocks", "several loose blocks", "a few loose blocks", "many loose blocks"],
             "enem": ["one enemy", "two enemies", "a few enemies", "several enemies"]
+        }
+
+        # Topic absence descriptions
+        self.absence_phrases = {
+            "floor": "no floor",
+            "ceiling": "no ceiling",
+            "upside down pipe": "no upside down pipes",
+            "pipe": "no pipes",
+            "coin line": "no coin lines", 
+            "coin": "no coins",
+            "platform": "no platforms",
+            "tower": "no towers",
+            "cannon": "no cannons",
+            "ascending staircase": "no ascending staircases",
+            "descending staircase": "no descending staircases",
+            "rectangular": "no rectangular block clusters",
+            "irregular": "no irregular block clusters",
+            "question block": "no question blocks",
+            "loose block": "no loose blocks",
+            "enem": "no enemies"
         }
         
         # These are the keywords used to identify topics
@@ -93,6 +114,12 @@ class GrammarGenerator:
             # Select a random phrase for this topic
             phrase = random.choice(self.topic_phrases[topic])
             selected_phrases.append(phrase)
+
+        # If describe_absence is True, add absence descriptions for unused topics
+        if self.describe_absence:
+            for topic in self.topic_keywords:
+                if topic not in used_topics and topic in self.absence_phrases:
+                    selected_phrases.append(self.absence_phrases[topic])
         
         # Shuffle the phrases and join with periods
         random.shuffle(selected_phrases)
@@ -143,6 +170,21 @@ class GrammarGenerator:
 
 # Example usage
 if __name__ == "__main__":
+    # Test regular generation
+    generator = GrammarGenerator(seed=512, describe_absence=False)
+    print("Generated sentences without absence descriptions:")
+    for _ in range(3):
+        sentence = generator.generate_sentence(min_topics=2, max_topics=4)
+        print(f"- {sentence}")
+    
+    # Test generation with absence descriptions
+    generator_with_absence = GrammarGenerator(seed=512, describe_absence=True)
+    print("\nGenerated sentences with absence descriptions:")
+    for _ in range(3):
+        sentence = generator_with_absence.generate_sentence(min_topics=2, max_topics=4)
+        print(f"- {sentence}")
+    
+    # Rest of the test code...
     generator = GrammarGenerator()
     
     # Generate random sentences
