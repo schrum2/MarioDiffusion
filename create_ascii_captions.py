@@ -721,7 +721,9 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Count cannons
     cannon_phrase = count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons", describe_absence=describe_absence)
-    add_to_caption(cannon_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']])
+    cannon_locations = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']]
+    add_to_caption(cannon_phrase, cannon_locations)
+    already_accounted.update(cannon_locations)
 
     # Describe broken cannons
     broken_cannon_phrase = describe_broken_cannons(scene, char_to_id)
