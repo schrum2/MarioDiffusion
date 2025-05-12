@@ -77,7 +77,7 @@ class TileViewer(tk.Tk):
         
         # Add checkboxes for caption generation options
         tk.Checkbutton(caption_options_frame, text="Show numeric IDs", variable=self.show_ids, command=self.redraw).pack(anchor=tk.W)
-        tk.Checkbutton(caption_options_frame, text="Describe Locations", variable=self.describe_locations).pack(anchor=tk.W)
+        tk.Checkbutton(caption_options_frame, text="Describe Locations", variable=self.describe_locations, state=tk.DISABLED).pack(anchor=tk.W)
         tk.Checkbutton(caption_options_frame, text="Describe Absence", variable=self.describe_absence).pack(anchor=tk.W)
         
         regenerate_button = tk.Button(checkbox_frame, text="Regenerate Caption", command=self.regenerate_caption)
