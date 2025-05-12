@@ -281,9 +281,10 @@ def describe_horizontal_lines(lines, label, describe_locations):
             parts = []
             for y, start_x, end_x in sorted(lines):
                 parts.append(f"{y} (cols {start_x}-{end_x})")
+            # Fix unbound variable 'count'
+            count = len(lines)
             location_description = f"at row{'s' if pluralize and count > 1 else ''} " + ", ".join(parts)
         
-            count = len(lines)
             plural = label + "s" if pluralize and count > 1 else label
             return f" {describe_quantity(count) if coarse_counts else count} {plural} " + location_description + "."
 
@@ -672,70 +673,97 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
 
-def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, debug = False):
+def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, debug=False, return_details=False):
     """Assigns a caption to a level scene based on its contents."""
     already_accounted = set()
+    details = {} if return_details else None
+
     # Include all of floor, even empty tiles
     for x in range(WIDTH):
-        already_accounted.add( (FLOOR,x) )
+        already_accounted.add((FLOOR, x))
 
+    def add_to_caption(phrase, contributing_blocks):
+        nonlocal caption
+        if phrase:
+            caption += phrase
+            if return_details and details is not None:
+                details[phrase.strip()] = contributing_blocks
+
+    caption = ""
+
+    # Analyze floor
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
-    caption = floor_caption
-    if floor_caption:
-        caption += "."
+    add_to_caption(floor_caption + "." if floor_caption else "", [(FLOOR, x) for x in range(WIDTH)])
+
+    # Analyze ceiling
     ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence)
-    caption += ceiling
+    add_to_caption(ceiling, [(CEILING, x) for x in range(WIDTH)] if ceiling else [])
 
-    if ceiling != "":
-        # Include all of ceiling, even empty tiles
+    if ceiling:
         for x in range(WIDTH):
-            already_accounted.add( (CEILING,x) )
-    
-    caption += count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies", describe_absence=describe_absence)
-    caption += count_caption_phrase(scene, [char_to_id['Q'],char_to_id['?']], "question block", "question blocks", describe_absence=describe_absence)
-    caption += count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons", describe_absence=describe_absence)
+            already_accounted.add((CEILING, x))
 
-    caption += describe_broken_cannons(scene, char_to_id)
+    # Count enemies
+    enemy_phrase = count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies", describe_absence=describe_absence)
+    add_to_caption(enemy_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['E']])
 
-    caption += count_caption_phrase(scene, [char_to_id['o']], "coin", "coins", describe_absence=describe_absence)
-    # Coin lines - no passable/solid requirements
-    coin_lines = find_horizontal_lines(
-        scene, id_to_char, tile_descriptors, 
-        target_descriptor="coin",
-        min_run_length=2
-    )
-    caption += describe_horizontal_lines(coin_lines, "coin line", describe_locations)
+    # Count question blocks
+    question_block_phrase = count_caption_phrase(scene, [char_to_id['Q'], char_to_id['?']], "question block", "question blocks", describe_absence=describe_absence)
+    add_to_caption(question_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['Q'], char_to_id['?']]])
 
-    # Platforms - solid tiles with passable above and below, no pipes
-    platform_lines = find_horizontal_lines(
-        scene, id_to_char, tile_descriptors, 
-        target_descriptor="solid",
-        min_run_length=2,
-        require_above_below_not_solid=True,
-        exclude_rows = [] if ceiling == "" else [4], # ceiling is not a platform
-        already_accounted=already_accounted
-    )
-    caption += describe_horizontal_lines(platform_lines, "platform", describe_locations)
+    # Count cannons
+    cannon_phrase = count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons", describe_absence=describe_absence)
+    add_to_caption(cannon_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']])
+
+    # Describe broken cannons
+    broken_cannon_phrase = describe_broken_cannons(scene, char_to_id)
+    add_to_caption(broken_cannon_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']])
+
+    # Count coins
+    coin_phrase = count_caption_phrase(scene, [char_to_id['o']], "coin", "coins", describe_absence=describe_absence)
+    add_to_caption(coin_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['o']])
+
+    # Coin lines
+    coin_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="coin", min_run_length=2)
+    coin_line_phrase = describe_horizontal_lines(coin_lines, "coin line", describe_locations)
+    add_to_caption(coin_line_phrase, [(y, x) for y, start_x, end_x in coin_lines for x in range(start_x, end_x + 1)])
+
+    # Platforms
+    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, exclude_rows=[] if ceiling == "" else [4], already_accounted=already_accounted)
+    platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations)
+    add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
+
+    # Staircases
     ascending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=already_accounted)
-    caption += ascending_caption
+    add_to_caption(ascending_caption, list(already_accounted))
+
     descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=already_accounted)
-    caption += descending_caption
+    add_to_caption(descending_caption, list(already_accounted))
 
-    if describe_absence and ascending_caption == "" and descending_caption == "":
-        caption += " no staircases."
+    if describe_absence and not ascending_caption and not descending_caption:
+        add_to_caption(" no staircases.", [])
 
+    # Solid structures
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
-    caption += describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id)
+    pipe_phrase = describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id)
+    add_to_caption(pipe_phrase, list(already_accounted))
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
-    caption += describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
-    return caption.strip()
+    structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
+    add_to_caption(structure_phrase, list(already_accounted))
+
+    return (caption.strip(), details) if return_details else caption.strip()
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Generate captions for Mario screenshots")
     parser.add_argument("--dataset", required=True, help="json with level scenes")
-    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    
+    # Fix unsupported escape sequence in argument parser
+    def escape_path(path):
+        return path.replace("\\", "\\\\")
+
+    parser.add_argument("--tileset", default=escape_path('..\\TheVGLC\\Super Mario Bros\\smb.json'), help="Descriptions of individual tile types")
     parser.add_argument("--output", required=True, help="Output JSON file path")
     parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
