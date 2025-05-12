@@ -793,8 +793,12 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     already_accounted.update(down_stair_set)
 
     #print(already_accounted)
-    if describe_absence and not ascending_caption and not descending_caption:
-        add_to_caption(" no staircases.", [])
+    if describe_absence and not ascending_caption:
+        add_to_caption(" no ascending staircases.", [])
+
+    if describe_absence and not descending_caption:
+        add_to_caption(" no descending staircases.", [])
+
 
     # Solid structures
 
