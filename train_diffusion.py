@@ -32,6 +32,7 @@ def parse_args():
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
+    parser.add_argument("--negative_prompt_training", action="store_true", help="Enable training with negative prompts")
     
     # Model args
     parser.add_argument("--model_dim", type=int, default=128, help="Base dimension of UNet model")
@@ -151,6 +152,9 @@ def main():
             cross_attention_dim=text_encoder.embedding_dim,  # Match the embedding dimension
             attention_head_dim=args.attention_head_dim,  # Number of attention heads
         )
+        # Add flag for negative prompt support if enabled
+        if args.negative_prompt_training:
+            model.negative_prompt_support = True
     else:
         model = UNet2DModel(
             sample_size=(16, 16),  # Fixed size for your level scenes

@@ -13,6 +13,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
     def __init__(self, unet, scheduler, text_encoder=None):
         super().__init__(unet=unet, scheduler=scheduler)
         self.text_encoder = text_encoder
+        self.supports_negative_prompt = hasattr(unet, 'negative_prompt_support') and unet.negative_prompt_support
 
         # Register the text_encoder so that .to(), .cpu(), .cuda(), etc. work correctly
         self.register_modules(
@@ -71,10 +72,10 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         return pipeline
         
     def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
-                output_type="tensor", captions=None, guidance_scale=7.5, 
+                output_type="tensor", captions=None, negative_prompt=None, guidance_scale=7.5, 
                 height=16, width=16, raw_latent_sample=None, input_scene=None, **kwargs):
         """
-            Neither raw_latent_sample nor input_scene are needed, in which case
+        Neither raw_latent_sample nor input_scene are needed, in which case
             random latent noise is the starting point for the diffusion. If 
             raw_latent_sample is provided, it is taken as the diffusion starting
             point. This means raw_latent_sample should have a shape that matches
@@ -86,6 +87,9 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             unet.config.in_channels - 1. The input_scene is converted to a one-hot
             encoding, which is then repeated batch_size times. This means the 
             input_scene should have a shape of (num_tiles, height, width), where
+            
+            negative_prompt: A negative prompt or list of negative prompts to guide what should not appear in the generated level.
+                           Only works with models trained with negative prompt support.            
         """
         self.unet.eval()
         self.text_encoder.eval() if self.text_encoder is not None else None # Code will crash below if text_encoder is None
@@ -96,10 +100,25 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 # Conditional embeddings from provided captions
                 text_embeddings = self.text_encoder.get_embeddings(captions)
             
-                # Unconditional embeddings for classifier-free guidance
-                # Use empty/zero tokens for the unconditional case
-                uncond_tokens = torch.zeros_like(captions)
-                uncond_embeddings = self.text_encoder.get_embeddings(uncond_tokens)
+                # Handle negative prompts if supported
+                if negative_prompt is not None:
+                    if not self.supports_negative_prompt:
+                        raise ValueError("This model was not trained with negative prompt support. Please use a model trained with negative_prompt_training=True.")
+                    
+                    if isinstance(negative_prompt, str):
+                        negative_prompt = [negative_prompt]
+                    
+                    # Convert negative prompts to token IDs and get embeddings
+                    negative_tokens = self.text_encoder.tokenizer.encode_batch(negative_prompt * (batch_size // len(negative_prompt)))
+                    negative_tokens = torch.tensor(negative_tokens, device=self.device)
+                    negative_embeddings = self.text_encoder.get_embeddings(negative_tokens)
+                    
+                    # Use negative embeddings instead of zero embeddings for unconditional part
+                    uncond_embeddings = negative_embeddings
+                else:
+                    # Use empty/zero tokens for the unconditional case
+                    uncond_tokens = torch.zeros_like(captions)
+                    uncond_embeddings = self.text_encoder.get_embeddings(uncond_tokens)
             
                 # Concatenate unconditional and conditional embeddings for CFG
                 text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
