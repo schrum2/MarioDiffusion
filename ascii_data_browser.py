@@ -198,6 +198,8 @@ class TileViewer(tk.Tk):
                 for phrase in sample['details']:
                     phrase_colors[phrase] = f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
 
+            print(phrase_colors)
+
             for y in range(16):
                 for x in range(16):
                     tile_id = sample['scene'][y][x]
@@ -238,11 +240,13 @@ class TileViewer(tk.Tk):
             for part in caption_parts:
                 part = part.strip()
                 if part:
+                    part = part + "." # Add back period
                     color = phrase_colors.get(part, "black")
+                    print(part, color)
                     self.canvas.create_text(
                         8 * self.tile_size + self.tile_size // 2,
                         caption_y,
-                        text=part + '.',
+                        text=part,
                         anchor="center",
                         width=self.tile_size * 16,
                         fill=color
