@@ -72,6 +72,12 @@ class TileViewer(tk.Tk):
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
 
+        # Add Text widget for captions
+        self.caption_text = tk.Text(self, height=3, width=int(self.window_size / 8), wrap=tk.WORD)
+        self.caption_text.pack(pady=2)
+        self.caption_text.tag_configure("center", justify="center")
+        self.caption_text.configure(state="disabled")  # Make it read-only
+
         nav_frame = tk.Frame(self)
         nav_frame.pack(pady=2, side=tk.BOTTOM)  # Moved navigation buttons closer to the canvas
         tk.Button(nav_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=5)
@@ -167,6 +173,16 @@ class TileViewer(tk.Tk):
         self.canvas.delete("all")
         sample = self.dataset[self.current_sample_idx]
 
+        # Generate unique colors for caption phrases
+        import random
+        random.seed(42)  # Ensure consistent colors across redraws
+        phrase_colors = {}
+        if 'details' in sample:
+            for phrase in sample['details']:
+                phrase_colors[phrase] = f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
+
+        print(phrase_colors)
+
         if getattr(self, 'show_images', False):
             # Display as image using visualize_samples
             from level_dataset import visualize_samples
@@ -189,16 +205,6 @@ class TileViewer(tk.Tk):
             # Display as numeric/character grid
             font = ("Courier", self.font_size)
             colors = level_dataset.colors()
-
-            # Generate unique colors for caption phrases
-            import random
-            random.seed(42)  # Ensure consistent colors across redraws
-            phrase_colors = {}
-            if 'details' in sample:
-                for phrase in sample['details']:
-                    phrase_colors[phrase] = f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
-
-            print(phrase_colors)
 
             for y in range(16):
                 for x in range(16):
@@ -233,25 +239,22 @@ class TileViewer(tk.Tk):
                         fill=color_hex
                     )
 
-            # Adjust caption placement to reduce space above and below
-            caption_text = sample['caption']
-            caption_parts = caption_text.split('.')
-            caption_y = 16.5 * self.tile_size
-            for part in caption_parts:
-                part = part.strip()
-                if part:
-                    part = part + "." # Add back period
-                    color = phrase_colors.get(part, "black")
-                    print(part, color)
-                    self.canvas.create_text(
-                        8 * self.tile_size + self.tile_size // 2,
-                        caption_y,
-                        text=part,
-                        anchor="center",
-                        width=self.tile_size * 16,
-                        fill=color
-                    )
-                    caption_y += self.font_size + 2
+        # Update caption text widget
+        self.caption_text.configure(state="normal")
+        self.caption_text.delete("1.0", tk.END)
+        
+        caption_text = sample['caption']
+        caption_parts = caption_text.split('.')
+        
+        for part in caption_parts:
+            part = part.strip()
+            if part:
+                part = part + ". "  # Add back period and space
+                color = phrase_colors.get(part.strip('.'), "black")  # Remove period for color lookup
+                self.caption_text.tag_configure(color, foreground=color)
+                self.caption_text.insert(tk.END, part, (color, "center"))
+        
+        self.caption_text.configure(state="disabled")
 
         self.sample_label.config(
             text=f"Sample: {self.current_sample_idx + 1} / {len(self.dataset)}"
