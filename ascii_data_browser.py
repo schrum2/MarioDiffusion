@@ -175,13 +175,13 @@ class TileViewer(tk.Tk):
 
         # Generate unique colors for caption phrases
         import random
-        random.seed(42)  # Ensure consistent colors across redraws
+        random.seed(5)  # Ensure consistent colors across redraws
         phrase_colors = {}
         if 'details' in sample:
             for phrase in sample['details']:
                 phrase_colors[phrase] = f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
 
-        print(phrase_colors)
+        #print("phrase_colors", phrase_colors)
 
         if getattr(self, 'show_images', False):
             # Display as image using visualize_samples
@@ -249,8 +249,9 @@ class TileViewer(tk.Tk):
         for part in caption_parts:
             part = part.strip()
             if part:
-                part = part + ". "  # Add back period and space
-                color = phrase_colors.get(part.strip('.'), "black")  # Remove period for color lookup
+                part = part + "."  # Add back period
+                color = phrase_colors.get(part, "black")  # Remove period for color lookup
+                part = part + " " # Add space for readability
                 self.caption_text.tag_configure(color, foreground=color)
                 self.caption_text.insert(tk.END, part, (color, "center"))
         
