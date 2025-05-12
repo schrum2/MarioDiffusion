@@ -309,8 +309,9 @@ def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already
     while col <= width - 3:
         # Try to find the start of a staircase
         step_cols = []
-        for start_row in range(0 if verticality == 1 else 3, height - 3 if verticality == 1 else height - 1):
+        for start_row in range(0 if verticality == 1 else 3, height - 2 if verticality == 1 else height):
             if is_staircase_from(scene, id_to_char, tile_descriptors, col, start_row, verticality, already_accounted):
+                #print(f"staircase at {start_row} {col} {verticality}")
                 # Now count how many columns this staircase extends
                 length = 3
                 while col + length < width and is_staircase_from(scene, id_to_char, tile_descriptors, col + length - 2, start_row + verticality*(length - 2), verticality, already_accounted):
@@ -318,6 +319,7 @@ def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already
                 staircases += 1
                 col += length  # Skip past this staircase
                 staircase_lengths.append(length)
+                #print(f"staircase length {length} {already_accounted}")
                 break  # Restart staircase search from new col
         else:
             col += 1  # No staircase starting here, move right
@@ -337,16 +339,18 @@ def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row,
         blocks_in_stairs = set()
         for step in range(3):
             row = start_row + verticality*step
-            if row == len(scene) - 1: 
+            if row == len(scene): 
                 return False # Do not count floor in staircases
             col = start_col + step
             tile = scene[row][col]
             if "solid" not in tile_descriptors.get(id_to_char[tile], []):
+                #if start_col == 0: print("not solid at", row, col)
                 return False
             # Check above this block is passable
             if row > 0:
                 tile_above = scene[row - 1][col]
                 if "solid" in tile_descriptors.get(id_to_char[tile_above], []):
+                    #if start_col == 0: print("solid above", row, col)
                     return False
                 else:
                     # Blocks beneath the stairs are also part of stairs
@@ -357,8 +361,10 @@ def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row,
 
         # Only add all of the blocks once it is confirmed to be a staircase
         already_accounted.update(blocks_in_stairs)
+        #if start_col == 0: print("staircase at", start_row, start_col, verticality)
         return True
     except IndexError:
+        print(f"IndexError at start_col {start_col}, start_row {start_row}, verticality {verticality}")
         return False  # Out of bounds means no staircase
 
 def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptors, excluded, pipes=False):
@@ -743,7 +749,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     down_stair_set = set()
     descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=down_stair_set)
-    add_to_caption(descending_caption, list(already_accounted))
+    add_to_caption(descending_caption, list(down_stair_set))
     already_accounted.update(down_stair_set)
 
     if describe_absence and not ascending_caption and not descending_caption:
