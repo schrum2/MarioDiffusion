@@ -166,6 +166,36 @@ class TileViewer(tk.Tk):
         except Exception as e:
             print(f"Error during generation: {e}")
 
+    def create_triangle_coords(self, x, y, num_colors):
+        """Create coordinates for triangle partitions based on number of colors"""
+        x1, y1 = x * self.tile_size, y * self.tile_size
+        x2, y2 = (x + 1) * self.tile_size, (y + 1) * self.tile_size
+        xm, ym = (x1 + x2) / 2, (y1 + y2) / 2  # midpoint
+
+        if num_colors == 2:
+            # Two right triangles divided by diagonal
+            return [
+                [(x1, y1), (x2, y1), (x2, y2)],  # upper right triangle
+                [(x1, y1), (x1, y2), (x2, y2)]   # lower left triangle
+            ]
+        elif num_colors == 3:
+            # One right triangle, other two split remaining triangle
+            return [
+                [(x1, y1), (x2, y1), (x2, y2)],          # upper right triangle
+                [(x1, y1), (x1, y2), (xm, ym)],          # left triangle
+                [(x1, y2), (x2, y2), (xm, ym)]           # bottom triangle
+            ]
+        elif num_colors == 4:
+            # Four triangles meeting at center
+            return [
+                [(x1, y1), (xm, ym), (x2, y1)],  # top triangle
+                [(x2, y1), (xm, ym), (x2, y2)],  # right triangle
+                [(x2, y2), (xm, ym), (x1, y2)],  # bottom triangle
+                [(x1, y2), (xm, ym), (x1, y1)]   # left triangle
+            ]
+        else:
+            return [[(x1, y1), (x2, y1), (x2, y2), (x1, y2)]]  # full square
+
     def redraw(self):
         if not self.dataset:
             return
@@ -214,20 +244,34 @@ class TileViewer(tk.Tk):
                     r, g, b = colors[tile_id]
                     color_hex = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
-                    # Determine background color based on details
-                    bg_color = "white"
+                    # Find all matching phrases for this coordinate
+                    matching_phrases = []
                     if 'details' in sample:
                         for phrase, coords in sample['details'].items():
                             if (y, x) in coords:
-                                bg_color = phrase_colors[phrase]
-                                break
+                                matching_phrases.append(phrase)
 
-                    # Draw background rectangle
-                    self.canvas.create_rectangle(
-                        x * self.tile_size, y * self.tile_size,
-                        (x + 1) * self.tile_size, (y + 1) * self.tile_size,
-                        fill=bg_color, outline=""
-                    )
+                    # Draw background based on number of matching phrases
+                    if not matching_phrases:
+                        # Draw simple white rectangle for no matches
+                        self.canvas.create_rectangle(
+                            x * self.tile_size, y * self.tile_size,
+                            (x + 1) * self.tile_size, (y + 1) * self.tile_size,
+                            fill="white", outline=""
+                        )
+                    else:
+                        # Get triangle coordinates based on number of colors
+                        triangles = self.create_triangle_coords(x, y, len(matching_phrases))
+                        # Draw each triangle with its corresponding phrase color
+                        for i, phrase in enumerate(matching_phrases[:4]):  # Limit to 4 colors max
+                            coords = []
+                            for point in triangles[i]:
+                                coords.extend(point)
+                            self.canvas.create_polygon(
+                                *coords,
+                                fill=phrase_colors[phrase],
+                                outline=""
+                            )
 
                     # Draw text
                     self.canvas.create_text(
