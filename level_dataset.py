@@ -261,8 +261,8 @@ class LevelDataset(Dataset):
 
         # Determine padding length (if not provided)
         if self.max_length is None:
-            # Add 1 just in case
-            self.max_length = max(len(caption.replace(".", " .").split()) for caption in (item["caption"] for item in self.data))
+            # Add 5 just in case
+            self.max_length = max(len(caption.replace(".", " .").split()) for caption in (item["caption"] for item in self.data)) + 5
 
         # Shuffle dataset
         if self.shuffle:
@@ -354,6 +354,8 @@ class LevelDataset(Dataset):
             return augmented_caption
 
         caption_tokens = self.tokenizer.encode(augmented_caption)
+        if len(caption_tokens) > self.max_length:
+            raise ValueError(f"Caption length exceeds max_length: {len(caption_tokens)} > {self.max_length}: {augmented_caption}")
         caption_tokens = self.tokenizer.pad_sequence(caption_tokens, self.max_length)
         caption_tensor = torch.tensor(caption_tokens, dtype=torch.long)
 
@@ -467,3 +469,20 @@ if __name__ == "__main__":
     for i in range(17): next(itr) # Skip batches
     # batch is (scenes, captions) so the [0] gets just the scenes
     visualize_samples(next(itr)[0], "TEMP")
+
+    print("-----------")
+    tokenizer = Tokenizer()
+    tokenizer.load('Mario_Tokenizer-regular.pkl')
+    mlm_dataset = LevelDataset('Mario_LevelsAndCaptions-regular.json', tokenizer, mode="mlm")
+    last_size = None
+    for b in mlm_dataset:
+        if last_size == None:
+            print(b.shape)
+            last_size = b.shape
+        elif last_size != b.shape:
+            print("Different!")
+            print(b.shape)
+            print(b)
+            break
+            last_size = b.shape
+        
