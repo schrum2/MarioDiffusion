@@ -728,11 +728,15 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
 
     # Staircases
-    ascending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=already_accounted)
-    add_to_caption(ascending_caption, list(already_accounted))
+    up_stair_set = set()
+    ascending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=up_stair_set)
+    add_to_caption(ascending_caption, list(up_stair_set))
+    already_accounted.update(up_stair_set)
 
-    descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=already_accounted)
+    down_stair_set = set()
+    descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=down_stair_set)
     add_to_caption(descending_caption, list(already_accounted))
+    already_accounted.update(down_stair_set)
 
     if describe_absence and not ascending_caption and not descending_caption:
         add_to_caption(" no staircases.", [])
