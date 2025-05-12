@@ -720,13 +720,23 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     # Analyze ceiling
     ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING)
     ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING - 1)
-    if (ceiling_regular.startswith("no") and ceiling_higher.startswith("no")):
+
+    print("high",ceiling_higher)
+    print("regular",ceiling_regular)
+
+    if (ceiling_regular == " no ceiling." and ceiling_higher == " no ceiling.") or (ceiling_regular == "" and ceiling_higher == ""):
+        print("both no")
+        ceiling_row = None
         add_to_caption(ceiling_regular, []) # No ceiling at all
-    elif ceiling_regular:
+    elif ceiling_regular and ceiling_regular != " no ceiling.":
+        print("add in regular")
+        ceiling_row = CEILING
         add_to_caption(ceiling_regular, [(CEILING, x) for x in range(WIDTH)])
         for x in range(WIDTH):
             already_accounted.add((CEILING, x))
-    elif ceiling_higher:
+    elif ceiling_higher and ceiling_higher != " no ceiling.":
+        print("add in higher")
+        ceiling_row = CEILING - 1
         add_to_caption(ceiling_higher, [(CEILING - 1, x) for x in range(WIDTH)])
         for x in range(WIDTH):
             already_accounted.add((CEILING - 1, x))
@@ -768,7 +778,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     #print("after coin line", (10,0) in already_accounted)
     # Platforms
-    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted)
+    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[] if ceiling_row == None else [ceiling_row])
     #print("after platform_lines", (10,0) in already_accounted)
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
@@ -805,7 +815,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     #print(already_accounted)
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
-    structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
+    structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, ceiling_row=ceiling_row)
     for phrase, coords in structure_phrase:
         add_to_caption(phrase, coords)
 
