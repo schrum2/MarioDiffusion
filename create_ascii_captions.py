@@ -744,10 +744,14 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         add_to_caption(" no staircases.", [])
 
     # Solid structures
-    structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
+
+    pipe_set = set() # pipes can double count with floor, but there should be no other conflicts
+    structures = find_solid_structures(scene, id_to_char, tile_descriptors, pipe_set, pipes=True)
     pipe_phrase = describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id)
     for phrase, coords in pipe_phrase:
         add_to_caption(phrase, coords)
+    
+    already_accounted.update(pipe_set)
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
     structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
