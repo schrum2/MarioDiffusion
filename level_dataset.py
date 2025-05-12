@@ -211,12 +211,12 @@ class LevelDataset(Dataset):
             tokenizer (Tokenizer): Tokenizer instance.
             shuffle (bool): Whether to shuffle data at the start of an epoch.
             max_length (int, optional): Maximum length for tokenized captions.
-            mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training.
+            mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training (tokenized captions only), "text" for just the text captions.
             augment (bool): Whether to apply data augmentation
             limit (int): restrict dataset to this size if not -1
             num_tiles (int): Number of different tile types for one-hot encoding
         """
-        assert mode in ["mlm", "diffusion"], "Mode must be 'mlm' or 'diffusion'."
+        assert mode in ["mlm", "diffusion","text"], "Mode must be 'mlm', 'text', or 'diffusion'."
 
         self.shuffle = shuffle
         self.tokenizer = tokenizer
@@ -239,7 +239,7 @@ class LevelDataset(Dataset):
         # Determine padding length (if not provided)
         if self.max_length is None:
             # Add 1 just in case
-            self.max_length = max(len(caption.replace(".", " .").split()) for caption in (item["caption"] for item in self.data)) + 1
+            self.max_length = max(len(caption.replace(".", " .").split()) for caption in (item["caption"] for item in self.data))
 
         # Shuffle dataset
         if self.shuffle:
@@ -325,12 +325,17 @@ class LevelDataset(Dataset):
         """
         sample = self.data[idx]
         augmented_caption = self._augment_caption(sample["caption"])
+
+        if self.mode == "text":
+            # Return the raw caption for text mode
+            return augmented_caption
+
         caption_tokens = self.tokenizer.encode(augmented_caption)
         caption_tokens = self.tokenizer.pad_sequence(caption_tokens, self.max_length)
         caption_tensor = torch.tensor(caption_tokens, dtype=torch.long)
 
         if self.mode == "mlm":
-            return caption_tensor  # MLM only uses captions
+            return caption_tensor  # MLM only uses caption tokens
 
         scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
         
