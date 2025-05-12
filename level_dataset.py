@@ -401,6 +401,7 @@ class LevelDataset(Dataset):
 if __name__ == "__main__":
 
     random.seed(0)
+    torch.manual_seed(0)  # Add PyTorch seed for DataLoader determinism
 
     tokenizer = Tokenizer()
     tokenizer.load('SMB1_Tokenizer.pkl')
