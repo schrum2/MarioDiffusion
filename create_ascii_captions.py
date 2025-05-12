@@ -122,6 +122,7 @@ def count_in_scene(scene, tiles, exclude=set()):
     count = 0
     for r, row in enumerate(scene):
         for c, t in enumerate(row): 
+            #if exclude and t in tiles: print(r,c, exclude)
             if (r,c) not in exclude and t in tiles:
                 #if exclude: print((r,t), exclude, (r,t) in exclude)
                 count += 1
@@ -203,8 +204,10 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
     height = len(scene)
     width = len(scene[0]) if height > 0 else 0
 
+    print((10,0) in already_accounted)
+
     for y in range(height - 1):  # Skip FLOOR row
-        possible_locations = set()
+        
         if y in exclude_rows:
             continue # Could skip ceiling
 
@@ -239,6 +242,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
                     continue
 
             # Start of valid run
+            possible_locations = set()
             run_start = x
             while x < width:
                 tile_char = id_to_char[scene[y][x]]
@@ -715,23 +719,32 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence)
     add_to_caption(ceiling, [(CEILING, x) for x in range(WIDTH)] if ceiling else [])
 
+    #print(already_accounted)
     if ceiling:
         for x in range(WIDTH):
             already_accounted.add((CEILING, x))
 
+    #print("after ceiling", (10,0) in already_accounted)
+    
     # Count enemies
     enemy_phrase = count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies", describe_absence=describe_absence)
     add_to_caption(enemy_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['E']])
+
+    #print("after enemy", (10,0) in already_accounted)
 
     # Count question blocks
     question_block_phrase = count_caption_phrase(scene, [char_to_id['Q'], char_to_id['?']], "question block", "question blocks", describe_absence=describe_absence)
     add_to_caption(question_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['Q'], char_to_id['?']]])
 
+    #print("after qb", (10,0) in already_accounted)
+    #print(already_accounted)
     # Count cannons
     cannon_phrase = count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons", describe_absence=describe_absence)
     cannon_locations = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']]
     add_to_caption(cannon_phrase, cannon_locations)
     already_accounted.update(cannon_locations)
+
+    #print("after cannon", (10,0) in already_accounted)
 
     # Describe broken cannons
     broken_cannon_phrase = describe_broken_cannons(scene, char_to_id)
@@ -746,27 +759,35 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     coin_line_phrase = describe_horizontal_lines(coin_lines, "coin line", describe_locations)
     add_to_caption(coin_line_phrase, [(y, x) for y, start_x, end_x in coin_lines for x in range(start_x, end_x + 1)])
 
+    #print("after coin line", (10,0) in already_accounted)
     # Platforms
     platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, exclude_rows=[] if ceiling == "" else [4], already_accounted=already_accounted)
+    #print("after platform_lines", (10,0) in already_accounted)
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
 
+    #print("after platform", (10,0) in already_accounted)
+    #print("before stairs", (10,0) in already_accounted)
     # Staircases
     up_stair_set = set()
     ascending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=up_stair_set)
     add_to_caption(ascending_caption, list(up_stair_set))
+    #print(already_accounted)
     already_accounted.update(up_stair_set)
 
     down_stair_set = set()
     descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=down_stair_set)
     add_to_caption(descending_caption, list(down_stair_set))
+    #print(already_accounted)
     already_accounted.update(down_stair_set)
 
+    #print(already_accounted)
     if describe_absence and not ascending_caption and not descending_caption:
         add_to_caption(" no staircases.", [])
 
     # Solid structures
 
+    #print(already_accounted)
     pipe_set = set() # pipes can double count with floor, but there should be no other conflicts
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, pipe_set, pipes=True)
     pipe_phrase = describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id)
@@ -775,6 +796,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     
     already_accounted.update(pipe_set)
 
+    #print(already_accounted)
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
     structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
     for phrase, coords in structure_phrase:
