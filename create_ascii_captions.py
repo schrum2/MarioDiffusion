@@ -404,7 +404,7 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
             descriptors = tile_descriptors.get(id_to_char[tile], [])
             if (not pipes and "solid" in descriptors and "pipe" not in descriptors) or (pipes and "pipe" in descriptors):
                 structure = flood_fill(scene, visited, row, col, id_to_char, tile_descriptors, already_accounted, pipes)
-                if pipes or len(structure) >= 4:  # Ignore tiny groups of blocks, but keep all pipes
+                if pipes or len(structure) >= 3:  # Ignore tiny groups of blocks, but keep all pipes
                     structures.append(structure)
 
     return structures
