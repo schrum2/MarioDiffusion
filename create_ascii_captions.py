@@ -160,12 +160,12 @@ def in_column(scene, x, tile):
 
     return False
 
-def analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence):
+def analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING):
     """
-    Analyzes row 4 (0-based index) to detect a ceiling.
+    Analyzes ceiling row (0-based index) to detect a ceiling.
     Returns a caption phrase or an empty string if no ceiling is detected.
     """
-    ceiling_row = CEILING 
+     
     if ceiling_row >= len(scene): # I don't think I need this ...
         return ""  # Scene too short to have a ceiling
 
@@ -693,11 +693,13 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     for x in range(WIDTH):
         already_accounted.add((FLOOR, x))
 
+    double_floor = False
     # Check if the row above the floor is identical to the floor row.
     # Some levels in SMB2 have a doubly thick floor.
     # There is also a special case when pipes are embedded in a thick floor. The pipe lip makes the
     # two rows unequal, but this is still an example of a double thick floor.
     if scene[FLOOR] == list(map(lambda x : char_to_id['['] if x == char_to_id['<'] else char_to_id[']'] if x == char_to_id['>'] else x, scene[FLOOR - 1])):
+        double_floor = True
         for x in range(WIDTH):
             already_accounted.add((FLOOR - 1, x))
 
@@ -715,13 +717,14 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     add_to_caption(floor_caption + "." if floor_caption else "", list(already_accounted))
 
     # Analyze ceiling
-    ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence)
-    add_to_caption(ceiling, [(CEILING, x) for x in range(WIDTH)] if ceiling else [])
+    ceiling_row = CEILING if not double_floor else CEILING - 1
+    ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = ceiling_row)
+    add_to_caption(ceiling, [(ceiling_row, x) for x in range(WIDTH)] if ceiling else [])
 
     #print(already_accounted)
     if ceiling:
         for x in range(WIDTH):
-            already_accounted.add((CEILING, x))
+            already_accounted.add((ceiling_row, x))
 
     #print("after ceiling", (10,0) in already_accounted)
     
