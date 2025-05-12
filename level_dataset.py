@@ -226,6 +226,7 @@ class LevelDataset(Dataset):
         self.num_tiles = num_tiles
 
         # Load data
+        print(f"Loading data from {json_path}...")
         with open(json_path, 'r') as f:
             self.data = json.load(f)
 
@@ -235,21 +236,14 @@ class LevelDataset(Dataset):
 
         print(f"Training samples: {len(self.data)}")
 
-        # Tokenize all captions in advance
-        self.tokenized_captions = [self.tokenizer.encode(entry["caption"]) for entry in self.data]
-
-        # Ensure all tokenized captions are lists of integers
-        for i, tokens in enumerate(self.tokenized_captions):
-            if not all(isinstance(token, int) for token in tokens):
-                raise ValueError(f"Tokenization error at index {i}: {tokens}")
-
         # Determine padding length (if not provided)
         if self.max_length is None:
-            self.max_length = max(len(tokens) for tokens in self.tokenized_captions)
+            # Add 1 just in case
+            self.max_length = max(len(caption.replace(".", " .").split()) for caption in (item["caption"] for item in self.data)) + 1
 
         # Shuffle dataset
         if self.shuffle:
-            self._shuffle_data()
+            random.shuffle(self.data)
 
     def _augment_caption(self, caption):
         """Shuffles period-separated phrases in the caption."""
@@ -292,12 +286,6 @@ class LevelDataset(Dataset):
 
         return flipped_scene, caption_tensor
 
-    def _shuffle_data(self):
-        """Shuffles the dataset."""
-        combined = list(zip(self.data, self.tokenized_captions))
-        random.shuffle(combined)
-        self.data, self.tokenized_captions = zip(*combined)
-
     def _swap_caption_tokens(self, caption_tensor):
         """swapping directional tokens for consistency with flipped scenes"""
 
@@ -324,7 +312,7 @@ class LevelDataset(Dataset):
 
     def __len__(self):
         """Returns the number of samples in the dataset."""
-        return len(self.tokenized_captions)
+        return len(self.data)
 
     def __getitem__(self, idx):
         """
