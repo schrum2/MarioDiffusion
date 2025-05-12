@@ -58,13 +58,8 @@ class ParentBuilder:
         return False
 
     def get_predefined_phrases(self):
-        # Behaves differently for LoRA vs plain diffusion model
-        # Define the specific phrases and their order
-        predefined_phrases = [
-            ("Level Type", ["overworld level", "underworld level"]),
-            ("Sky Type", ["blue sky", "night sky"]),
-            ("Floor Type", ["no floor", "full floor", "floor with gaps"])
-        ]
+        # This used to mean something when shared with LoRA training, but it not used now
+        predefined_phrases = [ ]
         return predefined_phrases
 
     def create_checkboxes(self):
@@ -161,10 +156,6 @@ class ParentBuilder:
             create_group("Other Phrases", self.all_phrases.copy())
 
     def get_patterns(self):
-        # Different for LoRA and tile diffusion
-        patterns = ["cloud", "tree", "bush", "hill", 
-                    "pipe", "coin", 
-                    "cannon", "staircase",
-                    "girder", "question block", "solid block", "metal block", "mushroom", "giant tree", "brick block",
-                    "bullet bill", "koopa", "goomba", "piranha plant", "spiny", "hammer bro", "helmet"]
+        # has to be overridden in the child class
+        patterns = [ ]
         return patterns

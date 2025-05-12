@@ -95,18 +95,12 @@ class CaptionBuilder(ParentBuilder):
         self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet")
         self.loaded_model_label.pack()
 
-    def get_predefined_phrases(self):
-        # Behaves differently for LoRA vs plain diffusion model
-        # No phrases for plain diffusion model
-        predefined_phrases = [ ]
-        return predefined_phrases
-
     def get_patterns(self):
         # Different for LoRA and tile diffusion
         patterns = ["floor", "ceiling", 
                     "pipe", "coin", "platform", "tower", #"wall",
                     "cannon", "staircase", "rectangular", "irregular",
-                    "question block", "enem"]
+                    "question block", "loose block", "enem"]
         return patterns
 
     def load_data(self, filepath = None):

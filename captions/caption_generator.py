@@ -25,6 +25,7 @@ class GrammarGenerator:
             "rectangular": ["one rectangular block cluster", "two rectangular block clusters", "a few rectangular block clusters"],
             "irregular": ["one irregular block cluster", "two irregular block clusters", "a few irregular block clusters"],
             "question block": ["one question block", "two question blocks", "several question blocks", "a few question blocks", "many question blocks"],
+            "loose block": ["one loose block", "two loose blocks", "several loose blocks", "a few loose blocks", "many loose blocks"],
             "enem": ["one enemy", "two enemies", "a few enemies", "several enemies"]
         }
         
@@ -39,7 +40,9 @@ class GrammarGenerator:
             "cannon",
             "ascending staircase", "descending staircase",
             "rectangular",
-            "irregular", "question block", "enem"
+            "irregular", 
+            "question block", "loose block", 
+            "enem"
         ]
         
         # Define topic groups that are mutually exclusive

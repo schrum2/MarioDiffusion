@@ -117,19 +117,21 @@ def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
                 raise ValueError("Every tile should be either passable or solid")
         return f"giant gap with {describe_quantity(chunks) if coarse_counts else chunks} chunk"+("s" if pluralize and chunks != 1 else "")+" of floor"
 
-def count_in_scene(scene, tiles):
-    """ counts standalone tiles """
+def count_in_scene(scene, tiles, exclude=set()):
+    """ counts standalone tiles, unless they are in the exclude set """
     count = 0
-    for row in scene:
-        for t in row: 
-            if t in tiles:
+    for r, row in enumerate(scene):
+        for c, t in enumerate(row): 
+            if (r,c) not in exclude and t in tiles:
+                #if exclude: print((r,t), exclude, (r,t) in exclude)
                 count += 1
-
+    #if exclude: print(tiles, exclude, count)
     return count
 
-def count_caption_phrase(scene, tiles, name, names, offset = 0, describe_absence=False):
+def count_caption_phrase(scene, tiles, name, names, offset = 0, describe_absence=False, exclude=set()):
     """ offset modifies count used in caption """
-    count = offset + count_in_scene(scene, tiles)
+    count = offset + count_in_scene(scene, tiles, exclude)
+    #if name == "loose block": print("count", count)
     if count > 0: 
         return f" {describe_quantity(count) if coarse_counts else count} " + (names if pluralize and count > 1 else name) + "."
     elif describe_absence:
@@ -412,6 +414,7 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
                 structure = flood_fill(scene, visited, row, col, id_to_char, tile_descriptors, already_accounted, pipes)
                 if pipes or len(structure) >= 3:  # Ignore tiny groups of blocks, but keep all pipes
                     structures.append(structure)
+                    already_accounted.update(structure)
 
     return structures
 
@@ -689,7 +692,9 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Check if the row above the floor is identical to the floor row.
     # Some levels in SMB2 have a doubly thick floor.
-    if scene[FLOOR] == scene[FLOOR - 1]:
+    # There is also a special case when pipes are embedded in a thick floor. The pipe lip makes the
+    # two rows unequal, but this is still an example of a double thick floor.
+    if scene[FLOOR] == list(map(lambda x : char_to_id['['] if x == char_to_id['<'] else char_to_id[']'] if x == char_to_id['>'] else x, scene[FLOOR - 1])):
         for x in range(WIDTH):
             already_accounted.add((FLOOR - 1, x))
 
@@ -774,6 +779,10 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
     for phrase, coords in structure_phrase:
         add_to_caption(phrase, coords)
+
+    #print(already_accounted)
+    loose_block_phrase = count_caption_phrase(scene, [char_to_id['X'], char_to_id['S']], "loose block", "loose blocks", describe_absence=describe_absence, exclude=already_accounted)
+    add_to_caption(loose_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['X'], char_to_id['S']] and (r, c) not in already_accounted])
 
     return (caption.strip(), details) if return_details else caption.strip()
 

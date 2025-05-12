@@ -13,7 +13,9 @@ TOPIC_KEYWORDS = [
     "broken cannon", "cannon",
     "ascending staircase", "descending staircase",
     "rectangular",
-    "irregular", "question block", "enem"  # catch "enemy"/"enemies"
+    "irregular", 
+    "question block", "loose block",
+    "enem"  # catch "enemy"/"enemies"
 ]
 
 # Plural normalization map (irregulars)
