@@ -115,6 +115,12 @@ class GrammarGenerator:
             phrase = random.choice(self.topic_phrases[topic])
             selected_phrases.append(phrase)
 
+        # Special case for consistenct of coins and coin lines
+        if "coin line" in used_topics and "coin" not in used_topics:
+            # If coin line is present, add a coin
+            selected_phrases.append(random.choice(self.topic_phrases["coin"]))
+            used_topics.add("coin")
+
         # If describe_absence is True, add absence descriptions for unused topics
         if self.describe_absence:
             for topic in self.topic_keywords:
