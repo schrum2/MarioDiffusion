@@ -611,9 +611,8 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
 
     # Handle absence descriptions if needed
     if describe_absence:
-        absent_types = {"pipe": set()} if pipes else {"tower": set(), "rectangular block cluster": set(), "irregular block cluster": set()}
-        described_types = {desc.split()[1] if desc.startswith("one ") else desc.split()[1] 
-                         for desc in desc_to_structs.keys()}
+        absent_types = {"pipe": set(), "upside down pipe" : set()} if pipes else {"tower": set(), "rectangular block cluster": set(), "irregular block cluster": set()}
+        described_types = desc_to_structs.keys()
         
         for absent_type in absent_types:
             if absent_type not in described_types:
