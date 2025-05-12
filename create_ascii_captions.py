@@ -701,7 +701,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Analyze floor
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
-    add_to_caption(floor_caption + "." if floor_caption else "", [(FLOOR, x) for x in range(WIDTH)])
+    add_to_caption(floor_caption + "." if floor_caption else "", list(already_accounted))
 
     # Analyze ceiling
     ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence)
