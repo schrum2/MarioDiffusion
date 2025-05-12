@@ -721,21 +721,15 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING)
     ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING - 1)
 
-    print("high",ceiling_higher)
-    print("regular",ceiling_regular)
-
     if (ceiling_regular == " no ceiling." and ceiling_higher == " no ceiling.") or (ceiling_regular == "" and ceiling_higher == ""):
-        print("both no")
         ceiling_row = None
         add_to_caption(ceiling_regular, []) # No ceiling at all
     elif ceiling_regular and ceiling_regular != " no ceiling.":
-        print("add in regular")
         ceiling_row = CEILING
         add_to_caption(ceiling_regular, [(CEILING, x) for x in range(WIDTH)])
         for x in range(WIDTH):
             already_accounted.add((CEILING, x))
     elif ceiling_higher and ceiling_higher != " no ceiling.":
-        print("add in higher")
         ceiling_row = CEILING - 1
         add_to_caption(ceiling_higher, [(CEILING - 1, x) for x in range(WIDTH)])
         for x in range(WIDTH):
