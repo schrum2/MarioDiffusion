@@ -2,7 +2,6 @@ import json
 import re
 from collections import Counter
 import pickle
-import sys
 import argparse
 
 class Tokenizer:
