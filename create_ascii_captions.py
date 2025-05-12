@@ -515,8 +515,12 @@ def valid_upside_down_pipe(bottom_row, left_column, scene, char_to_id):
 def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None):
     """
         scene and char_to_id are needed when pipes is True so that the specific tiles can be checked.
+        Returns a list of tuples (phrase, coordinates) where coordinates is a set of (row, col) positions
+        associated with the phrase describing the structures of that type.
     """
-    descriptions = []
+    # Map each description to its list of structures
+    desc_to_structs = {}
+    
     for struct in structures:
         min_row = min(pos[0] for pos in struct)
         max_row = max(pos[0] for pos in struct)
@@ -527,7 +531,6 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         height = max_row - min_row + 1
 
         attached_to_ceiling = any(r == ceiling_row for r, c in struct)
-        # Check if the structure is in contact with the floor
         in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
 
         if pipes:
@@ -536,9 +539,6 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
             elif valid_upside_down_pipe(max_row, min_col, scene, char_to_id):
                 desc = "upside down pipe"
             else:
-                #print(struct)
-                #for r in scene: print(r)
-                #raise ValueError("why broken?")
                 desc = "broken pipe"
         else:
             if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
@@ -551,28 +551,32 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         if debug:
             print(f"{desc} at {min_row} {max_row} {min_col} {max_col}: {struct}: attached_to_ceiling: {attached_to_ceiling}, in_contact_with_floor: {in_contact_with_floor}")
 
-            # Overcomplicates the captions
-            #if attached_to_ceiling:
-            #    desc += " attached to the ceiling"
-
         if describe_locations:
             if coarse_locations:
                 desc += " at " + describe_location((min_col + max_col) / 2.0, (min_row + max_row) / 2.0)
             else:
                 desc += f" from row {min_row} to {max_row}, columns {min_col} to {max_col}"
 
-        descriptions.append(desc)
-    
-    # Count occurrences
-    counts = Counter(descriptions)
+        # Group structures by their description
+        if desc not in desc_to_structs:
+            desc_to_structs[desc] = []
+        desc_to_structs[desc].append(struct)
 
-    # Prepare formatted phrases
-    phrases = []
-    for desc, count in counts.items():
+    # Prepare phrases with their associated coordinates
+    result = []
+    
+    # Process existing structures
+    for desc, struct_list in desc_to_structs.items():
+        count = len(struct_list)
+        # Combine all coordinates for this description type
+        all_coords = set()
+        for struct in struct_list:
+            all_coords.update(struct)
+            
         if count == 1:
-            phrases.append(f"one {desc}")
+            phrase = f"one {desc}"
         else:
-            # Pluralize the first word (basic pluralization: add 's')
+            # Pluralize the first word
             words = desc.split()
             for i in range(len(words)):
                 if words[i] == "pipe":
@@ -583,31 +587,21 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
                     words[i] = "walls"
                 elif words[i] == "cluster":
                     words[i] = "clusters"
+            phrase = f"{describe_quantity(count)} " + " ".join(words)
+        
+        result.append((phrase + ".", all_coords))
 
-            phrases.append(f"{describe_quantity(count)} " + " ".join(words))
-
+    # Handle absence descriptions if needed
     if describe_absence:
-        counts = Counter()
-        if pipes:
-            counts["pipe"] = 0
-        else:
-            counts["tower"] = 0
-            counts["wall"] = 0
-            counts["irregular block cluster"] = 0
-        for phrase in phrases:
-            for key in counts:
-                if key in phrase:
-                    counts[key] += 1
-                    break
+        absent_types = {"pipe": set()} if pipes else {"tower": set(), "wall": set(), "irregular block cluster": set()}
+        described_types = {desc.split()[1] if desc.startswith("one ") else desc.split()[1] 
+                         for desc in desc_to_structs.keys()}
+        
+        for absent_type in absent_types:
+            if absent_type not in described_types:
+                result.append((f"no {absent_type}s.", set()))
 
-        for key in counts:
-            if counts[key] == 0:
-                phrases.append(f"no {key}s")
-
-    if len(phrases) > 0:
-        return " " + ". ".join(phrases) + "."
-    else:
-        return ""
+    return result if result else []
 
 #def count_to_words(n):
 #    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
@@ -746,11 +740,13 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     # Solid structures
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes=True)
     pipe_phrase = describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id)
-    add_to_caption(pipe_phrase, list(already_accounted))
+    for phrase, coords in pipe_phrase:
+        add_to_caption(phrase, coords)
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
     structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
-    add_to_caption(structure_phrase, list(already_accounted))
+    for phrase, coords in structure_phrase:
+        add_to_caption(phrase, coords)
 
     return (caption.strip(), details) if return_details else caption.strip()
 
