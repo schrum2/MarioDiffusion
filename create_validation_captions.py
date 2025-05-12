@@ -14,6 +14,7 @@ def parse_args():
     parser.add_argument("--pkl", type=str, default="Mario_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="Mario_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
+    parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     
     # Output args
     parser.add_argument("--save_file", type=str, default="Mario_ValidationCaptions.json", help="Output file")
@@ -42,7 +43,7 @@ def main():
     #    caption = dataset.get_sample_caption(i)
     #    print(caption)
 
-    generator = GrammarGenerator(seed = args.seed)
+    generator = GrammarGenerator(seed = args.seed, describe_absence=args.describe_absence)
 
     validation_captions = []
     while len(validation_captions) < args.validation_set_size:
