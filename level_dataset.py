@@ -10,6 +10,7 @@ import matplotlib
 from torch.utils.data import DataLoader
 import io
 from PIL import Image
+from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS
 
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
@@ -203,8 +204,27 @@ def visualize_samples(samples, output_dir=None, use_tiles=True):
 
     return sample_indices
 
+def positive_negative_caption_split(caption):
+    phrases = [p.strip() for p in caption.split(".") if p]
+    if "no " not in caption and len(phrases) == len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
+        return caption, "" # There were no negative phrases
+    elif "no " in caption and len(phrases) == len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
+        # made with describe_absence, so there are phrases for each negation
+        positive_phrases = ". ".join([p for p in phrases if "no " not in p]) + "."
+        negative_phrases = ". ".join([p for p in phrases if "no " in p]) + "."
+        return positive_phrases, negative_phrases
+    elif "no " in caption:
+        raise ValueError(f"With negative phases, every topic should be represented: {caption} {len(phrases)} {len(TOPIC_KEYWORDS)}")
+    elif len(phrases) < len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
+        # Caption only contains positive phrases, so all missing negative phrases must be added
+        positive_phrases = caption
+        negative_phrases = ". ".join([f"no {topic}" for topic in TOPIC_KEYWORDS if topic not in caption]) + "."
+        return positive_phrases, negative_phrases
+    else:
+        raise ValueError(f"Caption has problem: {caption} {len(phrases)} {len(TOPIC_KEYWORDS)}")
+
 class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15):
+    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15, negative_captions=False):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -226,6 +246,7 @@ class LevelDataset(Dataset):
         self.augment = augment
         self.random_flip = random_flip
         self.num_tiles = num_tiles
+        self.negative_captions = negative_captions
 
         # Load data
         print(f"Loading data from {json_path}...")

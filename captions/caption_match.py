@@ -5,7 +5,7 @@ QUANTITY_TERMS = ["one", "two", "a few", "several", "many"]
 
 # Topics to compare
 TOPIC_KEYWORDS = [
-    "giant gap", 
+    #"giant gap", # I think all gaps are subsumed by the floor topic 
     "floor", "ceiling", 
     "broken pipe", "upside down pipe", "pipe", 
     "coin line", "coin",
@@ -17,6 +17,8 @@ TOPIC_KEYWORDS = [
     "question block", "loose block",
     "enem"  # catch "enemy"/"enemies"
 ]
+
+BROKEN_TOPICS = 2 # Number of topics that are considered "broken" (e.g., "broken pipe", "broken cannon")
 
 # Plural normalization map (irregulars)
 PLURAL_EXCEPTIONS = {
