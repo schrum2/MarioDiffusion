@@ -204,7 +204,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True):
     return sample_indices
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, limit=-1, num_tiles=15):
+    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -212,7 +212,8 @@ class LevelDataset(Dataset):
             shuffle (bool): Whether to shuffle data at the start of an epoch.
             max_length (int, optional): Maximum length for tokenized captions.
             mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training (tokenized captions only), "text" for just the text captions.
-            augment (bool): Whether to apply data augmentation
+            augment (bool): Whether to apply data augmentation to text captions.
+            random_flip (bool): Whether to randomly flip the scene and caption.
             limit (int): restrict dataset to this size if not -1
             num_tiles (int): Number of different tile types for one-hot encoding
         """
@@ -223,6 +224,7 @@ class LevelDataset(Dataset):
         self.max_length = max_length
         self.mode = mode
         self.augment = augment
+        self.random_flip = random_flip
         self.num_tiles = num_tiles
 
         # Load data
@@ -254,7 +256,7 @@ class LevelDataset(Dataset):
         else:
             return caption # Same as original
 
-    def _augment_scene_and_caption(self, scene, caption): # augments by flipping
+    def _flip_scene_and_caption(self, scene, caption): # augments by flipping
         """
             swapping directional tokens for consistency with flipped scenes
             scene: list of lists of integers level scene representation
@@ -339,10 +341,10 @@ class LevelDataset(Dataset):
 
         scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
         
-        # Apply augmentation if enabled
-        if self.augment and random.choice([True, False]):
+        # Apply random flip if enabled
+        if self.random_flip and random.choice([True, False]):
             #print("AUGMENT!", idx)
-            scene_tensor, caption_tensor = self._augment_scene_and_caption(scene_tensor, caption_tokens)
+            scene_tensor, caption_tensor = self._flip_scene_and_caption(scene_tensor, caption_tokens)
 
         # Convert to one-hot encoding for diffusion model
         one_hot_scene = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
