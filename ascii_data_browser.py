@@ -36,9 +36,11 @@ class TileViewer(tk.Tk):
         if not self.dataset:
             return
         sample = self.dataset[self.current_sample_idx]
-        caption = assign_caption(sample['scene'], self.id_to_char, self.char_to_id, self.tile_descriptors, describe_locations = False, describe_absence = False, debug = True)
+        caption, details = assign_caption(sample['scene'], self.id_to_char, self.char_to_id, self.tile_descriptors, describe_locations = False, describe_absence = False, debug = True, return_details = True)
         sample['caption'] = caption
+        sample['details'] = details
         print(f"New caption: {caption}")
+        print(details)
         self.redraw()
 
     def toggle_view_mode(self):
@@ -187,6 +189,15 @@ class TileViewer(tk.Tk):
             # Display as numeric/character grid
             font = ("Courier", self.font_size)
             colors = level_dataset.colors()
+
+            # Generate unique colors for caption phrases
+            import random
+            random.seed(42)  # Ensure consistent colors across redraws
+            phrase_colors = {}
+            if 'details' in sample:
+                for phrase in sample['details']:
+                    phrase_colors[phrase] = f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
+
             for y in range(16):
                 for x in range(16):
                     tile_id = sample['scene'][y][x]
@@ -194,6 +205,23 @@ class TileViewer(tk.Tk):
                     # Convert (r, g, b) float tuple to hex color string
                     r, g, b = colors[tile_id]
                     color_hex = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
+
+                    # Determine background color based on details
+                    bg_color = "white"
+                    if 'details' in sample:
+                        for phrase, coords in sample['details'].items():
+                            if (y, x) in coords:
+                                bg_color = phrase_colors[phrase]
+                                break
+
+                    # Draw background rectangle
+                    self.canvas.create_rectangle(
+                        x * self.tile_size, y * self.tile_size,
+                        (x + 1) * self.tile_size, (y + 1) * self.tile_size,
+                        fill=bg_color, outline=""
+                    )
+
+                    # Draw text
                     self.canvas.create_text(
                         x * self.tile_size + self.tile_size // 2,
                         y * self.tile_size + self.tile_size // 2,
@@ -203,14 +231,23 @@ class TileViewer(tk.Tk):
                         fill=color_hex
                     )
 
-        # Adjust caption placement to reduce space above and below
-        self.canvas.create_text(
-            8 * self.tile_size + self.tile_size // 2,
-            16.5 * self.tile_size,  # Adjusted position to reduce space
-            text=sample['caption'],
-            anchor="center",
-            width=self.tile_size * 16
-        )
+            # Adjust caption placement to reduce space above and below
+            caption_text = sample['caption']
+            caption_parts = caption_text.split('.')
+            caption_y = 16.5 * self.tile_size
+            for part in caption_parts:
+                part = part.strip()
+                if part:
+                    color = phrase_colors.get(part, "black")
+                    self.canvas.create_text(
+                        8 * self.tile_size + self.tile_size // 2,
+                        caption_y,
+                        text=part + '.',
+                        anchor="center",
+                        width=self.tile_size * 16,
+                        fill=color
+                    )
+                    caption_y += self.font_size + 2
 
         self.sample_label.config(
             text=f"Sample: {self.current_sample_idx + 1} / {len(self.dataset)}"
