@@ -5,7 +5,7 @@ python combine_data.py Mario_Levels.json SMB1_Levels.json SMB2_Levels.json SML_L
 python create_ascii_captions.py --dataset Mario_Levels.json --output Mario_LevelsAndCaptions.json
 python tokenizer.py save --json_file Mario_LevelsAndCaptions.json --pkl_file Mario_Tokenizer.pkl
 python train_mlm.py --epochs 300 --save_checkpoints --json Mario_LevelsAndCaptions.json --pkl Mario_Tokenizer.pkl --output_dir mlm
-python create_validation_captions.py --save_file "Mario_ValidationCaptions.json" --pkl Mario_Tokenizer.pkl --seed 0
+python create_validation_captions.py --save_file "Mario_ValidationCaptions.json" --pkl Mario_Tokenizer.pkl --json Mario_LevelsAndCaptions.json  --seed 0
 python evaluate_masked_token_prediction.py --model_path mlm --compare_checkpoints --json Mario_LevelsAndCaptions.json
 python evaluate_masked_token_prediction.py --model_path mlm --compare_checkpoints --json Mario_ValidationCaptions.json
 python train_diffusion.py --augment --text_conditional --output_dir "Mario-conditional-model" --num_epochs 200 --json Mario_LevelsAndCaptions.json --pkl Mario_Tokenizer.pkl

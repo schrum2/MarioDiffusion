@@ -5,7 +5,7 @@ python combine_data.py Mario_Levels.json SMB1_Levels.json SMB2_Levels.json SML_L
 python create_ascii_captions.py --dataset Mario_Levels.json --output Mario_LevelsAndCaptions-absence.json --describe_absence
 python tokenizer.py save --json_file Mario_LevelsAndCaptions-absence.json --pkl_file Mario_Tokenizer-absence.pkl
 python train_mlm.py --epochs 300 --save_checkpoints --json Mario_LevelsAndCaptions-absence.json --pkl Mario_Tokenizer-absence.pkl --output_dir mlm-absence
-python create_validation_captions.py --save_file "Mario_ValidationCaptions-absence.json" --pkl Mario_Tokenizer-absence.pkl --seed 0
+python create_validation_captions.py --save_file "Mario_ValidationCaptions-absence.json" --pkl Mario_Tokenizer-absence.pkl --json Mario_LevelsAndCaptions-absence.json --seed 0
 python evaluate_masked_token_prediction.py --model_path mlm-absence --compare_checkpoints --json Mario_LevelsAndCaptions-absence.json
 python evaluate_masked_token_prediction.py --model_path mlm-absence --compare_checkpoints --json Mario_ValidationCaptions-absence.json
 python train_diffusion.py --augment --text_conditional --output_dir "Mario-conditional-model-absence" --num_epochs 200 --json Mario_LevelsAndCaptions-absence.json --pkl Mario_Tokenizer-absence.pkl

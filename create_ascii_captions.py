@@ -606,7 +606,7 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
                 #    words[i] = "walls"
                 elif words[i] == "cluster":
                     words[i] = "clusters"
-            phrase = f"{describe_quantity(count)} " + " ".join(words)
+            phrase = f" {describe_quantity(count)} " + " ".join(words)
         
         result.append((phrase + ".", all_coords))
 
@@ -617,7 +617,7 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         
         for absent_type in absent_types:
             if absent_type not in described_types:
-                result.append((f"no {absent_type}s.", set()))
+                result.append((f" no {absent_type}s.", set()))
 
     return result if result else []
 
