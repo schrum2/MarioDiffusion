@@ -678,6 +678,12 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     for x in range(WIDTH):
         already_accounted.add((FLOOR, x))
 
+    # Check if the row above the floor is identical to the floor row.
+    # Some levels in SMB2 have a doubly thick floor.
+    if scene[FLOOR] == scene[FLOOR - 1]:
+        for x in range(WIDTH):
+            already_accounted.add((FLOOR - 1, x))
+
     def add_to_caption(phrase, contributing_blocks):
         nonlocal caption
         if phrase:
