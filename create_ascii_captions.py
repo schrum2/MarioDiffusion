@@ -198,6 +198,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
     - Skips the FLOOR row
     - Skips tiles marked as 'pipe'
     - Can require non-solid space above and below (for platforms)
+    - exclude_rows may not be needed because of the alread_accounted set
     Returns a list of (y, start_x, end_x) tuples
     """
     lines = []
@@ -717,15 +718,19 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     add_to_caption(floor_caption + "." if floor_caption else "", list(already_accounted))
 
     # Analyze ceiling
-    ceiling_row = CEILING if not double_floor else CEILING - 1
-    ceiling = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = ceiling_row)
-    add_to_caption(ceiling, [(ceiling_row, x) for x in range(WIDTH)] if ceiling else [])
-
-    #print(already_accounted)
-    if ceiling:
+    ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING)
+    ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING - 1)
+    if (ceiling_regular.startswith("no") and ceiling_higher.startswith("no")):
+        add_to_caption(ceiling_regular, []) # No ceiling at all
+    elif ceiling_regular:
+        add_to_caption(ceiling_regular, [(CEILING, x) for x in range(WIDTH)])
         for x in range(WIDTH):
-            already_accounted.add((ceiling_row, x))
-
+            already_accounted.add((CEILING, x))
+    elif ceiling_higher:
+        add_to_caption(ceiling_higher, [(CEILING - 1, x) for x in range(WIDTH)])
+        for x in range(WIDTH):
+            already_accounted.add((CEILING - 1, x))
+    
     #print("after ceiling", (10,0) in already_accounted)
     
     # Count enemies
@@ -763,7 +768,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     #print("after coin line", (10,0) in already_accounted)
     # Platforms
-    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, exclude_rows=[] if ceiling == "" else [4], already_accounted=already_accounted)
+    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted)
     #print("after platform_lines", (10,0) in already_accounted)
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
