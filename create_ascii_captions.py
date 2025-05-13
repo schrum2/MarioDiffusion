@@ -593,7 +593,8 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
             all_coords.update(struct)
             
         if count == 1:
-            phrase = f"one {desc}"
+            # Need space in front
+            phrase = f" one {desc}"
         else:
             # Pluralize the first word
             words = desc.split()

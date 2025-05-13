@@ -211,14 +211,14 @@ def positive_negative_caption_split(caption):
     elif "no " in caption and len(phrases) == len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
         # made with describe_absence, so there are phrases for each negation
         positive_phrases = ". ".join([p for p in phrases if "no " not in p]) + "."
-        negative_phrases = ". ".join([p for p in phrases if "no " in p]) + "."
+        negative_phrases = ". ".join([p.replace("no ","") for p in phrases if "no " in p]) + "."
         return positive_phrases, negative_phrases
     elif "no " in caption:
         raise ValueError(f"With negative phrases, every topic should be represented: {caption} {len(phrases)} {len(TOPIC_KEYWORDS)} {TOPIC_KEYWORDS}")
     elif len(phrases) < len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
         # Caption only contains positive phrases, so all missing negative phrases must be added
         positive_phrases = caption
-        negative_phrases = ". ".join([f"no {topic}" for topic in TOPIC_KEYWORDS if topic not in caption]) + "."
+        negative_phrases = ". ".join([f"{topic}" for topic in TOPIC_KEYWORDS if topic not in caption]) + "."
         return positive_phrases, negative_phrases
     else:
         raise ValueError(f"Caption has problem: {caption} {len(phrases)} {len(TOPIC_KEYWORDS)}")
@@ -433,6 +433,19 @@ if __name__ == "__main__":
     tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
 
     negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-absence.json', tokenizer, mode="text", negative_captions=True)
+    print("Negative MLM dataset size:", len(negatives_mlm_dataset))
+    for i in range(5):
+        sample = negatives_mlm_dataset[i]
+        print(i)
+        print(f"      POS: {sample[0]}")
+        print(f"      NEG: {sample[1]}")
+
+    print("----------------------------------")
+
+    tokenizer = Tokenizer()
+    tokenizer.load('SMB1AND2_Tokenizer-regular.pkl')
+
+    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-regular.json', tokenizer, mode="text", negative_captions=True)
     print("Negative MLM dataset size:", len(negatives_mlm_dataset))
     for i in range(5):
         sample = negatives_mlm_dataset[i]
