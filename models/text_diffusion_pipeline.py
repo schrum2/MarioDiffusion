@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from typing import NamedTuple, Optional
 import os
 from diffusers import DDPMPipeline, UNet2DConditionModel, DDPMScheduler
+# Running the main at the end of this requires messing with this import
 from models.text_model import TransformerModel  
             
 class PipelineOutput(NamedTuple):
@@ -227,3 +228,34 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             print(self.text_encoder)
         else:
             print("No text encoder is set.")
+
+if __name__ == "__main__":
+    import os
+    import torch
+    from level_dataset import visualize_samples
+
+    # This won't run unless some imports at the top of the file are modified
+
+    # Set up the pipeline
+    model_path = "prev-cond-model"
+    pipe = TextConditionalDDPMPipeline.from_pretrained(model_path)
+    
+    # Move to GPU if available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    pipe = pipe.to(device)
+
+    # Generate with test prompt
+    output = pipe(
+        caption="full floor. two pipes.",
+        num_inference_steps=50,
+        guidance_scale=7.5,
+        height=16,
+        width=16,
+    )
+
+    # Convert output to proper format for visualization
+    sample_images = visualize_samples(output.images, use_tiles=True)
+    sample_images.show()
+
+    # The visualize_samples function will save the image and also return the tile indices
+    print("Generation complete! Check the generated image.")
