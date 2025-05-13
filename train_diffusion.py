@@ -283,6 +283,9 @@ def main():
                 else:
                     scenes, captions = batch
     
+                # First generate timesteps before we duplicate anything
+                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
+
                 # Get text embeddings from the text encoder
                 with torch.no_grad():
                     text_embeddings = text_encoder.get_embeddings(captions)
