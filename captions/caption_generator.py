@@ -10,7 +10,7 @@ class GrammarGenerator:
         self.topic_phrases = {
             "floor": ["full floor", "floor with one gap", "floor with two gaps", 
                      "giant gap with one chunk of floor", "giant gap with two chunks of floor"],
-            "ceiling": ["full ceiling", "ceiling with one gap", "ceiling with two gaps"],
+            "ceiling": ["full ceiling", "ceiling with one gap", "ceiling with two gaps", "ceiling with a few gaps"],
             # "broken pipe": ["one broken pipe", "two broken pipes"],
             "upside down pipe": ["one upside down pipe", "two upside down pipes", "a few upside down pipes"],
             "pipe": ["one pipe", "two pipes", "a few pipes"],

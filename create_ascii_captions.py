@@ -724,7 +724,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     def bigger_ceiling(ceiling_higher, ceiling_regular):
         if ceiling_higher == None:
             return False
-        ceiling_order = ["full ceiling.", "ceiling with one gap.", "ceiling with two gaps.", "no ceiling.", ""]
+        ceiling_order = ["full ceiling.", "ceiling with one gap.", "ceiling with two gaps.", "ceiling with a few gaps.", "no ceiling.", ""]
         return ceiling_order.index(ceiling_higher.strip()) <= ceiling_order.index(ceiling_regular.strip())
 
     # Analyze ceiling
@@ -763,7 +763,8 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         for r in range(ceiling_row - 1, -1, -1):
             #print(r ,f"also ceiling '{ceiling_phrase.strip()}'", details)
             if scene[r] == scene[ceiling_row]:
-                details[ceiling_phrase.strip()].extend([(r, x) for x in range(WIDTH)])
+                if details:
+                    details[ceiling_phrase.strip()].extend([(r, x) for x in range(WIDTH)])
                 already_accounted.update((r, x) for x in range(WIDTH))
             
     # Count enemies
