@@ -220,13 +220,25 @@ class TileViewer(tk.Tk):
         self.canvas.delete("all")
         sample = self.dataset[self.current_sample_idx]
 
-        # Generate unique colors for caption phrases
+        # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
+        from captions.caption_match import TOPIC_KEYWORDS
         import random
+
+        # Assign a unique color to each topic in TOPIC_KEYWORDS
         random.seed(5)  # Ensure consistent colors across redraws
+        topic_colors = {
+            topic: f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
+            for topic in TOPIC_KEYWORDS
+        }
+
+        # Map phrases in the sample to their corresponding topic colors
         phrase_colors = {}
         if 'details' in sample:
             for phrase in sample['details']:
-                phrase_colors[phrase] = f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
+                for topic in TOPIC_KEYWORDS:
+                    if topic in phrase:
+                        phrase_colors[phrase] = topic_colors[topic]
+                        break  # Stop at the first matching topic
 
         #print("phrase_colors", phrase_colors)
 
