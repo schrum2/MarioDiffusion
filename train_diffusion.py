@@ -374,16 +374,35 @@ def main():
                     text_encoder=text_encoder
                 ).to("cuda")
                 
-                with torch.no_grad():
-                    # Generate samples
-                    samples = pipeline(
-                        batch_size=4,
-                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps=args.num_train_timesteps,
-                        output_type="tensor",
-                        captions=sample_captions,
-                        negative_prompt=sample_negative_captions if args.negative_prompt_training else None
-                    ).images
+                # Convert captions to token IDs using the tokenizer
+                sample_caption_tokens = tokenizer.encode_batch(sample_captions)
+                sample_caption_tokens = torch.tensor(sample_caption_tokens).to(accelerator.device)
+                
+                #if args.negative_prompt_training:
+                #    sample_negative_tokens = tokenizer.encode_batch(sample_negative_captions)
+                #    sample_negative_tokens = torch.tensor(sample_negative_tokens).to(accelerator.device)
+                
+                if args.negative_prompt_training:
+                    # Use the raw negative captions instead of tokens
+                    with torch.no_grad():
+                        samples = pipeline(
+                            batch_size=4,
+                            generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
+                            num_inference_steps=args.num_train_timesteps,
+                            output_type="tensor",
+                            captions=sample_caption_tokens,
+                            negative_prompt=sample_negative_captions  # Use text captions instead of tokens
+                        ).images
+                else:
+                    with torch.no_grad():
+                        samples = pipeline(
+                            batch_size=4,
+                            generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
+                            num_inference_steps=args.num_train_timesteps,
+                            output_type="tensor",
+                            captions=sample_caption_tokens,
+                            negative_prompt=None
+                        ).images
             else:
                 # For unconditional generation
                 pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
