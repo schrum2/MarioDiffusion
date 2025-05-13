@@ -473,9 +473,9 @@ if __name__ == "__main__":
         sample = negatives_mlm_dataset[i]
         print(i)
         print(f"      POS: {sample[0]}")
-        print(f"      POS: {tokenizer.decode(sample[0])}")
+        print(f"      POS: {tokenizer.decode(sample[0].tolist())}")
         print(f"      NEG: {sample[1]}")
-        print(f"      NEG: {tokenizer.decode(sample[1])}")
+        print(f"      NEG: {tokenizer.decode(sample[1].tolist())}")
 
     print("----------------------------------")
 
@@ -488,9 +488,9 @@ if __name__ == "__main__":
         sample = negatives_mlm_dataset[i]
         print(i)
         print(f"      POS: {sample[0]}")
-        print(f"      POS: {tokenizer.decode(sample[0])}")
+        print(f"      POS: {tokenizer.decode(sample[0].tolist())}")
         print(f"      NEG: {sample[1]}")
-        print(f"      NEG: {tokenizer.decode(sample[1])}")
+        print(f"      NEG: {tokenizer.decode(sample[1].tolist())}")
 
     print("----------------------------------")
 
