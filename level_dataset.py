@@ -430,9 +430,9 @@ if __name__ == "__main__":
     torch.manual_seed(0)  # Add PyTorch seed for DataLoader determinism
 
     tokenizer = Tokenizer()
-    tokenizer.load('Mario_Tokenizer.pkl')
+    tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
 
-    negatives_mlm_dataset = LevelDataset('Mario_LevelsAndCaptions.json', tokenizer, mode="text", negative_captions=True)
+    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-absence.json', tokenizer, mode="text", negative_captions=True)
     print("Negative MLM dataset size:", len(negatives_mlm_dataset))
     for i in range(5):
         sample = negatives_mlm_dataset[i]
