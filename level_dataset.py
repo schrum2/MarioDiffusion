@@ -349,9 +349,17 @@ class LevelDataset(Dataset):
         sample = self.data[idx]
         augmented_caption = self._augment_caption(sample["caption"])
 
+        negative_caption = ""
+        if self.negative_captions:
+            augmented_caption, negative_caption = positive_negative_caption_split(augmented_caption)
+
         if self.mode == "text":
-            # Return the raw caption for text mode
-            return augmented_caption
+            if self.negative_captions:
+                # Return the raw caption for text mode
+                return augmented_caption, negative_caption
+            else:
+                # Return the raw caption for text mode
+                return augmented_caption
 
         caption_tokens = self.tokenizer.encode(augmented_caption)
         if len(caption_tokens) > self.max_length:
@@ -422,10 +430,20 @@ if __name__ == "__main__":
     torch.manual_seed(0)  # Add PyTorch seed for DataLoader determinism
 
     tokenizer = Tokenizer()
-    tokenizer.load('SMB1_Tokenizer.pkl')
+    tokenizer.load('Mario_Tokenizer.pkl')
+
+    negatives_mlm_dataset = LevelDataset('Mario_LevelsAndCaptions.json', tokenizer, mode="text", negative_captions=True)
+    print("Negative MLM dataset size:", len(negatives_mlm_dataset))
+    for i in range(5):
+        sample = negatives_mlm_dataset[i]
+        print(i)
+        print(f"      POS: {sample[0]}")
+        print(f"      NEG: {sample[1]}")
+
+    quit()
 
     # Create MLM dataset
-    mlm_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, mode="mlm")
+    mlm_dataset = LevelDataset('Mario_LevelsAndCaptions.json', tokenizer, mode="mlm")
     sample = mlm_dataset[0]
     print("MLM sample shape:", sample.shape)  # Should be (max_length)
     print(sample)
@@ -438,7 +456,7 @@ if __name__ == "__main__":
     print(mlm_dataset.tokenizer.decode(batch[0].tolist()))
 
     # Create Diffusion dataset
-    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions.json', tokenizer, mode="diffusion", shuffle=False)
+    diffusion_dataset = LevelDataset('Mario_LevelsAndCaptions.json', tokenizer, mode="diffusion", shuffle=False)
     scene, caption = diffusion_dataset[0]
     print("Diffusion Sample Shapes:", scene.shape, caption.shape) 
     print(scene)
@@ -472,8 +490,8 @@ if __name__ == "__main__":
 
     print("-----------")
     tokenizer = Tokenizer()
-    tokenizer.load('Mario_Tokenizer-regular.pkl')
-    mlm_dataset = LevelDataset('Mario_LevelsAndCaptions-regular.json', tokenizer, mode="mlm")
+    tokenizer.load('Mario_Tokenizer.pkl')
+    mlm_dataset = LevelDataset('Mario_LevelsAndCaptions.json', tokenizer, mode="mlm")
     last_size = None
     for b in mlm_dataset:
         if last_size == None:
