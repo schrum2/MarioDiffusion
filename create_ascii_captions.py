@@ -728,25 +728,32 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         return ceiling_order.index(ceiling_higher.strip()) <= ceiling_order.index(ceiling_regular.strip())
 
     # Analyze ceiling
-    ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING)
-    ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING - 1)
+    for c in range(CEILING, -1, -1):
+        ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = c)
+        ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = c - 1)
+        ceiling_start = c
+        print(f"{c} ceiling_regular: {ceiling_regular}, ceiling_higher: {ceiling_higher}")
+        if describe_absence and (ceiling_regular != " no ceiling." or ceiling_higher != " no ceiling."):
+            break
+        if not describe_absence and (ceiling_regular != "" or ceiling_higher != ""):
+            break
 
     if (ceiling_regular == " no ceiling." and ceiling_higher == " no ceiling.") or (ceiling_regular == "" and ceiling_higher == ""):
         ceiling_row = None
         ceiling_phrase = ceiling_regular
         add_to_caption(ceiling_regular, []) # No ceiling at all
     elif ceiling_regular and ceiling_regular != " no ceiling." and not bigger_ceiling(ceiling_higher, ceiling_regular):
-        ceiling_row = CEILING
+        ceiling_row = ceiling_start
         ceiling_phrase = ceiling_regular
-        add_to_caption(ceiling_regular, [(CEILING, x) for x in range(WIDTH)])
+        add_to_caption(ceiling_regular, [(ceiling_start, x) for x in range(WIDTH)])
         for x in range(WIDTH):
-            already_accounted.add((CEILING, x))
+            already_accounted.add((ceiling_start, x))
     elif ceiling_higher and ceiling_higher != " no ceiling.":
-        ceiling_row = CEILING - 1
+        ceiling_row = ceiling_start - 1
         ceiling_phrase = ceiling_higher
-        add_to_caption(ceiling_higher, [(CEILING - 1, x) for x in range(WIDTH)])
+        add_to_caption(ceiling_higher, [(ceiling_start - 1, x) for x in range(WIDTH)])
         for x in range(WIDTH):
-            already_accounted.add((CEILING - 1, x))
+            already_accounted.add((ceiling_start - 1, x))
     
     #print("after ceiling", (10,0) in already_accounted)
     
