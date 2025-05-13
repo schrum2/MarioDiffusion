@@ -288,20 +288,20 @@ def main():
                     text_embeddings = text_encoder.get_embeddings(captions)
                     if args.negative_prompt_training:
                         negative_embeddings = text_encoder.get_embeddings(negative_captions)
-                        uncond_embeddings = negative_embeddings
-                    else: # For classifier-free guidance, we need unconditional embeddings
+                        # For negative prompt training, we use three sets of embeddings:
+                        # [negative_embeddings, uncond_embeddings, text_embeddings]
                         uncond_tokens = torch.zeros_like(captions)
                         uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
-    
-                # First generate timesteps before we duplicate anything
-                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
-    
-                # Concatenate for training with classifier-free guidance
-                # This way the model learns both conditional and unconditional generation
-                batch_size = scenes.shape[0]
-                scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes for both cond and uncond
-                timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps
-                combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+                        combined_embeddings = torch.cat([negative_embeddings, uncond_embeddings, text_embeddings])
+                        scenes_for_train = torch.cat([scenes] * 3)  # Repeat scenes three times
+                        timesteps_for_train = torch.cat([timesteps] * 3)  # Repeat timesteps three times
+                    else:
+                        # Original classifier-free guidance with just uncond and cond
+                        uncond_tokens = torch.zeros_like(captions)
+                        uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
+                        combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+                        scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
+                        timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
     
                 # Add noise to the clean scenes
                 noise = torch.randn_like(scenes_for_train)
