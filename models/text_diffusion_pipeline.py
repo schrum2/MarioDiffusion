@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 import os
 from diffusers import DDPMPipeline, UNet2DConditionModel, DDPMScheduler
 from models.text_model import TransformerModel  
@@ -71,141 +71,140 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
         return pipeline
         
-    def __call__(self, batch_size=1, generator=None, num_inference_steps=1000, 
-                output_type="tensor", captions=None, negative_prompt=None, guidance_scale=7.5, 
-                height=16, width=16, raw_latent_sample=None, input_scene=None, **kwargs):
-        """
-        Neither raw_latent_sample nor input_scene are needed, in which case
-            random latent noise is the starting point for the diffusion. If 
-            raw_latent_sample is provided, it is taken as the diffusion starting
-            point. This means raw_latent_sample should have a shape that matches
-            the unet (correct number of channels).
+    def __call__(
+        self,
+        caption: Optional[str] = None,
+        negative_prompt: Optional[str] = None,
+        generator: Optional[torch.Generator] = None,
+        num_inference_steps: int = 1000,
+        guidance_scale: float = 7.5,
+        height: int = 16,
+        width: int = 16,
+        raw_latent_sample: Optional[torch.FloatTensor] = None,
+        input_scene: Optional[torch.Tensor] = None,
+        output_type: str = "tensor"
+    ) -> PipelineOutput:
+        """Generate an image based on text input using the diffusion model.
 
-            Only raw_latent_sample or input_scene should be provided, not both.
-            If input_scene is provided, it is a 2D int tile map where each int
-            corresponds to a channel of the unet. So, the ints range from 0 to
-            unet.config.in_channels - 1. The input_scene is converted to a one-hot
-            encoding, which is then repeated batch_size times. This means the 
-            input_scene should have a shape of (num_tiles, height, width), where
-            
-            negative_prompt: A negative prompt or list of negative prompts to guide what should not appear in the generated level.
-                           Only works with models trained with negative prompt support.            
+        Args:
+            caption: Text description of the desired output. If None, generates unconditionally.
+            negative_prompt: Text description of what should not appear in the output.
+                Only works with models trained with negative prompt support.
+            generator: Random number generator for reproducibility.
+            num_inference_steps: Number of denoising steps (more = higher quality, slower).
+            guidance_scale: How strongly the generation follows the text prompt (higher = stronger).
+            height: Height of generated image in tiles.
+            width: Width of generated image in tiles.
+            raw_latent_sample: Optional starting point for diffusion instead of random noise.
+                Must have correct number of channels matching the UNet.
+            input_scene: Optional 2D int tensor where each value corresponds to a tile type.
+                Will be converted to one-hot encoding as starting point.
+            output_type: Currently only "tensor" is supported.
+
+        Returns:
+            PipelineOutput containing the generated image tensor.
         """
+        # Validate text encoder if we need it
+        if caption is not None and self.text_encoder is None:
+            raise ValueError("Text encoder is required for conditional generation")
+
         self.unet.eval()
-        self.text_encoder.eval() if self.text_encoder is not None else None # Code will crash below if text_encoder is None
-        with torch.no_grad():
+        if self.text_encoder is not None:
+            self.text_encoder.to(self.device)
+            self.text_encoder.eval()
 
-            # Process text embeddings if captions are provided
-            if captions is not None and self.text_encoder is not None:
-                # Conditional embeddings from provided captions
-                text_embeddings = self.text_encoder.get_embeddings(captions)
-            
-                # Handle negative prompts if supported
+        with torch.no_grad():
+            # Process text embeddings if caption is provided
+            if caption is not None:
+                # Get embeddings for the caption
+                caption_ids = self.text_encoder.tokenizer.encode(caption)
+                caption_ids = torch.tensor([caption_ids], device=self.device)
+                caption_embedding = self.text_encoder.get_embeddings(caption_ids)
+
+                # Handle negative prompt if provided
                 if negative_prompt is not None:
                     if not self.supports_negative_prompt:
-                        raise ValueError("This model was not trained with negative prompt support. Please use a model trained with negative_prompt_training=True.")
+                        raise ValueError("This model was not trained with negative prompt support")
                     
-                    if isinstance(negative_prompt, str):
-                        negative_prompt = [negative_prompt]
+                    # Get embeddings for negative prompt
+                    negative_ids = self.text_encoder.tokenizer.encode(negative_prompt)
+                    negative_ids = torch.tensor([negative_ids], device=self.device)
+                    negative_embedding = self.text_encoder.get_embeddings(negative_ids)
                     
-                    # Convert negative prompts to token IDs and get embeddings
-                    negative_tokens = self.text_encoder.tokenizer.encode_batch(negative_prompt * (batch_size // len(negative_prompt)))
-                    negative_tokens = torch.tensor(negative_tokens, device=self.device)
-                    negative_embeddings = self.text_encoder.get_embeddings(negative_tokens)
+                    # Get unconditional (empty) embedding
+                    empty_ids = torch.zeros_like(caption_ids)
+                    empty_embedding = self.text_encoder.get_embeddings(empty_ids)
                     
-                    # Get unconditional embeddings (zeros) in addition to negative embeddings
-                    uncond_tokens = torch.zeros_like(captions)
-                    uncond_embeddings = self.text_encoder.get_embeddings(uncond_tokens)
-                    
-                    # Concatenate negative, unconditional, and conditional embeddings
-                    text_embeddings = torch.cat([negative_embeddings, uncond_embeddings, text_embeddings])
+                    # Concatenate [negative, unconditional, conditional] embeddings
+                    text_embeddings = torch.cat([negative_embedding, empty_embedding, caption_embedding])
                 else:
-                    # Standard classifier-free guidance with just unconditional and conditional
-                    uncond_tokens = torch.zeros_like(captions)
-                    uncond_embeddings = self.text_encoder.get_embeddings(uncond_tokens)
-                    text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+                    # Standard classifier-free guidance with just [unconditional, conditional]
+                    empty_ids = torch.zeros_like(caption_ids)
+                    empty_embedding = self.text_encoder.get_embeddings(empty_ids)
+                    text_embeddings = torch.cat([empty_embedding, caption_embedding])
             
-            elif self.text_encoder is not None:
-                # For unconditional generation, we still need embeddings
+            else:
+                # For unconditional generation, we still need empty embeddings
                 embedding_dim = self.text_encoder.embedding_dim
                 seq_length = 10  # Any reasonable sequence length
-                text_embeddings = torch.zeros(batch_size, seq_length, embedding_dim, device=self.device)
-            else:
-                raise ValueError("Text encoder needed")
-        
-            # Start from random noise
-            if isinstance(generator, list) and len(generator) != batch_size:
-                raise ValueError("Must provide a generator for each sample if passing a list of generators")
-            
-            device = self.device
-            sample_shape = (batch_size, self.unet.config.in_channels, height, width)
-        
-            if raw_latent_sample != None:
-                if input_scene != None:
-                    raise ValueError("Cannot provide both raw_latent_sample and input_scene. Need to pick one.")
+                text_embeddings = torch.zeros(1, seq_length, embedding_dim, device=self.device)
 
-                sample = raw_latent_sample
+            # Set up initial latent state
+            device = self.device
+            sample_shape = (1, self.unet.config.in_channels, height, width)
+            
+            if raw_latent_sample is not None:
+                if input_scene is not None:
+                    raise ValueError("Cannot provide both raw_latent_sample and input_scene")
+                
+                sample = raw_latent_sample.to(device)
                 if sample.shape[1] != sample_shape[1]:
-                    raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but sample had {sample.shape[1]} channels")
-            elif input_scene != None:
-                scene_tensor = torch.tensor(input_scene, dtype=torch.long)
-                # Convert to one-hot encoding for diffusion model
-                one_hot_scene = F.one_hot(scene_tensor, num_classes=self.unet.config.in_channels).float()
-                # Permute dimensions to [num_tiles, height, width]
-                one_hot_scene = one_hot_scene.permute(2, 0, 1)
-                one_hot_scene = one_hot_scene.unsqueeze(0) # Change shape to (1, num_tiles, height, width)
-                sample = one_hot_scene.repeat(batch_size, 1, 1, 1) # batch_size number of copies of the tensor
-            elif isinstance(generator, list):
-                sample = torch.cat([
-                    torch.randn(1, *sample_shape[1:], generator=gen, device=device)
-                    for gen in generator
-                ])
+                    raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but got {sample.shape[1]}")
+            
+            elif input_scene is not None:
+                # Convert input scene to one-hot encoding
+                scene_tensor = torch.tensor(input_scene, dtype=torch.long, device=device)
+                one_hot = F.one_hot(scene_tensor, num_classes=self.unet.config.in_channels).float()
+                # Reshape to (1, channels, height, width)
+                sample = one_hot.permute(2, 0, 1).unsqueeze(0)
+            
             else:
+                # Start from random noise
                 sample = torch.randn(sample_shape, generator=generator, device=device)
             
-            
-            # Set number of inference steps
+            # Set up diffusion process
             self.scheduler.set_timesteps(num_inference_steps)
-        
+            
             # Denoising loop
             for t in self.progress_bar(self.scheduler.timesteps):
-                # For classifier-free guidance, we need to do two forward passes:
-                # one with the unconditional embedding and one with conditional embedding.
-                # If negative prompt is provided, we need three forward passes.
-                if captions is not None:
-                    if negative_prompt is not None and self.supports_negative_prompt:
+                # Handle conditional generation
+                if caption is not None:
+                    if negative_prompt is not None:
                         # Three copies for negative prompt guidance
-                        latent_model_input = torch.cat([sample] * 3)
+                        model_input = torch.cat([sample] * 3)
                     else:
                         # Two copies for standard classifier-free guidance
-                        latent_model_input = torch.cat([sample] * 2)
+                        model_input = torch.cat([sample] * 2)
                 else:
-                    latent_model_input = sample
+                    model_input = sample
 
-                #print(captions, latent_model_input.shape)
-
-                # Prepare model inputs
-                model_kwargs = {}
-                if text_embeddings is not None:
-                    model_kwargs["encoder_hidden_states"] = text_embeddings
-                
                 # Predict noise residual
-                noise_pred = self.unet(latent_model_input, t, **model_kwargs).sample
-            
-                # Perform guidance
-                if captions is not None:
-                    if negative_prompt is not None and self.supports_negative_prompt:
+                model_kwargs = {"encoder_hidden_states": text_embeddings} if caption is not None else {}
+                noise_pred = self.unet(model_input, t, **model_kwargs).sample
+                
+                # Apply guidance
+                if caption is not None:
+                    if negative_prompt is not None:
                         # Split predictions for negative, unconditional, and text-conditional
                         noise_pred_neg, noise_pred_uncond, noise_pred_text = noise_pred.chunk(3)
-                        # First apply standard guidance using uncond and text
+                        # Apply guidance away from negative and towards conditional
                         noise_pred_guided = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-                        # Then push away from negative prediction
                         noise_pred = noise_pred_guided - guidance_scale * (noise_pred_neg - noise_pred_uncond)
                     else:
                         # Standard classifier-free guidance
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-            
+                
                 # Compute previous sample: x_{t-1} = scheduler(x_t, noise_pred)
                 sample = self.scheduler.step(noise_pred, t, sample, generator=generator).prev_sample
             
