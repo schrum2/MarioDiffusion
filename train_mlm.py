@@ -17,14 +17,6 @@ from util.loss_plotter import LossPlotter
 def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
     global args
 
-    #for batch in dataloader:
-    #    print("Batch shape:", batch.shape)
-    #    # Decode and print first few sequences in the batch
-    #    for seq in batch:
-    #        decoded_seq = tokenizer.decode(seq.tolist())
-    #        print(decoded_seq)
-    #quit()
-
     # Get formatted timestamp for filenames
     formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
     # Create output directory
@@ -72,9 +64,6 @@ def train(model, dataloader, criterion, optimizer, device, epochs, tokenizer):
             input_batch = masked_inputs(input_batch, tokenizer, device=device)
             
             output = model(input_batch)
-
-            #print(f"Output shape: {output.shape}")
-            #print(f"Target batch shape: {target_batch.shape}")
 
             loss = criterion(output.view(-1, output.size(-1)), target_batch.view(-1))
             loss.backward()
