@@ -111,7 +111,8 @@ def main():
         shuffle=True,
         mode="diffusion",
         augment=args.augment,
-        num_tiles=args.num_tiles
+        num_tiles=args.num_tiles,
+        negative_captions=args.negative_prompt_training
     )
 
     if args.text_conditional:
@@ -253,16 +254,20 @@ def main():
             # Process batch data
             if args.text_conditional:
                 # Unpack scenes and captions
-                scenes, captions = batch
+                if args.negative_prompt_training:
+                    scenes, captions, negative_captions = batch
+                else:
+                    scenes, captions = batch
     
                 # Get text embeddings from the text encoder
                 with torch.no_grad():
                     text_embeddings = text_encoder.get_embeddings(captions)
-    
-                # For classifier-free guidance, we need unconditional embeddings
-                uncond_tokens = torch.zeros_like(captions)
-                with torch.no_grad():
-                    uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
+                    if args.negative_prompt_training:
+                        negative_embeddings = text_encoder.get_embeddings(negative_captions)
+                        uncond_embeddings = negative_embeddings
+                    else: # For classifier-free guidance, we need unconditional embeddings
+                        uncond_tokens = torch.zeros_like(captions)
+                        uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
     
                 # First generate timesteps before we duplicate anything
                 timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
