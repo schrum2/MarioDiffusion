@@ -113,15 +113,17 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     negative_tokens = torch.tensor(negative_tokens, device=self.device)
                     negative_embeddings = self.text_encoder.get_embeddings(negative_tokens)
                     
-                    # Use negative embeddings instead of zero embeddings for unconditional part
-                    uncond_embeddings = negative_embeddings
-                else:
-                    # Use empty/zero tokens for the unconditional case
+                    # Get unconditional embeddings (zeros) in addition to negative embeddings
                     uncond_tokens = torch.zeros_like(captions)
                     uncond_embeddings = self.text_encoder.get_embeddings(uncond_tokens)
-            
-                # Concatenate unconditional and conditional embeddings for CFG
-                text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+                    
+                    # Concatenate negative, unconditional, and conditional embeddings
+                    text_embeddings = torch.cat([negative_embeddings, uncond_embeddings, text_embeddings])
+                else:
+                    # Standard classifier-free guidance with just unconditional and conditional
+                    uncond_tokens = torch.zeros_like(captions)
+                    uncond_embeddings = self.text_encoder.get_embeddings(uncond_tokens)
+                    text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
             
             elif self.text_encoder is not None:
                 # For unconditional generation, we still need embeddings
@@ -168,11 +170,18 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             # Denoising loop
             for t in self.progress_bar(self.scheduler.timesteps):
                 # For classifier-free guidance, we need to do two forward passes:
-                # one with the unconditional embedding and one with conditional embedding
-            
-                # Expand latents for classifier-free guidance
-                latent_model_input = torch.cat([sample] * 2) if captions is not None else sample
-            
+                # one with the unconditional embedding and one with conditional embedding.
+                # If negative prompt is provided, we need three forward passes.
+                if captions is not None:
+                    if negative_prompt is not None and self.supports_negative_prompt:
+                        # Three copies for negative prompt guidance
+                        latent_model_input = torch.cat([sample] * 3)
+                    else:
+                        # Two copies for standard classifier-free guidance
+                        latent_model_input = torch.cat([sample] * 2)
+                else:
+                    latent_model_input = sample
+
                 #print(captions, latent_model_input.shape)
 
                 # Prepare model inputs
@@ -183,11 +192,19 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 # Predict noise residual
                 noise_pred = self.unet(latent_model_input, t, **model_kwargs).sample
             
-                # Perform guidance if using text conditioning
+                # Perform guidance
                 if captions is not None:
-                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                    # Combine predictions with classifier-free guidance
-                    noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                    if negative_prompt is not None and self.supports_negative_prompt:
+                        # Split predictions for negative, unconditional, and text-conditional
+                        noise_pred_neg, noise_pred_uncond, noise_pred_text = noise_pred.chunk(3)
+                        # First apply standard guidance using uncond and text
+                        noise_pred_guided = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                        # Then push away from negative prediction
+                        noise_pred = noise_pred_guided - guidance_scale * (noise_pred_neg - noise_pred_uncond)
+                    else:
+                        # Standard classifier-free guidance
+                        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                        noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
             
                 # Compute previous sample: x_{t-1} = scheduler(x_t, noise_pred)
                 sample = self.scheduler.step(noise_pred, t, sample, generator=generator).prev_sample
