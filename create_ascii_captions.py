@@ -738,6 +738,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         if not describe_absence and (ceiling_regular != "" or ceiling_higher != ""):
             break
 
+    ceiling_phrase = None
     if (ceiling_regular == " no ceiling." and ceiling_higher == " no ceiling.") or (ceiling_regular == "" and ceiling_higher == ""):
         ceiling_row = None
         ceiling_phrase = ceiling_regular
@@ -758,7 +759,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     #print("after ceiling", (10,0) in already_accounted)
     
     # Is the ceiling filled in even more? (Some SML levels do this)
-    if ceiling_row:
+    if ceiling_row and ceiling_phrase:
         for r in range(ceiling_row - 1, -1, -1):
             #print(r ,f"also ceiling '{ceiling_phrase.strip()}'", details)
             if scene[r] == scene[ceiling_row]:
