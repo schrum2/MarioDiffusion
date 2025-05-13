@@ -733,20 +733,31 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     if (ceiling_regular == " no ceiling." and ceiling_higher == " no ceiling.") or (ceiling_regular == "" and ceiling_higher == ""):
         ceiling_row = None
+        ceiling_phrase = ceiling_regular
         add_to_caption(ceiling_regular, []) # No ceiling at all
     elif ceiling_regular and ceiling_regular != " no ceiling." and not bigger_ceiling(ceiling_higher, ceiling_regular):
         ceiling_row = CEILING
+        ceiling_phrase = ceiling_regular
         add_to_caption(ceiling_regular, [(CEILING, x) for x in range(WIDTH)])
         for x in range(WIDTH):
             already_accounted.add((CEILING, x))
     elif ceiling_higher and ceiling_higher != " no ceiling.":
         ceiling_row = CEILING - 1
+        ceiling_phrase = ceiling_higher
         add_to_caption(ceiling_higher, [(CEILING - 1, x) for x in range(WIDTH)])
         for x in range(WIDTH):
             already_accounted.add((CEILING - 1, x))
     
     #print("after ceiling", (10,0) in already_accounted)
     
+    # Is the ceiling filled in even more? (Some SML levels do this)
+    if ceiling_row:
+        for r in range(ceiling_row - 1, -1, -1):
+            #print(r ,f"also ceiling '{ceiling_phrase.strip()}'", details)
+            if scene[r] == scene[ceiling_row]:
+                details[ceiling_phrase.strip()].extend([(r, x) for x in range(WIDTH)])
+                already_accounted.update((r, x) for x in range(WIDTH))
+            
     # Count enemies
     enemy_phrase = count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies", describe_absence=describe_absence)
     add_to_caption(enemy_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['E']])

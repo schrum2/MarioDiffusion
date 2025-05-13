@@ -222,14 +222,16 @@ class TileViewer(tk.Tk):
 
         # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
         from captions.caption_match import TOPIC_KEYWORDS
-        import random
-
-        # Assign a unique color to each topic in TOPIC_KEYWORDS
-        random.seed(5)  # Ensure consistent colors across redraws
-        topic_colors = {
-            topic: f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
-            for topic in TOPIC_KEYWORDS
-        }
+        import colorsys
+        # Generate a palette of distinct colors algorithmically
+        num_topics = len(TOPIC_KEYWORDS)
+        topic_colors = {}
+        for i, topic in enumerate(TOPIC_KEYWORDS):
+            hue = i / num_topics  # Distribute hues evenly across the color wheel
+            saturation = 0.7  # Keep saturation high for vivid colors
+            lightness = 0.5  # Keep lightness moderate for good visibility
+            r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
+            topic_colors[topic] = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
         # Map phrases in the sample to their corresponding topic colors
         phrase_colors = {}
@@ -247,6 +249,7 @@ class TileViewer(tk.Tk):
             from level_dataset import visualize_samples
             import PIL.ImageTk
             from PIL import Image
+
             one_hot_scene = torch.nn.functional.one_hot(
                 torch.tensor(sample['scene'], dtype=torch.long),
                 num_classes=15
