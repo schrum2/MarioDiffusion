@@ -204,7 +204,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True):
 
     return sample_indices
 
-def positive_negative_caption_split(caption):
+def positive_negative_caption_split(caption, randomize=False):
     phrases = [p.strip() for p in caption.split(".") if p]
     if "no " not in caption and len(phrases) == len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
         return caption, "" # There were no negative phrases
@@ -218,7 +218,7 @@ def positive_negative_caption_split(caption):
     elif len(phrases) < len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
         # Caption only contains positive phrases, so all missing negative phrases must be added
         positive_phrases = caption
-        negative_phrases = ". ".join([f"{topic}" for topic in TOPIC_KEYWORDS if topic not in caption]) + "."
+        negative_phrases = ". ".join([f"{topic}" for topic in (random.sample(TOPIC_KEYWORDS, len(TOPIC_KEYWORDS)) if randomize else TOPIC_KEYWORDS) if topic not in caption]) + "."
         for src, target in KEYWORD_TO_NEGATED_PLURAL:
             negative_phrases = negative_phrases.replace(src, target)
         return positive_phrases, negative_phrases
@@ -353,7 +353,7 @@ class LevelDataset(Dataset):
 
         negative_caption = ""
         if self.negative_captions:
-            augmented_caption, negative_caption = positive_negative_caption_split(augmented_caption)
+            augmented_caption, negative_caption = positive_negative_caption_split(augmented_caption, self.augment)
 
         if self.mode == "text":
             if self.negative_captions:
