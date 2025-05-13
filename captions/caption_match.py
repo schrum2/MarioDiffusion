@@ -18,6 +18,26 @@ TOPIC_KEYWORDS = [
     "enem"  # catch "enemy"/"enemies"
 ]
 
+# Need list because the order matters
+KEYWORD_TO_NEGATED_PLURAL = [
+    (" broken pipe.", ""), # If not the first phrase
+    ("broken pipe. ", ""), # If the first phrase (after removing all others)
+    (" broken cannon.", ""), # If not the first phrase
+    ("broken cannon. ", ""), # If the first phrase (after removing all others)
+    ("pipe", "pipes"),
+    ("cannon", "cannons"),
+    ("platform", "platforms"),
+    ("tower", "towers"),
+    ("staircase", "staircases"),
+    ("enem", "enemies"),
+    ("rectangular", "rectangular block clusters"),
+    ("irregular", "irregular block clusters"),
+    ("coin line", "coin lines"),
+    ("coin.", "coins."), # Need period to avoid matching "coin line"
+    ("question block", "question blocks"),
+    ("loose block", "loose blocks")
+]
+
 BROKEN_TOPICS = 2 # Number of topics that are considered "broken" (e.g., "broken pipe", "broken cannon")
 
 # Plural normalization map (irregulars)

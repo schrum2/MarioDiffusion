@@ -10,7 +10,7 @@ import matplotlib
 from torch.utils.data import DataLoader
 import io
 from PIL import Image
-from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS
+from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEGATED_PLURAL
 
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
@@ -219,6 +219,8 @@ def positive_negative_caption_split(caption):
         # Caption only contains positive phrases, so all missing negative phrases must be added
         positive_phrases = caption
         negative_phrases = ". ".join([f"{topic}" for topic in TOPIC_KEYWORDS if topic not in caption]) + "."
+        for src, target in KEYWORD_TO_NEGATED_PLURAL:
+            negative_phrases = negative_phrases.replace(src, target)
         return positive_phrases, negative_phrases
     else:
         raise ValueError(f"Caption has problem: {caption} {len(phrases)} {len(TOPIC_KEYWORDS)}")
