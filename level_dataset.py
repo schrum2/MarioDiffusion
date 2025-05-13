@@ -370,7 +370,13 @@ class LevelDataset(Dataset):
         caption_tensor = torch.tensor(caption_tokens, dtype=torch.long)
 
         if self.mode == "mlm":
-            return caption_tensor  # MLM only uses caption tokens
+            if self.negative_captions:
+                negative_caption_tokens = self.tokenizer.encode(negative_caption)
+                negative_caption_tokens = self.tokenizer.pad_sequence(negative_caption_tokens, self.max_length)
+                negative_caption_tensor = torch.tensor(negative_caption_tokens, dtype=torch.long)
+                return caption_tensor, negative_caption_tensor
+            else:
+                return caption_tensor  # MLM only uses caption tokens
 
         scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
         
@@ -454,6 +460,40 @@ if __name__ == "__main__":
         print(i)
         print(f"      POS: {sample[0]}")
         print(f"      NEG: {sample[1]}")
+
+    print("----------------------------------")
+
+
+    tokenizer = Tokenizer()
+    tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
+
+    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-absence.json', tokenizer, mode="mlm", negative_captions=True)
+    print("Negative MLM dataset size:", len(negatives_mlm_dataset))
+    for i in range(5):
+        sample = negatives_mlm_dataset[i]
+        print(i)
+        print(f"      POS: {sample[0]}")
+        print(f"      POS: {tokenizer.decode(sample[0])}")
+        print(f"      NEG: {sample[1]}")
+        print(f"      NEG: {tokenizer.decode(sample[1])}")
+
+    print("----------------------------------")
+
+    tokenizer = Tokenizer()
+    tokenizer.load('SMB1AND2_Tokenizer-regular.pkl')
+
+    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-regular.json', tokenizer, mode="mlm", negative_captions=True)
+    print("Negative MLM dataset size:", len(negatives_mlm_dataset))
+    for i in range(5):
+        sample = negatives_mlm_dataset[i]
+        print(i)
+        print(f"      POS: {sample[0]}")
+        print(f"      POS: {tokenizer.decode(sample[0])}")
+        print(f"      NEG: {sample[1]}")
+        print(f"      NEG: {tokenizer.decode(sample[1])}")
+
+    print("----------------------------------")
+
 
     quit()
 
