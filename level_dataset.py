@@ -214,7 +214,7 @@ def positive_negative_caption_split(caption):
         negative_phrases = ". ".join([p for p in phrases if "no " in p]) + "."
         return positive_phrases, negative_phrases
     elif "no " in caption:
-        raise ValueError(f"With negative phases, every topic should be represented: {caption} {len(phrases)} {len(TOPIC_KEYWORDS)}")
+        raise ValueError(f"With negative phrases, every topic should be represented: {caption} {len(phrases)} {len(TOPIC_KEYWORDS)} {TOPIC_KEYWORDS}")
     elif len(phrases) < len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
         # Caption only contains positive phrases, so all missing negative phrases must be added
         positive_phrases = caption

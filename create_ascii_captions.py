@@ -269,7 +269,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
 
 def describe_horizontal_lines(lines, label, describe_locations):
     if not lines:
-        return ""
+        return f" no {label}s."
         
     if describe_locations:
         
