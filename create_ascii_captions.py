@@ -698,13 +698,13 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     for x in range(WIDTH):
         already_accounted.add((FLOOR, x))
 
-    double_floor = False
+    floor_row = FLOOR
     # Check if the row above the floor is identical to the floor row.
     # Some levels in SMB2 have a doubly thick floor.
     # There is also a special case when pipes are embedded in a thick floor. The pipe lip makes the
     # two rows unequal, but this is still an example of a double thick floor.
     if scene[FLOOR] == list(map(lambda x : char_to_id['['] if x == char_to_id['<'] else char_to_id[']'] if x == char_to_id['>'] else x, scene[FLOOR - 1])):
-        double_floor = True
+        floor_row = FLOOR - 1
         for x in range(WIDTH):
             already_accounted.add((FLOOR - 1, x))
 
@@ -823,7 +823,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     #print(already_accounted)
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
-    structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, ceiling_row=ceiling_row)
+    structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, ceiling_row=ceiling_row, floor_row=floor_row)
     for phrase, coords in structure_phrase:
         add_to_caption(phrase, coords)
 
