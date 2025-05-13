@@ -267,9 +267,12 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
 
     return lines
 
-def describe_horizontal_lines(lines, label, describe_locations):
+def describe_horizontal_lines(lines, label, describe_locations, describe_absence):
     if not lines:
-        return f" no {label}s."
+        if describe_absence:
+            return f" no {label}s."
+        else:
+            return ""
         
     if describe_locations:
         
@@ -774,14 +777,14 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Coin lines
     coin_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="coin", min_run_length=2)
-    coin_line_phrase = describe_horizontal_lines(coin_lines, "coin line", describe_locations)
+    coin_line_phrase = describe_horizontal_lines(coin_lines, "coin line", describe_locations, describe_absence=describe_absence)
     add_to_caption(coin_line_phrase, [(y, x) for y, start_x, end_x in coin_lines for x in range(start_x, end_x + 1)])
 
     #print("after coin line", (10,0) in already_accounted)
     # Platforms
     platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[] if ceiling_row == None else [ceiling_row])
     #print("after platform_lines", (10,0) in already_accounted)
-    platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations)
+    platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations, describe_absence=describe_absence)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
 
     #print("after platform", (10,0) in already_accounted)
