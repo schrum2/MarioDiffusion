@@ -721,15 +721,15 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
     add_to_caption(floor_caption + "." if floor_caption else "", list(already_accounted))
 
-    # Analyze ceiling
-    ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING)
-    ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING - 1)
-
     def bigger_ceiling(ceiling_higher, ceiling_regular):
         if ceiling_higher == None:
             return False
         ceiling_order = ["full ceiling.", "ceiling with one gap.", "ceiling with two gaps.", "no ceiling.", ""]
         return ceiling_order.index(ceiling_higher.strip()) <= ceiling_order.index(ceiling_regular.strip())
+
+    # Analyze ceiling
+    ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING)
+    ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = CEILING - 1)
 
     if (ceiling_regular == " no ceiling." and ceiling_higher == " no ceiling.") or (ceiling_regular == "" and ceiling_higher == ""):
         ceiling_row = None
