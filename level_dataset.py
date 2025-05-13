@@ -369,11 +369,13 @@ class LevelDataset(Dataset):
         caption_tokens = self.tokenizer.pad_sequence(caption_tokens, self.max_length)
         caption_tensor = torch.tensor(caption_tokens, dtype=torch.long)
 
+        if self.negative_captions:
+            negative_caption_tokens = self.tokenizer.encode(negative_caption)
+            negative_caption_tokens = self.tokenizer.pad_sequence(negative_caption_tokens, self.max_length)
+            negative_caption_tensor = torch.tensor(negative_caption_tokens, dtype=torch.long)
+
         if self.mode == "mlm":
             if self.negative_captions:
-                negative_caption_tokens = self.tokenizer.encode(negative_caption)
-                negative_caption_tokens = self.tokenizer.pad_sequence(negative_caption_tokens, self.max_length)
-                negative_caption_tensor = torch.tensor(negative_caption_tokens, dtype=torch.long)
                 return caption_tensor, negative_caption_tensor
             else:
                 return caption_tensor  # MLM only uses caption tokens
@@ -390,7 +392,10 @@ class LevelDataset(Dataset):
         # Permute dimensions to [num_tiles, height, width]
         one_hot_scene = one_hot_scene.permute(2, 0, 1)
 
-        return one_hot_scene, caption_tensor
+        if self.negative_captions:
+            return one_hot_scene, caption_tensor, negative_caption_tensor
+        else:
+            return one_hot_scene, caption_tensor
 
     def decode_caption(self, token_ids):
         """Converts a sequence of token IDs back into a readable caption."""
@@ -491,6 +496,37 @@ if __name__ == "__main__":
         print(f"      POS: {tokenizer.decode(sample[0].tolist())}")
         print(f"      NEG: {sample[1]}")
         print(f"      NEG: {tokenizer.decode(sample[1].tolist())}")
+
+    print("----------------------------------")
+
+
+    tokenizer = Tokenizer()
+    tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
+
+    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-absence.json', tokenizer, mode="diffusion", negative_captions=True)
+    print("Negative MLM dataset size:", len(negatives_mlm_dataset))
+    for i in range(5):
+        sample = negatives_mlm_dataset[i]
+        print(i)
+        print(f"      POS: {sample[1]}")
+        print(f"      POS: {tokenizer.decode(sample[1].tolist())}")
+        print(f"      NEG: {sample[2]}")
+        print(f"      NEG: {tokenizer.decode(sample[2].tolist())}")
+
+    print("----------------------------------")
+
+    tokenizer = Tokenizer()
+    tokenizer.load('SMB1AND2_Tokenizer-regular.pkl')
+
+    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-regular.json', tokenizer, mode="diffusion", negative_captions=True)
+    print("Negative MLM dataset size:", len(negatives_mlm_dataset))
+    for i in range(5):
+        sample = negatives_mlm_dataset[i]
+        print(i)
+        print(f"      POS: {sample[1]}")
+        print(f"      POS: {tokenizer.decode(sample[1].tolist())}")
+        print(f"      NEG: {sample[2]}")
+        print(f"      NEG: {tokenizer.decode(sample[2].tolist())}")
 
     print("----------------------------------")
 
