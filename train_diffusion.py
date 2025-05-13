@@ -79,6 +79,9 @@ def main():
         args = update_args_from_config(args, config)
         print("Training will use parameters from the config file.")
     
+    if args.negative_prompt_training and not args.text_conditional:
+        raise ValueError("Negative prompt training requires text conditioning to be enabled")
+
     # Set random seeds for reproducibility
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -117,19 +120,40 @@ def main():
 
     if args.text_conditional:
         # Sample four random captions from the dataset
-        sample_embedding_vectors = [dataset[random.randint(0, len(dataset) - 1)][1] for _ in range(4)]
-        sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
-        pad_token = tokenizer.token_to_id["[PAD]"]
-        sample_captions = [
-            tokenizer.decode([token for token in caption if token != pad_token]) for caption in sample_embedding_vectors
-        ]
-
-        # Remove spaces directly preceding a period
-        sample_captions = [caption.replace(" .", ".") for caption in sample_captions]
-
-        print("Sample captions:")
-        for caption in sample_captions:
-            print(caption)
+        sample_indices = [random.randint(0, len(dataset) - 1) for _ in range(4)]
+        if args.negative_prompt_training:
+            sample_data = [dataset[i] for i in sample_indices]
+            pos_vectors = [data[1] for data in sample_data]
+            neg_vectors = [data[2] for data in sample_data]
+            pos_vectors = [v.tolist() for v in pos_vectors]
+            neg_vectors = [v.tolist() for v in neg_vectors]
+            pad_token = tokenizer.token_to_id["[PAD]"]
+            sample_captions = [
+                tokenizer.decode([token for token in caption if token != pad_token]) 
+                for caption in pos_vectors
+            ]
+            sample_negative_captions = [
+                tokenizer.decode([token for token in caption if token != pad_token]) 
+                for caption in neg_vectors
+            ]
+            print("Sample positive captions:")
+            for caption in sample_captions:
+                print(f"  POS: {caption}")
+            print("Sample negative captions:")
+            for caption in sample_negative_captions:
+                print(f"  NEG: {caption}")
+        else:
+            # Original code for positive-only captions
+            sample_embedding_vectors = [dataset[i][1] for i in sample_indices]
+            sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
+            pad_token = tokenizer.token_to_id["[PAD]"]
+            sample_captions = [
+                tokenizer.decode([token for token in caption if token != pad_token]) 
+                for caption in sample_embedding_vectors
+            ]
+            print("Sample captions:")
+            for caption in sample_captions:
+                print(caption)
 
     # Create dataloader
     dataloader = DataLoader(
@@ -340,6 +364,7 @@ def main():
             model.eval()
             
             # Create the appropriate pipeline for generation
+            # Inside the epoch loop where samples are generated
             if args.text_conditional:
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
@@ -351,6 +376,10 @@ def main():
                 sample_caption_tokens = tokenizer.encode_batch(sample_captions)
                 sample_caption_tokens = torch.tensor(sample_caption_tokens).to(accelerator.device)
                 
+                if args.negative_prompt_training:
+                    sample_negative_tokens = tokenizer.encode_batch(sample_negative_captions)
+                    sample_negative_tokens = torch.tensor(sample_negative_tokens).to(accelerator.device)
+                
                 with torch.no_grad():
                     # Generate samples
                     samples = pipeline(
@@ -358,7 +387,8 @@ def main():
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                         num_inference_steps=args.num_train_timesteps,
                         output_type="tensor",
-                        captions=sample_caption_tokens
+                        captions=sample_caption_tokens,
+                        negative_prompt=sample_negative_tokens if args.negative_prompt_training else None
                     ).images
             else:
                 # For unconditional generation
@@ -393,6 +423,9 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder
                 ).to("cuda")
+                # Save negative prompt support flag if enabled
+                if args.negative_prompt_training:
+                    pipeline.supports_negative_prompt = True
             else:
                 pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
                 
