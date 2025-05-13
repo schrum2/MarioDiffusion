@@ -367,21 +367,12 @@ def main():
             model.eval()
             
             # Create the appropriate pipeline for generation
-            # Inside the epoch loop where samples are generated
             if args.text_conditional:
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder
                 ).to("cuda")
-                
-                # Convert captions to token IDs using the tokenizer
-                sample_caption_tokens = tokenizer.encode_batch(sample_captions)
-                sample_caption_tokens = torch.tensor(sample_caption_tokens).to(accelerator.device)
-                
-                if args.negative_prompt_training:
-                    sample_negative_tokens = tokenizer.encode_batch(sample_negative_captions)
-                    sample_negative_tokens = torch.tensor(sample_negative_tokens).to(accelerator.device)
                 
                 with torch.no_grad():
                     # Generate samples
@@ -390,8 +381,8 @@ def main():
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                         num_inference_steps=args.num_train_timesteps,
                         output_type="tensor",
-                        captions=sample_caption_tokens,
-                        negative_prompt=sample_negative_tokens if args.negative_prompt_training else None
+                        captions=sample_captions,
+                        negative_prompt=sample_negative_captions if args.negative_prompt_training else None
                     ).images
             else:
                 # For unconditional generation
