@@ -42,7 +42,7 @@ def split_dataset(json_path, train_pct, val_pct, test_pct):
         json.dump(test_data, f, indent=2)
     return train_path, val_path, test_path
 
-def train(model, train_loader, val_loader, criterion, optimizer, device, epochs, tokenizer):
+def train(model, train_loader, val_loader, criterion, optimizer, device, epochs, tokenizer, patience=20):
     global args
 
     # Get formatted timestamp for filenames
@@ -78,6 +78,11 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
         }
         with open(log_file, 'a') as f:
             f.write(json.dumps(log_entry) + '\n')    
+
+    best_val_loss = float('inf')
+    epochs_no_improve = 0
+    early_stop = False
+    best_model_state = None  # Add this
 
     model.train()
     for epoch in range(epochs):
@@ -119,6 +124,25 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             val_loss = val_loss_total / len(val_loader)
             model.train()
             print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}")
+            # Early stopping logic
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                epochs_no_improve = 0
+                # Save best model state
+                best_model_state = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'val_loss': val_loss,
+                }
+            else:
+                epochs_no_improve += 1
+                if epochs_no_improve >= patience:
+                    print(f"\nEarly stopping triggered. Best validation loss: {best_val_loss:.4f}")
+                    # Restore best model state
+                    model.load_state_dict(best_model_state['model_state_dict'])
+                    early_stop = True
+                    break
         else:
             print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
 
@@ -131,6 +155,10 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             os.makedirs(checkpoint_dir, exist_ok=True)
             model.save_pretrained(checkpoint_dir)
             print(f"Saved checkpoint to {checkpoint_dir}")
+
+            if early_stop:
+                print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
+                break
 
     plotter.stop_plotting()
     evaluate_model(model, tokenizer, train_loader, device)
@@ -153,6 +181,7 @@ if __name__ == "__main__":
     parser.add_argument('--train_pct', type=float, default=0.7, help='Train split percentage (default 0.7)')
     parser.add_argument('--val_pct', type=float, default=0.1, help='Validation split percentage (default 0.1)')
     parser.add_argument('--test_pct', type=float, default=0.2, help='Test split percentage (default 0.2)')
+    parser.add_argument("--patience", type=int, default=20, help="Number of epochs to wait for improvement in val loss before early stopping (default: 20)")
     
     global args
     args = parser.parse_args()
@@ -199,7 +228,7 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.token_to_id["[PAD]"])
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     
-    train(model, train_loader, val_loader, criterion, optimizer, device, args.epochs, tokenizer)
+    train(model, train_loader, val_loader, criterion, optimizer, device, args.epochs, tokenizer, patience=args.patience)
     model.save_pretrained(args.output_dir)
     print(f"Model saved in {args.output_dir}")
 
