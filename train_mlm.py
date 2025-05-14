@@ -51,6 +51,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
     os.makedirs(args.output_dir, exist_ok=True)
     # Create log files
     log_file = os.path.join(args.output_dir, f"mlm_training_log_{formatted_date}.jsonl")
+    accuracy_log_file = os.path.join(args.output_dir, f"mlm_accuracy_log_{formatted_date}.jsonl")
     config_file = os.path.join(args.output_dir, f"hyperparams_{formatted_date}.json")
 
     # Save hyperparameters to JSON file
@@ -59,15 +60,23 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
         json.dump(hyperparams, f, indent=4)
     print(f"Saved configuration to: {config_file}")
 
-    plotter = None
-    plot_thread = None
-    plotter = LossPlotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss', left_label='Loss', right_label='Val Loss')
-    plot_thread = threading.Thread(target=plotter.start_plotting)
-    plot_thread.daemon = True
-    plot_thread.start()
+    # Create two plotters - one for loss, one for accuracy
+    loss_plotter = LossPlotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss', 
+                              left_label='Loss', right_label='Val Loss')
+    accuracy_plotter = LossPlotter(accuracy_log_file, update_interval=5.0, left_key='train_accuracy', 
+                                  right_key='val_accuracy', left_label='Train Accuracy', right_label='Val Accuracy')
+    
+    # Start plotting threads
+    loss_plot_thread = threading.Thread(target=loss_plotter.start_plotting)
+    loss_plot_thread.daemon = True
+    loss_plot_thread.start()
+    
+    accuracy_plot_thread = threading.Thread(target=accuracy_plotter.start_plotting)
+    accuracy_plot_thread.daemon = True
+    accuracy_plot_thread.start()
 
-    # Add function to log metrics
-    def log_metrics(epoch, loss, lr, val_loss=None, step=None):
+    # Add functions to log metrics
+    def log_loss_metrics(epoch, loss, lr, val_loss=None, step=None):
         log_entry = {
             "epoch": epoch,
             "loss": loss,
@@ -77,7 +86,18 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         with open(log_file, 'a') as f:
-            f.write(json.dumps(log_entry) + '\n')    
+            f.write(json.dumps(log_entry) + '\n')
+
+    def log_accuracy_metrics(epoch, train_accuracy, val_accuracy=None, step=None):
+        log_entry = {
+            "epoch": epoch,
+            "train_accuracy": train_accuracy,
+            "val_accuracy": val_accuracy,
+            "step": step if step is not None else epoch * len(train_loader),
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        with open(accuracy_log_file, 'a') as f:
+            f.write(json.dumps(log_entry) + '\n')
 
     best_val_loss = float('inf')
     epochs_no_improve = 0
@@ -160,7 +180,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
 
         # Log to JSONL file
-        log_metrics(epoch, avg_loss, args.lr, val_loss=val_loss)
+        log_loss_metrics(epoch, avg_loss, args.lr, val_loss=val_loss)
 
         # Update learning rate scheduler
         if val_loader is not None:
@@ -168,6 +188,16 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
 
         # Save checkpoint if enabled and at the correct interval
         if args.save_checkpoints and args.checkpoint_freq > 0 and (epoch + 1) % args.checkpoint_freq == 0:
+            # Evaluate model on train and validation sets
+            train_accuracy, train_correct, train_total = evaluate_model(model, tokenizer, train_loader, device, console_output=False)
+            val_accuracy = None
+            if val_loader is not None:
+                val_accuracy, val_correct, val_total = evaluate_model(model, tokenizer, val_loader, device, console_output=False)
+            
+            # Log accuracies
+            log_accuracy_metrics(epoch, train_accuracy, val_accuracy)
+            
+            # Save checkpoint
             checkpoint_dir = os.path.join(args.output_dir, f"checkpoint_epoch_{epoch+1}")
             os.makedirs(checkpoint_dir, exist_ok=True)
             checkpoint = {
@@ -178,18 +208,21 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
                 'loss': avg_loss,
                 'val_loss': val_loss,
                 'best_val_loss': best_val_loss,
-                'epochs_no_improve': epochs_no_improve
+                'epochs_no_improve': epochs_no_improve,
+                'train_accuracy': train_accuracy,
+                'val_accuracy': val_accuracy
             }
             torch.save(checkpoint, os.path.join(checkpoint_dir, 'checkpoint.pt'))
             model.save_pretrained(checkpoint_dir)  # Save model config separately
-            print(f"Saved checkpoint to {checkpoint_dir}")
+            print(f"Saved checkpoint to {checkpoint_dir} (Train Acc: {train_accuracy:.2f}%, Val Acc: {val_accuracy:.2f}%)")
         
         if early_stop:
             print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
             break
 
-    plotter.stop_plotting()
-    evaluate_model(model, tokenizer, train_loader, device)
+    loss_plotter.stop_plotting()
+    accuracy_plotter.stop_plotting()
+    evaluate_model(model, tokenizer, train_loader, device, console_output = False)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
