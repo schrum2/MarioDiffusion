@@ -21,8 +21,8 @@ class CaptionBuilder(ParentBuilder):
         self.current_levels = []
 
         # Frame for caption display
-        self.caption_frame = ttk.Frame(master)
-        self.caption_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.caption_frame = ttk.Frame(master, width=260)  # Set a fixed, narrower width
+        self.caption_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False)  # Only fill vertically, don't expand horizontally
         
         self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", font=("Arial", 12, "bold"))
         self.caption_label.pack(pady=5)
