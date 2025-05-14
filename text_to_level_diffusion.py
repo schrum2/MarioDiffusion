@@ -69,12 +69,6 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             verbose=True
         )
 
-        print(f"Average match score: {average_score}")
-        print(f"Segment scores: {segment_scores}")
-        print(f"Segment captions: ")
-        for i, caption in enumerate(segment_captions):
-            print(f"Segment {i}: {caption}")
-
         return visualize_samples(images)
 
     def get_extra_params(self, param_values): 
