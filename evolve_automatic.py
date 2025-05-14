@@ -12,9 +12,8 @@ import torch
 
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
-from captions.caption_match import compare_captions, process_scene_segments
+from captions.caption_match import process_scene_segments
 from create_ascii_captions import extract_tileset
-from create_ascii_captions import assign_caption
 import os
 
 def caption_fitness(x):
