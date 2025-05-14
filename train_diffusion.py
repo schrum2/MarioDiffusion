@@ -413,11 +413,16 @@ def main():
                     if args.text_conditional:
                         if args.negative_prompt_training:
                             val_scenes, val_captions, val_negative_captions = val_batch
+                            val_scenes = val_scenes.to(device)
+                            val_captions = val_captions.to(device)
+                            val_negative_captions = val_negative_captions.to(device)
                         else:
                             val_scenes, val_captions = val_batch
+                            val_scenes = val_scenes.to(device)
+                            val_captions = val_captions.to(device)
                             
                         val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
-                                                    (val_scenes.shape[0],), device=val_scenes.device).long()
+                                                    (val_scenes.shape[0],), device=device).long()
                         
                         with torch.no_grad():
                             val_text_embeddings = text_encoder.get_embeddings(val_captions)
@@ -434,17 +439,12 @@ def main():
                                 val_combined_embeddings = torch.cat([val_uncond_embeddings, val_text_embeddings])
                                 val_scenes_for_eval = torch.cat([val_scenes] * 2)
                                 val_timesteps_for_eval = torch.cat([val_timesteps] * 2)
-                                
-                        val_noise = torch.randn_like(val_scenes_for_eval)
-                        val_noisy_scenes = noise_scheduler.add_noise(val_scenes_for_eval, val_noise, val_timesteps_for_eval)
-                        val_noise_pred = model(val_noisy_scenes, val_timesteps_for_eval, 
-                                            encoder_hidden_states=val_combined_embeddings).sample
-                        val_batch_loss = F.mse_loss(val_noise_pred, val_noise)
                     else:
                         if isinstance(val_batch, list):
                             val_scenes, _ = val_batch
                         else:
                             val_scenes = val_batch
+                        val_scenes = val_scenes.to(device)
                             
                         val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
                                                     (val_scenes.shape[0],), device=val_scenes.device).long()
