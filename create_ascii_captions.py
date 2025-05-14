@@ -3,15 +3,19 @@ import sys
 import os
 from collections import Counter
 
-WIDTH = 16
+# The width of generated scenes may not be 16
+#WIDTH = 16
 HEIGHT = 16
 
 # The floor is the last row of the scene (0-indexed)
 FLOOR = HEIGHT - 1
 CEILING = 4
 
-LEFT = WIDTH / 3
-RIGHT = WIDTH - LEFT
+# This is used for describing locations, but it doesn't work well
+STANDARD_WIDTH = 16
+
+LEFT = STANDARD_WIDTH / 3
+RIGHT = STANDARD_WIDTH - LEFT
 
 TOP = (FLOOR - CEILING) / 3 + CEILING
 BOTTOM = FLOOR - ((FLOOR - CEILING) / 3)
@@ -67,6 +71,7 @@ def get_tile_descriptors(tileset):
 
 def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
     """Analyzes the last row of the 16x16 scene and generates a floor description."""
+    WIDTH = len(scene[0])
     last_row = scene[-1]  # The FLOOR row of the scene
     solid_count = sum(1 for tile in last_row if "solid" in tile_descriptors.get(id_to_char[tile], []))
     passable_count = sum(1 for tile in last_row if "passable" in tile_descriptors.get(id_to_char[tile], []))
@@ -165,14 +170,11 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceili
     Analyzes ceiling row (0-based index) to detect a ceiling.
     Returns a caption phrase or an empty string if no ceiling is detected.
     """
-     
-    if ceiling_row >= len(scene): # I don't think I need this ...
-        return ""  # Scene too short to have a ceiling
+    WIDTH = len(scene[0])
 
     row = scene[ceiling_row]
     solid_count = sum(1 for tile in row if "solid" in tile_descriptors.get(id_to_char[tile], []))
-    passable_count = sum(1 for tile in row if "passable" in tile_descriptors.get(id_to_char[tile], []))
-
+    
     if solid_count == WIDTH:
         return " full ceiling."
     elif solid_count > WIDTH//2:
@@ -693,6 +695,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     """Assigns a caption to a level scene based on its contents."""
     already_accounted = set()
     details = {} if return_details else None
+    WIDTH = len(scene[0])
 
     # Include all of floor, even empty tiles
     for x in range(WIDTH):
