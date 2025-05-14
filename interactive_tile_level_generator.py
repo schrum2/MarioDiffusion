@@ -79,9 +79,14 @@ class CaptionBuilder(ParentBuilder):
         self.image_canvas = tk.Canvas(self.image_frame, borderwidth=0, highlightthickness=0)
         self.image_scrollbar = ttk.Scrollbar(self.image_frame, orient=tk.VERTICAL, command=self.image_canvas.yview)
         self.image_inner_frame = ttk.Frame(self.image_canvas, borderwidth=2, relief="solid")  # Add border
+        self.image_inner_frame.grid_columnconfigure(0, weight=1)  # Allow centering
         
+        def resize_inner_frame(event):
+            canvas_width = event.width
+            self.image_canvas.itemconfig(self.inner_frame_window, width=canvas_width)
+        self.inner_frame_window = self.image_canvas.create_window((0, 0), window=self.image_inner_frame, anchor="n", width=self.image_canvas.winfo_width())
+        self.image_canvas.bind('<Configure>', resize_inner_frame)
         self.image_inner_frame.bind("<Configure>", lambda e: self.image_canvas.configure(scrollregion=self.image_canvas.bbox("all")))
-        self.image_canvas.create_window((0, 0), window=self.image_inner_frame, anchor="nw")
         self.image_canvas.configure(yscrollcommand=self.image_scrollbar.set)
         
         self.image_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -202,7 +207,7 @@ class CaptionBuilder(ParentBuilder):
             compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True)
 
             img_frame = ttk.Frame(self.image_inner_frame)
-            img_frame.pack(pady=10)
+            img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
 
             img_tk = ImageTk.PhotoImage(visualize_samples(images))
             print(f"Image {i + 1} dimensions: width={img_tk.width()}, height={img_tk.height()}")
