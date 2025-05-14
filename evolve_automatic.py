@@ -34,8 +34,8 @@ def caption_fitness(x):
     }
         
     # Include caption if desired
-    #if True: # Make this a check of whether the model supports text embedding
-    #    settings["caption"] = args.target_caption
+    if True: # Make this a check of whether the model supports text embedding
+        settings["caption"] = args.target_caption
         
     images = pipe(
         generator=generator,
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     global seen_captions
     seen_captions = set()
 
-    optimizer = CMA(mean=np.zeros(W*H*C), sigma=1.3, population_size=args.population_size, seed=args.seed)
+    optimizer = CMA(mean=np.zeros(W*H*C), sigma=5.0, population_size=args.population_size, seed=args.seed)
 
     for generation in range(args.generations):
         solutions = []
