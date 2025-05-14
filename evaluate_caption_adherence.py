@@ -113,7 +113,7 @@ def main():
         print(f"Saved caption scores plot to {plot_path}")
     else:
         # Just run on one model and get samples as well
-        avg_score, all_samples = calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors)
+        avg_score, all_samples = calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors, output=False)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
