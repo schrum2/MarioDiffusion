@@ -7,10 +7,11 @@ import time
 import json
 
 class LossPlotter:
-    def __init__(self, log_file, update_interval=1.0, left_key='loss', right_key='lr', left_label='Loss', right_label='Learning Rate'):
+    def __init__(self, log_file, update_interval=1.0, left_key='loss', right_key='lr', left_label='Loss', right_label='Learning Rate', output_png='training_progress.png'):
         self.log_file = log_file
         self.update_interval = update_interval
         self.running = True
+        self.output_png = output_png
 
         matplotlib.use('Agg')
         
@@ -61,7 +62,7 @@ class LossPlotter:
                 self.fig.tight_layout()
                 
                 # Save the current plot to disk
-                self.fig.savefig(os.path.join(os.path.dirname(self.log_file), 'training_progress.png'))
+                self.fig.savefig(os.path.join(os.path.dirname(self.log_file), self.output_png))
             
             except (json.JSONDecodeError, ValueError) as e:
                 print(f"Error parsing log file: {e}")
