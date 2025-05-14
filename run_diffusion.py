@@ -53,10 +53,6 @@ def generate_levels(args):
         pipeline = UnconditionalDDPMPipeline.from_pretrained(args.model_path)
     pipeline.to(device)
     
-    #print(pipeline)
-    #print("---")
-    #print(pipeline.unet)
-    
     # Determine number of tiles from model
     num_tiles = pipeline.unet.config.in_channels
     print(f"Model configured for {num_tiles} tile types")
@@ -64,13 +60,11 @@ def generate_levels(args):
     # Generate in batches
     total_samples = args.num_samples
     num_batches = (total_samples + args.batch_size - 1) // args.batch_size
-    
     all_samples = []
     
     for batch_idx in range(num_batches):
         # Calculate batch size for this iteration
         current_batch_size = min(args.batch_size, total_samples - batch_idx * args.batch_size)
-        
         print(f"Generating batch {batch_idx+1}/{num_batches} ({current_batch_size} samples)...")
         
         # Generate samples
