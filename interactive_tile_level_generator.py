@@ -21,13 +21,13 @@ class CaptionBuilder(ParentBuilder):
         self.current_levels = []
 
         # Frame for caption display
-        self.caption_frame = ttk.Frame(master, width=260)  # Set a fixed, narrower width
+        self.caption_frame = ttk.Frame(master, width=200)  # Set a fixed, narrower width
         self.caption_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False)  # Only fill vertically, don't expand horizontally
         
         self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", font=("Arial", 12, "bold"))
         self.caption_label.pack(pady=5)
         
-        self.caption_text = tk.Text(self.caption_frame, height=5, wrap=tk.WORD, state=tk.DISABLED)
+        self.caption_text = tk.Text(self.caption_frame, height=8, wrap=tk.WORD, state=tk.DISABLED)
         self.caption_text.pack() 
                 
         #self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:")
