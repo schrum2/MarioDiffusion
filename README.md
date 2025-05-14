@@ -114,7 +114,7 @@ python interactive_tile_level_generator.py SMB1_LevelsAndCaptions.json condition
 ```
 Interactively evolve level scenes in the latent space of the conditional model:
 ```
-python evolve_conditional_diffusion.py --model_path conditional-model
+python evolve_interactive_conditional_diffusion.py --model_path conditional-model
 ```
 
 ## Evaluate caption adherence of text-to-level model
@@ -151,7 +151,7 @@ python ascii_data_browser.py unconditional_model_samples\all_levels.json
 ```
 Interactively evolve level scenes in the latent space of the unconditional model:
 ```
-python evolve_unconditional_diffusion.py --model_path unconditional-model
+python evolve_interactive_unconditional_diffusion.py --model_path unconditional-model
 ```
 
 ## Train Generative Adversarial Network (GAN) model
@@ -173,5 +173,5 @@ python ascii_data_browser.py wgan_samples\all_levels.json
 ```
 Interactively evolve level scenes in the latent space of the GAN model:
 ```
-python evolve_wgan.py --model_path wgan-output\final_models\generator.pth
+python evolve_interactive_wgan.py --model_path wgan-output\final_models\generator.pth
 ```

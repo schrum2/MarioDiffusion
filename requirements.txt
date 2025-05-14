@@ -12,3 +12,4 @@ safetensors
 datasets
 matplotlib
 mario-gpt
+cmaes
