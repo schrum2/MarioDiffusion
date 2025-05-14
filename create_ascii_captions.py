@@ -190,7 +190,7 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceili
                 in_gap = False
         result = f" ceiling with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps != 1 else "") + "."
 
-        if result == 'ceiling with no gaps.':
+        if result == ' ceiling with no gaps.':
             print("This should not happen: ceiling with no gaps")
             print("ceiling_row:", scene[ceiling_row])
             result = " full ceiling."
