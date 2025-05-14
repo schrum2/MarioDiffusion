@@ -29,7 +29,5 @@ python tokenizer.py save --json_file Mario_LevelsAndCaptions-absence.json    --p
 python tokenizer.py save --json_file SMB1AND2_LevelsAndCaptions-regular.json --pkl_file SMB1AND2_Tokenizer-regular.pkl
 python tokenizer.py save --json_file SMB1AND2_LevelsAndCaptions-absence.json --pkl_file SMB1AND2_Tokenizer-absence.pkl
 
-
-
-
-python create_validation_captions.py --save_file "Mario_ValidationCaptions-regular.json" --pkl Mario_Tokenizer-regular.pkl --json Mario_LevelsAndCaptions-regular.json  --seed 0
+python create_validation_captions.py --save_file "Mario_ValidationCaptions-regular.json" --json Mario_LevelsAndCaptions-regular.json --seed 0
+python create_validation_captions.py --save_file "Mario_ValidationCaptions-absence.json" --json Mario_LevelsAndCaptions-absence.json --seed 0 --describe_absence
