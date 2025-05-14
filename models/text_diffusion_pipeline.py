@@ -120,6 +120,14 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 # Get embeddings for the caption
                 caption_ids = self.text_encoder.tokenizer.encode(caption)
                 caption_ids = torch.tensor([caption_ids], device=self.device)
+                # Pad/truncate to max sequence length
+                max_length = self.text_encoder.max_seq_length
+                if caption_ids.shape[1] > max_length:
+                    raise ValueError(f"Caption length {caption_ids.shape[1]} exceeds max sequence length of {max_length}")
+                    #caption_ids = caption_ids[:, :max_length]
+                elif caption_ids.shape[1] < max_length:
+                    padding = torch.zeros(1, max_length - caption_ids.shape[1], dtype=caption_ids.dtype, device=self.device)
+                    caption_ids = torch.cat([caption_ids, padding], dim=1)
                 caption_embedding = self.text_encoder.get_embeddings(caption_ids)
 
                 # Handle negative prompt if provided
@@ -130,6 +138,13 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     # Get embeddings for negative prompt
                     negative_ids = self.text_encoder.tokenizer.encode(negative_prompt)
                     negative_ids = torch.tensor([negative_ids], device=self.device)
+                    # Pad/truncate to max sequence length
+                    if negative_ids.shape[1] > max_length:
+                        raise ValueError(f"Negative caption length {negative_ids.shape[1]} exceeds max sequence length of {max_length}")
+                        #negative_ids = negative_ids[:, :max_length]
+                    elif negative_ids.shape[1] < max_length:
+                        padding = torch.zeros(1, max_length - negative_ids.shape[1], dtype=negative_ids.dtype, device=self.device)
+                        negative_ids = torch.cat([negative_ids, padding], dim=1)
                     negative_embedding = self.text_encoder.get_embeddings(negative_ids)
                     
                     # Get unconditional (empty) embedding
@@ -145,12 +160,9 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     text_embeddings = torch.cat([empty_embedding, caption_embedding])
             
             else:
-                # For unconditional generation, we still need empty embeddings
-                seq_length = 10  # Any reasonable sequence length
-                empty_ids = torch.zeros((1, seq_length), dtype=torch.long, device=self.device)
+                # For unconditional generation, use empty embeddings matching max_seq_length
+                empty_ids = torch.zeros((1, self.text_encoder.max_seq_length), dtype=torch.long, device=self.device)
                 text_embeddings = self.text_encoder.get_embeddings(empty_ids)
-
-            #print(text_embeddings.shape)
 
             # Set up initial latent state
             device = self.device
