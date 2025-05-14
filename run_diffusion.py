@@ -24,7 +24,7 @@ def parse_args():
 
     # Used to generate captions when generating images
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
-    parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
+    #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     return parser.parse_args()
@@ -94,7 +94,7 @@ def generate_levels(args):
 
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)
-        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), args.describe_locations, args.describe_absence)
+        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 if __name__ == "__main__":
     args = parse_args()

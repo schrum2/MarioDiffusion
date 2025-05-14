@@ -11,7 +11,7 @@ def parse_args():
     # Model and generation parameters
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
-    parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
+    #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     return parser.parse_args()
@@ -50,7 +50,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         # Add level data to the list
         scene = sample_indices[0].tolist()
  
-        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
+        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
 
         print(f"Describe resulting image: {actual_caption}")
         compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
@@ -64,7 +64,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             id_to_char=self.id_to_char,
             char_to_id=self.char_to_id,
             tile_descriptors=self.tile_descriptors,
-            describe_locations=self.args.describe_locations,
+            describe_locations=False, #self.args.describe_locations,
             describe_absence=self.args.describe_absence,
             verbose=True
         )

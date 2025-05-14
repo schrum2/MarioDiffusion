@@ -66,7 +66,7 @@ class DiffusionEvolver(Evolver):
         #print(scene)
         g.scene = scene 
 
-        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
+        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
         g.caption = actual_caption
 
         #print(f"Describe resulting image: {actual_caption}")
@@ -80,7 +80,7 @@ def parse_args():
     # Model and generation parameters
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--tileset_path", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
-    parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
+    #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=16, help="Tile width of generated level")
 

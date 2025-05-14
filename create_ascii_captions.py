@@ -873,7 +873,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--tileset", default=escape_path('..\\TheVGLC\\Super Mario Bros\\smb.json'), help="Descriptions of individual tile types")
     parser.add_argument("--output", required=True, help="Output JSON file path")
-    parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
+    #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     global args
     args = parser.parse_args()
@@ -886,4 +886,4 @@ if __name__ == "__main__":
         print("Error: One or more input files do not exist.")
         sys.exit(1)
 
-    generate_captions(dataset_file, tileset_file, output_file, args.describe_locations, args.describe_absence)
+    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence)

@@ -29,7 +29,7 @@ def parse_args():
 
     # Used to generate captions when generating images
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
-    parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
+    #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     # Output args
@@ -122,7 +122,7 @@ def main():
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
-            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), args.describe_locations, args.describe_absence)
+            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
@@ -175,7 +175,7 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
                 sample_tensor = sample[0].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample_tensor)
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
-                actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, args.describe_locations, args.describe_absence)
+                actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
 
                 if output: print(f"\t{caption}")
 

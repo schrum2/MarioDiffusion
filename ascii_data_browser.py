@@ -22,7 +22,7 @@ class TileViewer(tk.Tk):
         self.id_to_char = {}
         self.current_sample_idx = 0
         self.show_ids = tk.BooleanVar(value=False)
-        self.describe_locations = tk.BooleanVar(value=False)
+        #self.describe_locations = tk.BooleanVar(value=False)
         self.describe_absence = tk.BooleanVar(value=False)
 
         # UI
@@ -42,7 +42,7 @@ class TileViewer(tk.Tk):
                                        self.id_to_char, 
                                        self.char_to_id, 
                                        self.tile_descriptors, 
-                                       describe_locations=self.describe_locations.get(), 
+                                       describe_locations=False, #self.describe_locations.get(), 
                                        describe_absence=self.describe_absence.get(), 
                                        debug=True, 
                                        return_details=True)
@@ -77,7 +77,7 @@ class TileViewer(tk.Tk):
         
         # Add checkboxes for caption generation options
         tk.Checkbutton(caption_options_frame, text="Show numeric IDs", variable=self.show_ids, command=self.redraw).pack(anchor=tk.W)
-        tk.Checkbutton(caption_options_frame, text="Describe Locations", variable=self.describe_locations, state=tk.DISABLED).pack(anchor=tk.W)
+        #tk.Checkbutton(caption_options_frame, text="Describe Locations", variable=self.describe_locations, state=tk.DISABLED).pack(anchor=tk.W)
         tk.Checkbutton(caption_options_frame, text="Describe Absence", variable=self.describe_absence).pack(anchor=tk.W)
         
         regenerate_button = tk.Button(checkbox_frame, text="Regenerate Caption", command=self.regenerate_caption)
