@@ -21,7 +21,7 @@ class CaptionBuilder(ParentBuilder):
         self.current_levels = []
 
         # Frame for caption display
-        self.caption_frame = ttk.Frame(master, width=200)  # Set a fixed, narrower width
+        self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
         self.caption_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False)  # Only fill vertically, don't expand horizontally
         
         self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", font=("Arial", 12, "bold"))
@@ -73,12 +73,12 @@ class CaptionBuilder(ParentBuilder):
         self.model_button.pack(anchor=tk.E)
 
         # Frame for image display
-        self.image_frame = ttk.Frame(master)
+        self.image_frame = ttk.Frame(master, borderwidth=2, relief="solid")  # Add border
         self.image_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
-        self.image_canvas = tk.Canvas(self.image_frame)
+        self.image_canvas = tk.Canvas(self.image_frame, borderwidth=0, highlightthickness=0)
         self.image_scrollbar = ttk.Scrollbar(self.image_frame, orient=tk.VERTICAL, command=self.image_canvas.yview)
-        self.image_inner_frame = ttk.Frame(self.image_canvas)
+        self.image_inner_frame = ttk.Frame(self.image_canvas, borderwidth=2, relief="solid")  # Add border
         
         self.image_inner_frame.bind("<Configure>", lambda e: self.image_canvas.configure(scrollregion=self.image_canvas.bbox("all")))
         self.image_canvas.create_window((0, 0), window=self.image_inner_frame, anchor="nw")
