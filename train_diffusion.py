@@ -424,6 +424,9 @@ def main():
                         val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
                                                     (val_scenes.shape[0],), device=device).long()
                         
+                        val_noise = torch.randn_like(val_scenes)
+                        val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
+                        
                         with torch.no_grad():
                             val_text_embeddings = text_encoder.get_embeddings(val_captions)
                             if args.negative_prompt_training:
@@ -439,6 +442,10 @@ def main():
                                 val_combined_embeddings = torch.cat([val_uncond_embeddings, val_text_embeddings])
                                 val_scenes_for_eval = torch.cat([val_scenes] * 2)
                                 val_timesteps_for_eval = torch.cat([val_timesteps] * 2)
+                                
+                        val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
+                                            encoder_hidden_states=val_combined_embeddings).sample
+                        val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))
                     else:
                         if isinstance(val_batch, list):
                             val_scenes, _ = val_batch
@@ -447,7 +454,7 @@ def main():
                         val_scenes = val_scenes.to(device)
                             
                         val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
-                                                    (val_scenes.shape[0],), device=val_scenes.device).long()
+                                                    (val_scenes.shape[0],), device=device).long()
                         val_noise = torch.randn_like(val_scenes)
                         val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
                         val_noise_pred = model(val_noisy_scenes, val_timesteps).sample
@@ -457,7 +464,7 @@ def main():
                     
             val_loss /= len(val_dataloader)
             model.train()
-                        
+            
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
         
