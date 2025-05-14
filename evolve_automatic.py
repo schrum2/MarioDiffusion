@@ -34,8 +34,8 @@ def caption_fitness(x):
     }
         
     # Include caption if desired
-    if True: # Make this a check of whether the model supports text embedding
-        settings["caption"] = args.target_caption
+    #if True: # Make this a check of whether the model supports text embedding
+    #    settings["caption"] = args.target_caption
         
     images = pipe(
         generator=generator,
@@ -65,7 +65,18 @@ def caption_fitness(x):
         verbose=False
     )
 
-    return average_score, segment_captions
+    #print(latent_input)
+    #input("next")
+
+    for c in segment_captions:
+        if c not in seen_captions:
+            visualize_samples(images).show()
+            print(average_score, segment_captions)
+            #input("Press enter for next")
+            seen_captions.add(c)            
+
+    # Negative score is better, since CMA-ES wants to minimize
+    return -average_score, segment_captions
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -97,6 +108,9 @@ if __name__ == "__main__":
 
     global id_to_char, char_to_id, tile_descriptors
     _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+
+    global seen_captions
+    seen_captions = set()
 
     optimizer = CMA(mean=np.zeros(W*H*C), sigma=1.3, population_size=args.population_size, seed=args.seed)
 
