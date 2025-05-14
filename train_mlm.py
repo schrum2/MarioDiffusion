@@ -112,7 +112,10 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             optimizer.step()
             
             epoch_loss += loss.item()
-            progress_bar.set_postfix(loss=loss.item())
+            progress_bar.set_postfix({
+                'loss': loss.item(),
+                'no_improve': f'{epochs_no_improve}/{patience}'
+            })
         
         avg_loss = epoch_loss / len(train_loader)
         
@@ -133,7 +136,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
                     val_progress.set_postfix(loss=loss.item())
             val_loss = val_loss_total / len(val_loader)
             model.train()
-            print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}")
+            print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}, No Improvement: {epochs_no_improve}/{patience}")
             # Early stopping logic
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -206,7 +209,7 @@ if __name__ == "__main__":
     parser.add_argument('--train_pct', type=float, default=0.7, help='Train split percentage (default 0.7)')
     parser.add_argument('--val_pct', type=float, default=0.1, help='Validation split percentage (default 0.1)')
     parser.add_argument('--test_pct', type=float, default=0.2, help='Test split percentage (default 0.2)')
-    parser.add_argument("--patience", type=int, default=20, help="Number of epochs to wait for improvement in val loss before early stopping (default: 20)")
+    parser.add_argument("--patience", type=int, default=30, help="Number of epochs to wait for improvement in val loss before early stopping (default: 20)")
     
     global args
     args = parser.parse_args()
