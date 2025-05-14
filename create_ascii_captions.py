@@ -710,6 +710,9 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     def add_to_caption(phrase, contributing_blocks):
         nonlocal caption
+        #if phrase and "ceiling" in phrase:
+        #    raise ValueError(f"{phrase} {contributing_blocks}")
+
         if phrase:
             caption += phrase
             if return_details and details is not None:
@@ -728,7 +731,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         return ceiling_order.index(ceiling_higher.strip()) <= ceiling_order.index(ceiling_regular.strip())
 
     # Analyze ceiling
-    for c in range(CEILING, -1, -1):
+    for c in range(CEILING, 0, -1):
         ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = c)
         ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = c - 1)
         ceiling_start = c
@@ -738,18 +741,21 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         if not describe_absence and (ceiling_regular != "" or ceiling_higher != ""):
             break
 
+    #print(f"END ceiling_regular: {ceiling_regular}, ceiling_higher: {ceiling_higher}")
+        
     ceiling_phrase = None
+    ceiling_row = None
     if (ceiling_regular == " no ceiling." and ceiling_higher == " no ceiling.") or (ceiling_regular == "" and ceiling_higher == ""):
         ceiling_row = None
         ceiling_phrase = ceiling_regular
         add_to_caption(ceiling_regular, []) # No ceiling at all
-    elif ceiling_regular and ceiling_regular != " no ceiling." and not bigger_ceiling(ceiling_higher, ceiling_regular):
+    elif ceiling_regular and ceiling_regular != " no ceiling." and ceiling_regular != "" and not bigger_ceiling(ceiling_higher, ceiling_regular):
         ceiling_row = ceiling_start
         ceiling_phrase = ceiling_regular
         add_to_caption(ceiling_regular, [(ceiling_start, x) for x in range(WIDTH)])
         for x in range(WIDTH):
             already_accounted.add((ceiling_start, x))
-    elif ceiling_higher and ceiling_higher != " no ceiling.":
+    elif ceiling_higher and ceiling_higher != " no ceiling." and ceiling_higher != "" and ceiling_start != 0:
         ceiling_row = ceiling_start - 1
         ceiling_phrase = ceiling_higher
         add_to_caption(ceiling_higher, [(ceiling_start - 1, x) for x in range(WIDTH)])
