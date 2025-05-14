@@ -146,9 +146,11 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             
             else:
                 # For unconditional generation, we still need empty embeddings
-                embedding_dim = self.text_encoder.embedding_dim
                 seq_length = 10  # Any reasonable sequence length
-                text_embeddings = torch.zeros(1, seq_length, embedding_dim, device=self.device)
+                empty_ids = torch.zeros((1, seq_length), dtype=torch.long, device=self.device)
+                text_embeddings = self.text_encoder.get_embeddings(empty_ids)
+
+            #print(text_embeddings.shape)
 
             # Set up initial latent state
             device = self.device
@@ -190,7 +192,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     model_input = sample
 
                 # Predict noise residual
-                model_kwargs = {"encoder_hidden_states": text_embeddings} if caption is not None else {}
+                model_kwargs = {"encoder_hidden_states": text_embeddings} 
                 noise_pred = self.unet(model_input, t, **model_kwargs).sample
                 
                 # Apply guidance

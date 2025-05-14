@@ -53,14 +53,14 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
 
         print(f"Describe resulting image: {actual_caption}")
-        compare_score = compare_captions(param_values["caption"], actual_caption)
+        compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
         print(f"Comparison score: {compare_score}")
 
         # Use the new function to process scene segments
         average_score, segment_captions, segment_scores = process_scene_segments(
             scene=scene,
             segment_width=16,
-            prompt=param_values["caption"],
+            prompt=param_values.get("caption", ""),
             id_to_char=self.id_to_char,
             char_to_id=self.char_to_id,
             tile_descriptors=self.tile_descriptors,
@@ -68,6 +68,12 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             describe_absence=self.args.describe_absence,
             verbose=True
         )
+
+        print(f"Average match score: {average_score}")
+        print(f"Segment scores: {segment_scores}")
+        print(f"Segment captions: ")
+        for i, caption in enumerate(segment_captions):
+            print(f"Segment {i}: {caption}")
 
         return visualize_samples(images)
 
