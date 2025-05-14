@@ -82,7 +82,13 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
     best_val_loss = float('inf')
     epochs_no_improve = 0
     early_stop = False
-    best_model_state = None  # Add this
+    best_model_state = None
+    
+    # Add learning rate scheduler
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, 
+        patience=patience//2, verbose=True, min_lr=1e-6
+    )
 
     model.train()
     for epoch in range(epochs):
@@ -101,6 +107,8 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
 
             loss = criterion(output.view(-1, output.size(-1)), target_batch.view(-1))
             loss.backward()
+            # Add gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             
             epoch_loss += loss.item()
@@ -114,13 +122,15 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             model.eval()
             val_loss_total = 0
             with torch.no_grad():
-                for val_batch in val_loader:
+                val_progress = tqdm(val_loader, desc=f"Validation", leave=False)
+                for val_batch in val_progress:
                     val_batch = val_batch.to(device)
                     input_batch, target_batch = val_batch.clone(), val_batch.clone()
                     input_batch = masked_inputs(input_batch, tokenizer, device=device)
                     output = model(input_batch)
                     loss = criterion(output.view(-1, output.size(-1)), target_batch.view(-1))
                     val_loss_total += loss.item()
+                    val_progress.set_postfix(loss=loss.item())
             val_loss = val_loss_total / len(val_loader)
             model.train()
             print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}")
@@ -149,16 +159,31 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
         # Log to JSONL file
         log_metrics(epoch, avg_loss, args.lr, val_loss=val_loss)
 
+        # Update learning rate scheduler
+        if val_loader is not None:
+            scheduler.step(val_loss)
+
         # Save checkpoint if enabled and at the correct interval
         if args.save_checkpoints and args.checkpoint_freq > 0 and (epoch + 1) % args.checkpoint_freq == 0:
             checkpoint_dir = os.path.join(args.output_dir, f"checkpoint_epoch_{epoch+1}")
             os.makedirs(checkpoint_dir, exist_ok=True)
-            model.save_pretrained(checkpoint_dir)
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'loss': avg_loss,
+                'val_loss': val_loss,
+                'best_val_loss': best_val_loss,
+                'epochs_no_improve': epochs_no_improve
+            }
+            torch.save(checkpoint, os.path.join(checkpoint_dir, 'checkpoint.pt'))
+            model.save_pretrained(checkpoint_dir)  # Save model config separately
             print(f"Saved checkpoint to {checkpoint_dir}")
-
-            if early_stop:
-                print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
-                break
+        
+        if early_stop:
+            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
+            break
 
     plotter.stop_plotting()
     evaluate_model(model, tokenizer, train_loader, device)
@@ -185,6 +210,15 @@ if __name__ == "__main__":
     
     global args
     args = parser.parse_args()
+    
+    # Set random seeds for reproducibility
+    seed = 42
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = Tokenizer()
