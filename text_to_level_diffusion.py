@@ -17,12 +17,11 @@ def parse_args():
     return parser.parse_args()
 
 class InteractiveLevelGeneration(InteractiveGeneration):
-
     def __init__(self, args):
         InteractiveGeneration.__init__(self, {
-            "prompt" : str,
+            "caption" : str,
             "width" : int,
-            # "negative_prompt" : str,
+            "negative_prompt" : str,
             "start_seed" : int,
             "end_seed" : int,
             "num_inference_steps" : int,
@@ -30,9 +29,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         })
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        #print(self.device)
         self.pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(self.device)
-        #print(next(self.pipe.text_encoder.parameters()).device)
         self.pipe.print_unet_architecture()
 
         if args.tileset:
@@ -51,19 +48,19 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         sample_indices = convert_to_level_format(sample_tensor)
         
         # Add level data to the list
-        scene = sample_indices[0].tolist() # Always just one scene: (1,16,16), but the width setting could be more than 16!
+        scene = sample_indices[0].tolist()
  
         actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, self.args.describe_locations, self.args.describe_absence)
 
         print(f"Describe resulting image: {actual_caption}")
-        compare_score = compare_captions(self.prompt, actual_caption)
+        compare_score = compare_captions(param_values["caption"], actual_caption)
         print(f"Comparison score: {compare_score}")
 
         # Use the new function to process scene segments
         average_score, segment_captions, segment_scores = process_scene_segments(
             scene=scene,
             segment_width=16,
-            prompt=self.prompt,
+            prompt=param_values["caption"],
             id_to_char=self.id_to_char,
             char_to_id=self.char_to_id,
             tile_descriptors=self.tile_descriptors,
@@ -75,21 +72,14 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         return visualize_samples(images)
 
     def get_extra_params(self, param_values): 
-        # param_values["guidance_scale"] = 8.5
-        param_values["batch_size"] = 1
-        param_values["output_type"] = "tensor" 
+        if param_values["negative_prompt"] == "":
+            del param_values["negative_prompt"]
 
-        self.prompt = param_values["prompt"]
-        del param_values["prompt"]
+        if param_values["caption"] == "":
+            del param_values["caption"]
 
-        if self.prompt.strip() != "":
-            sample_captions = [self.prompt] # batch of size 1
-            sample_caption_tokens = self.pipe.text_encoder.tokenizer.encode_batch(sample_captions)
-            sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
-
-            param_values["captions"] = sample_caption_tokens
-
-        return dict() # nothing extra here
+        param_values["output_type"] = "tensor"
+        return dict()
 
 if __name__ == "__main__":
     args = parse_args()
