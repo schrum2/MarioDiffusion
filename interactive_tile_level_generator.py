@@ -151,24 +151,17 @@ class CaptionBuilder(ParentBuilder):
     def generate_image(self):
         print("Generating")
         prompt = self.caption_text.get("1.0", tk.END).strip()
-        num_images = int(self.num_images_entry.get())
-
+        num_images = int(self.num_images_entry.get())        
         param_values = {
-            # "captions" : sample_caption_tokens, # Added below if prompt is not None
             "num_inference_steps": int(self.num_steps_entry.get()),
             "guidance_scale": float(self.guidance_entry.get()),
             "width": int(self.width_entry.get()),
-            "output_type" : "tensor",
-            "batch_size" : 1
+            "output_type": "tensor"
         }
 
         # Include caption if desired
         if prompt.strip() != "":
-            sample_captions = [prompt] # batch of size 1
-            sample_caption_tokens = self.pipe.text_encoder.tokenizer.encode_batch(sample_captions)
-            sample_caption_tokens = torch.tensor(sample_caption_tokens).to(self.device)
-
-            param_values["captions"] = sample_caption_tokens
+            param_values["caption"] = prompt
 
         generator = torch.Generator(self.device).manual_seed(int(self.seed_entry.get()))
         

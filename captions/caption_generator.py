@@ -8,12 +8,12 @@ class GrammarGenerator:
         self.describe_absence = describe_absence
         # Define topics and their valid variations
         self.topic_phrases = {
-            "floor": ["full floor", "floor with one gap", "floor with two gaps", 
-                     "giant gap with one chunk of floor", "giant gap with two chunks of floor"],
+            "floor": ["full floor", "floor with one gap", "floor with two gaps", "floor with a few gaps", "floor with several gaps",
+                     "giant gap with one chunk of floor", "giant gap with two chunks of floor", "giant gap with a few chunks of floor", "giant gap with several chunks of floor"],
             "ceiling": ["full ceiling", "ceiling with one gap", "ceiling with two gaps", "ceiling with a few gaps"],
             # "broken pipe": ["one broken pipe", "two broken pipes"],
-            "upside down pipe": ["one upside down pipe", "two upside down pipes", "a few upside down pipes"],
-            "pipe": ["one pipe", "two pipes", "a few pipes"],
+            "upside down pipe": ["one upside down pipe", "two upside down pipes", "a few upside down pipes", "several upside down pipes"],
+            "pipe": ["one pipe", "two pipes", "a few pipes", "several pipes"],
             "coin line": ["one coin line", "two coin lines", "a few coin lines"],
             "coin": ["one coin", "two coins", "several coins", "a few coins", "many coins"],
             "platform": ["one platform", "two platforms", "a few platforms", "several platforms"],
