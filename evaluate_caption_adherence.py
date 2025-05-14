@@ -117,7 +117,7 @@ def main():
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
-    
+        
         visualize_samples(all_samples, args.output_dir)
 
         if args.save_as_json:
@@ -170,9 +170,9 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
                 }
                 generator = torch.Generator(device).manual_seed(int(args.seed))
                 
-                sample = pipe(generator=generator, **param_values).images[0]
+                sample = pipe(generator=generator, **param_values).images
                 
-                sample_tensor = sample.unsqueeze(0)
+                sample_tensor = sample[0].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample_tensor)
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
                 actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, args.describe_locations, args.describe_absence)
