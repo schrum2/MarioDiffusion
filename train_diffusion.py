@@ -28,6 +28,10 @@ def parse_args():
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
+    parser.add_argument('--split', action='store_true', help='Enable train/val/test split')
+    parser.add_argument('--train_pct', type=float, default=0.7, help='Train split percentage (default 0.7)')
+    parser.add_argument('--val_pct', type=float, default=0.1, help='Validation split percentage (default 0.1)')
+    parser.add_argument('--test_pct', type=float, default=0.2, help='Test split percentage (default 0.2)')
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
@@ -108,21 +112,62 @@ def main():
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
     # Initialize dataset
-    dataset = LevelDataset(
-        json_path=args.json,
-        tokenizer=tokenizer,
+    if args.split:
+        train_json, val_json, test_json = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
+        train_dataset = LevelDataset(
+            json_path=train_json,
+            tokenizer=tokenizer,
+            shuffle=True,
+            mode="diffusion",
+            augment=args.augment,
+            num_tiles=args.num_tiles,
+            negative_captions=args.negative_prompt_training
+        )
+        val_dataset = LevelDataset(
+            json_path=val_json,
+            tokenizer=tokenizer,
+            shuffle=False,
+            mode="diffusion",
+            augment=False,
+            num_tiles=args.num_tiles,
+            negative_captions=args.negative_prompt_training
+        )
+    else:
+        train_dataset = LevelDataset(
+            json_path=args.json,
+            tokenizer=tokenizer,
+            shuffle=True,
+            mode="diffusion",
+            augment=args.augment,
+            num_tiles=args.num_tiles,
+            negative_captions=args.negative_prompt_training
+        )
+        val_dataset = None
+
+    # Create dataloader
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
         shuffle=True,
-        mode="diffusion",
-        augment=args.augment,
-        num_tiles=args.num_tiles,
-        negative_captions=args.negative_prompt_training
+        num_workers=4,
+        drop_last=True
     )
+    
+    val_dataloader = None
+    if val_dataset is not None:
+        val_dataloader = DataLoader(
+            val_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=4,
+            drop_last=True
+        )
 
     if args.text_conditional:
         # Sample four random captions from the dataset
-        sample_indices = [random.randint(0, len(dataset) - 1) for _ in range(4)]
+        sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
         if args.negative_prompt_training:
-            sample_data = [dataset[i] for i in sample_indices]
+            sample_data = [train_dataset[i] for i in sample_indices]
             pos_vectors = [data[1] for data in sample_data]
             neg_vectors = [data[2] for data in sample_data]
             pos_vectors = [v.tolist() for v in pos_vectors]
@@ -144,7 +189,7 @@ def main():
                 print(f"  NEG: {caption}")
         else:
             # Original code for positive-only captions
-            sample_embedding_vectors = [dataset[i][1] for i in sample_indices]
+            sample_embedding_vectors = [train_dataset[i][1] for i in sample_indices]
             sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
             pad_token = tokenizer.token_to_id["[PAD]"]
             sample_captions = [
@@ -155,15 +200,6 @@ def main():
             for caption in sample_captions:
                 print(caption)
 
-    # Create dataloader
-    dataloader = DataLoader(
-        dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=4,
-        drop_last=True
-    )
-    
     # Setup the UNet model - use conditional version if text conditioning is enabled
     if args.text_conditional:
         model = UNet2DConditionModel(
@@ -208,7 +244,7 @@ def main():
     )
     
     # Setup learning rate scheduler
-    total_training_steps = (len(dataloader) * args.num_epochs) // args.gradient_accumulation_steps
+    total_training_steps = (len(train_dataloader) * args.num_epochs) // args.gradient_accumulation_steps
     warmup_steps = int(total_training_steps * args.lr_warmup_percentage)  
 
     print(f"Warmup period will be {warmup_steps} steps out of {total_training_steps}")
@@ -221,8 +257,8 @@ def main():
     )
     
     # Prepare for training with accelerator
-    model, optimizer, dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, dataloader, lr_scheduler
+    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, lr_scheduler
     )
     
     # Create output directory
@@ -230,7 +266,7 @@ def main():
     
     # Training loop
     global_step = 0
-    progress_bar = tqdm(total=args.num_epochs * len(dataloader), disable=not accelerator.is_local_main_process)
+    progress_bar = tqdm(total=args.num_epochs * len(train_dataloader), disable=not accelerator.is_local_main_process)
     progress_bar.set_description("Steps")
     
     # Get formatted timestamp for filenames
@@ -248,15 +284,17 @@ def main():
         print(f"Saved configuration to: {config_file}")
   
     # Add function to log metrics
-    def log_metrics(epoch, loss, lr, step=None):
+    def log_metrics(epoch, loss, lr, step=None, val_loss=None):
         if accelerator.is_local_main_process:
             log_entry = {
                 "epoch": epoch,
                 "loss": loss,
                 "lr": lr,
-                "step": step if step is not None else epoch * len(dataloader),
+                "step": step if step is not None else epoch * len(train_dataloader),
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
+            if val_loss is not None:
+                log_entry["val_loss"] = val_loss
             with open(log_file, 'a') as f:
                 f.write(json.dumps(log_entry) + '\n')
 
@@ -264,7 +302,8 @@ def main():
     plotter = None
     plot_thread = None
     if accelerator.is_local_main_process:
-        plotter = LossPlotter(log_file, update_interval=5.0)  # Update every 5 seconds
+        plotter = LossPlotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss',
+                             left_label='Training Loss', right_label='Validation Loss')
         plot_thread = threading.Thread(target=plotter.start_plotting)
         plot_thread.daemon = True
         plot_thread.start()
@@ -272,8 +311,9 @@ def main():
 
     for epoch in range(args.num_epochs):
         model.train()
+        train_loss = 0.0
         
-        for batch_idx, batch in enumerate(dataloader):
+        for batch_idx, batch in enumerate(train_dataloader):
 
             # Process batch data
             if args.text_conditional:
@@ -351,15 +391,75 @@ def main():
                     lr_scheduler.step()
                     optimizer.zero_grad()
             
+            train_loss += loss.detach().item()
+            
             # Update progress bar
             progress_bar.update(1)
-            logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
+            logs = {"loss": loss.detach().item(), "step": global_step}
             progress_bar.set_postfix(**logs)
                         
-            # Log to JSONL file
-            log_metrics(epoch, loss.detach().item(), lr_scheduler.get_last_lr()[0], step=global_step)
-            
             global_step += 1
+        
+        # Calculate average training loss for the epoch
+        avg_train_loss = train_loss / len(train_dataloader)
+        
+        # Calculate validation loss if validation dataset exists
+        val_loss = None
+        if val_dataloader is not None:
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for val_batch in val_dataloader:
+                    if args.text_conditional:
+                        if args.negative_prompt_training:
+                            val_scenes, val_captions, val_negative_captions = val_batch
+                            val_scenes = val_scenes.to(device)
+                            val_captions = val_captions.to(device)
+                            val_negative_captions = val_negative_captions.to(device)
+                        else:
+                            val_scenes, val_captions = val_batch
+                            val_scenes = val_scenes.to(device)
+                            val_captions = val_captions.to(device)
+                            
+                        val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
+                                                    (val_scenes.shape[0],), device=device).long()
+                        
+                        with torch.no_grad():
+                            val_text_embeddings = text_encoder.get_embeddings(val_captions)
+                            if args.negative_prompt_training:
+                                val_negative_embeddings = text_encoder.get_embeddings(val_negative_captions)
+                                val_uncond_tokens = torch.zeros_like(val_captions)
+                                val_uncond_embeddings = text_encoder.get_embeddings(val_uncond_tokens)
+                                val_combined_embeddings = torch.cat([val_negative_embeddings, val_uncond_embeddings, val_text_embeddings])
+                                val_scenes_for_eval = torch.cat([val_scenes] * 3)
+                                val_timesteps_for_eval = torch.cat([val_timesteps] * 3)
+                            else:
+                                val_uncond_tokens = torch.zeros_like(val_captions)
+                                val_uncond_embeddings = text_encoder.get_embeddings(val_uncond_tokens)
+                                val_combined_embeddings = torch.cat([val_uncond_embeddings, val_text_embeddings])
+                                val_scenes_for_eval = torch.cat([val_scenes] * 2)
+                                val_timesteps_for_eval = torch.cat([val_timesteps] * 2)
+                    else:
+                        if isinstance(val_batch, list):
+                            val_scenes, _ = val_batch
+                        else:
+                            val_scenes = val_batch
+                        val_scenes = val_scenes.to(device)
+                            
+                        val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
+                                                    (val_scenes.shape[0],), device=val_scenes.device).long()
+                        val_noise = torch.randn_like(val_scenes)
+                        val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
+                        val_noise_pred = model(val_noisy_scenes, val_timesteps).sample
+                        val_batch_loss = F.mse_loss(val_noise_pred, val_noise)
+                        
+                    val_loss += val_batch_loss.item()
+                    
+            val_loss /= len(val_dataloader)
+            model.train()
+                        
+        # Log metrics including validation loss
+        log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
         
         # Generate and save sample levels every N epochs
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
@@ -478,6 +578,33 @@ def update_args_from_config(args, config):
         if hasattr(args, key):
             setattr(args, key, value)
     return args
+
+def split_dataset(json_path, train_pct, val_pct, test_pct):
+    """Splits the dataset into train/val/test and saves them as new JSON files."""
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+    n = len(data)
+    indices = list(range(n))
+    random.shuffle(indices)
+    train_end = int(train_pct * n)
+    val_end = train_end + int(val_pct * n)
+    train_indices = indices[:train_end]
+    val_indices = indices[train_end:val_end]
+    test_indices = indices[val_end:]
+    train_data = [data[i] for i in train_indices]
+    val_data = [data[i] for i in val_indices]
+    test_data = [data[i] for i in test_indices]
+    base, ext = os.path.splitext(json_path)
+    train_path = f"{base}-train{ext}"
+    val_path = f"{base}-validate{ext}"
+    test_path = f"{base}-test{ext}"
+    with open(train_path, 'w') as f:
+        json.dump(train_data, f, indent=2)
+    with open(val_path, 'w') as f:
+        json.dump(val_data, f, indent=2)
+    with open(test_path, 'w') as f:
+        json.dump(test_data, f, indent=2)
+    return train_path, val_path, test_path
 
 if __name__ == "__main__":
     main()
