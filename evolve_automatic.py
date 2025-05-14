@@ -12,6 +12,7 @@ import torch
 
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
+from captions.caption_match import compare_captions, process_scene_segments
 from create_ascii_captions import extract_tileset
 from create_ascii_captions import assign_caption
 import os
@@ -49,11 +50,23 @@ def caption_fitness(x):
     # Add level data to the list
     scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
     global id_to_char, char_to_id, tile_descriptors
-    actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+    
+    # This would be for whole scene
+    #actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
 
-    caption_score = 0
+    average_score, segment_captions, segment_scores = process_scene_segments(
+        scene=scene,
+        segment_width=W,
+        prompt=args.target_caption,
+        id_to_char=id_to_char,
+        char_to_id=char_to_id,
+        tile_descriptors=tile_descriptors,
+        describe_locations=False,
+        describe_absence=args.describe_absence,
+        verbose=False
+    )
 
-    return caption_score, actual_caption
+    return average_score, segment_captions
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
