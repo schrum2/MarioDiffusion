@@ -161,7 +161,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     for batch_idx, batch in enumerate(dataloader):
         with torch.no_grad():  # Disable gradient computation to save memory            
             if dataloader.dataset.negative_captions:
-                positive_captions, negative_captions = zip(*batch)
+                # For negative captions, batch is (positive_captions, negative_captions)
+                positive_captions, negative_captions = batch  # Unpack the batch directly
                 param_values = {
                     "caption": list(positive_captions),
                     "negative_prompt": list(negative_captions),
@@ -183,7 +184,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
             # Generate a batch of samples at once
             samples = pipe(generator=generator, **param_values).images  # (batch_size, ...)
 
-            for i in range(len(batch)):
+            for i in range(len(samples)):
                 if dataloader.dataset.negative_captions:
                     caption = positive_captions[i]
                 else:
