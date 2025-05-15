@@ -10,7 +10,7 @@ import matplotlib
 from torch.utils.data import DataLoader
 import io
 from PIL import Image
-from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEGATED_PLURAL
+from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEGATED_PLURAL, remove_topic
 
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
@@ -269,6 +269,20 @@ class LevelDataset(Dataset):
         # Shuffle dataset
         if self.shuffle:
             random.shuffle(self.data)
+
+        if self.negative_captions:
+            # If the captions do not contain upside down pipes, then the negative captions
+            # should never say there are no upside down pipes too.
+            remove_upside_down_pipes = True
+            for sample in self.data:
+                caption = sample["caption"]
+                if "upside" in caption:
+                    # No problem. Upside down pipes are present
+                    remove_upside_down_pipes = False
+                    break
+
+            if remove_upside_down_pipes:
+                remove_topic("upside down pipe")
 
     def _augment_caption(self, caption):
         """Shuffles period-separated phrases in the caption."""
