@@ -144,6 +144,13 @@ class CaptionBuilder(ParentBuilder):
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"
     
+            # Enable or disable negative prompt entry based on pipeline support
+            if hasattr(self.pipe, "supports_negative_prompt") and self.pipe.supports_negative_prompt:
+                self.negative_prompt_entry.config(state=tk.NORMAL)
+            else:
+                self.negative_prompt_entry.delete(0, tk.END)
+                self.negative_prompt_entry.config(state=tk.DISABLED)
+
     def update_caption(self):
         self.selected_phrases = [phrase for phrase, var in self.checkbox_vars.items() if var.get()]
         new_caption = ". ".join(self.selected_phrases) + "." if self.selected_phrases else ""
