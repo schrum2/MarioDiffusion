@@ -8,6 +8,7 @@ from level_dataset import LevelDataset, visualize_samples
 import json
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
+import json
 from create_ascii_captions import assign_caption, save_level_data, extract_tileset
 from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
@@ -151,41 +152,6 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def batch_caption_scores(samples, captions, id_to_char, char_to_id, tile_descriptors, describe_absence=False, output=False):
-    """Calculate caption adherence scores for a batch of generated samples.
-    Args:
-        samples (torch.Tensor): Generated samples in one-hot format
-        captions (list[str]): Original input captions to compare against
-        id_to_char (dict): Mapping from tile IDs to characters
-        char_to_id (dict): Mapping from characters to tile IDs  
-        tile_descriptors (dict): Tile type descriptions
-        describe_absence (bool): Whether to describe absence of elements
-    Returns:
-        float: Average caption match score for the batch
-        list: List of generated samples (torch.Tensor)
-    """
-    score_sum = 0.0
-    total_count = 0
-    all_samples = []
-    for i in range(len(captions)):
-        caption = captions[i]
-        sample = samples[i].unsqueeze(0)
-        sample_indices = convert_to_level_format(sample)
-        scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
-        actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-
-        if output: print(f"\t{caption}")
-
-        compare_score = compare_captions(caption, actual_caption)
-
-        score_sum += compare_score
-        total_count += 1
-
-        all_samples.append(sample)  # Append the generated sample to the list
-        del sample, sample_indices, scene, actual_caption  # Remove unused variables
-    avg_score = score_sum / total_count
-    return avg_score, all_samples
-
 def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors, output=True):
     score_sum = 0.0
     total_count = 0
@@ -205,12 +171,22 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
             # Generate a batch of samples at once
             samples = pipe(generator=generator, **param_values).images  # (batch_size, ...)
 
-            avg_score_batch, batch_samples = batch_caption_scores(
-                samples, batch, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True
-            )
-            score_sum += avg_score_batch * len(batch)
-            total_count += len(batch)
-            all_samples.extend(batch_samples)
+            for i in range(len(batch)):
+                caption = batch[i]
+                sample = samples[i].unsqueeze(0)
+                sample_indices = convert_to_level_format(sample)
+                scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
+                actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+
+                if output: print(f"\t{caption}")
+
+                compare_score = compare_captions(caption, actual_caption)
+
+                score_sum += compare_score
+                total_count += 1
+
+                all_samples.append(sample)  # Append the generated sample to the list
+                del sample, sample_indices, scene, actual_caption  # Remove unused variables
 
         torch.cuda.empty_cache()  # Clear GPU VRAM cache
 
