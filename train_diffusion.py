@@ -18,6 +18,7 @@ from util.loss_plotter import LossPlotter
 from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
+from evaluate_caption_adherence import batch_caption_scores
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -302,6 +303,9 @@ def main():
     # Initialize plotter if we're on the main process
     plotter = None
     plot_thread = None
+    caption_score_plotter = None
+    caption_score_plot_thread = None
+    caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
     if accelerator.is_local_main_process:
         plotter = LossPlotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss',
                              left_label='Training Loss', right_label='Validation Loss')
@@ -309,6 +313,13 @@ def main():
         plot_thread.daemon = True
         plot_thread.start()
         print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'training_progress.png')}")
+        # Caption score plotter
+        caption_score_plotter = LossPlotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
+                                            left_label='Caption Match Score', right_label=None)
+        caption_score_plot_thread = threading.Thread(target=caption_score_plotter.start_plotting)
+        caption_score_plot_thread.daemon = True
+        caption_score_plot_thread.start()
+        print(f"Caption match score plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'caption_score_progress.png')}")
 
     for epoch in range(args.num_epochs):
         model.train()
@@ -406,9 +417,12 @@ def main():
         
         # Calculate validation loss if validation dataset exists and it's time to validate
         val_loss = None
+        avg_caption_score = None
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
+            caption_score_sum = 0.0
+            caption_score_count = 0
             with torch.no_grad():
                 for val_batch in val_dataloader:
                     if args.text_conditional:
@@ -447,6 +461,28 @@ def main():
                         val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
                                             encoder_hidden_states=val_combined_embeddings).sample
                         val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))
+                        # Compute caption match score for this batch
+                        # Generate samples using the pipeline for the current batch of captions
+                        pipeline = TextConditionalDDPMPipeline(
+                            unet=accelerator.unwrap_model(model), 
+                            scheduler=noise_scheduler,
+                            text_encoder=text_encoder
+                        ).to(device)
+                        # Only use the positive captions for scoring
+                        batch_captions = val_captions if not args.negative_prompt_training else val_captions
+                        samples = pipeline(
+                            batch_size=batch_captions.shape[0],
+                            generator=torch.Generator(device=device).manual_seed(args.seed),
+                            num_inference_steps=50,
+                            output_type="tensor",
+                            caption=[tokenizer.decode([token for token in cap if token != tokenizer.token_to_id["[PAD]"]]) for cap in batch_captions.cpu().numpy()]
+                        ).images
+                        avg_score, _ = batch_caption_scores(
+                            samples, [tokenizer.decode([token for token in cap if token != tokenizer.token_to_id["[PAD]"]]) for cap in batch_captions.cpu().numpy()],
+                            id_to_char=None, char_to_id=None, tile_descriptors=None, describe_absence=False
+                        )
+                        caption_score_sum += avg_score * batch_captions.shape[0]
+                        caption_score_count += batch_captions.shape[0]
                     else:
                         if isinstance(val_batch, list):
                             val_scenes, _ = val_batch
@@ -464,8 +500,18 @@ def main():
                     val_loss += val_batch_loss.item()
                     
             val_loss /= len(val_dataloader)
+            avg_caption_score = caption_score_sum / caption_score_count if caption_score_count > 0 else 0.0
             model.train()
-            
+            # Log caption match score
+            if accelerator.is_local_main_process:
+                with open(caption_score_log_file, 'a') as f:
+                    log_entry = {
+                        "epoch": epoch,
+                        "caption_score": avg_caption_score,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    f.write(json.dumps(log_entry) + '\n')
+        
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
         
@@ -536,6 +582,11 @@ def main():
             plot_thread.join(timeout=5.0)
             if plot_thread.is_alive():
                 print("Warning: Plot thread did not terminate properly")
+        if caption_score_plot_thread and caption_score_plot_thread.is_alive():
+            caption_score_plotter.stop_plotting()
+            caption_score_plot_thread.join(timeout=5.0)
+            if caption_score_plot_thread.is_alive():
+                print("Warning: Caption score plot thread did not terminate properly")
 
     # Close progress bar and TensorBoard writer
     progress_bar.close()
