@@ -555,6 +555,10 @@ class ImageGridViewer:
             if self.allow_prompt:
                 prompt = self.prompt_entry.get()
                 param_values["prompt"] = prompt
+                if self.negative_prompt_supported:
+                    negative_prompt = self.negative_prompt_entry.get()
+                    param_values["negative_prompt"] = negative_prompt
+                    
             self.callback_fn(selected, **param_values)
 
         self.update_back_button_status()

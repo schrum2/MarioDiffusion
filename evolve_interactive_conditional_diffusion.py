@@ -33,25 +33,8 @@ class TextDiffusionEvolver(Evolver):
         return latents
 
     def initialize_population(self):
-        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), prompt=self.prompt, num_segments=1) for seed in range(self.population_size)]
+        self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), prompt=self.prompt, negative_prompt=self.negative_prompt, num_segments=1) for seed in range(self.population_size)]
         self.viewer.id_to_char = self.id_to_char
-
-    def start_evolution(self, allow_prompt=False):
-        self.genomes = []
-        self.generation = 0
-        import tkinter as tk
-        self.root = tk.Tk()
-        self.viewer = ImageGridViewer(
-            self.root, 
-            callback_fn=self.next_generation,
-            back_fn=self.previous_generation,
-            generation_fn=self.get_generation,
-            allow_prompt=allow_prompt
-        )
-        # Set negative prompt support in the viewer
-        if hasattr(self.viewer, "set_negative_prompt_supported"):
-            self.viewer.set_negative_prompt_supported(self.negative_prompt_supported)
-        self.root.mainloop()
 
     def generate_image(self, g):
         # generate fresh new image
@@ -66,13 +49,13 @@ class TextDiffusionEvolver(Evolver):
         # Include caption if desired
         if g.prompt and g.prompt.strip() != "":
             settings["caption"] = g.prompt
+
         # Include negative prompt if supported and provided
-        if hasattr(self, "viewer") and getattr(self.pipe, "supports_negative_prompt", False):
-            neg_prompt = getattr(self.viewer, "negative_prompt_var", None)
-            if neg_prompt is not None:
-                neg_prompt_val = neg_prompt.get().strip()
-                if neg_prompt_val:
-                    settings["negative_prompt"] = neg_prompt_val
+        if getattr(self.pipe, "supports_negative_prompt", False):
+            neg_prompt = g.negative_prompt
+            if neg_prompt is not None and neg_prompt.strip() != "":
+                settings["negative_prompt"] = neg_prompt
+
         images = self.pipe(
             generator=generator,
             **settings
