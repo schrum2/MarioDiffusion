@@ -226,9 +226,9 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
 
     if remove_upside_down_pipes:
         # Remove upside down pipes from negative phrases
-        negative_phrases = negative_phrases.replace(" upside down pipe.", "")
-        negative_phrases = negative_phrases.replace("upside down pipe. ", "")
-        
+        negative_phrases = negative_phrases.replace(" upside down pipes.", "")
+        negative_phrases = negative_phrases.replace("upside down pipes. ", "")
+
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
