@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from typing import NamedTuple, Optional
 import os
 from diffusers import DDPMPipeline, UNet2DConditionModel, DDPMScheduler
+import json
 # Running the main at the end of this requires messing with this import
 from models.text_model import TransformerModel  
             
@@ -41,6 +42,9 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         # Save custom text encoder
         if self.text_encoder is not None:
             self.text_encoder.save_pretrained(os.path.join(save_directory, "text_encoder"))
+        # Save supports_negative_prompt flag
+        with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
+            json.dump({"supports_negative_prompt": self.supports_negative_prompt}, f)
 
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
@@ -69,7 +73,12 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             text_encoder=text_encoder,
             **kwargs,
         )
-
+        # Load supports_negative_prompt flag if present
+        config_path = os.path.join(pretrained_model_path, "pipeline_config.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            pipeline.supports_negative_prompt = config.get("supports_negative_prompt", False)
         return pipeline
         
     def __call__(
