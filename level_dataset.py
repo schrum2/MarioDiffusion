@@ -276,6 +276,7 @@ class LevelDataset(Dataset):
         if self.shuffle:
             random.shuffle(self.data)
 
+        remove_upside_down_pipes = False
         if self.negative_captions:
             # If the captions do not contain upside down pipes, then the negative captions
             # should never say there are no upside down pipes too.
