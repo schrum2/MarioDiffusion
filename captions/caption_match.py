@@ -229,14 +229,6 @@ def process_scene_segments(scene, segment_width, prompt, id_to_char, char_to_id,
 
     return average_score, segment_captions, segment_scores
 
-def remove_topic(topic):
-    global TOPIC_KEYWORDS
-    if topic in TOPIC_KEYWORDS:
-        TOPIC_KEYWORDS.remove(topic)
-        print(f"Removed topic: {topic}")
-    else:
-        print(f"Topic '{topic}' not found in the list.")
-
 if __name__ == '__main__':
 
     ref = "floor with one gap. two enemies. one platform. one tower."
