@@ -6,17 +6,17 @@ import argparse
 import torch
 from evolution.genome import LatentGenome
 from create_ascii_captions import assign_caption
+from evolution.image_grid import ImageGridViewer
 
 class TextDiffusionEvolver(Evolver):
     def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json', args = None):
         Evolver.__init__(self)
-
         self.args = args
         self.width = width
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.pipe = TextConditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
-
-        #self.pipe.print_unet_architecture()
+        # Set negative prompt support in viewer if available
+        self.negative_prompt_supported = getattr(self.pipe, "supports_negative_prompt", False)
 
         _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
@@ -36,11 +36,27 @@ class TextDiffusionEvolver(Evolver):
         self.genomes = [LatentGenome(self.width, seed, self.steps, self.guidance_scale, latents=self.random_latent(seed), prompt=self.prompt, num_segments=1) for seed in range(self.population_size)]
         self.viewer.id_to_char = self.id_to_char
 
+    def start_evolution(self, allow_prompt=False):
+        self.genomes = []
+        self.generation = 0
+        import tkinter as tk
+        self.root = tk.Tk()
+        self.viewer = ImageGridViewer(
+            self.root, 
+            callback_fn=self.next_generation,
+            back_fn=self.previous_generation,
+            generation_fn=self.get_generation,
+            allow_prompt=allow_prompt
+        )
+        # Set negative prompt support in the viewer
+        if hasattr(self.viewer, "set_negative_prompt_supported"):
+            self.viewer.set_negative_prompt_supported(self.negative_prompt_supported)
+        self.root.mainloop()
+
     def generate_image(self, g):
         # generate fresh new image
         print(f"Generate new image for {g}")
         generator = torch.Generator("cuda").manual_seed(g.seed)
-
         settings = {
             "guidance_scale": g.guidance_scale, 
             "num_inference_steps": g.num_inference_steps,
@@ -48,14 +64,19 @@ class TextDiffusionEvolver(Evolver):
             "raw_latent_sample": g.latents.to("cuda")
         }
         # Include caption if desired
-        if g.prompt.strip() != "":
+        if g.prompt and g.prompt.strip() != "":
             settings["caption"] = g.prompt
-        
+        # Include negative prompt if supported and provided
+        if hasattr(self, "viewer") and getattr(self.pipe, "supports_negative_prompt", False):
+            neg_prompt = getattr(self.viewer, "negative_prompt_var", None)
+            if neg_prompt is not None:
+                neg_prompt_val = neg_prompt.get().strip()
+                if neg_prompt_val:
+                    settings["negative_prompt"] = neg_prompt_val
         images = self.pipe(
             generator=generator,
             **settings
         ).images
-
         g.latents.to("cpu")
         # Convert to indices
         sample_indices = convert_to_level_format(images)

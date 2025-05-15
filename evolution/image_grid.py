@@ -138,16 +138,29 @@ class ImageGridViewer:
         self.clear_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.allow_prompt = allow_prompt
+        self.negative_prompt_supported = False  # Will be set externally if needed
+        self.negative_prompt_var = None
+        self.negative_prompt_entry = None
         if self.allow_prompt:
-            # Create prompt input frame
-            self.prompt_frame = tk.Frame(self.control_frame)
-            self.prompt_frame.pack(fill=tk.X, padx=5)
-        
-            # Add prompt label and entry
-            tk.Label(self.prompt_frame, text="Prompt: ").pack(side=tk.LEFT)
-            self.prompt_entry = tk.Entry(self.prompt_frame)
-            self.prompt_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-            self.prompt_entry.insert(0, "")
+            # Prompt input at the bottom (for conditional models)
+            self.prompt_var = tk.StringVar()
+            prompt_label = tk.Label(self.control_frame, text="Prompt:")
+            prompt_label.pack(side=tk.LEFT, padx=(10, 2))
+            self.prompt_entry = tk.Entry(self.control_frame, textvariable=self.prompt_var, width=60)
+            self.prompt_entry.pack(side=tk.LEFT, padx=(0, 10))
+            # Negative prompt field (added only if supported)
+            self.negative_prompt_var = tk.StringVar()
+            self.negative_prompt_entry = tk.Entry(self.control_frame, textvariable=self.negative_prompt_var, width=60)
+            # The label and entry will be packed if negative prompt is supported (see set_negative_prompt_supported)
+
+    def set_negative_prompt_supported(self, supported: bool):
+        self.negative_prompt_supported = supported
+        if supported and self.negative_prompt_entry is not None:
+            neg_label = tk.Label(self.control_frame, text="Negative Prompt:")
+            neg_label.pack(side=tk.LEFT, padx=(10, 2))
+            self.negative_prompt_entry.pack(side=tk.LEFT, padx=(0, 10))
+        elif not supported and self.negative_prompt_entry is not None:
+            self.negative_prompt_entry.pack_forget()
 
         # Bind resize event
         self.root.bind('<Configure>', self._on_window_resize)
