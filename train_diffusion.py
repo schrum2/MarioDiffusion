@@ -60,6 +60,7 @@ def parse_args():
     parser.add_argument("--save_model_epochs", type=int, default=20, help="Save model every N epochs")
     parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help="Mixed precision type")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--validate_epochs", type=int, default=5, help="Calculate validation loss every N epochs")
     
     # Output args
     parser.add_argument("--output_dir", type=str, default="level-diffusion-output", help="Output directory")
@@ -403,9 +404,9 @@ def main():
         # Calculate average training loss for the epoch
         avg_train_loss = train_loss / len(train_dataloader)
         
-        # Calculate validation loss if validation dataset exists
+        # Calculate validation loss if validation dataset exists and it's time to validate
         val_loss = None
-        if val_dataloader is not None:
+        if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
             with torch.no_grad():
