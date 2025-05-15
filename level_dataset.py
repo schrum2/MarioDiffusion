@@ -270,6 +270,21 @@ class LevelDataset(Dataset):
         if self.shuffle:
             random.shuffle(self.data)
 
+        if self.negative_captions:
+            # If the captions do not contain upside down pipes, then the negative captions
+            # should never say there are no upside down pipes too.
+            remove_upside_down_pipes = True
+            for sample in self.data:
+                caption = sample["caption"]
+                if "upside" in caption:
+                    # No problem. Upside down pipes are present
+                    remove_upside_down_pipes = False
+                    break
+
+            if remove_upside_down_pipes:
+                global TOPIC_KEYWORDS
+                TOPIC_KEYWORDS.remove("upside down pipe")
+
     def _augment_caption(self, caption):
         """Shuffles period-separated phrases in the caption."""
         if self.augment:
