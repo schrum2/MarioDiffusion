@@ -87,4 +87,5 @@ def parse_args():
 if __name__ == "__main__": 
     args = parse_args()
     evolver = TextDiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
-    evolver.start_evolution(allow_prompt = True)
+    allow_negative_prompt = getattr(evolver.pipe, "supports_negative_prompt", False)
+    evolver.start_evolution(allow_prompt=True, allow_negative_prompt=allow_negative_prompt)

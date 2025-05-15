@@ -16,7 +16,7 @@ class Evolver(ABC):
     def get_generation(self):
         return self.generation
 
-    def start_evolution(self, allow_prompt=False):
+    def start_evolution(self, allow_prompt=False, allow_negative_prompt=False):
         self.genomes = []
         self.generation = 0
 
@@ -26,7 +26,8 @@ class Evolver(ABC):
             callback_fn=self.next_generation,
             back_fn=self.previous_generation,
             generation_fn=self.get_generation,
-            allow_prompt=allow_prompt
+            allow_prompt=allow_prompt,
+            allow_negative_prompt=allow_negative_prompt
         )
         # Start the GUI event loop
         self.root.mainloop()

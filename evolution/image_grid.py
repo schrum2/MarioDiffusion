@@ -9,7 +9,7 @@ Handles evolution in the latent space for generating level scenes.
 """
 
 class ImageGridViewer:
-    def __init__(self, root, callback_fn=None, back_fn=None, generation_fn = None, allow_prompt = False):
+    def __init__(self, root, callback_fn=None, back_fn=None, generation_fn = None, allow_prompt = False, allow_negative_prompt = False):
         self.root = root
         self.root.title("Generated Images")
         self.images = []  # Stores PIL Image objects
@@ -138,7 +138,7 @@ class ImageGridViewer:
         self.clear_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.allow_prompt = allow_prompt
-        self.negative_prompt_supported = False  # Will be set externally if needed
+        self.allow_negative_prompt = allow_negative_prompt
         self.negative_prompt_var = None
         self.negative_prompt_entry = None
         if self.allow_prompt:
@@ -148,10 +148,12 @@ class ImageGridViewer:
             prompt_label.pack(side=tk.LEFT, padx=(10, 2))
             self.prompt_entry = tk.Entry(self.control_frame, textvariable=self.prompt_var, width=60)
             self.prompt_entry.pack(side=tk.LEFT, padx=(0, 10))
-            # Negative prompt field (added only if supported)
-            self.negative_prompt_var = tk.StringVar()
-            self.negative_prompt_entry = tk.Entry(self.control_frame, textvariable=self.negative_prompt_var, width=60)
-            # The label and entry will be packed if negative prompt is supported (see set_negative_prompt_supported)
+            if self.allow_negative_prompt:
+                self.negative_prompt_var = tk.StringVar()
+                neg_label = tk.Label(self.control_frame, text="Negative Prompt:")
+                neg_label.pack(side=tk.LEFT, padx=(10, 2))
+                self.negative_prompt_entry = tk.Entry(self.control_frame, textvariable=self.negative_prompt_var, width=60)
+                self.negative_prompt_entry.pack(side=tk.LEFT, padx=(0, 10))
 
     def set_negative_prompt_supported(self, supported: bool):
         self.negative_prompt_supported = supported
@@ -554,10 +556,12 @@ class ImageGridViewer:
             param_values = dict()
             if self.allow_prompt:
                 prompt = self.prompt_entry.get()
-                param_values["prompt"] = prompt
-                if self.negative_prompt_supported:
+                if prompt != None and prompt.strip() != "": 
+                    param_values["prompt"] = prompt
+                if self.allow_negative_prompt:
                     negative_prompt = self.negative_prompt_entry.get()
-                    param_values["negative_prompt"] = negative_prompt
+                    if negative_prompt != None and negative_prompt.strip() != "":
+                        param_values["negative_prompt"] = negative_prompt
                     
             self.callback_fn(selected, **param_values)
 
