@@ -7,14 +7,17 @@ import time
 import json
 
 class LossPlotter:
-    def __init__(self, log_file, update_interval=1.0, left_key='loss', right_key='lr', left_label='Loss', right_label='Learning Rate'):
+    def __init__(self, log_file, update_interval=1.0, left_key='loss', right_key='lr', left_label='Loss', right_label='Learning Rate', output_png='training_progress.png'):
         self.log_file = log_file
         self.update_interval = update_interval
         self.running = True
+        self.output_png = output_png
 
         matplotlib.use('Agg')
         
         self.fig, self.ax = plt.subplots(figsize=(10, 6))
+        # Create the secondary axis at initialization
+        self.ax2 = self.ax.twinx()
         
         self.left_key = left_key
         self.right_key = right_key
@@ -30,31 +33,28 @@ class LossPlotter:
                 if not data:
                     return
                     
-                #self.epochs = [entry.get('epoch', 0) for entry in data]
                 self.steps = [entry.get('step', 0) for entry in data]
-                #self.losses = [entry.get('loss', 0) for entry in data]
-                #self.lr_values = [entry.get('lr', 0) for entry in data]
-                
                 self.left = [entry.get(self.left_key, 0) for entry in data]
                 self.right = [entry.get(self.right_key, 0) for entry in data]
 
-                # Clear the axes and redraw
+                # Clear both axes
                 self.ax.clear()
-                # Plot loss
+                self.ax2.clear()
+                
+                # Plot loss on primary axis
                 self.ax.plot(self.steps, self.left, 'b-', label=self.left_label)
                 self.ax.set_xlabel('Step')
                 self.ax.set_ylabel(self.left_label, color='b')
                 self.ax.tick_params(axis='y', labelcolor='b')
                 
-                # Add learning rate on secondary y-axis
+                # Plot learning rate on secondary axis
                 if any(self.right):
-                    ax2 = self.ax.twinx()
-                    ax2.plot(self.steps, self.right, 'r-', label=self.right_label)
-                    ax2.set_ylabel(self.right_label, color='r')
-                    ax2.tick_params(axis='y', labelcolor='r')
-                    ax2.legend(loc='upper right')
+                    self.ax2.plot(self.steps, self.right, 'r-', label=self.right_label)
+                    self.ax2.set_ylabel(self.right_label, color='r')
+                    self.ax2.tick_params(axis='y', labelcolor='r')
+                    self.ax2.legend(loc='upper right')
                 
-                # Add a title and legend
+                # Add a title and legend for primary axis
                 self.ax.set_title('Training Progress')
                 self.ax.legend(loc='upper left')
                 
@@ -62,7 +62,7 @@ class LossPlotter:
                 self.fig.tight_layout()
                 
                 # Save the current plot to disk
-                self.fig.savefig(os.path.join(os.path.dirname(self.log_file), 'training_progress.png'))
+                self.fig.savefig(os.path.join(os.path.dirname(self.log_file), self.output_png))
             
             except (json.JSONDecodeError, ValueError) as e:
                 print(f"Error parsing log file: {e}")
