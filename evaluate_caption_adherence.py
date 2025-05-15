@@ -193,7 +193,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
         torch.cuda.empty_cache()  # Clear GPU VRAM cache
 
-        print(f"Batch {batch_idx+1}/{len(dataloader)}:")
+        if output: print(f"Batch {batch_idx+1}/{len(dataloader)}:")
 
     avg_score = score_sum / total_count
     # Concatenate all batches
@@ -201,7 +201,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
     # Reset mode to original
     dataloader.dataset.mode = original_mode
-    
+
     return (avg_score, all_samples)
 
 if __name__ == "__main__":

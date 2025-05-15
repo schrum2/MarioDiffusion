@@ -504,6 +504,7 @@ def main():
                 avg_caption_score, _ = calculate_caption_score_and_samples(
                     device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
+                    output=False
                 )
             else:
                 # Is this how this should behave in the unconditional case?
