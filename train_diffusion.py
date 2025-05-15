@@ -78,6 +78,8 @@ def parse_args():
     # For caption score calculation
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
+
 
     return parser.parse_args()
 
@@ -319,7 +321,7 @@ def main():
         plot_thread.start()
         print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'training_progress.png')}")
         caption_score_plotter = None
-        if args.text_conditional:
+        if args.text_conditional and args.plot_validation_caption_score:
             # Caption score plotter
             caption_score_plotter = LossPlotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
                                                 left_label='Caption Match Score', right_label=None)
@@ -328,7 +330,7 @@ def main():
             caption_score_plot_thread.start()
             print(f"Caption match score plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'caption_score_progress.png')}")
 
-            tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+            _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
     for epoch in range(args.num_epochs):
         model.train()
@@ -488,7 +490,7 @@ def main():
                     
             val_loss /= len(val_dataloader)
 
-            if args.text_conditional:
+            if args.text_conditional and args.plot_validation_caption_score:
                 # Compute caption match score for this data
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
