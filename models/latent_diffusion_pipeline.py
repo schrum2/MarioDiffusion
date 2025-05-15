@@ -10,7 +10,7 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
         self,
         batch_size: int = 1,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
-        num_inference_steps: int = 1000,
+        num_inference_steps: int = 50,
         output_type: Optional[str] = "tensor",
         return_dict: bool = True,
         height: int = 16, width: int = 16, 

@@ -483,36 +483,27 @@ def main():
                                 
                 # Use the raw negative captions instead of tokens
                 with torch.no_grad():
-                    samples = []
-                    generator=torch.Generator(device=accelerator.device).manual_seed(args.seed)
-                    for i in range(4):
-                        sample = pipeline(
-                            generator=generator,
-                            num_inference_steps=args.num_train_timesteps,
-                            output_type="tensor",
-                            caption=sample_captions[i],
-                            negative_prompt=sample_negative_captions[i] if args.negative_prompt_training else None 
-                        ).images
-                        samples.append(sample)
-                    samples = torch.cat(samples, dim=0)
-            else:
-                # For unconditional generation
-                pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
-                
-                # Generate sample levels
-                with torch.no_grad():
-                    # Sample random noise
-                    sample = torch.randn(
-                        4, args.num_tiles, 16, 16,
-                        generator=torch.Generator(accelerator.device).manual_seed(args.seed),
-                        device=accelerator.device
-                    )
-
-                    # Generate samples from noise
                     samples = pipeline(
                         batch_size=4,
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps=args.num_train_timesteps,
+                        num_inference_steps = 50, # Fewer steps needed for inference
+                        output_type="tensor",
+                        caption=sample_captions,
+                        negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
+                    ).images
+            else:
+                # For unconditional generation
+                pipeline = UnconditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler
+                )
+                
+                # Generate sample levels
+                with torch.no_grad():
+                    samples = pipeline(
+                        batch_size=4,
+                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
+                        num_inference_steps = 50, # Fewer steps needed for inference
                         output_type="tensor",
                     ).images
 
