@@ -1,5 +1,5 @@
 python train_mlm.py --epochs 300 --save_checkpoints --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --output_dir SMB1-MLM-regular --split
-python train_diffusion.py --augment --text_conditional --output_dir "SMB1-conditional-regular" --num_epochs 200 --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --mlm_model_dir SMB1-MLM-regular 
+python train_diffusion.py --augment --text_conditional --output_dir "SMB1-conditional-regular" --num_epochs 100 --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --mlm_model_dir SMB1-MLM-regular --split --plot_validation_caption_score
 python run_diffusion.py --model_path SMB1-conditional-regular --num_samples 100 --text_conditional --save_as_json --output_dir "SMB1-conditional-regular-unconditional-samples"
 python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --save_as_json --json SMB1_LevelsAndCaptions-regular.json --output_dir text-to-level-final
 python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --save_as_json --json SMB1_LevelsAndCaptions-regular.json --compare_checkpoints 

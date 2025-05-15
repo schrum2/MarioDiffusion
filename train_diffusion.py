@@ -18,6 +18,8 @@ from util.loss_plotter import LossPlotter
 from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
+from evaluate_caption_adherence import calculate_caption_score_and_samples
+from create_ascii_captions import extract_tileset
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -29,9 +31,9 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split')
-    parser.add_argument('--train_pct', type=float, default=0.7, help='Train split percentage (default 0.7)')
-    parser.add_argument('--val_pct', type=float, default=0.1, help='Validation split percentage (default 0.1)')
-    parser.add_argument('--test_pct', type=float, default=0.2, help='Test split percentage (default 0.2)')
+    parser.add_argument('--train_pct', type=float, default=0.8, help='Train split percentage (default 0.8)')
+    parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
+    parser.add_argument('--test_pct', type=float, default=0.15, help='Test split percentage (default 0.15)')
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
@@ -60,6 +62,7 @@ def parse_args():
     parser.add_argument("--save_model_epochs", type=int, default=20, help="Save model every N epochs")
     parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help="Mixed precision type")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--validate_epochs", type=int, default=5, help="Calculate validation loss every N epochs")
     
     # Output args
     parser.add_argument("--output_dir", type=str, default="level-diffusion-output", help="Output directory")
@@ -71,6 +74,12 @@ def parse_args():
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
     
     parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
+
+    # For caption score calculation
+    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
+
 
     return parser.parse_args()
 
@@ -301,13 +310,27 @@ def main():
     # Initialize plotter if we're on the main process
     plotter = None
     plot_thread = None
+    caption_score_plotter = None
+    caption_score_plot_thread = None
+    caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
     if accelerator.is_local_main_process:
         plotter = LossPlotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss',
-                             left_label='Training Loss', right_label='Validation Loss')
+                             left_label='Training Loss', right_label='Validation Loss', output_png=f'training_loss_{formatted_date}.png')
         plot_thread = threading.Thread(target=plotter.start_plotting)
         plot_thread.daemon = True
         plot_thread.start()
-        print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'training_progress.png')}")
+        print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, f'training_loss_{formatted_date}.png')}")
+        caption_score_plotter = None
+        if args.text_conditional and args.plot_validation_caption_score:
+            # Caption score plotter
+            caption_score_plotter = LossPlotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
+                                                left_label='Caption Match Score', right_label=None, output_png=f'caption_score_{formatted_date}.png')
+            caption_score_plot_thread = threading.Thread(target=caption_score_plotter.start_plotting)
+            caption_score_plot_thread.daemon = True
+            caption_score_plot_thread.start()
+            print(f"Caption match score plotting enabled. Progress will be saved to {os.path.join(args.output_dir, f'caption_score_{formatted_date}.png')}")
+
+            _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
     for epoch in range(args.num_epochs):
         model.train()
@@ -403,11 +426,14 @@ def main():
         # Calculate average training loss for the epoch
         avg_train_loss = train_loss / len(train_dataloader)
         
-        # Calculate validation loss if validation dataset exists
+        # Calculate validation loss if validation dataset exists and it's time to validate
         val_loss = None
-        if val_dataloader is not None:
+        avg_caption_score = None
+        if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
+            caption_score_sum = 0.0
+            caption_score_count = 0
             with torch.no_grad():
                 for val_batch in val_dataloader:
                     if args.text_conditional:
@@ -445,7 +471,7 @@ def main():
                                 
                         val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
                                             encoder_hidden_states=val_combined_embeddings).sample
-                        val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))
+                        val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))                        
                     else:
                         if isinstance(val_batch, list):
                             val_scenes, _ = val_batch
@@ -463,8 +489,40 @@ def main():
                     val_loss += val_batch_loss.item()
                     
             val_loss /= len(val_dataloader)
+
+            if args.text_conditional and args.plot_validation_caption_score:
+                # Compute caption match score for this data
+                pipeline = TextConditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler,
+                    text_encoder=text_encoder
+                ).to(device)
+                # Only use the positive captions for scoring
+
+                inference_steps = 50
+                guidance_scale = 7.5
+                avg_caption_score, _ = calculate_caption_score_and_samples(
+                    device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
+                    id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
+                    output=False
+                )
+            else:
+                # Is this how this should behave in the unconditional case?
+                # Or should I justs use 0 or -1?
+                avg_caption_score = None
+
             model.train()
-            
+            # Log caption match score
+            if accelerator.is_local_main_process:
+                with open(caption_score_log_file, 'a') as f:
+                    log_entry = {
+                        "epoch": epoch,
+                        "caption_score": avg_caption_score,                
+                        "step": global_step,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    f.write(json.dumps(log_entry) + '\n')
+        
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
         
@@ -483,36 +541,27 @@ def main():
                                 
                 # Use the raw negative captions instead of tokens
                 with torch.no_grad():
-                    samples = []
-                    generator=torch.Generator(device=accelerator.device).manual_seed(args.seed)
-                    for i in range(4):
-                        sample = pipeline(
-                            generator=generator,
-                            num_inference_steps=args.num_train_timesteps,
-                            output_type="tensor",
-                            caption=sample_captions[i],
-                            negative_prompt=sample_negative_captions[i] if args.negative_prompt_training else None 
-                        ).images
-                        samples.append(sample)
-                    samples = torch.cat(samples, dim=0)
-            else:
-                # For unconditional generation
-                pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
-                
-                # Generate sample levels
-                with torch.no_grad():
-                    # Sample random noise
-                    sample = torch.randn(
-                        4, args.num_tiles, 16, 16,
-                        generator=torch.Generator(accelerator.device).manual_seed(args.seed),
-                        device=accelerator.device
-                    )
-
-                    # Generate samples from noise
                     samples = pipeline(
                         batch_size=4,
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps=args.num_train_timesteps,
+                        num_inference_steps = 50, # Fewer steps needed for inference
+                        output_type="tensor",
+                        caption=sample_captions,
+                        negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
+                    ).images
+            else:
+                # For unconditional generation
+                pipeline = UnconditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler
+                )
+                
+                # Generate sample levels
+                with torch.no_grad():
+                    samples = pipeline(
+                        batch_size=4,
+                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
+                        num_inference_steps = 50, # Fewer steps needed for inference
                         output_type="tensor",
                     ).images
 
@@ -544,6 +593,11 @@ def main():
             plot_thread.join(timeout=5.0)
             if plot_thread.is_alive():
                 print("Warning: Plot thread did not terminate properly")
+        if caption_score_plot_thread and caption_score_plot_thread.is_alive():
+            caption_score_plotter.stop_plotting()
+            caption_score_plot_thread.join(timeout=5.0)
+            if caption_score_plot_thread.is_alive():
+                print("Warning: Caption score plot thread did not terminate properly")
 
     # Close progress bar and TensorBoard writer
     progress_bar.close()

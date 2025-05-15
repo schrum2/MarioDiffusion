@@ -204,26 +204,32 @@ def visualize_samples(samples, output_dir=None, use_tiles=True):
 
     return sample_indices
 
-def positive_negative_caption_split(caption, randomize=False):
+def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize=False):
     phrases = [p.strip() for p in caption.split(".") if p]
+    positive_phrases = ""
+    negative_phrases = ""
+
     if "no " not in caption and len(phrases) == len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
-        return caption, "" # There were no negative phrases
+        positive_phrases = caption
     elif "no " in caption and len(phrases) == len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
-        # made with describe_absence, so there are phrases for each negation
         positive_phrases = ". ".join([p for p in phrases if "no " not in p]) + "."
-        negative_phrases = ". ".join([p.replace("no ","") for p in phrases if "no " in p]) + "."
-        return positive_phrases, negative_phrases
+        negative_phrases = ". ".join([p.replace("no ", "") for p in phrases if "no " in p]) + "."
     elif "no " in caption:
         raise ValueError(f"With negative phrases, every topic should be represented: {caption} {len(phrases)} {len(TOPIC_KEYWORDS)} {TOPIC_KEYWORDS}")
     elif len(phrases) < len(TOPIC_KEYWORDS) - BROKEN_TOPICS:
-        # Caption only contains positive phrases, so all missing negative phrases must be added
         positive_phrases = caption
         negative_phrases = ". ".join([f"{topic}" for topic in (random.sample(TOPIC_KEYWORDS, len(TOPIC_KEYWORDS)) if randomize else TOPIC_KEYWORDS) if topic not in caption]) + "."
         for src, target in KEYWORD_TO_NEGATED_PLURAL:
             negative_phrases = negative_phrases.replace(src, target)
-        return positive_phrases, negative_phrases
     else:
         raise ValueError(f"Caption has problem: {caption} {len(phrases)} {len(TOPIC_KEYWORDS)}")
+
+    if remove_upside_down_pipes:
+        # Remove upside down pipes from negative phrases
+        negative_phrases = negative_phrases.replace(" upside down pipes.", "")
+        negative_phrases = negative_phrases.replace("upside down pipes. ", "")
+
+    return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
     def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15, negative_captions=False):
@@ -269,6 +275,20 @@ class LevelDataset(Dataset):
         # Shuffle dataset
         if self.shuffle:
             random.shuffle(self.data)
+
+        if self.negative_captions:
+            # If the captions do not contain upside down pipes, then the negative captions
+            # should never say there are no upside down pipes too.
+            remove_upside_down_pipes = True
+            for sample in self.data:
+                caption = sample["caption"]
+                if "upside" in caption:
+                    # No problem. Upside down pipes are present
+                    remove_upside_down_pipes = False
+                    break
+
+        self.remove_upside_down_pipes = remove_upside_down_pipes
+        print("remove_upside_down_pipes:", self.remove_upside_down_pipes)
 
     def _augment_caption(self, caption):
         """Shuffles period-separated phrases in the caption."""
@@ -353,7 +373,7 @@ class LevelDataset(Dataset):
 
         negative_caption = ""
         if self.negative_captions:
-            augmented_caption, negative_caption = positive_negative_caption_split(augmented_caption, self.augment)
+            augmented_caption, negative_caption = positive_negative_caption_split(augmented_caption, self.remove_upside_down_pipes, self.augment)
 
         if self.mode == "text":
             if self.negative_captions:

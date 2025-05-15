@@ -35,7 +35,14 @@ class LossPlotter:
                     
                 self.steps = [entry.get('step', 0) for entry in data]
                 self.left = [entry.get(self.left_key, 0) for entry in data]
-                self.right = [entry.get(self.right_key, 0) for entry in data]
+
+                # For right axis (val_loss), only include points where val_loss exists
+                right_points = [(entry.get('step', 0), entry.get(self.right_key))
+                                for entry in data if self.right_key in entry]
+                if right_points:
+                    right_steps, right_values = zip(*right_points)
+                else:
+                    right_steps, right_values = [], []
 
                 # Clear both axes
                 self.ax.clear()
@@ -47,9 +54,9 @@ class LossPlotter:
                 self.ax.set_ylabel(self.left_label, color='b')
                 self.ax.tick_params(axis='y', labelcolor='b')
                 
-                # Plot learning rate on secondary axis
-                if any(self.right):
-                    self.ax2.plot(self.steps, self.right, 'r-', label=self.right_label)
+                # Plot val_loss on secondary axis only at available points
+                if right_steps:
+                    self.ax2.plot(right_steps, right_values, 'ro-', label=self.right_label)
                     self.ax2.set_ylabel(self.right_label, color='r')
                     self.ax2.tick_params(axis='y', labelcolor='r')
                     self.ax2.legend(loc='upper right')

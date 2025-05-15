@@ -77,7 +77,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         caption: Optional[str | list[str]] = None,
         negative_prompt: Optional[str | list[str]] = None,
         generator: Optional[torch.Generator] = None,
-        num_inference_steps: int = 1000,
+        num_inference_steps: int = 50,
         guidance_scale: float = 7.5,
         height: int = 16,
         width: int = 16,
