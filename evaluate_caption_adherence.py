@@ -158,22 +158,23 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
     all_samples = []
     for batch_idx, batch in enumerate(dataloader):
         with torch.no_grad():  # Disable gradient computation to save memory            
+            # Use batch_size for pipeline call instead of looping over each caption
+            param_values = {
+                "caption": list(batch),
+                "num_inference_steps": args.inference_steps,
+                "guidance_scale": args.guidance_scale,
+                #"width": 16, # Might consider changing this later
+                "output_type": "tensor",
+                "batch_size": len(batch)
+            }
+            generator = torch.Generator(device).manual_seed(int(args.seed))
+            # Generate a batch of samples at once
+            samples = pipe(generator=generator, **param_values).images  # (batch_size, ...)
+
             for i in range(len(batch)):
                 caption = batch[i]
-
-                param_values = {
-                    "caption" : caption,
-                    "num_inference_steps": args.inference_steps,
-                    "guidance_scale": args.guidance_scale,
-                    #"width": 16, # Might consider changing this later
-                    "output_type" : "tensor"
-                }
-                generator = torch.Generator(device).manual_seed(int(args.seed))
-                
-                sample = pipe(generator=generator, **param_values).images
-                
-                sample_tensor = sample[0].unsqueeze(0)
-                sample_indices = convert_to_level_format(sample_tensor)
+                sample = samples[i].unsqueeze(0)
+                sample_indices = convert_to_level_format(sample)
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
                 actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
 
@@ -185,7 +186,7 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
                 total_count += 1
 
                 all_samples.append(sample)  # Append the generated sample to the list
-                del sample, sample_tensor, sample_indices, scene, actual_caption  # Remove unused variables
+                del sample, sample_indices, scene, actual_caption  # Remove unused variables
 
         torch.cuda.empty_cache()  # Clear GPU VRAM cache
 

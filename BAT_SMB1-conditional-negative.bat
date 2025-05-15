@@ -1,0 +1,5 @@
+python train_diffusion.py --augment --text_conditional --output_dir "SMB1-conditional-negative" --num_epochs 200 --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --mlm_model_dir SMB1-MLM-regular --negative_prompt_training
+python run_diffusion.py --model_path SMB1-conditional-negative --num_samples 100 --text_conditional --save_as_json --output_dir "SMB1-conditional-negative-unconditional-samples"
+python evaluate_caption_adherence.py --model_path SMB1-conditional-negative --save_as_json --json SMB1_LevelsAndCaptions-regular.json --output_dir text-to-level-final
+python evaluate_caption_adherence.py --model_path SMB1-conditional-negative --save_as_json --json SMB1_LevelsAndCaptions-regular.json --compare_checkpoints 
+python evaluate_caption_adherence.py --model_path SMB1-conditional-negative --save_as_json --json Mario_ValidationCaptions-regular.json --compare_checkpoints 

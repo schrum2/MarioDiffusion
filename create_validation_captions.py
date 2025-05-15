@@ -1,6 +1,5 @@
 import argparse
 from level_dataset import LevelDataset
-from tokenizer import Tokenizer 
 import json
 from captions.caption_generator import GrammarGenerator
 from captions.caption_match import compare_captions
@@ -11,7 +10,6 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=512, help="Random seed for reproducibility")
 
     # Dataset args
-    parser.add_argument("--pkl", type=str, default="Mario_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="Mario_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
@@ -25,23 +23,15 @@ def parse_args():
 def main():
     args = parse_args()
 
-    # Initialize tokenizer
-    tokenizer = Tokenizer()
-    tokenizer.load(args.pkl)
-
     # Initialize dataset
     dataset = LevelDataset(
         json_path=args.json,
-        tokenizer=tokenizer,
+        tokenizer=None,
         shuffle=True,
-        mode="mlm", # Just captions
+        mode="text", # Just captions
         augment=False, # No augmenting just for validation
         num_tiles=args.num_tiles
     )
-
-    #for i in range(len(dataset)):
-    #    caption = dataset.get_sample_caption(i)
-    #    print(caption)
 
     generator = GrammarGenerator(seed = args.seed, describe_absence=args.describe_absence)
 
@@ -50,8 +40,7 @@ def main():
         new_caption = generator.generate_sentence()
         caption_is_new = True
         # Compare against every caption of original dataset
-        for i in range(len(dataset)):
-            caption = dataset.get_sample_caption(i)
+        for caption in dataset:
             compare_score = compare_captions(caption, new_caption)
             caption_is_new = compare_score != 1.0 # Perfect score of 1.0 if captions are the same
             if not caption_is_new:
