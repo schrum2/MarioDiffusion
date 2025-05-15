@@ -18,7 +18,8 @@ from util.loss_plotter import LossPlotter
 from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
-from evaluate_caption_adherence import batch_caption_scores
+from evaluate_caption_adherence import calculate_caption_score_and_samples
+from create_ascii_captions import extract_tileset
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -73,6 +74,10 @@ def parse_args():
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
     
     parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
+
+    # For caption score calculation
+    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     return parser.parse_args()
 
@@ -313,13 +318,17 @@ def main():
         plot_thread.daemon = True
         plot_thread.start()
         print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'training_progress.png')}")
-        # Caption score plotter
-        caption_score_plotter = LossPlotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
-                                            left_label='Caption Match Score', right_label=None)
-        caption_score_plot_thread = threading.Thread(target=caption_score_plotter.start_plotting)
-        caption_score_plot_thread.daemon = True
-        caption_score_plot_thread.start()
-        print(f"Caption match score plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'caption_score_progress.png')}")
+        caption_score_plotter = None
+        if args.text_conditional:
+            # Caption score plotter
+            caption_score_plotter = LossPlotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
+                                                left_label='Caption Match Score', right_label=None)
+            caption_score_plot_thread = threading.Thread(target=caption_score_plotter.start_plotting)
+            caption_score_plot_thread.daemon = True
+            caption_score_plot_thread.start()
+            print(f"Caption match score plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'caption_score_progress.png')}")
+
+            tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
     for epoch in range(args.num_epochs):
         model.train()
@@ -460,29 +469,7 @@ def main():
                                 
                         val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
                                             encoder_hidden_states=val_combined_embeddings).sample
-                        val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))
-                        # Compute caption match score for this batch
-                        # Generate samples using the pipeline for the current batch of captions
-                        pipeline = TextConditionalDDPMPipeline(
-                            unet=accelerator.unwrap_model(model), 
-                            scheduler=noise_scheduler,
-                            text_encoder=text_encoder
-                        ).to(device)
-                        # Only use the positive captions for scoring
-                        batch_captions = val_captions if not args.negative_prompt_training else val_captions
-                        samples = pipeline(
-                            batch_size=batch_captions.shape[0],
-                            generator=torch.Generator(device=device).manual_seed(args.seed),
-                            num_inference_steps=50,
-                            output_type="tensor",
-                            caption=[tokenizer.decode([token for token in cap if token != tokenizer.token_to_id["[PAD]"]]) for cap in batch_captions.cpu().numpy()]
-                        ).images
-                        avg_score, _ = batch_caption_scores(
-                            samples, [tokenizer.decode([token for token in cap if token != tokenizer.token_to_id["[PAD]"]]) for cap in batch_captions.cpu().numpy()],
-                            id_to_char=None, char_to_id=None, tile_descriptors=None, describe_absence=False
-                        )
-                        caption_score_sum += avg_score * batch_captions.shape[0]
-                        caption_score_count += batch_captions.shape[0]
+                        val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))                        
                     else:
                         if isinstance(val_batch, list):
                             val_scenes, _ = val_batch
@@ -500,7 +487,27 @@ def main():
                     val_loss += val_batch_loss.item()
                     
             val_loss /= len(val_dataloader)
-            avg_caption_score = caption_score_sum / caption_score_count if caption_score_count > 0 else 0.0
+
+            if args.text_conditional:
+                # Compute caption match score for this data
+                pipeline = TextConditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler,
+                    text_encoder=text_encoder
+                ).to(device)
+                # Only use the positive captions for scoring
+
+                inference_steps = 50
+                guidance_scale = 7.5
+                avg_caption_score, _ = calculate_caption_score_and_samples(
+                    device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
+                    id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
+                )
+            else:
+                # Is this how this should behave in the unconditional case?
+                # Or should I justs use 0 or -1?
+                avg_caption_score = None
+
             model.train()
             # Log caption match score
             if accelerator.is_local_main_process:

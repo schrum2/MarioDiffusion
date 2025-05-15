@@ -113,7 +113,7 @@ def main():
         print(f"Saved caption scores plot to {plot_path}")
     else:
         # Just run on one model and get samples as well
-        avg_score, all_samples = calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors, output=False)
+        avg_score, all_samples = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
@@ -144,7 +144,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
 
         avg_score, _ = calculate_caption_score_and_samples(
-            args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors, output=False
+            device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False
         )
 
         print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
@@ -152,7 +152,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_char, char_to_id, tile_descriptors, output=True):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, output=True):
     score_sum = 0.0
     total_count = 0
     all_samples = []
@@ -161,13 +161,13 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
             # Use batch_size for pipeline call instead of looping over each caption
             param_values = {
                 "caption": list(batch),
-                "num_inference_steps": args.inference_steps,
-                "guidance_scale": args.guidance_scale,
+                "num_inference_steps": inference_steps,
+                "guidance_scale": guidance_scale,
                 #"width": 16, # Might consider changing this later
                 "output_type": "tensor",
                 "batch_size": len(batch)
             }
-            generator = torch.Generator(device).manual_seed(int(args.seed))
+            generator = torch.Generator(device).manual_seed(int(random_seed))
             # Generate a batch of samples at once
             samples = pipe(generator=generator, **param_values).images  # (batch_size, ...)
 
@@ -176,7 +176,7 @@ def calculate_caption_score_and_samples(args, device, pipe, dataloader, id_to_ch
                 sample = samples[i].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample)
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
-                actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+                actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
 
                 if output: print(f"\t{caption}")
 
