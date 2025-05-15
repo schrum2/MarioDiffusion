@@ -517,7 +517,8 @@ def main():
                 with open(caption_score_log_file, 'a') as f:
                     log_entry = {
                         "epoch": epoch,
-                        "caption_score": avg_caption_score,
+                        "caption_score": avg_caption_score,                
+                        "step": global_step,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     f.write(json.dumps(log_entry) + '\n')
