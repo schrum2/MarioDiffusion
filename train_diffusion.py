@@ -315,20 +315,20 @@ def main():
     caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
     if accelerator.is_local_main_process:
         plotter = LossPlotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss',
-                             left_label='Training Loss', right_label='Validation Loss')
+                             left_label='Training Loss', right_label='Validation Loss', output_png=f'training_loss_{formatted_date}.png')
         plot_thread = threading.Thread(target=plotter.start_plotting)
         plot_thread.daemon = True
         plot_thread.start()
-        print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'training_progress.png')}")
+        print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, f'training_loss_{formatted_date}.png')}")
         caption_score_plotter = None
         if args.text_conditional and args.plot_validation_caption_score:
             # Caption score plotter
             caption_score_plotter = LossPlotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
-                                                left_label='Caption Match Score', right_label=None)
+                                                left_label='Caption Match Score', right_label=None, output_png=f'caption_score_{formatted_date}.png')
             caption_score_plot_thread = threading.Thread(target=caption_score_plotter.start_plotting)
             caption_score_plot_thread.daemon = True
             caption_score_plot_thread.start()
-            print(f"Caption match score plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'caption_score_progress.png')}")
+            print(f"Caption match score plotting enabled. Progress will be saved to {os.path.join(args.output_dir, f'caption_score_{formatted_date}.png')}")
 
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
