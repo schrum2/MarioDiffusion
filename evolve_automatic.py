@@ -68,12 +68,16 @@ def caption_fitness(x):
     #print(latent_input)
     #input("next")
 
+    global best_fitness
+    # Check if the caption is new and if it has a better score
+
     for c in segment_captions:
-        if c not in seen_captions:
+        if c not in seen_captions and best_fitness > average_score:
             visualize_samples(images).show()
             print(average_score, segment_captions)
             #input("Press enter for next")
             seen_captions.add(c)            
+            best_fitness = average_score
 
     # Negative score is better, since CMA-ES wants to minimize
     return -average_score, segment_captions
@@ -111,6 +115,9 @@ if __name__ == "__main__":
 
     global seen_captions
     seen_captions = set()
+
+    global best_fitness
+    best_fitness = float("inf") # Trying to minimize
 
     optimizer = CMA(mean=np.zeros(W*H*C), sigma=5.0, population_size=args.population_size, seed=args.seed)
 
