@@ -8,7 +8,6 @@ from level_dataset import LevelDataset, visualize_samples
 import json
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
-import json
 from create_ascii_captions import assign_caption, save_level_data, extract_tileset
 from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
@@ -161,21 +160,35 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     all_samples = []
     for batch_idx, batch in enumerate(dataloader):
         with torch.no_grad():  # Disable gradient computation to save memory            
-            # Use batch_size for pipeline call instead of looping over each caption
-            param_values = {
-                "caption": list(batch),
-                "num_inference_steps": inference_steps,
-                "guidance_scale": guidance_scale,
-                #"width": 16, # Might consider changing this later
-                "output_type": "tensor",
-                "batch_size": len(batch)
-            }
+            if dataloader.dataset.negative_captions:
+                positive_captions, negative_captions = zip(*batch)
+                param_values = {
+                    "caption": list(positive_captions),
+                    "negative_prompt": list(negative_captions),
+                    "num_inference_steps": inference_steps,
+                    "guidance_scale": guidance_scale,
+                    "output_type": "tensor",
+                    "batch_size": len(positive_captions)
+                }
+            else:
+                param_values = {
+                    "caption": list(batch),
+                    "num_inference_steps": inference_steps,
+                    "guidance_scale": guidance_scale,
+                    "output_type": "tensor",
+                    "batch_size": len(batch)
+                }
+
             generator = torch.Generator(device).manual_seed(int(random_seed))
             # Generate a batch of samples at once
             samples = pipe(generator=generator, **param_values).images  # (batch_size, ...)
 
             for i in range(len(batch)):
-                caption = batch[i]
+                if dataloader.dataset.negative_captions:
+                    caption = positive_captions[i]
+                else:
+                    caption = batch[i]
+
                 sample = samples[i].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample)
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
