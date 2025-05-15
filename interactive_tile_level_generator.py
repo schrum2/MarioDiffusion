@@ -30,11 +30,11 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text = tk.Text(self.caption_frame, height=8, wrap=tk.WORD, state=tk.DISABLED)
         self.caption_text.pack() 
                 
-        #self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:")
-        #self.negative_prompt_label.pack()
-        
-        #self.negative_prompt_entry = ttk.Entry(self.caption_frame)
-        #self.negative_prompt_entry.pack()
+        self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:")
+        self.negative_prompt_label.pack()
+        self.negative_prompt_entry = ttk.Entry(self.caption_frame, width=100)
+        self.negative_prompt_entry.pack()
+        self.negative_prompt_entry.insert(0, "")
         
         self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:")
         self.num_images_label.pack()        
@@ -156,6 +156,7 @@ class CaptionBuilder(ParentBuilder):
     def generate_image(self):
         print("Generating")
         prompt = self.caption_text.get("1.0", tk.END).strip()
+        negative_prompt = self.negative_prompt_entry.get().strip()
         num_images = int(self.num_images_entry.get())        
         param_values = {
             "num_inference_steps": int(self.num_steps_entry.get()),
@@ -165,8 +166,11 @@ class CaptionBuilder(ParentBuilder):
         }
 
         # Include caption if desired
-        if prompt.strip() != "":
+        if prompt != "":
             param_values["caption"] = prompt
+        # Include negative prompt if provided
+        if negative_prompt != "":
+            param_values["negative_prompt"] = negative_prompt
 
         generator = torch.Generator(self.device).manual_seed(int(self.seed_entry.get()))
         
