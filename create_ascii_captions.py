@@ -182,7 +182,8 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceili
         gaps = 0
         in_gap = False
         for tile in row:
-            if "passable" in tile_descriptors.get(id_to_char[tile], []):
+            # Enemies are also a gap since they immediately fall into the gap, but they are marked as "moving" and not "passable"
+            if "passable" in tile_descriptors.get(id_to_char[tile], []) or "moving" in tile_descriptors.get(id_to_char[tile], []):
                 if not in_gap:
                     gaps += 1
                     in_gap = True
@@ -190,10 +191,11 @@ def analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceili
                 in_gap = False
         result = f" ceiling with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps != 1 else "") + "."
 
-        if result == ' ceiling with no gaps.':
-            print("This should not happen: ceiling with no gaps")
-            print("ceiling_row:", scene[ceiling_row])
-            result = " full ceiling."
+        # Adding the "moving" check should make this code unnecessary
+        #if result == ' ceiling with no gaps.':
+        #    print("This should not happen: ceiling with no gaps")
+        #    print("ceiling_row:", scene[ceiling_row])
+        #    result = " full ceiling."
 
         return result
     elif describe_absence:
