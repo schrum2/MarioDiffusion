@@ -31,11 +31,11 @@ class LossPlotter:
                 if not data:
                     return
                     
-                self.epochs = [entry.get('step', 0) for entry in data]
+                self.epochs = [entry.get('epoch', 0) for entry in data]
                 self.left = [entry.get(self.left_key, 0) for entry in data]
 
                 # For right axis (e.g., lr), only include points where right_key exists
-                right_points = [(entry.get('step', 0), entry.get(self.right_key))
+                right_points = [(entry.get('epoch', 0), entry.get(self.right_key))
                                 for entry in data if self.right_key in entry]
                 if right_points:
                     right_epochs, right_values = zip(*right_points)
@@ -51,7 +51,7 @@ class LossPlotter:
                     self.ax.plot(right_epochs, right_values, 'r-', label=self.right_label)
                 
                 self.ax.set_xlabel('Epoch')
-                self.ax.set_ylabel(f'{self.left_label} / {self.right_label}')
+                self.ax.set_ylabel(self.left_label) # "Loss" as y-axis label
                 self.ax.set_title('Training Progress')
                 self.ax.legend(loc='upper left')
                 self.fig.tight_layout()
