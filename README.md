@@ -23,36 +23,40 @@ pip install -r requirements.txt
 
 ## Create datasets
 
-Extract a json data set of 16 by 16 level scenes from the VGLC data for Super Mario Bros with this command:
+Extract a json data set of 16 by 16 level scenes from the VGLC data for Super Mario Bros with a command like this:
 ```
-python create_level_json_data.py --output "SMB1_Levels.json"
+python create_level_json_data.py --output "SMB1_Levels.json" --levels "..\\TheVGLC\\Super Mario Bros\\Processed"
 ```
-You can also extract data from Super Mario Bros 2 (Japan) with this command:
+You can also extract data from Super Mario Bros 2 (Japan) and Super Mario World:
 ```
 python create_level_json_data.py --output "SMB2_Levels.json" --levels "..\\TheVGLC\\Super Mario Bros 2 (Japan)\\Processed"
+python create_level_json_data.py --output "SML_Levels.json"  --levels "..\\TheVGLC\\Super Mario Land\\Processed"
 ```
-Finally, data from the Gameboy game Super Mario Land is extracted with this command:
-```
-python create_level_json_data.py --output "SML_Levels.json" --levels "..\\TheVGLC\\Super Mario Land\\Processed"
-```
-Combine the data from the three Mario games into a single dataset:
+You can combine the data from the three Mario games into a single dataset:
 ```
 python combine_data.py Mario_Levels.json SMB1_Levels.json SMB2_Levels.json SML_Levels.json
 ```
-These files only contains the level scenes. Create captions for all level scenes with this command:
+These files only contains the level scenes. Create captions for all level scenes with commands like this:
 ```
-python create_ascii_captions.py --dataset Mario_Levels.json --output Mario_LevelsAndCaptions.json
+python create_ascii_captions.py --dataset SMB1_Levels.json --output SMB1_LevelsAndCaptions-regular.json
+```
+You can also make the captions explicitly mention things that are absent from each scene with the `--describe_absence` flag:
+```
+python create_ascii_captions.py --dataset SMB1_Levels.json --output SMB1_LevelsAndCaptions-absence.json --describe_absence
 ```
 Now you can browse the level scenes and their captions with these commands:
 ```
-python ascii_data_browser.py Mario_LevelsAndCaptions.json 
+python ascii_data_browser.py SMB1_LevelsAndCaptions-regular.json 
+python ascii_data_browser.py SMB1_LevelsAndCaptions-absence.json 
 ```
-Make a separate validation set of captions with this command. These randomly generated captions are used for validation later (using seed 0 will give you the same validation set used in our experiments) (THIS NEEDS THE TOKENIZER ... WHY?):
+It can also be useful to have a separate dataset of captions which are not use for training. The code used later supports splitting the data into separate sets for training, validation, and testing, but you can also make datasets of random captions with commands like this:
 ```
-python create_validation_captions.py --save_file "Mario_ValidationCaptions.json" --seed 0
+python create_validation_captions.py --save_file "SMB1_ValidationCaptions-regular.json" --json SMB1_LevelsAndCaptions-regular.json --seed 0
+python create_validation_captions.py --save_file "SMB1_ValidationCaptions-absence.json" --json SMB1_LevelsAndCaptions-absence.json --seed 0 --describe_absence
 ```
+You don't necessarily need to run all of these command individually. Simply running the batch file `BAT_datasets.bat` should create all the datasets you could need.
 
-## Can I also get Mega Man Data?
+## Can I also get Mega Man Data? (TODO)
 
 This doesn't work yet
 ```
@@ -61,26 +65,26 @@ python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC
 
 ## Train text encoder
 
-First create a tokenizer for the caption data from all Mario games:
+First create a tokenizer for the caption data you want to train on. Most of these datasets have the same vocabulary, but there is a clear difference between datasets that describe the absence of entities and those that do not. Also, SMB1 has no upside down pipes, but these are present in the other games. The `BAT_datasets.bat` already creates a tokenizer for each dataset, but if you make a tokenizer for all of the Mario data, you should be covered:
 ```
-python tokenizer.py save --json_file Mario_LevelsAndCaptions.json --pkl_file Mario_Tokenizer.pkl
+python tokenizer.py save --json_file Mario_LevelsAndCaptions-regular.json    --pkl_file Mario_Tokenizer-regular.pkl
+python tokenizer.py save --json_file Mario_LevelsAndCaptions-absence.json    --pkl_file Mario_Tokenizer-absence.pkl
 ```
-Now, masked language modeling will be used to pre-train the text embedding model.
+Now, masked language modeling will be used to pre-train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. The `--split` flag splits the data into training, validation, and testing, and also implements early stopping based on validation loss.
 ```
-python train_mlm.py --epochs 300 --save_checkpoints
-python train_mlm.py --epochs 300 --save_checkpoints --json SMB2_LevelsAndCaptions.json --pkl SMB2_Tokenizer.pkl --output_dir mlm2
+python train_mlm.py --epochs 300 --save_checkpoints --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --output_dir SMB1-MLM-regular --split
 ```
 A report evaluating the accuracy of the final model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```
-python evaluate_masked_token_prediction.py --model_path mlm
+python evaluate_masked_token_prediction.py --model_path SMB1-MLM-regular --json SMB1_LevelsAndCaptions-regular.json
 ```
 You can also see how the accuracy on the training set changes throughout training by evaluating all checkpoints with this command:
 ```
-python evaluate_masked_token_prediction.py --model_path mlm --compare_checkpoints
+python evaluate_masked_token_prediction.py --model_path SMB1-MLM-regular --compare_checkpoints --json SMB1_LevelsAndCaptions-regular.json
 ```
 To see accuracy on the validation set over time instead, run this command:
 ```
-python evaluate_masked_token_prediction.py --model_path mlm --compare_checkpoints --json SMB1_ValidationCaptions.json
+python evaluate_masked_token_prediction.py --model_path SMB1-MLM-regular --compare_checkpoints --json SMB1_ValidationCaptions-regular.json
 ```
 
 ## Train text-to-level model
