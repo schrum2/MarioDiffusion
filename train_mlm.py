@@ -109,7 +109,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
     # Add learning rate scheduler
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, 
-        patience=patience//2, verbose=True, min_lr=1e-6
+        patience=patience//2, min_lr=1e-6
     )
 
     model.train()
