@@ -3,4 +3,4 @@ python train_diffusion.py --augment --text_conditional --output_dir "SMB1-condit
 python run_diffusion.py --model_path SMB1-conditional-regular --num_samples 100 --text_conditional --save_as_json --output_dir "SMB1-conditional-regular-unconditional-samples"
 python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --save_as_json --json SMB1_LevelsAndCaptions-regular.json --output_dir text-to-level-final
 python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --save_as_json --json SMB1_LevelsAndCaptions-regular.json --compare_checkpoints 
-python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --save_as_json --json Mario_ValidationCaptions-regular.json --compare_checkpoints 
+python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --save_as_json --json SMB1_ValidationCaptions-regular.json --compare_checkpoints 
