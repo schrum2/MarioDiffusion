@@ -67,8 +67,8 @@ python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC
 
 First create a tokenizer for the caption data you want to train on. Most of these datasets have the same vocabulary, but there is a clear difference between datasets that describe the absence of entities and those that do not. Also, SMB1 has no upside down pipes, but these are present in the other games. The `BAT_datasets.bat` already creates a tokenizer for each dataset, but if you make a tokenizer for all of the Mario data, you should be covered:
 ```
-python tokenizer.py save --json_file Mario_LevelsAndCaptions-regular.json    --pkl_file Mario_Tokenizer-regular.pkl
-python tokenizer.py save --json_file Mario_LevelsAndCaptions-absence.json    --pkl_file Mario_Tokenizer-absence.pkl
+python tokenizer.py save --json_file Mario_LevelsAndCaptions-regular.json --pkl_file Mario_Tokenizer-regular.pkl
+python tokenizer.py save --json_file Mario_LevelsAndCaptions-absence.json --pkl_file Mario_Tokenizer-absence.pkl
 ```
 Now, masked language modeling will be used to pre-train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. The `--split` flag splits the data into training, validation, and testing, and also implements early stopping based on validation loss.
 ```
@@ -122,37 +122,37 @@ python evolve_interactive_conditional_diffusion.py --model_path SMB1-conditional
 
 You can evaluate the final model's ability to adhere to input captions with this command:
 ```
-python evaluate_caption_adherence.py --model_path conditional-model --save_as_json
+python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --save_as_json --json SMB1_LevelsAndCaptions-regular.json --output_dir text-to-level-final
 ```
 You can also evaluate the how caption adherence changed during training with respect to the training set:
 ```
-python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints
+python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --save_as_json --json SMB1_LevelsAndCaptions-regular.json --compare_checkpoints 
 ```
-However, it is easy to match the captions used during training. You can evaluate the how caption adherence changed during training with respect to a previously unseen validation set too:
+However, it is easy to match the captions used during training. You can evaluate the how caption adherence changed during training with respect to a previously unseen random captions too:
 ```
-python evaluate_caption_adherence.py --model_path conditional-model --save_as_json --compare_checkpoints --json SMB1_ValidationCaptions.json 
+python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --save_as_json --json SMB1_ValidationCaptions-regular.json --compare_checkpoints 
 ```
 
 ## Train unconditional diffusion model
 
-To train an unconditional diffusion model without any text embeddings, run this command:
+To train an unconditional diffusion model without any text embeddings, run this command (ARE MLM AND TOKENIZER NEEDED?):
 ```
-python train_diffusion.py --augment --output_dir "unconditional-model" --num_epochs 200
+python train_diffusion.py --output_dir "SMB1-unconditional" --num_epochs 100 --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --mlm_model_dir SMB1-MLM-regular --split
 ```
 
 ## Generate levels from unconditional model
 
 Run trained unconditional diffusion model and save 100 random levels to json
 ```
-python run_diffusion.py --model_path unconditional-model --num_samples 100 --save_as_json --output_dir "unconditional_model_samples"
+python run_diffusion.py --model_path SMB1-unconditional --num_samples 100 --save_as_json --output_dir "SMB1-unconditional-samples"
 ```
 View the saved levels in the data browser
 ```
-python ascii_data_browser.py unconditional_model_samples\all_levels.json
+python ascii_data_browser.py SMB1-unconditional-samples\all_levels.json
 ```
 Interactively evolve level scenes in the latent space of the unconditional model:
 ```
-python evolve_interactive_unconditional_diffusion.py --model_path unconditional-model
+python evolve_interactive_unconditional_diffusion.py --model_path SMB1-unconditional-samples
 ```
 
 ## Train Generative Adversarial Network (GAN) model
