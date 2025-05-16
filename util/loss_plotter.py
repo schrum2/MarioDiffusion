@@ -16,8 +16,6 @@ class LossPlotter:
         matplotlib.use('Agg')
         
         self.fig, self.ax = plt.subplots(figsize=(10, 6))
-        # Create the secondary axis at initialization
-        self.ax2 = self.ax.twinx()
         
         self.left_key = left_key
         self.right_key = right_key
@@ -33,42 +31,30 @@ class LossPlotter:
                 if not data:
                     return
                     
-                self.steps = [entry.get('step', 0) for entry in data]
+                self.epochs = [entry.get('step', 0) for entry in data]
                 self.left = [entry.get(self.left_key, 0) for entry in data]
 
-                # For right axis (val_loss), only include points where val_loss exists
+                # For right axis (e.g., lr), only include points where right_key exists
                 right_points = [(entry.get('step', 0), entry.get(self.right_key))
                                 for entry in data if self.right_key in entry]
                 if right_points:
-                    right_steps, right_values = zip(*right_points)
+                    right_epochs, right_values = zip(*right_points)
                 else:
-                    right_steps, right_values = [], []
+                    right_epochs, right_values = [], []
 
-                # Clear both axes
+                # Clear axis
                 self.ax.clear()
-                self.ax2.clear()
                 
-                # Plot loss on primary axis
-                self.ax.plot(self.steps, self.left, 'b-', label=self.left_label)
-                self.ax.set_xlabel('Step')
-                self.ax.set_ylabel(self.left_label, color='b')
-                self.ax.tick_params(axis='y', labelcolor='b')
+                # Plot both metrics on the same axis
+                self.ax.plot(self.epochs, self.left, 'b-', label=self.left_label)
+                if right_epochs:
+                    self.ax.plot(right_epochs, right_values, 'r-', label=self.right_label)
                 
-                # Plot val_loss on secondary axis only at available points
-                if right_steps:
-                    self.ax2.plot(right_steps, right_values, 'ro-', label=self.right_label)
-                    self.ax2.set_ylabel(self.right_label, color='r')
-                    self.ax2.tick_params(axis='y', labelcolor='r')
-                    self.ax2.legend(loc='upper right')
-                
-                # Add a title and legend for primary axis
+                self.ax.set_xlabel('Epoch')
+                self.ax.set_ylabel(f'{self.left_label} / {self.right_label}')
                 self.ax.set_title('Training Progress')
                 self.ax.legend(loc='upper left')
-                
-                # Adjust layout
                 self.fig.tight_layout()
-                
-                # Save the current plot to disk
                 self.fig.savefig(os.path.join(os.path.dirname(self.log_file), self.output_png))
             
             except (json.JSONDecodeError, ValueError) as e:
