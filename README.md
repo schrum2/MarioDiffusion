@@ -91,34 +91,31 @@ python evaluate_masked_token_prediction.py --model_path SMB1-MLM-regular --compa
 
 Now that the text embedding model is ready, train a diffusion model conditioned on text embeddings from the descriptive captions:
 ```
-python train_diffusion.py --augment --text_conditional --output_dir "conditional-model" --num_epochs 200
+python train_diffusion.py --augment --text_conditional --output_dir "SMB1-conditional-regular" --num_epochs 100 --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --mlm_model_dir SMB1-MLM-regular --split --plot_validation_caption_score
 ```
-You can train on just the Mario 2 data with this command:
-```
-python train_diffusion.py --augment --text_conditional --output_dir "SMB2-conditional-model" --num_epochs 200 --json SMB2_LevelsAndCaptions.json --mlm_model_dir mlm2 --pkl SMB2_Tokenizer.pkl
-```
+You can swap out the dataset and, tokenizer, and language model however you like, as long as everything is consistent.
 
 ## Generate levels from text-to-level model
 
 To generate random levels (not based on text embeddings), use this command:
 ```
-python run_diffusion.py --model_path conditional-model --num_samples 100 --text_conditional --save_as_json --output_dir "conditional_model_unconditional_samples"
+python run_diffusion.py --model_path SMB1-conditional-regular --num_samples 100 --text_conditional --save_as_json --output_dir "SMB1-conditional-regular-unconditional-samples"
 ```
 Captions will be automatically assigned to the levels, and you can browse that data with this command:
 ```
-python ascii_data_browser.py conditional_model_unconditional_samples\all_levels.json
+python ascii_data_browser.py SMB1-conditional-regular-unconditional-samples\all_levels.json
 ```
 But to actually provide captions to guide the level generation, use this command
 ```
-python text_to_level_diffusion.py --model_path conditional-model
+python text_to_level_diffusion.py --model_path SMB1-conditional-regular
 ```
-An easier to use GUI interface will let you select and combine known caption phrases to send to the model.
+An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
 ```
-python interactive_tile_level_generator.py SMB1_LevelsAndCaptions.json conditional-model
+python interactive_tile_level_generator.py SMB1_LevelsAndCaptions-regular.json SMB1-conditional-regular
 ```
 Interactively evolve level scenes in the latent space of the conditional model:
 ```
-python evolve_interactive_conditional_diffusion.py --model_path conditional-model
+python evolve_interactive_conditional_diffusion.py --model_path SMB1-conditional-regular
 ```
 
 ## Evaluate caption adherence of text-to-level model
