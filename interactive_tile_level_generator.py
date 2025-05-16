@@ -105,8 +105,8 @@ class CaptionBuilder(ParentBuilder):
         self.loaded_model_label.pack()
 
         # Frame for composed level controls
-        self.composed_frame = ttk.Frame(master)
-        self.composed_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
+        self.composed_frame = ttk.Frame(self.caption_frame)
+        self.composed_frame.pack(fill=tk.X, pady=5)
 
         self.play_composed_button = ttk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
         self.play_composed_button.pack(side=tk.LEFT, padx=2)
@@ -116,8 +116,8 @@ class CaptionBuilder(ParentBuilder):
         self.clear_composed_button.pack(side=tk.LEFT, padx=2)
 
         # Frame for thumbnails
-        self.bottom_frame = ttk.Frame(master)
-        self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        self.bottom_frame = ttk.Frame(self.caption_frame)
+        self.bottom_frame.pack(fill=tk.X)
 
     def get_patterns(self):
         # Different for LoRA and tile diffusion
