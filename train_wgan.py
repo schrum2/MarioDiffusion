@@ -10,7 +10,7 @@ from level_dataset import LevelDataset, visualize_samples
 import json
 import threading
 from datetime import datetime
-from util.loss_plotter import LossPlotter
+from util.plotter import Plotter
 from tokenizer import Tokenizer
 from models.wgan_model import WGAN_Generator, WGAN_Discriminator
 
@@ -238,7 +238,7 @@ def main():
             f.write(json.dumps(log_entry) + '\n')
 
     # Initialize plotter
-    plotter = LossPlotter(log_file, update_interval=5.0, left_key="loss_d", right_key="loss_g", left_label="Discriminator Loss", right_label="Generator Loss")  # Update every 5 seconds
+    plotter = Plotter(log_file, update_interval=5.0, left_key="loss_d", right_key="loss_g", left_label="Discriminator Loss", right_label="Generator Loss")  # Update every 5 seconds
     plot_thread = threading.Thread(target=plotter.start_plotting)
     plot_thread.daemon = True
     plot_thread.start()

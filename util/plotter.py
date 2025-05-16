@@ -6,7 +6,7 @@ import os
 import time
 import json
 
-class LossPlotter:
+class Plotter:
     def __init__(self, log_file, update_interval=1.0, left_key='loss', right_key='lr', left_label='Loss', right_label='Learning Rate', output_png='training_progress.png'):
         self.log_file = log_file
         self.update_interval = update_interval
