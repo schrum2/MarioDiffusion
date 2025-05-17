@@ -14,7 +14,7 @@ from tokenizer import Tokenizer
 import json
 import threading
 from datetime import datetime
-from util.loss_plotter import LossPlotter
+from util.plotter import Plotter
 from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
@@ -314,7 +314,7 @@ def main():
     caption_score_plot_thread = None
     caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
     if accelerator.is_local_main_process:
-        plotter = LossPlotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss',
+        plotter = Plotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss',
                              left_label='Training Loss', right_label='Validation Loss', output_png=f'training_loss_{formatted_date}.png')
         plot_thread = threading.Thread(target=plotter.start_plotting)
         plot_thread.daemon = True
@@ -323,7 +323,7 @@ def main():
         caption_score_plotter = None
         if args.text_conditional and args.plot_validation_caption_score:
             # Caption score plotter
-            caption_score_plotter = LossPlotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
+            caption_score_plotter = Plotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
                                                 left_label='Caption Match Score', right_label=None, output_png=f'caption_score_{formatted_date}.png')
             caption_score_plot_thread = threading.Thread(target=caption_score_plotter.start_plotting)
             caption_score_plot_thread.daemon = True
