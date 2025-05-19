@@ -12,7 +12,7 @@ import json
 import os
 import threading
 from datetime import datetime
-from util.loss_plotter import LossPlotter
+from util.plotter import Plotter
 import random
 
 def split_dataset(json_path, train_pct, val_pct, test_pct):
@@ -61,12 +61,12 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
     print(f"Saved configuration to: {config_file}")
 
     # Create two plotters - one for loss, one for accuracy
-    loss_plotter = LossPlotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss', 
-                              left_label='Loss', right_label='Val Loss', 
-                              output_png=f'training_loss_{formatted_date}.png')
-    accuracy_plotter = LossPlotter(accuracy_log_file, update_interval=5.0, left_key='train_accuracy', 
-                                  right_key='val_accuracy', left_label='Train Accuracy', right_label='Val Accuracy',
-                                  output_png=f'training_accuracy_{formatted_date}.png')
+    loss_plotter = Plotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss', 
+                           left_label='Loss', right_label='Val Loss', 
+                           output_png=f'training_loss_{formatted_date}.png')
+    accuracy_plotter = Plotter(accuracy_log_file, update_interval=5.0, left_key='train_accuracy', 
+                               right_key='val_accuracy', left_label='Train Accuracy', right_label='Val Accuracy',
+                               output_png=f'training_accuracy_{formatted_date}.png')
     
     # Start plotting threads
     loss_plot_thread = threading.Thread(target=loss_plotter.start_plotting)

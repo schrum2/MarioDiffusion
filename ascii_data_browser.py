@@ -104,6 +104,13 @@ class TileViewer(tk.Tk):
         self.generate_button = tk.Button(nav_frame, text="Generate From Scene", command=self.generate_from_scene, state=tk.DISABLED)
         self.generate_button.pack(side=tk.LEFT, padx=5)
 
+        # Add steps input field
+        tk.Label(nav_frame, text="Steps:").pack(side=tk.LEFT)
+        self.steps_entry = tk.Entry(nav_frame, width=4)
+        self.steps_entry.insert(0, "50")  # Default value
+        self.steps_entry.config(state=tk.DISABLED)  # Initially disabled
+        self.steps_entry.pack(side=tk.LEFT, padx=2)
+
         # Sample info and jump
         info_frame = tk.Frame(self)
         info_frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
@@ -146,8 +153,11 @@ class TileViewer(tk.Tk):
                 self.pipeline = TextConditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
                 print(f"Model loaded from {model_path}")
                 self.generate_button.config(state=tk.NORMAL)  # Enable the generate button
+                self.steps_entry.config(state=tk.NORMAL)  # Enable the steps entry
             except Exception as e:
                 print(f"Error loading model: {e}")
+                self.generate_button.config(state=tk.DISABLED)
+                self.steps_entry.config(state=tk.DISABLED)
 
     def generate_from_scene(self):
         """Generate a new level from the current scene using the loaded model."""
@@ -159,27 +169,36 @@ class TileViewer(tk.Tk):
             print("No dataset loaded.")
             return
 
+        # Get number of steps from entry, with validation
+        try:
+            num_steps = int(self.steps_entry.get())
+            if num_steps <= 0:
+                raise ValueError("Steps must be positive")
+        except ValueError as e:
+            print(f"Invalid step count: {e}")
+            self.steps_entry.delete(0, tk.END)
+            self.steps_entry.insert(0, "50")  # Reset to default
+            num_steps = 50
+
         sample = self.dataset[self.current_sample_idx]
         input_scene = sample['scene']
-        input_scene = torch.tensor(input_scene, device=self.device)  # Ensure input_scene is on the same device as the model
+        input_scene = torch.tensor(input_scene, device=self.device)
 
         try:
             output = self.pipeline(
                 batch_size=1,
                 input_scene=input_scene,
-                num_inference_steps=50,
+                num_inference_steps=num_steps,  # Use the value from entry
                 guidance_scale=7.5,
                 height=len(input_scene),
                 width=len(input_scene[0])
             )
-            print("Generated new level from scene.")
+            print(f"Generated new level from scene using {num_steps} steps.")
             from level_dataset import visualize_samples
-            # Convert the output tensor to an image using visualize_samples
             generated_image = visualize_samples(output.images)
-            # Ensure the output from visualize_samples is a PIL Image
             if isinstance(generated_image, list):
-                generated_image = generated_image[0]  # Handle list case by taking the first element
-            generated_image.show()  # Display the generated image
+                generated_image = generated_image[0]
+            generated_image.show()
         except Exception as e:
             print(f"Error during generation: {e}")
 
