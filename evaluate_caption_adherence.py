@@ -124,30 +124,64 @@ def main():
             save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 
+from util.plotter import Plotter  # Add this import at the top
+
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
+    import json
+
     checkpoint_dirs = [
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))
         for d in os.listdir(args.model_path)
         if os.path.isdir(os.path.join(args.model_path, d)) and d.startswith("checkpoint-")
     ]
-    
-    # Sort directories by epoch number
     checkpoint_dirs = sorted(checkpoint_dirs, key=lambda x: x[0])
-    # Final model is saved in the output directory itself rather than a subdirectory
-    if os.path.isdir(os.path.join(args.model_path, "unet")): # Make sure final successful save occurred
-        checkpoint_dirs.append( (checkpoint_dirs[-1][0] + 1 , args.model_path) )
+    if os.path.isdir(os.path.join(args.model_path, "unet")):
+        checkpoint_dirs.append((checkpoint_dirs[-1][0] + 1, args.model_path))
+
+    # Prepare output paths
+    scores_jsonl_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_scores_by_epoch.jsonl")
+    plot_png_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_caption_scores_plot.png")
+
+    # Initialize Plotter
+    plotter = Plotter(
+        log_file=scores_jsonl_path,
+        update_interval=0.1,
+        left_key="score",
+        right_key=None,
+        left_label="Caption Score",
+        right_label=None,
+        output_png=plot_png_path
+    )
+
+    # Start plotting in a background thread
+    import threading
+    plot_thread = threading.Thread(target=plotter.start_plotting)
+    plot_thread.daemon = True
+    plotter.running = True
+    plot_thread.start()
 
     scores_by_epoch = []
-    for epoch, checkpoint_dir in tqdm(checkpoint_dirs, desc="Evaluating Checkpoints"):
-        print(f"Evaluating checkpoint: {checkpoint_dir}")
-        pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
+    with open(scores_jsonl_path, "a") as f:
+        for epoch, checkpoint_dir in tqdm(checkpoint_dirs, desc="Evaluating Checkpoints"):
+            print(f"Evaluating checkpoint: {checkpoint_dir}")
+            pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
 
-        avg_score, _ = calculate_caption_score_and_samples(
-            device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False
-        )
+            avg_score, _ = calculate_caption_score_and_samples(
+                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False
+            )
 
-        print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
-        scores_by_epoch.append((epoch, avg_score, checkpoint_dir))
+            print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
+            result = {"epoch": epoch, "score": avg_score, "checkpoint_dir": checkpoint_dir}
+            f.write(json.dumps(result) + "\n")
+            f.flush()  # Ensure it's written immediately
+
+            scores_by_epoch.append((epoch, avg_score, checkpoint_dir))
+
+            # Update the plot after each checkpoint
+            plotter.update_plot()
+
+    plotter.stop_plotting()
+    plot_thread.join(timeout=1)
 
     return scores_by_epoch
 
