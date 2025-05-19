@@ -21,24 +21,23 @@ def load_levels(levels_dir):
 def pad_and_sample(level, tile_to_id, window_size):
     height = len(level)
     width = max(len(row) for row in level)
+    pad = window_size // 2
     samples = []
-    for x in range(width - window_size + 1):
-        sample = []
-        for y in range(window_size):
-            row_idx = y
-            if row_idx < 0 or row_idx >= height:
-                # Out of bounds row
-                window_row = [-1] * window_size
-            else:
-                row = level[row_idx]
+    for cy in range(height):
+        for cx in range(width):
+            sample = []
+            for wy in range(-pad, pad + 1):
+                row_idx = cy + wy
                 window_row = []
-                for col in range(x, x + window_size):
-                    if col < 0 or col >= len(row):
+                for wx in range(-pad, pad + 1):
+                    col_idx = cx + wx
+                    if (row_idx < 0 or row_idx >= height or
+                        col_idx < 0 or col_idx >= len(level[row_idx])):
                         window_row.append(-1)
                     else:
-                        window_row.append(tile_to_id.get(row[col], -1))
-            sample.append(window_row)
-        samples.append(sample)
+                        window_row.append(tile_to_id.get(level[row_idx][col_idx], -1))
+                sample.append(window_row)
+            samples.append(sample)
     return samples
 
 def main(tileset_path, levels_dir, output_path, window_size):
