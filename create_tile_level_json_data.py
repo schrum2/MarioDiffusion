@@ -1,0 +1,78 @@
+import json
+import argparse
+from pathlib import Path
+
+def load_tileset(tileset_path):
+    with open(tileset_path, 'r') as f:
+        tileset_data = json.load(f)
+    tile_chars = sorted(tileset_data['tiles'].keys())
+    tile_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+    return tile_to_id
+
+def load_levels(levels_dir):
+    levels = []
+    for file in sorted(Path(levels_dir).glob("*.txt")):
+        with open(file, 'r') as f:
+            level = [line.strip() for line in f if line.strip()]
+            if level:  # Only add non-empty levels
+                levels.append(level)
+    return levels
+
+def pad_and_sample(level, tile_to_id, window_size):
+    height = len(level)
+    width = max(len(row) for row in level)
+    samples = []
+    for x in range(width - window_size + 1):
+        sample = []
+        for y in range(window_size):
+            row_idx = y
+            if row_idx < 0 or row_idx >= height:
+                # Out of bounds row
+                window_row = [-1] * window_size
+            else:
+                row = level[row_idx]
+                window_row = []
+                for col in range(x, x + window_size):
+                    if col < 0 or col >= len(row):
+                        window_row.append(-1)
+                    else:
+                        window_row.append(tile_to_id.get(row[col], -1))
+            sample.append(window_row)
+        samples.append(sample)
+    return samples
+
+def main(tileset_path, levels_dir, output_path, window_size):
+    tile_to_id = load_tileset(tileset_path)
+    levels = load_levels(levels_dir)
+    
+    dataset = []
+    for level in levels:
+        samples = pad_and_sample(level, tile_to_id, window_size)
+        dataset.extend(samples)
+    
+    with open(output_path, 'w') as f:
+        json.dump(dataset, f, indent=2)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--tileset', default='..\TheVGLC\Super Mario Bros\smb.json', help='Path to the tile set JSON')
+    parser.add_argument('--levels', default='..\TheVGLC\Super Mario Bros\Processed', help='Directory containing level text files')
+    parser.add_argument('--output', required=True, help='Path to the output JSON file')
+    parser.add_argument('--tile_size', type=int, required=False, help='Size of the tile (window) to extract')
+    args = parser.parse_args()
+
+    # Prompt user for tile size if not provided
+    if args.tile_size is None:
+        while True:
+            try:
+                tile_size = int(input("Enter the tile (window) size (e.g., 16): "))
+                if tile_size > 0:
+                    break
+                else:
+                    print("Tile size must be a positive integer.")
+            except ValueError:
+                print("Please enter a valid integer.")
+    else:
+        tile_size = args.tile_size
+
+    main(args.tileset, args.levels, args.output, tile_size)
