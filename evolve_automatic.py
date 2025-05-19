@@ -135,23 +135,46 @@ class SimpleEvolutionaryOptimizer:
     A simple evolutionary optimizer placeholder class.
     Implement ask() and tell() methods as needed.
     """
-    def __init__(self, mean, sigma, population_size, seed=None):
-        self.mean = mean
-        self.sigma = sigma
+    def __init__(self, population_size, seed=None, mutation_sigma=0.1, tournament_size=2):
+        self.mutation_sigma = mutation_sigma
+        self.tournament_size = tournament_size
         self.population_size = population_size
         self.seed = seed
         # Add any additional initialization here
+        global W, H, C
+        self.population = np.random.rand(population_size, W * H * C)
 
     def ask(self):
         """
         Generate a new candidate solution.
         Placeholder: implement logic for generating candidates.
         """
-        pass
+        return self.population
 
     def tell(self, solutions):
         """
         Update the optimizer with evaluated solutions.
         Placeholder: implement logic for updating population.
         """
-        pass
+        # solutions: list of (individual, fitness)
+        individuals = np.array([ind for ind, fit in solutions])
+        fitnesses = np.array([fit for ind, fit in solutions])
+
+        # 10% elitism: keep the top 10% individuals unchanged
+        elite_count = max(1, int(0.1 * self.population_size))
+        elite_indices = np.argsort(fitnesses)[:elite_count]
+        elites = individuals[elite_indices]
+
+        new_population = [elites[i] for i in range(elite_count)]
+
+        # Fill the rest of the population with mutated children
+        # Population_size is elite and children
+        for _ in range(self.population_size - elite_count):
+            # Tournament selection
+            idxs = np.random.choice(len(individuals), self.tournament_size, replace=False)
+            best_idx = idxs[np.argmin(fitnesses[idxs])]  # assuming lower fitness is better
+            parent = individuals[best_idx]
+            # Gaussian perturbation (mutation)
+            child = parent + np.random.normal(0, self.mutation_sigma, size=parent.shape)
+            new_population.append(child)
+        self.population = np.array(new_population)
