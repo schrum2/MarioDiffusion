@@ -106,7 +106,7 @@ class CaptionBuilder(ParentBuilder):
 
         # Frame for composed level controls
         self.composed_frame = ttk.Frame(self.caption_frame)
-        self.composed_frame.pack(fill=tk.X, pady=5)
+        self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
 
         self.play_composed_button = ttk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
         self.play_composed_button.pack(side=tk.LEFT, padx=2)
@@ -114,10 +114,16 @@ class CaptionBuilder(ParentBuilder):
         self.save_composed_button.pack(side=tk.LEFT, padx=2)
         self.clear_composed_button = ttk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
         self.clear_composed_button.pack(side=tk.LEFT, padx=2)
+        self.astar_composed_button = ttk.Button(
+            self.composed_frame, 
+            text="Use A* on Composed Level", 
+            command=self.astar_composed_level
+        )
+        self.astar_composed_button.pack(side=tk.LEFT, padx=2)
 
         # Frame for thumbnails
         self.bottom_frame = ttk.Frame(self.caption_frame)
-        self.bottom_frame.pack(fill=tk.X)
+        self.bottom_frame.pack(fill=tk.X, pady=(0, 10))    # 10 pixels below thumbnails
 
     def get_patterns(self):
         # Different for LoRA and tile diffusion
@@ -398,6 +404,12 @@ Average Segment Score: {avg_segment_score}"""
         if scene:
             level = self.get_sample_output(scene)
             level.save("ComposedLevel.txt")
+
+    def astar_composed_level(self):
+        scene = self.merge_selected_scenes()
+        if scene:
+            level = self.get_sample_output(scene)
+            level.run_astar()
 
     def get_sample_output(self, idx_or_scene):
         if isinstance(idx_or_scene, int):
