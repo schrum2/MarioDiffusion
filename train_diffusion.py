@@ -86,6 +86,11 @@ def parse_args():
 
     return parser.parse_args()
 
+
+
+
+
+
 def main():
     args = parse_args()
 
@@ -128,6 +133,7 @@ def main():
         text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(device)
         text_encoder.eval()  # Set to evaluation mode
         model_embedding_dim = text_encoder.embedding_dim #Done to allow for cross-functionality with the huggingface model
+        tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
     # Initialize dataset
@@ -360,39 +366,13 @@ def main():
                     scenes, captions, negative_captions = batch
                 else:
                     scenes, captions = batch
+                    negative_captions = None
     
                 # First generate timesteps before we duplicate anything
                 timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
 
                 # Get text embeddings from the text encoder
-                with torch.no_grad():
-                    if args.pretrained_language_model:
-                        tokens = tokenizer_hf(captions, return_tensors="pt", padding=True, truncation=True).to(device)
-                        text_embeddings = text_encoder(**tokens).last_hidden_state
-                    else:
-                        text_embeddings = text_encoder.get_embeddings(captions)
-
-                    if args.pretrained_language_model:
-                        uncond_embeddings = torch.zeros_like(text_embeddings)
-                        combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
-                        scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
-                        timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
-                    elif args.negative_prompt_training:
-                        negative_embeddings = text_encoder.get_embeddings(negative_captions)
-                        # For negative prompt training, we use three sets of embeddings:
-                        # [negative_embeddings, uncond_embeddings, text_embeddings]
-                        uncond_tokens = torch.zeros_like(captions)
-                        uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
-                        combined_embeddings = torch.cat([negative_embeddings, uncond_embeddings, text_embeddings])
-                        scenes_for_train = torch.cat([scenes] * 3)  # Repeat scenes three times
-                        timesteps_for_train = torch.cat([timesteps] * 3)  # Repeat timesteps three times
-                    else:
-                        # Original classifier-free guidance with just uncond and cond
-                        uncond_tokens = torch.zeros_like(captions)
-                        uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
-                        combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
-                        scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
-                        timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
+                combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=negative_captions)
     
                 # Add noise to the clean scenes
                 noise = torch.randn_like(scenes_for_train)
@@ -461,39 +441,31 @@ def main():
             caption_score_count = 0
             with torch.no_grad():
                 for val_batch in val_dataloader:
-                    if args.text_conditional:
+                    if args.text_conditional:  
                         if args.negative_prompt_training:
                             val_scenes, val_captions, val_negative_captions = val_batch
-                            val_scenes = val_scenes.to(device)
-                            val_captions = val_captions.to(device)
                             val_negative_captions = val_negative_captions.to(device)
                         else:
                             val_scenes, val_captions = val_batch
-                            val_scenes = val_scenes.to(device)
-                            val_captions = val_captions.to(device)
+                            val_negative_captions = None
+                        
+                        val_scenes = val_scenes.to(device)
+                        if(not args.pretrained_language_model):
+                            val_captions = val_captions.to(device) #Avoids error, pretrained model path is not a tensor, so cannot be sent to the GPU
                             
                         val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
                                                     (val_scenes.shape[0],), device=device).long()
                         
+                        
+
+                        # Use the same tokenizer as in training
+                        val_combined_embeddings, val_scenes_for_eval, val_timesteps_for_eval = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=negative_captions)
+                                
+
                         val_noise = torch.randn_like(val_scenes)
                         val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
-                        
-                        with torch.no_grad():
-                            val_text_embeddings = text_encoder.get_embeddings(val_captions)
-                            if args.negative_prompt_training:
-                                val_negative_embeddings = text_encoder.get_embeddings(val_negative_captions)
-                                val_uncond_tokens = torch.zeros_like(val_captions)
-                                val_uncond_embeddings = text_encoder.get_embeddings(val_uncond_tokens)
-                                val_combined_embeddings = torch.cat([val_negative_embeddings, val_uncond_embeddings, val_text_embeddings])
-                                val_scenes_for_eval = torch.cat([val_scenes] * 3)
-                                val_timesteps_for_eval = torch.cat([val_timesteps] * 3)
-                            else:
-                                val_uncond_tokens = torch.zeros_like(val_captions)
-                                val_uncond_embeddings = text_encoder.get_embeddings(val_uncond_tokens)
-                                val_combined_embeddings = torch.cat([val_uncond_embeddings, val_text_embeddings])
-                                val_scenes_for_eval = torch.cat([val_scenes] * 2)
-                                val_timesteps_for_eval = torch.cat([val_timesteps] * 2)
-                                
+
+
                         val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
                                             encoder_hidden_states=val_combined_embeddings).sample
                         val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))                        
@@ -691,6 +663,32 @@ def split_dataset(json_path, train_pct, val_pct, test_pct):
     with open(test_path, 'w') as f:
         json.dump(test_data, f, indent=2)
     return train_path, val_path, test_path
+
+def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=None):
+    #Prepares the batch for training with text conditioning.
+    with torch.no_grad():         
+        if args.pretrained_language_model:
+            tokens = tokenizer_hf(captions, return_tensors="pt", padding=True, truncation=True).to(device)
+            text_embeddings = text_encoder(**tokens).last_hidden_state
+            uncond_embeddings = torch.zeros_like(text_embeddings)
+        else:
+            text_embeddings = text_encoder.get_embeddings(captions)
+            uncond_tokens = torch.zeros_like(captions)
+            uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
+
+        if args.negative_prompt_training:
+            negative_embeddings = text_encoder.get_embeddings(negative_captions) #TODO: Add support for huggingface model
+            # For negative prompt training, we use three sets of embeddings:
+            # [negative_embeddings, uncond_embeddings, text_embeddings]
+            combined_embeddings = torch.cat([negative_embeddings, uncond_embeddings, text_embeddings])
+            scenes_for_train = torch.cat([scenes] * 3)  # Repeat scenes three times
+            timesteps_for_train = torch.cat([timesteps] * 3)  # Repeat timesteps three times
+        else:
+            # Original classifier-free guidance with just uncond and cond
+            combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+            scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
+            timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
+        return combined_embeddings, scenes_for_train, timesteps_for_train
 
 if __name__ == "__main__":
     main()
