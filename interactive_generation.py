@@ -2,17 +2,31 @@ import torch
 import webbrowser
 
 class InteractiveGeneration:
-    def __init__(self, input_parameters):
+    def __init__(self, input_parameters, default_parameters=None):
         self.input_parameters = input_parameters
+        self.default_parameters = default_parameters or {}
 
     def start(self):
         while True:
             try:
                 param_values = dict()
                 for param, param_type in self.input_parameters.items():
-                    param_values[param] = input(f"{param} (q to quit): ")
-                    if param_values[param] == "q": quit()
-                    param_values[param] = param_type(param_values[param])
+                    default = self.default_parameters.get(param, "")
+                    prompt = f"{param}"
+                    if default != "":
+                        prompt += f" [default value: {default}]"
+                    prompt += ": "
+                    user_input = input(prompt)
+                    if user_input == "q":
+                        quit()
+                    if user_input == "":
+                        if param == "end_seed" and "start_seed" in param_values:
+                            # Special case: end_seed defaults to start_seed
+                            param_values[param] = param_values["start_seed"]
+                        else:
+                            param_values[param] = default
+                    else:
+                        param_values[param] = param_type(user_input)
 
                 start_seed = param_values["start_seed"]
                 del param_values["start_seed"]
@@ -31,6 +45,6 @@ class InteractiveGeneration:
             except Exception as e:
                 print(f"Error: {e}")
                 continue
-            
+
     def get_extra_params(self, param_values): # Default nothing
         return dict()
