@@ -20,6 +20,8 @@ from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
+from transformers import AutoTokenizer, AutoModel, AutoConfig
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -37,6 +39,7 @@ def parse_args():
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
+    parser.add_argument("--pretrained_language_model", type=str, default=None, help="Link to a pre-trained language model, everything after huggingface.co/. This will override the mlm_model_dir argument.")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--negative_prompt_training", action="store_true", help="Enable training with negative prompts")
     
@@ -115,7 +118,11 @@ def main():
     
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
-    if args.text_conditional and args.mlm_model_dir:
+    if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
+        text_encoder = AutoConfig.from_pretrained(args.pretrained_language_model).to(device)
+        text_encoder.eval() # Set to evaluation mode
+        print(f"Loaded text encoder from {args.pretrained_language_model}")
+    elif args.text_conditional and args.mlm_model_dir:
         text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(device)
         text_encoder.eval()  # Set to evaluation mode
         print(f"Loaded text encoder from {args.mlm_model_dir}")
