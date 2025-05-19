@@ -117,6 +117,10 @@ Interactively evolve level scenes in the latent space of the conditional model:
 ```
 python evolve_interactive_conditional_diffusion.py --model_path SMB1-conditional-regular
 ```
+Automatically evolve level scenes in the latent space of the model (must put a caption into the parenthesis ex "full floor. one enemy."):
+```
+python evolve_automatic.py --model_path SMB1-conditional-regular --target_caption " "
+```
 
 ## Evaluate caption adherence of text-to-level model
 
