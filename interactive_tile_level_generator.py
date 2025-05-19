@@ -260,19 +260,12 @@ class CaptionBuilder(ParentBuilder):
 
             pil_img = visualize_samples(images)
             self.generated_images.append(pil_img)
-            # self.generated_scenes.append(scene)
             img_tk = ImageTk.PhotoImage(pil_img)
 
             compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True)
 
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
-
-
-            # img_tk = ImageTk.PhotoImage(visualize_samples(images))
-            pil_img = visualize_samples(images)
-            self.generated_images.append(pil_img)
-            img_tk = ImageTk.PhotoImage(pil_img)
 
 
             print(f"Image {i + 1} dimensions: width={img_tk.width()}, height={img_tk.height()}")
