@@ -121,7 +121,7 @@ def tiles():
 
     return tile_images
 
-def visualize_samples(samples, output_dir=None, use_tiles=True):
+def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
     """
     Visualize generated samples and save as images.
 
@@ -168,7 +168,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True):
                     composite_image.paste(tile_image, (col * tile_size, row * tile_size))
 
             if output_dir:
-                composite_image.save(os.path.join(output_dir, f"sample_{i}.png"))
+                composite_image.save(os.path.join(output_dir, f"sample_{i + start_index}.png"))
             else:
                 return composite_image
 

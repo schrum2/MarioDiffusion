@@ -33,6 +33,10 @@ class TileViewer(tk.Tk):
         if dataset_path and tileset_path:
             self.load_files_from_paths(dataset_path, tileset_path)
 
+        # Lists to added level segments to the composed level
+        self.added_sample_indexes = []
+        self.composed_thumbnails = []
+
     def regenerate_caption(self):
         print("Regenerating caption...")
         if not self.dataset:
@@ -121,6 +125,28 @@ class TileViewer(tk.Tk):
         self.jump_entry = tk.Entry(info_frame, width=5)
         self.jump_entry.pack(side=tk.LEFT)
         self.jump_entry.bind("<Return>", self.jump_to_sample)
+
+        # Composed level controls (below navigation)
+        self.composed_frame = tk.Frame(self)
+        self.composed_frame.pack(pady=(10, 2))
+
+        # Add buttons to add scenes to composed level and test play the level
+        self.play_composed_button = tk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
+        self.play_composed_button.pack(side=tk.LEFT, padx=2)
+        self.astar_composed_button = tk.Button(self.composed_frame, text="Use A* on Composed Level", command=self.astar_composed_level)
+        self.astar_composed_button.pack(side=tk.LEFT, padx=2)
+        self.clear_composed_button = tk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
+        self.clear_composed_button.pack(side=tk.LEFT, padx=2)
+        self.add_to_composed_level_button = tk.Button(
+            self.composed_frame,
+            text="Add To Level",
+            command=self.add_to_composed_level
+        )
+        self.add_to_composed_level_button.pack(side=tk.LEFT, padx=2)
+        
+        # Thumbnails for composed level
+        self.composed_thumb_frame = tk.Frame(self)
+        self.composed_thumb_frame.pack(fill=tk.X)
 
     def bind_keys(self):
         self.bind("<Right>", lambda e: self.next_sample())
@@ -383,6 +409,74 @@ class TileViewer(tk.Tk):
                 print("Index out of range.")
         except ValueError:
             print("Invalid index entered.")
+
+    def add_to_composed_level(self):
+        idx = self.current_sample_idx
+        #print("HELLO", idx, self.added_sample_indexes)
+        if idx in self.added_sample_indexes:
+            return
+        #print("WHY?")
+        self.added_sample_indexes.append(idx)
+        # Create a thumbnail for the scene
+        from level_dataset import visualize_samples
+        import PIL.ImageTk
+        scene = self.dataset[idx]['scene']
+        one_hot_scene = torch.nn.functional.one_hot(
+            torch.tensor(scene, dtype=torch.long),
+            num_classes=len(self.id_to_char)
+        ).float().permute(2, 0, 1).unsqueeze(0)
+        image = visualize_samples(one_hot_scene)
+        if isinstance(image, list):
+            image = image[0]
+        thumb = image.copy()
+        thumb.thumbnail((64, 64))
+        photo = PIL.ImageTk.PhotoImage(thumb)
+        self.composed_thumbnails.append(photo)  # Prevent GC
+        label = tk.Label(self.composed_thumb_frame, image=photo)
+        label.pack(side=tk.LEFT, padx=2)
+
+    def clear_composed_level(self):
+        self.added_sample_indexes.clear()
+        self.composed_thumbnails.clear()
+        for widget in self.composed_thumb_frame.winfo_children():
+            widget.destroy()
+
+    def merge_selected_scenes(self):
+        scenes = [self.dataset[i]['scene'] for i in self.added_sample_indexes]
+        if not scenes:
+            return None
+        num_rows = len(scenes[0])
+        if not all(len(scene) == num_rows for scene in scenes):
+            raise ValueError("All scenes must have the same number of rows.")
+        concatenated_scene = []
+        for row_index in range(num_rows):
+            new_row = []
+            for scene in scenes:
+                new_row.extend(scene[row_index])
+            concatenated_scene.append(new_row)
+        return concatenated_scene
+
+    def play_composed_level(self):
+        scene = self.merge_selected_scenes()
+        if scene:
+            from util.sampler import SampleOutput
+            char_grid = []
+            for row in scene:
+                char_row = "".join([self.id_to_char[num] for num in row])
+                char_grid.append(char_row)
+            level = SampleOutput(level=char_grid)
+            level.play()
+
+    def astar_composed_level(self):
+        scene = self.merge_selected_scenes()
+        if scene:
+            from util.sampler import SampleOutput
+            char_grid = []
+            for row in scene:
+                char_row = "".join([self.id_to_char[num] for num in row])
+                char_grid.append(char_row)
+            level = SampleOutput(level=char_grid)
+            level.run_astar()
 
 if __name__ == "__main__":
     # Command-line argument parsing
