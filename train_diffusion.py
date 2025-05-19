@@ -119,12 +119,15 @@ def main():
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
     if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
-        text_encoder = AutoConfig.from_pretrained(args.pretrained_language_model).to(device)
+        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model).to(device)
         text_encoder.eval() # Set to evaluation mode
+        model_embedding_dim = text_encoder.config.hidden_size# Done here to allow for cross-functionality with the mlm model
+        tokenizer_hf = AutoTokenizer.from_pretrained(args.pretrained_language_model)
         print(f"Loaded text encoder from {args.pretrained_language_model}")
     elif args.text_conditional and args.mlm_model_dir:
         text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(device)
         text_encoder.eval()  # Set to evaluation mode
+        model_embedding_dim = text_encoder.embedding_dim #Done to allow for cross-functionality with the huggingface model
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
     # Initialize dataset
@@ -134,7 +137,7 @@ def main():
             json_path=train_json,
             tokenizer=tokenizer,
             shuffle=True,
-            mode="diffusion",
+            mode="diffusion" if not args.pretrained_language_model else "pretrained_language_model",
             augment=args.augment,
             num_tiles=args.num_tiles,
             negative_captions=args.negative_prompt_training
@@ -143,7 +146,7 @@ def main():
             json_path=val_json,
             tokenizer=tokenizer,
             shuffle=False,
-            mode="diffusion",
+            mode="diffusion" if not args.pretrained_language_model else "pretrained_language_model",
             augment=False,
             num_tiles=args.num_tiles,
             negative_captions=args.negative_prompt_training
@@ -153,7 +156,7 @@ def main():
             json_path=args.json,
             tokenizer=tokenizer,
             shuffle=True,
-            mode="diffusion",
+            mode="diffusion" if not args.pretrained_language_model else "pretrained_language_model",
             augment=args.augment,
             num_tiles=args.num_tiles,
             negative_captions=args.negative_prompt_training
@@ -182,7 +185,7 @@ def main():
     if args.text_conditional:
         # Sample four random captions from the dataset
         sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
-        if args.negative_prompt_training:
+        if args.negative_prompt_training: #TODO: Copy the pos prompt code for the negative prompt implementation of the pretrained model
             sample_data = [train_dataset[i] for i in sample_indices]
             pos_vectors = [data[1] for data in sample_data]
             neg_vectors = [data[2] for data in sample_data]
@@ -206,12 +209,17 @@ def main():
         else:
             # Original code for positive-only captions
             sample_embedding_vectors = [train_dataset[i][1] for i in sample_indices]
-            sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
-            pad_token = tokenizer.token_to_id["[PAD]"]
-            sample_captions = [
-                tokenizer.decode([token for token in caption if token != pad_token]) 
-                for caption in sample_embedding_vectors
-            ]
+            if not args.pretrained_language_model:
+                sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
+                pad_token = tokenizer.token_to_id["[PAD]"]
+                sample_captions = [
+                    tokenizer.decode([token for token in caption if token != pad_token]) 
+                    for caption in sample_embedding_vectors
+                ]
+            else:
+                sample_captions = [
+                    v for v in sample_embedding_vectors
+                ]
             print("Sample captions:")
             for caption in sample_captions:
                 print(caption)
@@ -226,7 +234,7 @@ def main():
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types=args.down_block_types,
             up_block_types=args.up_block_types,
-            cross_attention_dim=text_encoder.embedding_dim,  # Match the embedding dimension
+            cross_attention_dim=model_embedding_dim,  # Match the embedding dimension
             attention_head_dim=args.attention_head_dim,  # Number of attention heads
         )
         # Add flag for negative prompt support if enabled
@@ -358,8 +366,18 @@ def main():
 
                 # Get text embeddings from the text encoder
                 with torch.no_grad():
-                    text_embeddings = text_encoder.get_embeddings(captions)
-                    if args.negative_prompt_training:
+                    if args.pretrained_language_model:
+                        tokens = tokenizer_hf(captions, return_tensors="pt", padding=True, truncation=True).to(device)
+                        text_embeddings = text_encoder(**tokens).last_hidden_state
+                    else:
+                        text_embeddings = text_encoder.get_embeddings(captions)
+
+                    if args.pretrained_language_model:
+                        uncond_embeddings = torch.zeros_like(text_embeddings)
+                        combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+                        scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
+                        timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
+                    elif args.negative_prompt_training:
                         negative_embeddings = text_encoder.get_embeddings(negative_captions)
                         # For negative prompt training, we use three sets of embeddings:
                         # [negative_embeddings, uncond_embeddings, text_embeddings]
