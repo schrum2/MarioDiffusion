@@ -2,22 +2,21 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
+import argparse
+import os
 
 # ====== Config ======
 EMBEDDING_DIM = 32
 BATCH_SIZE = 256
 EPOCHS = 10
 LR = 1e-3
-VOCAB_SIZE = 16  # number of real tile types (adjust as needed)
+#VOCAB_SIZE = 16  # number of real tile types (adjust as needed)
 
 # ====== Your dataset class (must yield (center, context_list)) ======
 # Dataset must yield:
 #   center_tile: int
 #   context_tiles: List[int] (length ≤ 8, excluding -1s)
 from mario_dataset import MarioPatchDataset
-
-dataset = MarioPatchDataset(json_path='test_tiles.json')
-dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
 # ====== Model ======
 class Block2Vec(nn.Module):
@@ -39,42 +38,69 @@ class Block2Vec(nn.Module):
         return loss
 
 # ====== Training ======
-model = Block2Vec(vocab_size=VOCAB_SIZE, embedding_dim=EMBEDDING_DIM)
-optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+def main():
+    parser = argparse.ArgumentParser(description="Train Block2Vec model")
+    parser.add_argument('--json_file', type=str, required=True, help='Path to the JSON dataset file')
+    parser.add_argument('--output_dir', type=str, default='output', help='Path to the output directory for embeddings')
+    parser.add_argument('--embedding_dim', type=int, default=EMBEDDING_DIM, help='Embedding dimension')
+    parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size')
+    parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of epochs')
+    parser.add_argument('--lr', type=float, default=LR, help='Learning rate')
+    args = parser.parse_args()
 
-for epoch in range(EPOCHS):
-    total_loss = 0
-    for center, context in dataloader:
-        # Filter out any context samples that are completely -1
-        mask = (context != -1)
-        valid_context = []
-        valid_center = []
-        for c, ctx_row, m in zip(center, context, mask):
-            ctx_ids = ctx_row[m].tolist()
-            if len(ctx_ids) == 0:
-                continue
-            valid_context.append(torch.tensor(ctx_ids))
-            valid_center.append(c)
+    # Create output directory if it doesn't exist
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
 
-        if not valid_center:
-            continue
+    # Load dataset
+    dataset = MarioPatchDataset(json_path=args.json_file)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
-        # Pad all context vectors to max length
-        max_len = max(len(c) for c in valid_context)
-        padded_context = torch.full((len(valid_context), max_len), fill_value=0, dtype=torch.long)
-        for i, ctx in enumerate(valid_context):
-            padded_context[i, :len(ctx)] = ctx
+    # Determine vocab size from the dataset
+    vocab_size = max(max(patch) for sample in dataset.patches for patch in sample) + 1
 
-        center_tensor = torch.stack(valid_center)
+    # Model, optimizer
+    model = Block2Vec(vocab_size=vocab_size, embedding_dim=args.embedding_dim)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-        loss = model(center_tensor, padded_context)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    for epoch in range(args.epochs):
+        total_loss = 0
+        for center, context in dataloader:
+            # Filter out any context samples that are completely -1
+            #mask = (context != -1) #This line is not needed
+            #valid_context = [] #This line is not needed
+            #valid_center = [] #This line is not needed
+            #for c, ctx_row, m in zip(center, context, mask): #This line is not needed
+            #    ctx_ids = ctx_row[m].tolist() #This line is not needed
+            #    if len(ctx_ids) == 0: #This line is not needed
+            #        continue #This line is not needed
+            #    valid_context.append(torch.tensor(ctx_ids)) #This line is not needed
+            #    valid_center.append(c) #This line is not needed
 
-        total_loss += loss.item()
+            #if not valid_center: #This line is not needed
+            #    continue #This line is not needed
 
-    print(f"Epoch {epoch+1}: Loss = {total_loss:.4f}")
+            ## Pad all context vectors to max length #This line is not needed
+            #max_len = max(len(c) for c in valid_context) #This line is not needed
+            #padded_context = torch.full((len(valid_context), max_len), fill_value=0, dtype=torch.long) #This line is not needed
+            #for i, ctx in enumerate(valid_context): #This line is not needed
+            #    padded_context[i, :len(ctx)] = ctx #This line is not needed
 
-# ====== Save Embeddings ======
-torch.save(model.in_embed.weight.detach(), "block2vec_embeddings.pt")
+            #center_tensor = torch.stack(valid_center) #This line is not needed
+
+            loss = model(center, context)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+
+        print(f"Epoch {epoch+1}: Loss = {total_loss:.4f}")
+
+    # ====== Save Embeddings ======
+    output_path = os.path.join(args.output_dir, "block2vec_embeddings.pt")
+    torch.save(model.in_embed.weight.detach(), output_path)
+    print(f"Embeddings saved to {output_path}")
+
+if __name__ == "__main__":
+    main()
