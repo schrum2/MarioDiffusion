@@ -60,6 +60,12 @@ You don't necessarily need to run all of these command individually. Simply runn
 
 This doesn't work yet
 ```
+python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json"
+```
+## Can I also get Lode Runner Data? (TODO)
+
+This line works but others don't (yet).
+```
 python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC\\MegaMan"
 ```
 
