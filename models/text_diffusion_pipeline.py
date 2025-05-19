@@ -12,16 +12,22 @@ class PipelineOutput(NamedTuple):
 
 # Create a custom pipeline for text-conditional generation
 class TextConditionalDDPMPipeline(DDPMPipeline):
-    def __init__(self, unet, scheduler, text_encoder=None):
+    def __init__(self, unet, scheduler, text_encoder=None, tokenizer=None):
         super().__init__(unet=unet, scheduler=scheduler)
         self.text_encoder = text_encoder
+        self.tokenizer = tokenizer
         self.supports_negative_prompt = hasattr(unet, 'negative_prompt_support') and unet.negative_prompt_support
+
+        if self.tokenizer is None and self.text_encoder is not None:
+            # Use the tokenizer from the text encoder if not provided
+            self.tokenizer = self.text_encoder.tokenizer
 
         # Register the text_encoder so that .to(), .cpu(), .cuda(), etc. work correctly
         self.register_modules(
             unet=unet,
             scheduler=scheduler,
             text_encoder=text_encoder,
+            tokenizer=tokenizer,
         )
     
     # Override the to() method to ensure text_encoder is moved to the correct device
@@ -60,9 +66,11 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         # Have heard that DDIMScheduler might be faster for inference, though not necessarily better
         scheduler = DDPMScheduler.from_pretrained(scheduler_path)
 
+        tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         if os.path.exists(text_encoder_path):
             text_encoder = TransformerModel.from_pretrained(text_encoder_path)
+            tokenizer = text_encoder.tokenizer
         else:
             text_encoder = None
 
@@ -71,6 +79,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             unet=unet,
             scheduler=scheduler,
             text_encoder=text_encoder,
+            tokenizer=tokenizer,
             **kwargs,
         )
         # Load supports_negative_prompt flag if present
@@ -147,7 +156,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 max_length = self.text_encoder.max_seq_length
                 caption_ids = []
                 for cap in captions:
-                    ids = self.text_encoder.tokenizer.encode(cap)
+                    ids = self.tokenizer.encode(cap)
                     ids = torch.tensor(ids, device=self.device)
                     if ids.shape[0] > max_length:
                         raise ValueError(f"Caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
@@ -164,7 +173,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                         raise ValueError("This model was not trained with negative prompt support")
                     negative_ids = []
                     for neg in negatives:
-                        ids = self.text_encoder.tokenizer.encode(neg)
+                        ids = self.tokenizer.encode(neg)
                         ids = torch.tensor(ids, device=self.device)
                         if ids.shape[0] > max_length:
                             raise ValueError(f"Negative caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
