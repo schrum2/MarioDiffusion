@@ -51,6 +51,11 @@ def main():
     parser.add_argument('--lr', type=float, default=LR, help='Learning rate')
     args = parser.parse_args()
 
+    # Check if the output directory exists
+    if os.path.exists(args.output_dir):
+        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+        exit()
+
     # Create output directory if it doesn't exist
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
