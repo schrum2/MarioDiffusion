@@ -119,7 +119,14 @@ if __name__ == "__main__":
     global best_fitness
     best_fitness = float("inf") # Trying to minimize
 
-    optimizer = CMA(mean=np.zeros(W*H*C), sigma=5.0, population_size=args.population_size, seed=args.seed)
+    # optimizer = CMA(mean=np.zeros(W*H*C), sigma=5.0, population_size=args.population_size, seed=args.seed)
+    # Replace CMA with a simple evolutionary optimizer
+    optimizer = SimpleEvolutionaryOptimizer(
+        population_size=args.population_size,
+        seed=args.seed,
+        mutation_sigma=0.1,
+        tournament_size=2
+    )
 
     for generation in range(args.generations):
         solutions = []
