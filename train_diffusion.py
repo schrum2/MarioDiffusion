@@ -492,7 +492,8 @@ def main():
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
-                    text_encoder=text_encoder
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
                 ).to(device)
                 # Only use the positive captions for scoring
 

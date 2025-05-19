@@ -6,6 +6,8 @@ from diffusers import DDPMPipeline, UNet2DConditionModel, DDPMScheduler
 import json
 # Running the main at the end of this requires messing with this import
 from models.text_model import TransformerModel  
+import torch
+import torch.nn.functional as F
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
@@ -154,54 +156,82 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             negatives = prepare_text_batch(negative_prompt, batch_size, "negative_prompt")
 
             # --- Prepare text embeddings ---
-            if captions is not None:
-                max_length = self.text_encoder.max_seq_length
-                caption_ids = []
-                for cap in captions:
-                    ids = self.tokenizer.encode(cap)
-                    ids = torch.tensor(ids, device=self.device)
-                    if ids.shape[0] > max_length:
-                        raise ValueError(f"Caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
-                    elif ids.shape[0] < max_length:
-                        padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
-                        ids = torch.cat([ids, padding], dim=0)
-                    caption_ids.append(ids.unsqueeze(0))
-                caption_ids = torch.cat(caption_ids, dim=0)  # (batch_size, max_length)
-                caption_embedding = self.text_encoder.get_embeddings(caption_ids)
-
-                # Handle negative prompt if provided
-                if negatives is not None:
-                    if not self.supports_negative_prompt:
-                        raise ValueError("This model was not trained with negative prompt support")
-                    negative_ids = []
-                    for neg in negatives:
-                        ids = self.tokenizer.encode(neg)
+            if(isinstance(self.text_encoder, TransformerModel)):
+                if captions is not None:
+                    max_length = self.text_encoder.max_seq_length
+                    caption_ids = []
+                    for cap in captions:
+                        ids = self.tokenizer.encode(cap)
                         ids = torch.tensor(ids, device=self.device)
                         if ids.shape[0] > max_length:
-                            raise ValueError(f"Negative caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
+                            raise ValueError(f"Caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
                         elif ids.shape[0] < max_length:
                             padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
                             ids = torch.cat([ids, padding], dim=0)
-                        negative_ids.append(ids.unsqueeze(0))
-                    negative_ids = torch.cat(negative_ids, dim=0)
-                    negative_embedding = self.text_encoder.get_embeddings(negative_ids)
+                        caption_ids.append(ids.unsqueeze(0))
+                    caption_ids = torch.cat(caption_ids, dim=0)  # (batch_size, max_length)
+                    caption_embedding = self.text_encoder.get_embeddings(caption_ids)
 
-                    # Get unconditional (empty) embedding
-                    empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                    empty_embedding = self.text_encoder.get_embeddings(empty_ids)
+                    # Handle negative prompt if provided
+                    if negatives is not None:
+                        if not self.supports_negative_prompt:
+                            raise ValueError("This model was not trained with negative prompt support")
+                        negative_ids = []
+                        for neg in negatives:
+                            ids = self.tokenizer.encode(neg)
+                            ids = torch.tensor(ids, device=self.device)
+                            if ids.shape[0] > max_length:
+                                raise ValueError(f"Negative caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
+                            elif ids.shape[0] < max_length:
+                                padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
+                                ids = torch.cat([ids, padding], dim=0)
+                            negative_ids.append(ids.unsqueeze(0))
+                        negative_ids = torch.cat(negative_ids, dim=0)
+                        negative_embedding = self.text_encoder.get_embeddings(negative_ids)
 
-                    # Concatenate [negative, unconditional, conditional] along batch
-                    text_embeddings = torch.cat([negative_embedding, empty_embedding, caption_embedding], dim=0)
+                        # Get unconditional (empty) embedding
+                        empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
+                        empty_embedding = self.text_encoder.get_embeddings(empty_ids)
+
+                        # Concatenate [negative, unconditional, conditional] along batch
+                        text_embeddings = torch.cat([negative_embedding, empty_embedding, caption_embedding], dim=0)
+                    else:
+                        # Standard classifier-free guidance with just [unconditional, conditional]
+                        empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
+                        empty_embedding = self.text_encoder.get_embeddings(empty_ids)
+                        text_embeddings = torch.cat([empty_embedding, caption_embedding], dim=0)
                 else:
-                    # Standard classifier-free guidance with just [unconditional, conditional]
+                    # For unconditional generation, use empty embeddings matching max_seq_length
+                    max_length = self.text_encoder.max_seq_length
                     empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                    empty_embedding = self.text_encoder.get_embeddings(empty_ids)
-                    text_embeddings = torch.cat([empty_embedding, caption_embedding], dim=0)
+                    text_embeddings = self.text_encoder.get_embeddings(empty_ids)
             else:
-                # For unconditional generation, use empty embeddings matching max_seq_length
-                max_length = self.text_encoder.max_seq_length
-                empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                text_embeddings = self.text_encoder.get_embeddings(empty_ids)
+                if captions is not None: #TODO: add support for negitive prompts
+                    tokens = self.tokenizer(captions, return_tensors="pt", padding=True, truncation=True).to(self.device)
+                    text_embeddings = self.text_encoder(**tokens).last_hidden_state
+                else: 
+                    def mean_pooling(model_output, attention_mask):
+                        token_embeddings = model_output.last_hidden_state
+                        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+                        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+                    
+                    def encode(texts):
+                        # Tokenize sentences
+                        encoded_input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='tf')
+
+                        # Compute token embeddings
+                        model_output = self.text_encoder(**encoded_input, return_dict=True)
+
+                        # Perform pooling
+                        embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
+
+                        # Normalize embeddings
+                        embeddings = F.normalize(embeddings, p=2, dim=1)
+
+                        return embeddings
+                    text_embeddings = encode("")
+
+
 
             # --- Set up initial latent state ---
             device = self.device
