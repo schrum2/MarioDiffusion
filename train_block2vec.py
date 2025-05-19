@@ -4,6 +4,9 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import argparse
 import os
+import json
+import threading
+from util.plotter import Plotter  # Import the Plotter class
 
 # ====== Config ======
 EMBEDDING_DIM = 32
@@ -63,44 +66,43 @@ def main():
     model = Block2Vec(vocab_size=vocab_size, embedding_dim=args.embedding_dim)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
+    # Initialize Plotter
+    log_file = os.path.join(args.output_dir, 'training_log.jsonl')
+    plotter = Plotter(log_file=log_file, update_interval=5.0, left_key='loss', left_label='Loss', output_png='training_progress.png')
+
+    # Start plotting in a background thread
+    plot_thread = threading.Thread(target=plotter.start_plotting)
+    plot_thread.daemon = True
+    plotter.running = True
+    plot_thread.start()
+
     for epoch in range(args.epochs):
         total_loss = 0
         for center, context in dataloader:
-            # Filter out any context samples that are completely -1
-            #mask = (context != -1) #This line is not needed
-            #valid_context = [] #This line is not needed
-            #valid_center = [] #This line is not needed
-            #for c, ctx_row, m in zip(center, context, mask): #This line is not needed
-            #    ctx_ids = ctx_row[m].tolist() #This line is not needed
-            #    if len(ctx_ids) == 0: #This line is not needed
-            #        continue #This line is not needed
-            #    valid_context.append(torch.tensor(ctx_ids)) #This line is not needed
-            #    valid_center.append(c) #This line is not needed
-
-            #if not valid_center: #This line is not needed
-            #    continue #This line is not needed
-
-            ## Pad all context vectors to max length #This line is not needed
-            #max_len = max(len(c) for c in valid_context) #This line is not needed
-            #padded_context = torch.full((len(valid_context), max_len), fill_value=0, dtype=torch.long) #This line is not needed
-            #for i, ctx in enumerate(valid_context): #This line is not needed
-            #    padded_context[i, :len(ctx)] = ctx #This line is not needed
-
-            #center_tensor = torch.stack(valid_center) #This line is not needed
-
             loss = model(center, context)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
             total_loss += loss.item()
 
         print(f"Epoch {epoch+1}: Loss = {total_loss:.4f}")
+
+        # Log the loss to the log file
+        with open(log_file, 'a') as f:
+            log_data = {'epoch': epoch + 1, 'loss': total_loss}
+            f.write(json.dumps(log_data) + '\n')
+
+        # Update the plot
+        plotter.update_plot()
 
     # ====== Save Embeddings ======
     output_path = os.path.join(args.output_dir, "block2vec_embeddings.pt")
     torch.save(model.in_embed.weight.detach(), output_path)
     print(f"Embeddings saved to {output_path}")
+
+    # Stop the plotting thread
+    plotter.stop_plotting()
+    plot_thread.join(timeout=1)
 
 if __name__ == "__main__":
     main()
