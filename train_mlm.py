@@ -47,8 +47,13 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
 
     # Get formatted timestamp for filenames
     formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
+    
     # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    if os.path.exists(args.output_dir):
+        print(f"Error: Output directory '{args.output_dir}' already exists. Exiting.")
+        exit()
+    os.makedirs(args.output_dir)
+
     # Create log files
     log_file = os.path.join(args.output_dir, f"mlm_training_log_{formatted_date}.jsonl")
     accuracy_log_file = os.path.join(args.output_dir, f"mlm_accuracy_log_{formatted_date}.jsonl")

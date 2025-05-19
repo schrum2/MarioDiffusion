@@ -271,7 +271,10 @@ def main():
     )
     
     # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    if os.path.exists(args.output_dir):
+        print(f"Error: Output directory '{args.output_dir}' already exists. Exiting.")
+        exit()
+    os.makedirs(args.output_dir)
     
     # Training loop
     global_step = 0
