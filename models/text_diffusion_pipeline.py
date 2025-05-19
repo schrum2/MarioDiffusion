@@ -21,13 +21,13 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         if self.tokenizer is None and self.text_encoder is not None:
             # Use the tokenizer from the text encoder if not provided
             self.tokenizer = self.text_encoder.tokenizer
-
+        
         # Register the text_encoder so that .to(), .cpu(), .cuda(), etc. work correctly
         self.register_modules(
             unet=unet,
             scheduler=scheduler,
-            text_encoder=text_encoder,
-            tokenizer=tokenizer,
+            text_encoder=self.text_encoder,
+            tokenizer=self.tokenizer,
         )
     
     # Override the to() method to ensure text_encoder is moved to the correct device
@@ -48,6 +48,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         # Save custom text encoder
         if self.text_encoder is not None:
             self.text_encoder.save_pretrained(os.path.join(save_directory, "text_encoder"))
+        if self.tokenizer is not None:
+            self.tokenizer.save_pretrained(os.path.join(save_directory, "tokenizer"))
         # Save supports_negative_prompt flag
         with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
             json.dump({"supports_negative_prompt": self.supports_negative_prompt}, f)
