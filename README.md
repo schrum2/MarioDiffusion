@@ -62,6 +62,12 @@ This doesn't work yet
 ```
 python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC\\MegaMan"
 ```
+## Can I also get Lode Runner Data? (TODO)
+
+This line works but others don't (yet).
+```
+python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json"
+```
 
 ## Train text encoder
 
@@ -116,6 +122,10 @@ python interactive_tile_level_generator.py SMB1_LevelsAndCaptions-regular.json S
 Interactively evolve level scenes in the latent space of the conditional model:
 ```
 python evolve_interactive_conditional_diffusion.py --model_path SMB1-conditional-regular
+```
+Automatically evolve level scenes in the latent space of the model (must put a caption into the parenthesis ex "full floor. one enemy."):
+```
+python evolve_automatic.py --model_path SMB1-conditional-regular --target_caption " "
 ```
 
 ## Evaluate caption adherence of text-to-level model
