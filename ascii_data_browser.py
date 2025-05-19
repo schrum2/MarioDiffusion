@@ -232,12 +232,16 @@ class TileViewer(tk.Tk):
         else:
             return [[(x1, y1), (x2, y1), (x2, y2), (x1, y2)]]  # full square
 
+    
     def redraw(self):
         if not self.dataset:
             return
 
         self.canvas.delete("all")
         sample = self.dataset[self.current_sample_idx]
+
+        if isinstance(sample, list):
+            sample = {"scene": sample, "caption": "No caption available."}
 
         # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
         from captions.caption_match import TOPIC_KEYWORDS
@@ -274,6 +278,7 @@ class TileViewer(tk.Tk):
                 num_classes=15
             ).float().permute(2, 0, 1).unsqueeze(0)  # Add batch dimension
 
+            
             image = visualize_samples(one_hot_scene)
             if isinstance(image, list):
                 image = image[0]  # Handle list case by taking the first element
@@ -287,8 +292,10 @@ class TileViewer(tk.Tk):
             font = ("Courier", self.font_size)
             colors = level_dataset.colors()
 
-            for y in range(16):
-                for x in range(16):
+            HEIGHT = len(sample['scene'])
+            WIDTH = len(sample['scene'][0])
+            for y in range(HEIGHT):
+                for x in range(WIDTH):
                     tile_id = sample['scene'][y][x]
                     text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
                     # Convert (r, g, b) float tuple to hex color string
@@ -323,7 +330,6 @@ class TileViewer(tk.Tk):
                                 fill=phrase_colors[phrase],
                                 outline=""
                             )
-
                     # Draw text
                     self.canvas.create_text(
                         x * self.tile_size + self.tile_size // 2,
