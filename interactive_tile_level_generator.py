@@ -121,9 +121,22 @@ class CaptionBuilder(ParentBuilder):
         )
         self.astar_composed_button.pack(side=tk.LEFT, padx=2)
 
-        # Frame for thumbnails
-        self.bottom_frame = ttk.Frame(self.caption_frame)
-        self.bottom_frame.pack(fill=tk.X, pady=(0, 10))    # 10 pixels below thumbnails
+        # Frame for thumbnails with horizontal scrolling
+        self.bottom_canvas = tk.Canvas(self.caption_frame, height=70, borderwidth=0, highlightthickness=0)
+        self.bottom_scrollbar = ttk.Scrollbar(self.caption_frame, orient=tk.HORIZONTAL, command=self.bottom_canvas.xview)
+        self.bottom_frame = ttk.Frame(self.bottom_canvas)
+
+        self.bottom_frame.bind(
+            "<Configure>",
+            lambda e: self.bottom_canvas.configure(
+                scrollregion=self.bottom_canvas.bbox("all")
+            )
+        )
+        self.bottom_canvas.create_window((0, 0), window=self.bottom_frame, anchor="nw")
+        self.bottom_canvas.configure(xscrollcommand=self.bottom_scrollbar.set)
+
+        self.bottom_canvas.pack(fill=tk.X, pady=(0, 0))
+        self.bottom_scrollbar.pack(fill=tk.X, pady=(0, 10))
 
     def get_patterns(self):
         # Different for LoRA and tile diffusion
@@ -247,7 +260,7 @@ class CaptionBuilder(ParentBuilder):
 
             pil_img = visualize_samples(images)
             self.generated_images.append(pil_img)
-            self.generated_scenes.append(scene)
+            # self.generated_scenes.append(scene)
             img_tk = ImageTk.PhotoImage(pil_img)
 
             compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True)
