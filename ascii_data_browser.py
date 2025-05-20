@@ -259,6 +259,20 @@ class TileViewer(tk.Tk):
             return [[(x1, y1), (x2, y1), (x2, y2), (x1, y2)]]  # full square
 
     
+    def update_tile_and_canvas_size(self, scene):
+        """Update tile_size and canvas size so the level fits perfectly inside the window."""
+        HEIGHT = len(scene)
+        WIDTH = len(scene[0])
+        # Compute the largest tile size that fits both dimensions
+        tile_size_h = int(self.window_size // HEIGHT)
+        tile_size_w = int(self.window_size // WIDTH)
+        self.tile_size = min(tile_size_h, tile_size_w)
+        # Update canvas size to fit the grid exactly
+        canvas_width = self.tile_size * WIDTH
+        canvas_height = self.tile_size * HEIGHT
+        self.canvas.config(width=canvas_width, height=canvas_height)
+        self.font_size = max(self.tile_size // 3, 6)
+
     def redraw(self):
         if not self.dataset:
             return
@@ -268,6 +282,9 @@ class TileViewer(tk.Tk):
 
         if isinstance(sample, list):
             sample = {"scene": sample, "caption": "No caption available."}
+
+        # Dynamically update tile and canvas size for this scene
+        self.update_tile_and_canvas_size(sample['scene'])
 
         # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
         from captions.caption_match import TOPIC_KEYWORDS
