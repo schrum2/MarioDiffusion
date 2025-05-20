@@ -164,7 +164,10 @@ def main():
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
     
     """
-    If sprite temperature scaling is enabled, compute the scaling factors.
+    If sprite temperature scaling is enabled and the model is unconditional, 
+    then compute the scaling factors.
+    Note: Applying per-sprite temperature scaling could conflict with the intent of the prompt
+    on conditional models. Thus, this argument is only for unconditional models.
     """
     sprite_scaling_factors = None
     if (not args.text_conditional) and (args.sprite_temperature_n is not None):

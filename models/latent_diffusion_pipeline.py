@@ -6,9 +6,9 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.ddpm.pipeline_ddpm import ImagePipelineOutput
 
 class UnconditionalDDPMPipeline(DDPMPipeline):
-    def __init__(self, *args, sprite_scaling_factors=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.sprite_scaling_factors = sprite_scaling_factors
+    def __init__(self, unet, scheduler, **kwargs):
+        self.sprite_scaling_factors = kwargs.pop("sprite_scaling_factors", None)
+        super().__init__(unet=unet, scheduler=scheduler, **kwargs)
 
     def __call__(
         self,
