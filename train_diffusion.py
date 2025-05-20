@@ -97,7 +97,41 @@ def parse_args():
         help="Loss function to use: 'MSE' for mean squared error (default), 'CROSS' for cross entropy"
     )
 
+    parser.add_argument(
+        "--sprite_temperature_n",
+        type=int,
+        default=None,
+        help="If set, enables per-sprite temperature scaling with the specified n (e.g., 2, 4, 8) during inference."
+    )
+
     return parser.parse_args()
+
+def compute_sprite_scaling_factors(json_path, num_tiles, n):
+    """
+    Computes per-sprite scaling factors for temperature scaling.
+    Args:
+        json_path (str): Path to your level JSON file.
+        num_tiles (int): Number of tile types.
+        n (int): The temperature scaling root (e.g., 2, 4, 8).
+    Returns:
+        torch.Tensor: Scaling factors of shape [num_tiles].
+    """
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+    counts = [0] * num_tiles
+    for entry in data:
+        # Assumes entry['level'] is a 2D array of tile indices
+        level = entry.get('level')
+        if level is not None:
+            for row in level:
+                for tile in row:
+                    counts[tile] += 1
+    # Avoid division by zero for unused tiles
+    counts = [c if c > 0 else 1 for c in counts]
+    scalings = [c ** (1 / n) for c in counts]
+    min_scaling = min(scalings)
+    scalings = [s / min_scaling for s in scalings]
+    return torch.tensor(scalings, dtype=torch.float32)
 
 def main():
     args = parse_args()
@@ -128,6 +162,17 @@ def main():
     
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
+    
+    """
+    If sprite temperature scaling is enabled, compute the scaling factors.
+    """
+    sprite_scaling_factors = None
+    if args.sprite_temperature_n is not None:
+        sprite_scaling_factors = compute_sprite_scaling_factors(
+            args.json, args.num_tiles, args.sprite_temperature_n
+        )
+        print(f"Sprite scaling factors: {sprite_scaling_factors}")
+
 
     # Set random seeds for reproducibility
     random.seed(args.seed)
@@ -585,7 +630,8 @@ def main():
                 # For unconditional generation
                 pipeline = UnconditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler
+                    scheduler=noise_scheduler, 
+                    sprite_scaling_factors=sprite_scaling_factors
                 )
                 
                 # Generate sample levels
@@ -613,7 +659,11 @@ def main():
                 if args.negative_prompt_training:
                     pipeline.supports_negative_prompt = True
             else:
-                pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+                pipeline = UnconditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler, 
+                    sprite_scaling_factors=sprite_scaling_factors
+                    )
                 
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
     
@@ -642,7 +692,11 @@ def main():
             text_encoder=text_encoder
         ).to("cuda")
     else:
-        pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+        pipeline = UnconditionalDDPMPipeline(
+            unet=accelerator.unwrap_model(model), 
+            scheduler=noise_scheduler, 
+            sprite_scaling_factors=sprite_scaling_factors
+            )
         
     pipeline.save_pretrained(args.output_dir)
 
