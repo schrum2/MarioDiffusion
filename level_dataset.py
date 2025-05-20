@@ -268,8 +268,8 @@ class LevelDataset(Dataset):
         self.cumulative_lengths = np.cumsum(self.level_lengths)
         self.max_len = max(self.level_lengths)
         self.pad_token = tokenizer.token_to_id["[PAD]"] if tokenizer else None
-        self.augmentor = LevelAugmentor()
-        self.data = self.process_data()
+        # self.augmentor = LevelAugmentor()
+        # self.data = self.process_data()
 
         # Load data
         print(f"Loading data from {json_path}...")

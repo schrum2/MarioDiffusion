@@ -69,8 +69,8 @@ def main():
         shuffle=False,
         mode="text",
         augment=False,
-        num_tiles=args.num_tiles
-        block_embeddings=
+        num_tiles=args.num_tiles,
+        block_embeddings=None
     )
 
     # Create dataloader
