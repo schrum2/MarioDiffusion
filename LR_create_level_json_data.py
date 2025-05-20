@@ -22,12 +22,12 @@ def level_to_id_grid(level, tile_to_id):
     height = len(level)
     target_size = max(width, height)
     # Pad each row to the target size
-    padded_level = [row.ljust(target_size, '-') for row in level]
+    padded_level = [row.ljust(target_size, 'B') for row in level]
     # Pad rows to the target size
     while len(padded_level) < target_size:
-        padded_level.append('-' * target_size)
+        padded_level.append('B' * target_size)
     # Convert to grid of tile IDs
-    return [[tile_to_id.get(c, tile_to_id['-']) for c in row] for row in padded_level]
+    return [[tile_to_id.get(c, tile_to_id['B']) for c in row] for row in padded_level]
 
 def main(tileset_path, levels_dir, output_path):
     tile_to_id = load_tileset(tileset_path)
