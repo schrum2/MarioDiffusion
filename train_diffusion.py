@@ -106,6 +106,7 @@ def parse_args():
 
     return parser.parse_args()
 
+# TODO: We'll probably want to move this somewhere else eventually
 def compute_sprite_scaling_factors(json_path, num_tiles, n):
     """
     Computes per-sprite scaling factors for temperature scaling.
@@ -633,9 +634,11 @@ def main():
                 # For unconditional generation
                 pipeline = UnconditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler, 
-                    sprite_scaling_factors=sprite_scaling_factors
+                    scheduler=noise_scheduler
                 )
+                if sprite_scaling_factors is not None:
+                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+
                 
                 # Generate sample levels
                 with torch.no_grad():
@@ -664,9 +667,10 @@ def main():
             else:
                 pipeline = UnconditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler, 
-                    sprite_scaling_factors=sprite_scaling_factors
-                    )
+                    scheduler=noise_scheduler
+                )
+                if sprite_scaling_factors is not None:
+                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
                 
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
     
@@ -697,9 +701,10 @@ def main():
     else:
         pipeline = UnconditionalDDPMPipeline(
             unet=accelerator.unwrap_model(model), 
-            scheduler=noise_scheduler, 
-            sprite_scaling_factors=sprite_scaling_factors
-            )
+            scheduler=noise_scheduler
+        )
+        if sprite_scaling_factors is not None:
+            pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
         
     pipeline.save_pretrained(args.output_dir)
 
