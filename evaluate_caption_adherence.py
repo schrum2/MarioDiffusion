@@ -70,6 +70,7 @@ def main():
         mode="text",
         augment=False,
         num_tiles=args.num_tiles
+        block_embeddings=
     )
 
     # Create dataloader

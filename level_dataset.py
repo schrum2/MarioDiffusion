@@ -233,7 +233,7 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15, negative_captions=False):
+    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15, negative_captions=False, block_embeddings=None):
         """
             Args:
             json_path (str): Path to JSON file with captions.
