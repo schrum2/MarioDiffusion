@@ -71,7 +71,7 @@ python LR_create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheV
 
 These files only contains the level scenes. Create captions for all level scenes with commands like this (currently created blank captions so that we can run unconditional diffusion):
 ```
-python create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-regular.json
+python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-regular.json
 ```
 
 To train an unconditional diffusion model without any text embeddings, run this command:
