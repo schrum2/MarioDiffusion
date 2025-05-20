@@ -50,8 +50,11 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         # Save custom text encoder
         if self.text_encoder is not None:
             self.text_encoder.save_pretrained(os.path.join(save_directory, "text_encoder"))
-        if self.tokenizer is not None:
+        if self.tokenizer is not None and hasattr(self.tokenizer, 'save_pretrained'):
+            # Save tokenizer if it has a save_pretrained method.
+            # Otherwise, we presume the tokenizer was saved by the text encoder.
             self.tokenizer.save_pretrained(os.path.join(save_directory, "tokenizer"))
+            
         # Save supports_negative_prompt flag
         with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
             json.dump({"supports_negative_prompt": self.supports_negative_prompt}, f)
