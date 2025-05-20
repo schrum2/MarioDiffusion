@@ -732,7 +732,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
             if return_details and details is not None:
                 details[phrase.strip()] = contributing_blocks
 
-    caption = ""
+    caption = "" # assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
     # Analyze floor
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
