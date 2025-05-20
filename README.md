@@ -71,9 +71,13 @@ python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC
 
 These files only contains the level scenes. Create captions for all level scenes with commands like this (currently created blank captions so that we can run unconditional diffusion):
 ```
-python create_ascii_captions.py --dataset SMB1_Levels.json --output SMB1_LevelsAndCaptions-regular.json
+python create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-regular.json
 ```
 
+To train an unconditional diffusion model without any text embeddings, run this command:
+```
+python train_diffusion.py --augment --output_dir "LR-unconditional" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --split
+```
 ## Train text encoder
 
 First create a tokenizer for the caption data you want to train on. Most of these datasets have the same vocabulary, but there is a clear difference between datasets that describe the absence of entities and those that do not. Also, SMB1 has no upside down pipes, but these are present in the other games. The `BAT_datasets.bat` already creates a tokenizer for each dataset, but if you make a tokenizer for all of the Mario data, you should be covered:
