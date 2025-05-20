@@ -167,7 +167,7 @@ def main():
     If sprite temperature scaling is enabled, compute the scaling factors.
     """
     sprite_scaling_factors = None
-    if args.sprite_temperature_n is not None:
+    if (not args.text_conditional) and (args.sprite_temperature_n is not None):
         sprite_scaling_factors = compute_sprite_scaling_factors(
             args.json, args.num_tiles, args.sprite_temperature_n
         )
