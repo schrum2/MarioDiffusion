@@ -99,7 +99,7 @@ def generate_levels(args):
 
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)
-        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
+        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
 
 if __name__ == "__main__":
     args = parse_args()

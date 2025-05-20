@@ -669,7 +669,7 @@ def extract_tileset(tileset_path):
 
     return tile_chars, id_to_char, char_to_id, tile_descriptors
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence):
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True):
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
@@ -679,7 +679,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     for scene in dataset:
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
-        if "broken" in caption:
+        if exclude_broken and "broken" in caption:
             print("Broken pipe in training data")
             print(caption)
             current = len(captioned_dataset)
