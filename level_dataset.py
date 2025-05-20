@@ -426,12 +426,15 @@ class LevelDataset(Dataset):
 
         # Added to support embeddings
         if self.block_embeddings is not None:
+            raise ValueError("Block embeddings not supported yet")
             # Replace one-hot encoding with block embeddings
-            scene_tensor = torch.stack([self.block_embeddings[tile_id] for tile_id in scene_tensor])
+            one_hot_scene = torch.stack([self.block_embeddings[tile_id] for tile_id in scene_tensor])
         else:
             one_hot_scene = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
             # Permute dimensions to [num_tiles, height, width]
-            scene_tensor = one_hot_scene.permute(2, 0, 1)
+            #print("before permute", one_hot_scene.shape)
+            one_hot_scene = one_hot_scene.permute(2, 0, 1)
+            #print("after permute", one_hot_scene.shape)
 
         if self.mode == "diff_text":
             # Return the raw caption for the pretrained model, this should be moved up later
