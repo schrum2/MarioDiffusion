@@ -134,7 +134,7 @@ def main():
         tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
-    data_mode = ("diffusion" if not args.pretrained_language_model else "pretrained_language_model") if args.text_conditional else "diff_text"
+    data_mode = ("diffusion" if not args.pretrained_language_model else "diff_text") if args.text_conditional else "diff_text"
 
     # Initialize dataset
     if args.split:
@@ -168,6 +168,13 @@ def main():
             negative_captions=args.negative_prompt_training
         )
         val_dataset = None
+
+    first_sample = train_dataset[0]
+    scene_height = first_sample[0].shape[1]
+    scene_width = first_sample[0].shape[2]
+
+    print(f"Scene height: {scene_height}")
+    print(f"Scene width: {scene_width}")
 
     # Create dataloader
     train_dataloader = DataLoader(
@@ -233,7 +240,7 @@ def main():
     # Setup the UNet model - use conditional version if text conditioning is enabled
     if args.text_conditional:
         model = UNet2DConditionModel(
-            sample_size=(16, 16),  # Fixed size for your level scenes
+            sample_size=(scene_height, scene_width),  # Fixed size for your level scenes
             in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
             out_channels=args.num_tiles,
             layers_per_block=args.num_res_blocks,
@@ -248,7 +255,7 @@ def main():
             model.negative_prompt_support = True
     else:
         model = UNet2DModel(
-            sample_size=(16, 16),  # Fixed size for your level scenes
+            sample_size=(scene_height, scene_width),  # Fixed size for your level scenes
             in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
             out_channels=args.num_tiles,
             layers_per_block=args.num_res_blocks,
@@ -361,7 +368,6 @@ def main():
         train_loss = 0.0
         
         for batch_idx, batch in enumerate(train_dataloader):
-
             # Process batch data
             if args.text_conditional:
                 # Unpack scenes and captions
