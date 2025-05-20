@@ -85,12 +85,17 @@ def generate_levels(args):
             #        print(f"({i},{j}): max idx={max_idx}, values={values.cpu().detach().numpy()}")
 
             all_samples.append(samples)
+
+            # Create a unique subdirectory for each batch
+            start_index = batch_idx * args.batch_size
+            visualize_samples(samples, args.output_dir, True, start_index)
     
     # Concatenate all batches
     all_samples = torch.cat(all_samples, dim=0)[:total_samples]
     print(f"Generated {len(all_samples)} level samples")
     
-    visualize_samples(all_samples, args.output_dir)
+    # visualizes all samples at once
+    # visualize_samples(all_samples, args.output_dir)
 
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)

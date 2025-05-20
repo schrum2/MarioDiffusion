@@ -19,6 +19,10 @@ class CaptionBuilder(ParentBuilder):
                 
         # Holds tensors of levels currently on display
         self.current_levels = []
+        self.added_image_indexes = []
+        self.bottom_thumbnails = []
+        self.generated_images = []
+        self.generated_scenes = []
 
         # Frame for caption display
         self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
@@ -100,6 +104,40 @@ class CaptionBuilder(ParentBuilder):
         self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet")
         self.loaded_model_label.pack()
 
+        # Frame for composed level controls
+        self.composed_frame = ttk.Frame(self.caption_frame)
+        self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
+
+        self.play_composed_button = ttk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
+        self.play_composed_button.pack(side=tk.LEFT, padx=2)
+        self.save_composed_button = ttk.Button(self.composed_frame, text="Save Composed Level", command=self.save_composed_level)
+        self.save_composed_button.pack(side=tk.LEFT, padx=2)
+        self.clear_composed_button = ttk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
+        self.clear_composed_button.pack(side=tk.LEFT, padx=2)
+        self.astar_composed_button = ttk.Button(
+            self.composed_frame, 
+            text="Use A* on Composed Level", 
+            command=self.astar_composed_level
+        )
+        self.astar_composed_button.pack(side=tk.LEFT, padx=2)
+
+        # Frame for thumbnails with horizontal scrolling
+        self.bottom_canvas = tk.Canvas(self.caption_frame, height=70, borderwidth=0, highlightthickness=0)
+        self.bottom_scrollbar = ttk.Scrollbar(self.caption_frame, orient=tk.HORIZONTAL, command=self.bottom_canvas.xview)
+        self.bottom_frame = ttk.Frame(self.bottom_canvas)
+
+        self.bottom_frame.bind(
+            "<Configure>",
+            lambda e: self.bottom_canvas.configure(
+                scrollregion=self.bottom_canvas.bbox("all")
+            )
+        )
+        self.bottom_canvas.create_window((0, 0), window=self.bottom_frame, anchor="nw")
+        self.bottom_canvas.configure(xscrollcommand=self.bottom_scrollbar.set)
+
+        self.bottom_canvas.pack(fill=tk.X, pady=(0, 0))
+        self.bottom_scrollbar.pack(fill=tk.X, pady=(0, 10))
+
     def get_patterns(self):
         # Different for LoRA and tile diffusion
         patterns = ["floor", "ceiling", 
@@ -161,6 +199,10 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text.config(state=tk.DISABLED)
     
     def generate_image(self):
+        # clear the previous images
+        self.generated_images = []
+        self.generated_scenes = []
+
         print("Generating")
         prompt = self.caption_text.get("1.0", tk.END).strip()
         negative_prompt = self.negative_prompt_entry.get().strip()
@@ -213,14 +255,19 @@ class CaptionBuilder(ParentBuilder):
             sample_tensor = images[0].unsqueeze(0)
             sample_indices = convert_to_level_format(sample_tensor)
             scene = sample_indices[0].tolist()
+            self.generated_scenes.append(scene)
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+
+            pil_img = visualize_samples(images)
+            self.generated_images.append(pil_img)
+            img_tk = ImageTk.PhotoImage(pil_img)
 
             compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True)
 
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
 
-            img_tk = ImageTk.PhotoImage(visualize_samples(images))
+
             print(f"Image {i + 1} dimensions: width={img_tk.width()}, height={img_tk.height()}")
 
             # Check if the image width exceeds the frame width and scale it down if necessary
@@ -307,6 +354,14 @@ Average Segment Score: {avg_segment_score}"""
             )
             astar_button.pack(side=tk.LEFT, padx=5)
 
+            # Add "Add To Level" button
+            add_button = ttk.Button(
+                button_frame,
+                text="Add To Level",
+                command=lambda idx=i: self.add_to_composed_level(idx)
+            )
+            add_button.pack(side=tk.LEFT, padx=5)
+
             del images, sample_tensor, sample_indices, scene  # Delete unused tensors
             torch.cuda.empty_cache()  # Clear the cache
             gc.collect()  # Force garbage collection
@@ -314,20 +369,72 @@ Average Segment Score: {avg_segment_score}"""
         print("Image generation completed.")
         #print(self.current_levels)
 
-    def get_sample_output(self, idx):
-        tensor = torch.tensor(self.current_levels[idx])
-        tile_numbers = torch.argmax(tensor, dim=0).numpy()
-        #print(tile_numbers)
-        char_grid = []
-        for row in tile_numbers:
-            char_row = "".join([self.id_to_char[num] for num in row])
-            char_grid.append(char_row)
+    def add_to_composed_level(self, idx):
+        self.added_image_indexes.append(idx)
+        img = self.generated_images[idx].copy()
+        img.thumbnail((64, 64))
+        photo = ImageTk.PhotoImage(img)
+        self.bottom_thumbnails.append(photo)  # Prevent GC
+        label = ttk.Label(self.bottom_frame, image=photo)
+        label.pack(side=tk.LEFT, padx=2)
 
-        #print(char_grid)
-        level = SampleOutput(
-            level = char_grid
-        )
-        return level
+    def clear_composed_level(self):
+        self.added_image_indexes.clear()
+        self.bottom_thumbnails.clear()
+        for widget in self.bottom_frame.winfo_children():
+            widget.destroy()
+
+    def merge_selected_scenes(self):
+        scenes = [self.generated_scenes[i] for i in self.added_image_indexes]
+        if not scenes:
+            return None
+        num_rows = len(scenes[0])
+        if not all(len(scene) == num_rows for scene in scenes):
+            raise ValueError("All scenes must have the same number of rows.")
+        concatenated_scene = []
+        for row_index in range(num_rows):
+            new_row = []
+            for scene in scenes:
+                new_row.extend(scene[row_index])
+            concatenated_scene.append(new_row)
+        return concatenated_scene
+
+    def play_composed_level(self):
+        scene = self.merge_selected_scenes()
+        if scene:
+            level = self.get_sample_output(scene)
+            level.play()
+
+    def save_composed_level(self):
+        scene = self.merge_selected_scenes()
+        if scene:
+            level = self.get_sample_output(scene)
+            level.save("ComposedLevel.txt")
+
+    def astar_composed_level(self):
+        scene = self.merge_selected_scenes()
+        if scene:
+            level = self.get_sample_output(scene)
+            level.run_astar()
+
+    def get_sample_output(self, idx_or_scene):
+        if isinstance(idx_or_scene, int):
+            tensor = torch.tensor(self.current_levels[idx_or_scene])
+            tile_numbers = torch.argmax(tensor, dim=0).numpy()
+            char_grid = []
+            for row in tile_numbers:
+                char_row = "".join([self.id_to_char[num] for num in row])
+                char_grid.append(char_row)
+            level = SampleOutput(level=char_grid)
+            return level
+        else:
+            # Assume idx_or_scene is a scene (list of lists of tile indices)
+            char_grid = []
+            for row in idx_or_scene:
+                char_row = "".join([self.id_to_char[num] for num in row])
+                char_grid.append(char_row)
+            level = SampleOutput(level=char_grid)
+            return level
       
     def play_level(self, idx):
         level = self.get_sample_output(idx)

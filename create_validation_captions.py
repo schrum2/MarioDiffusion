@@ -16,7 +16,7 @@ def parse_args():
     
     # Output args
     parser.add_argument("--save_file", type=str, default="Mario_ValidationCaptions.json", help="Output file")
-    parser.add_argument("--validation_set_size", type=int, default=1000, help="Number of captions for validating generation abilities of model")
+    parser.add_argument("--validation_set_size", type=int, default=100, help="Number of captions for validating generation abilities of model")
     
     return parser.parse_args()
 

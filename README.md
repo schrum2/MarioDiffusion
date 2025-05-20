@@ -146,9 +146,9 @@ python evaluate_caption_adherence.py --model_path SMB1-conditional-regular --sav
 
 ## Train unconditional diffusion model
 
-To train an unconditional diffusion model without any text embeddings, run this command (ARE MLM AND TOKENIZER NEEDED?):
+To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --output_dir "SMB1-unconditional" --num_epochs 100 --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --mlm_model_dir SMB1-MLM-regular --split
+python train_diffusion.py --augment --output_dir "SMB1-unconditional" --num_epochs 100 --json SMB1_LevelsAndCaptions-regular.json --split
 ```
 
 ## Generate levels from unconditional model
