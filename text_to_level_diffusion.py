@@ -18,15 +18,26 @@ def parse_args():
 
 class InteractiveLevelGeneration(InteractiveGeneration):
     def __init__(self, args):
-        InteractiveGeneration.__init__(self, {
-            "caption" : str,
-            "width" : int,
-            "negative_prompt" : str,
-            "start_seed" : int,
-            "end_seed" : int,
-            "num_inference_steps" : int,
-            "guidance_scale" : float
-        })
+        super().__init__(
+            {
+                "caption": str,
+                "width": int,
+                "negative_prompt": str,
+                "start_seed": int,
+                "end_seed": int,
+                "num_inference_steps": int,
+                "guidance_scale": float
+            },
+            default_parameters={
+                "width": 16,
+                "start_seed": 1,
+                "end_seed": 1,  # Will be set to start_seed if blank
+                "num_inference_steps": 10,
+                "guidance_scale": 7.5,
+                "caption": "",
+                "negative_prompt": ""
+            }
+        )
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(self.device)

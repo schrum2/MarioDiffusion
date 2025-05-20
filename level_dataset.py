@@ -121,7 +121,7 @@ def tiles():
 
     return tile_images
 
-def visualize_samples(samples, output_dir=None, use_tiles=True):
+def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
     """
     Visualize generated samples and save as images.
 
@@ -168,7 +168,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True):
                     composite_image.paste(tile_image, (col * tile_size, row * tile_size))
 
             if output_dir:
-                composite_image.save(os.path.join(output_dir, f"sample_{i}.png"))
+                composite_image.save(os.path.join(output_dir, f"sample_{i + start_index}.png"))
             else:
                 return composite_image
 
@@ -239,13 +239,16 @@ class LevelDataset(Dataset):
             tokenizer (Tokenizer): Tokenizer instance.
             shuffle (bool): Whether to shuffle data at the start of an epoch.
             max_length (int, optional): Maximum length for tokenized captions.
-            mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training (tokenized captions only), "text" for just the text captions.
+            mode (str): "diffusion" for level scenes + captions tokens, 
+                        "mlm" for masked language model training (tokenized captions only), 
+                        "text" for just the text captions, 
+                        "diff_text" for level scenes and text captions (used with a pretrained model).
             augment (bool): Whether to apply data augmentation to text captions.
             random_flip (bool): Whether to randomly flip the scene and caption.
             limit (int): restrict dataset to this size if not -1
             num_tiles (int): Number of different tile types for one-hot encoding
         """
-        assert mode in ["mlm", "diffusion","text"], "Mode must be 'mlm', 'text', or 'diffusion'."
+        assert mode in ["mlm", "diffusion","text", "diff_text"], "Mode must be 'mlm', 'text', 'diffusion', or 'diff_text'."
 
         self.shuffle = shuffle
         self.tokenizer = tokenizer
@@ -300,7 +303,7 @@ class LevelDataset(Dataset):
         else:
             return caption # Same as original
 
-    def _flip_scene_and_caption(self, scene, caption): # augments by flipping
+    def _flip_scene(self, scene): # augments by flipping
         """
             swapping directional tokens for consistency with flipped scenes
             scene: list of lists of integers level scene representation
@@ -327,10 +330,7 @@ class LevelDataset(Dataset):
         flipped_scene[mask_9] = 10
         flipped_scene[mask_10] = 9
 
-        # Change left to right and vice versar
-        caption_tensor = torch.tensor(self._swap_caption_tokens(caption), dtype=torch.long)
-
-        return flipped_scene, caption_tensor
+        return flipped_scene
 
     def _swap_caption_tokens(self, caption_tensor):
         """swapping directional tokens for consistency with flipped scenes"""
@@ -384,39 +384,50 @@ class LevelDataset(Dataset):
                 # Return the raw caption for text mode
                 return augmented_caption
 
-        caption_tokens = self.tokenizer.encode(augmented_caption)
-        if len(caption_tokens) > self.max_length:
-            raise ValueError(f"Caption length exceeds max_length: {len(caption_tokens)} > {self.max_length}: {augmented_caption}")
-        caption_tokens = self.tokenizer.pad_sequence(caption_tokens, self.max_length)
-        caption_tensor = torch.tensor(caption_tokens, dtype=torch.long)
+        if self.mode != "diff_text":
+            caption_tokens = self.tokenizer.encode(augmented_caption)
+            if len(caption_tokens) > self.max_length:
+                raise ValueError(f"Caption length exceeds max_length: {len(caption_tokens)} > {self.max_length}: {augmented_caption}")
+            
+            caption_tokens = self.tokenizer.pad_sequence(caption_tokens, self.max_length)
+            caption_tensor = torch.tensor(caption_tokens, dtype=torch.long)
 
-        if self.negative_captions:
-            negative_caption_tokens = self.tokenizer.encode(negative_caption)
-            negative_caption_tokens = self.tokenizer.pad_sequence(negative_caption_tokens, self.max_length)
-            negative_caption_tensor = torch.tensor(negative_caption_tokens, dtype=torch.long)
-
-        if self.mode == "mlm":
             if self.negative_captions:
-                return caption_tensor, negative_caption_tensor
-            else:
-                return caption_tensor  # MLM only uses caption tokens
+                negative_caption_tokens = self.tokenizer.encode(negative_caption)
+                negative_caption_tokens = self.tokenizer.pad_sequence(negative_caption_tokens, self.max_length)
+                negative_caption_tensor = torch.tensor(negative_caption_tokens, dtype=torch.long)
+
+            if self.mode == "mlm":
+                if self.negative_captions:
+                    return caption_tensor, negative_caption_tensor
+                else:
+                    return caption_tensor  # MLM only uses caption tokens
 
         scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
         
         # Apply random flip if enabled
         if self.random_flip and random.choice([True, False]):
-            #print("AUGMENT!", idx)
-            scene_tensor, caption_tensor = self._flip_scene_and_caption(scene_tensor, caption_tokens)
+            scene_tensor = self._flip_scene(scene_tensor)
+            if self.mode != "diff_text":
+                caption_tensor = torch.tensor(self._swap_caption_tokens(caption), dtype=torch.long)
 
         # Convert to one-hot encoding for diffusion model
         one_hot_scene = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
         # Permute dimensions to [num_tiles, height, width]
         one_hot_scene = one_hot_scene.permute(2, 0, 1)
 
+        if self.mode == "diff_text":
+            # Return the raw caption for the pretrained model, this should be moved up later
+            #TODO: add support for negative captions
+            return one_hot_scene, augmented_caption
+        
+        # The options below include the scene, but also the tokenized captions
+
         if self.negative_captions:
             return one_hot_scene, caption_tensor, negative_caption_tensor
         else:
             return one_hot_scene, caption_tensor
+        
 
     def decode_caption(self, token_ids):
         """Converts a sequence of token IDs back into a readable caption."""

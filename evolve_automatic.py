@@ -16,6 +16,7 @@ from captions.caption_match import process_scene_segments
 from create_ascii_captions import extract_tileset
 import os
 
+
 def caption_fitness(x):
     """
     Generate the scene, then generate its caption, and compare to a desired caption
@@ -67,20 +68,71 @@ def caption_fitness(x):
 
     #print(latent_input)
     #input("next")
+    fitness = -average_score
 
     global best_fitness
     # Check if the caption is new and if it has a better score
-
+    #print(seen_captions)
     for c in segment_captions:
-        if c not in seen_captions and best_fitness > average_score:
+        if best_fitness > fitness:
             visualize_samples(images).show()
-            print(average_score, segment_captions)
-            #input("Press enter for next")
+            print(fitness, segment_captions)
+            input("Press enter for next")
             seen_captions.add(c)            
-            best_fitness = average_score
+            best_fitness = fitness
 
     # Negative score is better, since CMA-ES wants to minimize
-    return -average_score, segment_captions
+    return fitness, segment_captions
+
+class SimpleEvolutionaryOptimizer:
+    """
+    A simple evolutionary optimizer placeholder class.
+    Implement ask() and tell() methods as needed.
+    """
+    def __init__(self, population_size, seed=None, mutation_sigma=5.0, tournament_size=2):
+        self.mutation_sigma = mutation_sigma
+        self.tournament_size = tournament_size
+        self.population_size = population_size
+        self.seed = seed
+        # Add any additional initialization here
+        global W, H, C
+        self.population = np.random.rand(population_size, W * H * C)
+
+    def ask(self):
+        """
+        Generate a new candidate solution.
+        Placeholder: implement logic for generating candidates.
+        """
+        return self.population
+
+    def tell(self, solutions):
+        """
+        Update the optimizer with evaluated solutions.
+        Placeholder: implement logic for updating population.
+        """
+        # solutions: list of (individual, fitness)
+        individuals = np.array([ind for ind, fit in solutions])
+        fitnesses = np.array([fit for ind, fit in solutions])
+
+        # 10% elitism: keep the top 10% individuals unchanged
+        elite_count = 0 # max(1, int(0.1 * self.population_size))
+        #elite_indices = np.argsort(fitnesses)[:elite_count]
+        #elites = individuals[elite_indices]
+
+        new_population = [] # [elites[i] for i in range(elite_count)]
+
+        # Fill the rest of the population with mutated children
+        # Population_size is elite and children
+        for _ in range(self.population_size - elite_count):
+            # Tournament selection
+            idxs = np.random.choice(len(individuals), self.tournament_size, replace=False)
+            best_idx = idxs[np.argmin(fitnesses[idxs])]  # assuming lower fitness is better
+            parent = individuals[best_idx]
+            # Gaussian perturbation (mutation)
+            child = parent + np.random.normal(0, self.mutation_sigma, size=parent.shape)
+            new_population.append(child)
+        self.population = np.array(new_population)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -119,12 +171,19 @@ if __name__ == "__main__":
     global best_fitness
     best_fitness = float("inf") # Trying to minimize
 
-    optimizer = CMA(mean=np.zeros(W*H*C), sigma=5.0, population_size=args.population_size, seed=args.seed)
+    # optimizer = CMA(mean=np.zeros(W*H*C), sigma=5.0, population_size=args.population_size, seed=args.seed)
+    # Replace CMA with a simple evolutionary optimizer
+    optimizer = SimpleEvolutionaryOptimizer(
+        population_size=args.population_size,
+        seed=args.seed,
+        mutation_sigma=0.1,
+        tournament_size=2
+    )
 
     for generation in range(args.generations):
         solutions = []
-        for _ in range(optimizer.population_size):
-            x = optimizer.ask()
+        for x in optimizer.ask():
+            #x = optimizer.ask()
             value, caption = caption_fitness(x)
             solutions.append((x, value))
             print(f"#{generation} {value}:{caption}")
