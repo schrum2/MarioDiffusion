@@ -146,9 +146,15 @@ def main():
 
     # Load block embedding model if specified
     block_embeddings = None
+    embedding_dim = None
     if args.block_embedding_model_path:
         try:
-            block_embeddings = torch.load(args.block_embedding_model_path, map_location=device)
+            # Load embeddings from the embeddings.pt file in the model directory
+            block_embeddings = torch.load(
+                os.path.join(args.block_embedding_model_path, "embeddings.pt"),
+                map_location=device
+            )
+            
             embedding_dim = block_embeddings.shape[1]
             print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
         except Exception as e:
@@ -166,6 +172,7 @@ def main():
             augment=args.augment,
             num_tiles=args.num_tiles,
             negative_captions=args.negative_prompt_training
+            block_embeddings=block_embeddings
         )
         val_dataset = LevelDataset(
             json_path=val_json,
@@ -175,6 +182,7 @@ def main():
             augment=False,
             num_tiles=args.num_tiles,
             negative_captions=args.negative_prompt_training
+            block_embeddings=block_embeddings
         )
     else:
         train_dataset = LevelDataset(
@@ -259,8 +267,8 @@ def main():
     if args.text_conditional:
         model = UNet2DConditionModel(
             sample_size=(16, 16),  # Fixed size for your level scenes
-            in_channels=args.in_channels,  # Number of tile types (for one-hot encoding)
-            out_channels=args.out_channels,
+            in_channels=in_channels,  # Number of tile types (for one-hot encoding)
+            out_channels=out_channels,
             layers_per_block=args.num_res_blocks,
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types=args.down_block_types,
