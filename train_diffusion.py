@@ -376,21 +376,21 @@ def main():
                 else:
                     scenes, captions = batch
                     negative_captions = None
-    
+
                 # First generate timesteps before we duplicate anything
                 timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
 
                 # Get text embeddings from the text encoder
                 combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=negative_captions)
-    
+
                 # Add noise to the clean scenes
                 noise = torch.randn_like(scenes_for_train)
                 noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
-    
+
+
                 with accelerator.accumulate(model):
                     # Predict the noise with conditioning
                     noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
-        
                     # Compute loss
                     loss = F.mse_loss(noise_pred, noise)
         
@@ -413,6 +413,8 @@ def main():
                 noise = torch.randn_like(scenes)
                 noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
     
+                print(model)
+
                 with accelerator.accumulate(model):
                     # Predict the noise
                     noise_pred = model(noisy_scenes, timesteps).sample
