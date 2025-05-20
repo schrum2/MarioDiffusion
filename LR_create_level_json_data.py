@@ -6,6 +6,12 @@ def load_tileset(tileset_path):
     with open(tileset_path, 'r') as f:
         tileset_data = json.load(f)
     tile_chars = sorted(tileset_data['tiles'].keys())
+    # ! is used to indicate the outside of actual level
+    # and is not a tile in the tileset
+    global extra_tile
+    extra_tile = '!'
+    if extra_tile not in tile_chars:
+        tile_chars.append(extra_tile)
     tile_to_id = {char: idx for idx, char in enumerate(tile_chars)}
     return tile_to_id
 
@@ -22,12 +28,12 @@ def level_to_id_grid(level, tile_to_id):
     height = len(level)
     target_size = max(width, height)
     # Pad each row to the target size
-    padded_level = [row.ljust(target_size, 'B') for row in level]
+    padded_level = [row.ljust(target_size, extra_tile) for row in level]
     # Pad rows to the target size
     while len(padded_level) < target_size:
-        padded_level.append('B' * target_size)
+        padded_level.append(extra_tile * target_size)
     # Convert to grid of tile IDs
-    return [[tile_to_id.get(c, tile_to_id['B']) for c in row] for row in padded_level]
+    return [[tile_to_id.get(c, tile_to_id[extra_tile]) for c in row] for row in padded_level]
 
 def main(tileset_path, levels_dir, output_path):
     tile_to_id = load_tileset(tileset_path)
