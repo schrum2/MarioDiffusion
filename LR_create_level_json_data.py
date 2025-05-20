@@ -19,8 +19,13 @@ def load_levels(levels_dir):
 
 def level_to_id_grid(level, tile_to_id):
     width = max(len(row) for row in level)
-    # Pad each row to the max width
-    padded_level = [row.ljust(width, '-') for row in level]
+    height = len(level)
+    target_size = max(width, height)
+    # Pad each row to the target size
+    padded_level = [row.ljust(target_size, '-') for row in level]
+    # Pad rows to the target size
+    while len(padded_level) < target_size:
+        padded_level.append('-' * target_size)
     # Convert to grid of tile IDs
     return [[tile_to_id.get(c, tile_to_id['-']) for c in row] for row in padded_level]
 
