@@ -537,7 +537,8 @@ def main():
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
-                    text_encoder=text_encoder
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
                 ).to("cuda")
                                 
                 # Use the raw negative captions instead of tokens
@@ -576,7 +577,8 @@ def main():
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
-                    text_encoder=text_encoder
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
                 ).to("cuda")
                 # Save negative prompt support flag if enabled
                 if args.negative_prompt_training:
@@ -608,7 +610,8 @@ def main():
         pipeline = TextConditionalDDPMPipeline(
             unet=accelerator.unwrap_model(model), 
             scheduler=noise_scheduler,
-            text_encoder=text_encoder
+            text_encoder=text_encoder,
+            tokenizer=tokenizer_hf if args.pretrained_language_model else None
         ).to("cuda")
     else:
         pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
@@ -692,7 +695,7 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
             combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
             timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
-            
+
         return combined_embeddings, scenes_for_train, timesteps_for_train
 
 if __name__ == "__main__":

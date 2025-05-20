@@ -8,6 +8,8 @@ import json
 from models.text_model import TransformerModel  
 import torch
 import torch.nn.functional as F
+from transformers import AutoTokenizer, AutoModel
+
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
@@ -60,7 +62,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             json.dump({"supports_negative_prompt": self.supports_negative_prompt}, f)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_path, **kwargs):
+    def from_pretrained(cls, pretrained_model_path, using_pretrained = False, **kwargs):
         #from diffusers.utils import load_config, load_state_dict
         # Load model_index.json
         #model_index = load_config(pretrained_model_path)
@@ -76,8 +78,12 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         if os.path.exists(text_encoder_path):
-            text_encoder = TransformerModel.from_pretrained(text_encoder_path)
-            tokenizer = text_encoder.tokenizer
+            if(using_pretrained):
+                text_encoder = AutoModel.from_pretrained(text_encoder_path)
+                tokenizer = AutoTokenizer.from_pretrained(text_encoder_path)
+            else:
+                text_encoder = TransformerModel.from_pretrained(text_encoder_path)
+                tokenizer = text_encoder.tokenizer
         else:
             text_encoder = None
 
@@ -242,18 +248,14 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                         text_embeddings = torch.cat([neg_embeddings, uncond_embeddings, text_embeddings], dim=0)
                     else:
                         # Concatenate [uncond, cond]
-                        print(f"captions: {captions}")
-                        print(f"captions length: {len(captions)}")
-                        print(f"uncond_embeddings shape: {uncond_embeddings.shape}")
-                        print(f"text_embeddings shape: {text_embeddings.shape}")
-                        print(f"batch_size: {batch_size}")
+                        
                         text_embeddings = torch.cat([uncond_embeddings, text_embeddings], dim=0)
+
                 else:
                     # Unconditional generation: use unconditional embeddings only
-                    max_length = self.tokenizer.model_max_length
-                    uncond_tokens = self.tokenizer(
-                        [""] * batch_size, return_tensors="pt", padding=True, truncation=True, max_length=max_length).to(self.device)
-                    text_embeddings = self.text_encoder(**uncond_tokens).last_hidden_state
+                    text_embeddings = encode([""] * batch_size)
+            
+            text_embeddings = text_embeddings.unsqueeze(1)  # (batch_size, 1, hidden_size)
 
 
 
@@ -305,10 +307,6 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 else:
                     model_input = sample
 
-                print(f"model_input shape: {model_input.shape}")
-                print(f"text_embeddings shape: {text_embeddings.shape}")
-                print(f"t shape: {t.shape if hasattr(t, 'shape') else type(t)}")
-                quit()
                 # Predict noise residual
                 model_kwargs = {"encoder_hidden_states": text_embeddings}
                 noise_pred = self.unet(model_input, t, **model_kwargs).sample
