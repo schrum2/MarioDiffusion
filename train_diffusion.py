@@ -20,7 +20,7 @@ from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
-from transformers import AutoTokenizer, AutoModel, AutoConfig
+from transformers import AutoTokenizer, AutoModel
 
 
 def parse_args():
@@ -134,6 +134,8 @@ def main():
         tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
+    data_mode = ("diffusion" if not args.pretrained_language_model else "pretrained_language_model") if args.text_conditional else "diff_text"
+
     # Initialize dataset
     if args.split:
         train_json, val_json, test_json = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
@@ -141,7 +143,7 @@ def main():
             json_path=train_json,
             tokenizer=tokenizer,
             shuffle=True,
-            mode="diffusion" if not args.pretrained_language_model else "pretrained_language_model",
+            mode=data_mode,
             augment=args.augment,
             num_tiles=args.num_tiles,
             negative_captions=args.negative_prompt_training
@@ -150,7 +152,7 @@ def main():
             json_path=val_json,
             tokenizer=tokenizer,
             shuffle=False,
-            mode="diffusion" if not args.pretrained_language_model else "pretrained_language_model",
+            mode=data_mode,
             augment=False,
             num_tiles=args.num_tiles,
             negative_captions=args.negative_prompt_training
@@ -160,7 +162,7 @@ def main():
             json_path=args.json,
             tokenizer=tokenizer,
             shuffle=True,
-            mode="diffusion" if not args.pretrained_language_model else "pretrained_language_model",
+            mode=data_mode,
             augment=args.augment,
             num_tiles=args.num_tiles,
             negative_captions=args.negative_prompt_training
