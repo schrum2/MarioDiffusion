@@ -4,10 +4,19 @@ This module provides utility functions for comparing level layouts through vario
 The functions in this module operate on level layouts represented as 2D lists/arrays
 where each element represents a tile. The specific tile representation can be arbitrary
 (characters, integers, etc.) as long as equality comparison is supported between tiles.
+
+Results from running on different datasets:
+SMB1_Levels.json - Original Super Mario Bros levels
+SMB2_Levels.json - Super Mario Bros 2 (Japan) levels
+SML_Levels.json - Super Mario Land levels
+Mario_Levels.json - Combined Mario levels from all games
+SMB1AND2_Levels.json - Combined levels from SMB1 and SMB2
 """
 
 from typing import List, Sequence, TypeVar, Union
 import numpy as np
+import json
+from pathlib import Path
 
 # Type variable for the tile type
 T = TypeVar('T')
@@ -66,3 +75,77 @@ def min_edit_distance(level: Sequence[Sequence[T]],
         return min(distances)
     except ValueError as e:
         raise ValueError("All levels in collection must have same dimensions as input level") from e
+
+def average_min_edit_distance(levels: Sequence[Sequence[Sequence[T]]]) -> float:
+    """
+    Calculate the average minimum edit distance across all levels in a dataset.
+    
+    For each level, finds its minimum edit distance to any other level in the dataset,
+    then averages these minimum distances.
+    
+    Args:
+        levels: A sequence of level layouts
+        
+    Returns:
+        The average of the minimum edit distances
+        
+    Raises:
+        ValueError: If fewer than 2 levels are provided or if levels have different dimensions
+    """
+    if len(levels) < 2:
+        raise ValueError("Need at least 2 levels to compute average minimum edit distance")
+    
+    # For each level, compute its min edit distance to all other levels
+    min_distances = []
+    for i, level in enumerate(levels):
+        # Create list of all levels except the current one
+        other_levels = levels[:i] + levels[i+1:]
+        min_dist = min_edit_distance(level, other_levels)
+        min_distances.append(min_dist)
+    
+    return sum(min_distances) / len(min_distances)
+
+def process_dataset(dataset_path: str) -> None:
+    """Process a dataset and print its metrics."""
+    try:
+        with open(dataset_path, "r") as f:
+            levels = json.load(f)
+        
+        if not levels:
+            print(f"{dataset_path}: Empty dataset")
+            return
+            
+        # Clean up any empty lists or malformed data
+        levels = [level for level in levels if level and all(row for row in level)]
+        
+        if len(levels) < 2:
+            print(f"{dataset_path}: Not enough valid levels (need at least 2)")
+            return
+            
+        avg_dist = average_min_edit_distance(levels)
+        print(f"\nResults for {Path(dataset_path).name}:")
+        print(f"Number of levels: {len(levels)}")
+        print(f"Average minimum edit distance: {avg_dist:.2f}")
+        if len(levels) >= 2:
+            print(f"Example edit distance between first two levels: {edit_distance(levels[0], levels[1])}")
+            
+    except Exception as e:
+        print(f"Error processing {dataset_path}: {str(e)}")
+
+if __name__ == "__main__":
+    # Process all datasets
+    datasets = [
+        "SMB1_Levels.json",
+        "SMB2_Levels.json", 
+        "SML_Levels.json",
+        "Mario_Levels.json",
+        "SMB1AND2_Levels.json"
+    ]
+    
+    current_dir = Path(__file__).parent.parent
+    for dataset in datasets:
+        dataset_path = current_dir / dataset
+        if dataset_path.exists():
+            process_dataset(str(dataset_path))
+        else:
+            print(f"\nWarning: {dataset} not found")
