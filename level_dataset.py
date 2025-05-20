@@ -262,11 +262,11 @@ class LevelDataset(Dataset):
 
         # For embeddings
         self.block_embeddings = block_embeddings # Store block embeddings
-        self.levels = self.load_levels()
-        self.tile_counts = self.calculate_tile_counts()
-        self.level_lengths = [len(level) for level in self.levels]
-        self.cumulative_lengths = np.cumsum(self.level_lengths)
-        self.max_len = max(self.level_lengths)
+        # self.levels = self.load_levels()
+        # self.tile_counts = self.calculate_tile_counts()
+        # self.level_lengths = [len(level) for level in self.levels]
+        # self.cumulative_lengths = np.cumsum(self.level_lengths)
+        # self.max_len = max(self.level_lengths)
         self.pad_token = tokenizer.token_to_id["[PAD]"] if tokenizer else None
         # self.augmentor = LevelAugmentor()
         # self.data = self.process_data()

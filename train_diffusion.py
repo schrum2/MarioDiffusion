@@ -171,7 +171,7 @@ def main():
             mode=data_mode,
             augment=args.augment,
             num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training
+            negative_captions=args.negative_prompt_training,
             block_embeddings=block_embeddings
         )
         val_dataset = LevelDataset(
@@ -181,7 +181,7 @@ def main():
             mode=data_mode,
             augment=False,
             num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training
+            negative_captions=args.negative_prompt_training,
             block_embeddings=block_embeddings
         )
     else:
@@ -192,7 +192,8 @@ def main():
             mode=data_mode,
             augment=args.augment,
             num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training
+            negative_captions=args.negative_prompt_training,
+            block_embeddings=block_embeddings
         )
         val_dataset = None
 
