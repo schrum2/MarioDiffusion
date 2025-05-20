@@ -27,7 +27,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
     
     # Dataset args
-    parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
+    parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
@@ -86,11 +86,6 @@ def parse_args():
 
     return parser.parse_args()
 
-
-
-
-
-
 def main():
     args = parse_args()
 
@@ -118,9 +113,12 @@ def main():
     device = accelerator.device
 
     # Initialize tokenizer
-    tokenizer = Tokenizer()
-    tokenizer.load(args.pkl)
-    
+    if args.pkl:
+        tokenizer = Tokenizer()
+        tokenizer.load(args.pkl)
+    else:
+        tokenizer = None
+
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
     if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
