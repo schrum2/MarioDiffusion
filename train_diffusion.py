@@ -94,6 +94,11 @@ def main():
         config = load_config_from_json(args.config)
         args = update_args_from_config(args, config)
         print("Training will use parameters from the config file.")
+
+    # Check if output directory already exists
+    if os.path.exists(args.output_dir):
+        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+        exit()
     
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
@@ -292,10 +297,8 @@ def main():
     )
     
     # Create output directory
-    if os.path.exists(args.output_dir):
-        print(f"Error: Output directory '{args.output_dir}' already exists. Exiting.")
-        exit()
-    os.makedirs(args.output_dir)
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
     
     # Training loop
     global_step = 0
