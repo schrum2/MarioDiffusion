@@ -33,9 +33,14 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split')
-    parser.add_argument('--train_pct', type=float, default=0.8, help='Train split percentage (default 0.8)')
+    # parser.add_argument('--train_pct', type=float, default=0.8, help='Train split percentage (default 0.8)')
+    # parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
+    # parser.add_argument('--test_pct', type=float, default=0.15, help='Test split percentage (default 0.15)')
+
+    # Adjusted split percentages for testing
+    parser.add_argument('--train_pct', type=float, default=0.1, help='Train split percentage (default 0.1)')
     parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
-    parser.add_argument('--test_pct', type=float, default=0.15, help='Test split percentage (default 0.15)')
+    parser.add_argument('--test_pct', type=float, default=0.85, help='Test split percentage (default 0.85)')
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
@@ -83,11 +88,37 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
 
+    # Allows for optional loss function: default is MSE and cross-entropy is the alternative
+    parser.add_argument(
+        "--loss_type",
+        type=str,
+        default="MSE",
+        choices=["MSE", "CROSS"],
+        help="Loss function to use: 'MSE' for mean squared error (default), 'CROSS' for cross entropy"
+    )
 
     return parser.parse_args()
 
 def main():
     args = parse_args()
+
+    """
+        The following logic defines the loss function variable based on user input.
+        Note: The model expects one-hot encoded targets for both loss types.
+        When using --loss_type CROSS, the script expects one-hot encoded targets and will automatically convert them to class indices for cross-entropy loss.
+    """
+    if args.loss_type == "MSE":
+        loss_fn = torch.nn.functional.mse_loss
+    elif args.loss_type == "CROSS":
+        def cross_entropy_loss(pred, target):
+            # pred: [batch, classes, ...], target: [batch, classes, ...] (one-hot)
+            target_indices = target.argmax(dim=1)
+            return torch.nn.functional.cross_entropy(pred, target_indices)
+        loss_fn = cross_entropy_loss
+    else:
+        raise ValueError(f"Unknown loss type: {args.loss_type}")
+    # Print the selected loss function to console
+    print(f"Using loss function: {args.loss_type}")
 
     # Check if config file is provided before training loop begins
     if hasattr(args, 'config') and args.config:
@@ -386,7 +417,7 @@ def main():
                     noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
         
                     # Compute loss
-                    loss = F.mse_loss(noise_pred, noise)
+                    loss = loss_fn(noise_pred, noise)
         
                     # Backpropagation
                     accelerator.backward(loss)
@@ -412,7 +443,7 @@ def main():
                     noise_pred = model(noisy_scenes, timesteps).sample
 
                     # Compute loss
-                    loss = F.mse_loss(noise_pred, noise)
+                    loss = loss_fn(noise_pred, noise)
         
                     # Backpropagation
                     accelerator.backward(loss)
@@ -471,7 +502,7 @@ def main():
 
                         val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
                                             encoder_hidden_states=val_combined_embeddings).sample
-                        val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))                        
+                        val_batch_loss = loss_fn(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))                        
                     else:
                         if isinstance(val_batch, list):
                             val_scenes, _ = val_batch
@@ -484,7 +515,7 @@ def main():
                         val_noise = torch.randn_like(val_scenes)
                         val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
                         val_noise_pred = model(val_noisy_scenes, val_timesteps).sample
-                        val_batch_loss = F.mse_loss(val_noise_pred, val_noise)
+                        val_batch_loss = loss_fn(noise_pred, noise)
                         
                     val_loss += val_batch_loss.item()
                     
