@@ -250,15 +250,17 @@ def main():
                 print(caption)
 
     # if there is no block embedding model, set the channels to num_tiles
+    in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
     # else set channels to the embedding dimension of the model
-    
+    out_channels = in_channels
+
 
     # Setup the UNet model - use conditional version if text conditioning is enabled
     if args.text_conditional:
         model = UNet2DConditionModel(
             sample_size=(16, 16),  # Fixed size for your level scenes
-            in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
-            out_channels=args.num_tiles,
+            in_channels=args.in_channels,  # Number of tile types (for one-hot encoding)
+            out_channels=args.out_channels,
             layers_per_block=args.num_res_blocks,
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types=args.down_block_types,
@@ -272,8 +274,8 @@ def main():
     else:
         model = UNet2DModel(
             sample_size=(16, 16),  # Fixed size for your level scenes
-            in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
-            out_channels=args.num_tiles,
+            in_channels=in_channels,  # Number of tile types (for one-hot encoding)
+            out_channels=out_channels,
             layers_per_block=args.num_res_blocks,
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types = [item.replace("CrossAttn", "") for item in args.down_block_types],
