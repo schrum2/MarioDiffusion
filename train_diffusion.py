@@ -413,7 +413,7 @@ def main():
                 noise = torch.randn_like(scenes)
                 noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
     
-                print(model)
+                # print(model)
 
                 with accelerator.accumulate(model):
                     # Predict the noise
