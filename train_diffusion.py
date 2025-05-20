@@ -122,7 +122,7 @@ def main():
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
     if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
-        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model).to(device)
+        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(device)
         text_encoder.eval() # Set to evaluation mode
         model_embedding_dim = text_encoder.config.hidden_size# Done here to allow for cross-functionality with the mlm model
         tokenizer_hf = AutoTokenizer.from_pretrained(args.pretrained_language_model)

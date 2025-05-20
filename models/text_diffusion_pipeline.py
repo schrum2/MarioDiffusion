@@ -55,11 +55,14 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         if self.tokenizer is not None and hasattr(self.tokenizer, 'save_pretrained'):
             # Save tokenizer if it has a save_pretrained method.
             # Otherwise, we presume the tokenizer was saved by the text encoder.
-            self.tokenizer.save_pretrained(os.path.join(save_directory, "tokenizer"))
+            self.tokenizer.save_pretrained(os.path.join(save_directory, "text_encoder"))
             
         # Save supports_negative_prompt flag
         with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
-            json.dump({"supports_negative_prompt": self.supports_negative_prompt}, f)
+            json.dump({
+                "supports_negative_prompt": self.supports_negative_prompt,
+                "text_encoder_type": type(self.text_encoder).__name__   
+            }, f)
 
     @classmethod
     def from_pretrained(cls, pretrained_model_path, using_pretrained = False, **kwargs):
@@ -78,10 +81,10 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         if os.path.exists(text_encoder_path):
-            if(using_pretrained):
-                text_encoder = AutoModel.from_pretrained(text_encoder_path)
-                tokenizer = AutoTokenizer.from_pretrained(text_encoder_path)
-            else:
+            try:
+                text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True)
+                tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
+            except (ValueError, KeyError):
                 text_encoder = TransformerModel.from_pretrained(text_encoder_path)
                 tokenizer = text_encoder.tokenizer
         else:
@@ -254,8 +257,9 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 else:
                     # Unconditional generation: use unconditional embeddings only
                     text_embeddings = encode([""] * batch_size)
+                text_embeddings = text_embeddings.unsqueeze(1)  # (batch_size, 1, hidden_size)
             
-            text_embeddings = text_embeddings.unsqueeze(1)  # (batch_size, 1, hidden_size)
+            
 
 
 
