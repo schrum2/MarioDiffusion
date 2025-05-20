@@ -76,7 +76,7 @@ python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAn
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --augment --output_dir "LR-unconditional" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --split
+python train_diffusion.py --augment --output_dir "LR-unconditional" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --split --num_tiles 10 --batch_size 5
 ```
 ## Train text encoder
 
