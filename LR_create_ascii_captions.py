@@ -16,11 +16,11 @@ CEILING = 1
 # standard width of Lode Runner scenes are 32
 STANDARD_WIDTH = 32
 
-LEFT = STANDARD_WIDTH / 3
+LEFT = STANDARD_WIDTH // 3
 RIGHT = STANDARD_WIDTH - LEFT
 
-TOP = (FLOOR - CEILING) / 3 + CEILING
-BOTTOM = FLOOR - ((FLOOR - CEILING) / 3)
+TOP = (FLOOR - CEILING) // 3 + CEILING
+BOTTOM = FLOOR - ((FLOOR - CEILING) // 3)
 
 # Could define these via the command line, but for now they are hardcoded
 coarse_locations = True
