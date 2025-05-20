@@ -12,11 +12,13 @@ class TileViewer(tk.Tk):
         super().__init__()
         self.title("Tile Dataset Viewer")
 
+        # Set a more reasonable default window size for typical grids
+        self.window_size = 512  # px, fits 16x16 well but still scales for larger grids
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
-        self.window_size = min(screen_width, screen_height) * 0.75
+        self.window_size = min(screen_width, screen_height) * 0.65
         self.tile_size = int(self.window_size / 20)
-        self.font_size = max(self.tile_size // 3, 6)  # Reduced font size for tighter display
+        self.font_size = max(self.tile_size // 4, 6)  # Reduced font size for tighter display
 
         self.dataset = []
         self.id_to_char = {}
@@ -271,6 +273,7 @@ class TileViewer(tk.Tk):
         canvas_width = self.tile_size * WIDTH
         canvas_height = self.tile_size * HEIGHT
         self.canvas.config(width=canvas_width, height=canvas_height)
+        # Make font smaller relative to tile size for better fit
         self.font_size = max(self.tile_size // 3, 6)
 
     def redraw(self):
