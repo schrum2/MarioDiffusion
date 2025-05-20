@@ -134,7 +134,7 @@ def main():
         tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
-    data_mode = ("diffusion" if not args.pretrained_language_model else "pretrained_language_model") if args.text_conditional else "diff_text"
+    data_mode = ("diffusion" if not args.pretrained_language_model else "diff_text") if args.text_conditional else "diff_text"
 
     # Initialize dataset
     if args.split:
@@ -692,6 +692,7 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
             combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
             timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
+            
         return combined_embeddings, scenes_for_train, timesteps_for_train
 
 if __name__ == "__main__":
