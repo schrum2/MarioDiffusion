@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 import io
 from PIL import Image
 from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEGATED_PLURAL
+import numpy as np
 
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
@@ -232,7 +233,7 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15, negative_captions=False):
+    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15, negative_captions=False, block_embeddings=None):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -258,6 +259,17 @@ class LevelDataset(Dataset):
         self.random_flip = random_flip
         self.num_tiles = num_tiles
         self.negative_captions = negative_captions
+
+        # For embeddings
+        self.block_embeddings = block_embeddings # Store block embeddings
+        # self.levels = self.load_levels()
+        # self.tile_counts = self.calculate_tile_counts()
+        # self.level_lengths = [len(level) for level in self.levels]
+        # self.cumulative_lengths = np.cumsum(self.level_lengths)
+        # self.max_len = max(self.level_lengths)
+        self.pad_token = tokenizer.token_to_id["[PAD]"] if tokenizer else None
+        # self.augmentor = LevelAugmentor()
+        # self.data = self.process_data()
 
         # Load data
         print(f"Loading data from {json_path}...")
@@ -411,10 +423,15 @@ class LevelDataset(Dataset):
             if self.mode != "diff_text":
                 caption_tensor = torch.tensor(self._swap_caption_tokens(caption), dtype=torch.long)
 
-        # Convert to one-hot encoding for diffusion model
-        one_hot_scene = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
-        # Permute dimensions to [num_tiles, height, width]
-        one_hot_scene = one_hot_scene.permute(2, 0, 1)
+
+        # Added to support embeddings
+        if self.block_embeddings is not None:
+            # Replace one-hot encoding with block embeddings
+            scene_tensor = torch.stack([self.block_embeddings[tile_id] for tile_id in scene_tensor])
+        else:
+            one_hot_scene = F.one_hot(scene_tensor, num_classes=self.num_tiles).float()
+            # Permute dimensions to [num_tiles, height, width]
+            scene_tensor = one_hot_scene.permute(2, 0, 1)
 
         if self.mode == "diff_text":
             # Return the raw caption for the pretrained model, this should be moved up later

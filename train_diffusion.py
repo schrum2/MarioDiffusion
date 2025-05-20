@@ -83,6 +83,9 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
 
+    # For block2vec embedding model
+    parser.add_argument("--block_embedding_model_path", type=str, default=None, help="Path to trained block embedding model (.pt)")
+
 
     return parser.parse_args()
 
@@ -94,6 +97,11 @@ def main():
         config = load_config_from_json(args.config)
         args = update_args_from_config(args, config)
         print("Training will use parameters from the config file.")
+
+    # Check if output directory already exists
+    if os.path.exists(args.output_dir):
+        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+        exit()
     
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
@@ -136,6 +144,23 @@ def main():
     
     data_mode = ("diffusion" if not args.pretrained_language_model else "pretrained_language_model") if args.text_conditional else "diff_text"
 
+    # Load block embedding model if specified
+    block_embeddings = None
+    embedding_dim = None
+    if args.block_embedding_model_path:
+        try:
+            # Load embeddings from the embeddings.pt file in the model directory
+            block_embeddings = torch.load(
+                os.path.join(args.block_embedding_model_path, "embeddings.pt"),
+                map_location=device
+            )
+            
+            embedding_dim = block_embeddings.shape[1]
+            print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
+        except Exception as e:
+            print(f"Error loading block embedding model: {e}")
+            raise
+
     # Initialize dataset
     if args.split:
         train_json, val_json, test_json = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
@@ -146,7 +171,8 @@ def main():
             mode=data_mode,
             augment=args.augment,
             num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training
+            negative_captions=args.negative_prompt_training,
+            block_embeddings=block_embeddings
         )
         val_dataset = LevelDataset(
             json_path=val_json,
@@ -155,7 +181,8 @@ def main():
             mode=data_mode,
             augment=False,
             num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training
+            negative_captions=args.negative_prompt_training,
+            block_embeddings=block_embeddings
         )
     else:
         train_dataset = LevelDataset(
@@ -165,7 +192,8 @@ def main():
             mode=data_mode,
             augment=args.augment,
             num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training
+            negative_captions=args.negative_prompt_training,
+            block_embeddings=block_embeddings
         )
         val_dataset = None
 
@@ -230,12 +258,18 @@ def main():
             for caption in sample_captions:
                 print(caption)
 
+    # if there is no block embedding model, set the channels to num_tiles
+    in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
+    # else set channels to the embedding dimension of the model
+    out_channels = in_channels
+
+
     # Setup the UNet model - use conditional version if text conditioning is enabled
     if args.text_conditional:
         model = UNet2DConditionModel(
             sample_size=(16, 16),  # Fixed size for your level scenes
-            in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
-            out_channels=args.num_tiles,
+            in_channels=in_channels,  # Number of tile types (for one-hot encoding)
+            out_channels=out_channels,
             layers_per_block=args.num_res_blocks,
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types=args.down_block_types,
@@ -249,8 +283,8 @@ def main():
     else:
         model = UNet2DModel(
             sample_size=(16, 16),  # Fixed size for your level scenes
-            in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
-            out_channels=args.num_tiles,
+            in_channels=in_channels,  # Number of tile types (for one-hot encoding)
+            out_channels=out_channels,
             layers_per_block=args.num_res_blocks,
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types = [item.replace("CrossAttn", "") for item in args.down_block_types],
@@ -292,10 +326,8 @@ def main():
     )
     
     # Create output directory
-    if os.path.exists(args.output_dir):
-        print(f"Error: Output directory '{args.output_dir}' already exists. Exiting.")
-        exit()
-    os.makedirs(args.output_dir)
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
     
     # Training loop
     global_step = 0

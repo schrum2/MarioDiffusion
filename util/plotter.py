@@ -8,6 +8,8 @@ import json
 
 class Plotter:
     def __init__(self, log_file, update_interval=1.0, left_key='loss', right_key='lr', left_label='Loss', right_label='Learning Rate', output_png='training_progress.png'):
+        self.log_dir = os.path.dirname(log_file)
+
         self.log_file = log_file
         self.update_interval = update_interval
         self.running = True
@@ -55,7 +57,14 @@ class Plotter:
                 self.ax.set_title('Training Progress')
                 self.ax.legend(loc='upper left')
                 self.fig.tight_layout()
-                self.fig.savefig(os.path.join(os.path.dirname(self.log_file), self.output_png))
+
+                # Use the stored base directory instead of getting it from log_file
+                if os.path.isabs(self.output_png) or os.path.dirname(self.output_png):
+                    output_path = self.output_png
+                else:
+                    output_path = os.path.join(self.log_dir, self.output_png)
+
+                self.fig.savefig(output_path)
             
             except (json.JSONDecodeError, ValueError) as e:
                 print(f"Error parsing log file: {e}")
@@ -69,5 +78,6 @@ class Plotter:
     
     def stop_plotting(self):
         self.running = False
+        self.update_plot()
         plt.close(self.fig)
         print("Plotting stopped")
