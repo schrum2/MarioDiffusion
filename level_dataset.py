@@ -239,13 +239,13 @@ class LevelDataset(Dataset):
             tokenizer (Tokenizer): Tokenizer instance.
             shuffle (bool): Whether to shuffle data at the start of an epoch.
             max_length (int, optional): Maximum length for tokenized captions.
-            mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training (tokenized captions only), "text" for just the text captions.
+            mode (str): "diffusion" for level scenes + captions, "mlm" for masked language model training (tokenized captions only), "text" for just the text captions, "pretrained_language_model" for diffusion with a pretrained model.
             augment (bool): Whether to apply data augmentation to text captions.
             random_flip (bool): Whether to randomly flip the scene and caption.
             limit (int): restrict dataset to this size if not -1
             num_tiles (int): Number of different tile types for one-hot encoding
         """
-        assert mode in ["mlm", "diffusion","text"], "Mode must be 'mlm', 'text', or 'diffusion'."
+        assert mode in ["mlm", "diffusion","text", "pretrained_language_model"], "Mode must be 'mlm', 'text', or 'diffusion'."
 
         self.shuffle = shuffle
         self.tokenizer = tokenizer
@@ -413,10 +413,17 @@ class LevelDataset(Dataset):
         # Permute dimensions to [num_tiles, height, width]
         one_hot_scene = one_hot_scene.permute(2, 0, 1)
 
+        if self.mode == "pretrained_language_model":
+            # Return the raw caption for the pretrained model, this should be moved up later
+            #TODO: add support for negative captions
+            return one_hot_scene, augmented_caption
+        
+
         if self.negative_captions:
             return one_hot_scene, caption_tensor, negative_caption_tensor
         else:
             return one_hot_scene, caption_tensor
+        
 
     def decode_caption(self, token_ids):
         """Converts a sequence of token IDs back into a readable caption."""

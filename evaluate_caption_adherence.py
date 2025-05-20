@@ -65,7 +65,7 @@ def main():
     # Initialize dataset
     dataset = LevelDataset(
         json_path=args.json,
-        tokenizer=pipe.text_encoder.tokenizer,
+        tokenizer=pipe.tokenizer,
         shuffle=False,
         mode="text",
         augment=False,
