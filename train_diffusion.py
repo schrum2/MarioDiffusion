@@ -230,9 +230,12 @@ def main():
             
             embedding_dim = block_embeddings.shape[1]
             print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
+            print("Block embedding model loaded successfully.")
         except Exception as e:
             print(f"Error loading block embedding model: {e}")
             raise
+    else:
+        print("No block embedding model specified. One-hot encoding enabled.")
 
     # Initialize dataset
     if args.split:
@@ -765,6 +768,14 @@ def process_diffusion_batch(
 
         noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
         target_noise = noise
+        
+        # # HERE FOR DEBUGGING
+        # target_noise = torch.cat([noise] * 2)
+        # batch_loss = loss_fn(noise_pred, target_noise)
+
+        print(f"Noise shape: {noise.shape}")
+        print(f"Noise pred shape: {noise_pred.shape}")  
+        print(f"Target noise shape: {target_noise.shape}")
 
         # For validation, need to repeat noise for guidance
         if mode == "val":
