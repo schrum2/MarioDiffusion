@@ -34,7 +34,6 @@ def parse_args():
     # Output args
     parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory if not comparing checkpoints (subdir of model directory)")
 
-
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
 
     return parser.parse_args()

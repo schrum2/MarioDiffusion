@@ -3,9 +3,11 @@ from typing import Dict, Optional
 
 
 class GrammarGenerator:
-    def __init__(self, seed=512, describe_absence=False):
+    def __init__(self, seed=512, describe_absence=False, no_upside_down_pipes=False):
         random.seed(seed)  # Set the random seed for reproducibility
         self.describe_absence = describe_absence
+        self.no_upside_down_pipes = no_upside_down_pipes
+
         # Define topics and their valid variations
         self.topic_phrases = {
             "floor": ["full floor", "floor with one gap", "floor with two gaps", "floor with a few gaps", "floor with several gaps",
@@ -65,6 +67,12 @@ class GrammarGenerator:
             "question block", "loose block", 
             "enem"
         ]
+
+        # Remove upside down pipes if specified
+        if self.no_upside_down_pipes:
+            self.topic_phrases.pop("upside down pipe", None)
+            self.absence_phrases.pop("upside down pipe", None)
+            self.topic_keywords.remove("upside down pipe")
         
         # Define topic groups that are mutually exclusive
         # Wrong: there can be a mix of valid and broken pipes

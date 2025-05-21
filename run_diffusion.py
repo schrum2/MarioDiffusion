@@ -14,6 +14,7 @@ def parse_args():
     
     # Model and generation parameters
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
+    parser.add_argument("--using_pretrained", action="store_true", default=False, help="Use if the diffusion model is pretrained from huggingface")
     parser.add_argument("--num_samples", type=int, default=10, help="Number of levels to generate")
     parser.add_argument("--output_dir", type=str, default="generated_levels", help="Directory to save generated levels")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
@@ -48,7 +49,7 @@ def generate_levels(args):
     # Load the pipeline
     print(f"Loading model from {args.model_path}...")
     if args.text_conditional:
-        pipeline = TextConditionalDDPMPipeline.from_pretrained(args.model_path)
+        pipeline = TextConditionalDDPMPipeline.from_pretrained(args.model_path, using_pretrained=args.using_pretrained)
     else:
         pipeline = UnconditionalDDPMPipeline.from_pretrained(args.model_path)
     pipeline.to(device)
@@ -99,7 +100,7 @@ def generate_levels(args):
 
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)
-        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
+        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
 
 if __name__ == "__main__":
     args = parse_args()

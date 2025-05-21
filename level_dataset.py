@@ -137,9 +137,9 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
     if len(samples.shape) != 4:
         print(samples.shape)
         raise ValueError("Shape of input should be [samples, channels, height, width]")
-    if samples.shape[1] != 15:
-        print(samples.shape)
-        raise ValueError("Hard coded for 15 channels (change code to generalize beyond Mario)")
+    #if samples.shape[1] != 15:
+        #print(samples.shape)
+        #raise ValueError("Hard coded for 15 channels (change code to generalize beyond Mario)")
 
     # Create directory for the samples
     if output_dir:

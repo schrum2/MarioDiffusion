@@ -17,6 +17,9 @@ def parse_args():
     # Output args
     parser.add_argument("--save_file", type=str, default="Mario_ValidationCaptions.json", help="Output file")
     parser.add_argument("--validation_set_size", type=int, default=100, help="Number of captions for validating generation abilities of model")
+
+    # Remove upside down pipes from the caption generator
+    parser.add_argument("--no_upside_down_pipes", action="store_true", default=False, help="Exclude captions mentioning upside down pipes")
     
     return parser.parse_args()
 
@@ -33,7 +36,11 @@ def main():
         num_tiles=args.num_tiles
     )
 
-    generator = GrammarGenerator(seed = args.seed, describe_absence=args.describe_absence)
+    generator = GrammarGenerator(
+        seed = args.seed, 
+        describe_absence=args.describe_absence,
+        no_upside_down_pipes=args.no_upside_down_pipes
+        )
 
     validation_captions = []
     while len(validation_captions) < args.validation_set_size:
