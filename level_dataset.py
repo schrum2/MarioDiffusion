@@ -143,11 +143,12 @@ def LR_tiles():
        (11, 2),     # 0 = Ladder
        (12, 3),     # 1 = Rope
        (0, 0),      # 2 = Passable, Empty
-       (3, 2),      # 3 = Solid Ground
+       (3, 3),      # 3 = Solid Ground
        (3, 1),      # 4 = Enemy
        (4, 1),      # 5 = Gold
        (17, 20),    # 6 = Spawn
-       (0, 2),      # 7 = Diggable Ground
+       (1, 3),      # 7 = Diggable Ground
+       (0,0),       # 8 = Nothing
 
     ]
 
