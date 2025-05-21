@@ -1,7 +1,6 @@
 import argparse
 import os
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup 
@@ -301,7 +300,7 @@ def main():
             batch_size=args.batch_size,
             shuffle=False,
             num_workers=4,
-            drop_last=True
+            drop_last=False
         )
 
     if args.text_conditional:
@@ -578,40 +577,30 @@ def main():
                         
                         val_scenes = val_scenes.to(device)
                         if(not args.pretrained_language_model):
-                            val_captions = val_captions.to(device) #Avoids error, pretrained model path is not a tensor, so cannot be sent to the GPU
-                            
+                            val_captions = val_captions.to(device)
                         val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
                                                     (val_scenes.shape[0],), device=device).long()
-                        
-                        
-
                         # Use the same tokenizer as in training
-                        val_combined_embeddings, val_scenes_for_eval, val_timesteps_for_eval = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=negative_captions)
-                                
-
+                        val_combined_embeddings, val_scenes_for_eval, val_timesteps_for_eval = prepare_conditioned_batch(
+                            args, tokenizer_hf, text_encoder, val_scenes, val_captions, val_timesteps, device, negative_captions=val_negative_captions)
                         val_noise = torch.randn_like(val_scenes)
                         val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
-
-
                         val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
                                             encoder_hidden_states=val_combined_embeddings).sample
-                        val_batch_loss = loss_fn(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))                        
+                        val_batch_loss = loss_fn(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))
                     else:
                         if isinstance(val_batch, list):
                             val_scenes, _ = val_batch
                         else:
                             val_scenes = val_batch
                         val_scenes = val_scenes.to(device)
-                            
                         val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
                                                     (val_scenes.shape[0],), device=device).long()
                         val_noise = torch.randn_like(val_scenes)
                         val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
                         val_noise_pred = model(val_noisy_scenes, val_timesteps).sample
-                        val_batch_loss = loss_fn(noise_pred, noise)
-                        
+                        val_batch_loss = loss_fn(val_noise_pred, val_noise)
                     val_loss += val_batch_loss.item()
-                    
             val_loss /= len(val_dataloader)
 
             if args.text_conditional and args.plot_validation_caption_score:
