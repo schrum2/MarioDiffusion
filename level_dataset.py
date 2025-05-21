@@ -106,7 +106,7 @@ def mario_tiles():
         (7,1),    # 12 = coin
         (0,1),    # 13 = Nothing
         (0,6),    # 14 = Nothing
-        (1,6)     # 15 = Nothing (extra just in case)
+        (1,6),    # 15 = Nothing (extra just in case)
     ]
 
     # Extract each tile as a 16x16 image
@@ -118,6 +118,10 @@ def mario_tiles():
         lower = upper + 16
         tile = _sprite_sheet.crop((left, upper, right, lower))
         tile_images.append(tile)
+
+    # Add a blank tile for the extra tile (padding)
+    blank_tile = Image.new('RGB', (16, 16), color=(128, 128, 128))  # Gray or any color
+    tile_images.append(blank_tile)
 
     return tile_images
 
@@ -132,7 +136,7 @@ def LR_tiles():
 
     # Load the sprite sheet only once
     if _sprite_sheet is None:
-        _sprite_sheet = Image.open("mapsheet.png")
+        _sprite_sheet = Image.open("LR_mapsheet.png")
 
     # Hardcoded coordinates for the first 10 tiles (row, col)
     LR_tile_coordinates = [
@@ -144,17 +148,22 @@ def LR_tiles():
        (4, 1),      # 5 = Gold
        (17, 20),    # 6 = Spawn
        (0, 2),      # 7 = Diggable Ground
+
     ]
 
-    # Extract each tile as a 32x32 image
+    # Extract each tile as a 8x8 image
     LR_tile_images = []
     for col, row in LR_tile_coordinates:
-        left = col * 32
-        upper = row * 32
-        right = left + 32
-        lower = upper + 32
+        left = col * 8
+        upper = row * 8
+        right = left + 8
+        lower = upper + 8
         tile = _sprite_sheet.crop((left, upper, right, lower))
         LR_tile_images.append(tile)
+
+    # Add a blank tile for the extra tile (padding)
+    blank_tile = Image.new('RGB', (8, 8), color=(128, 128, 128))
+    LR_tile_images.append(blank_tile)
 
     return LR_tile_images
 
@@ -189,13 +198,14 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
 
     if use_tiles:
         # Broken if there is another 16x16 like Mario
-        if samples.shape[1] == 15:
+        # Gets which tileset to use based on the number of height
+        if samples.shape[2] == 16:
             tile_images = mario_tiles()
             tile_size = 16
         # Broken if there is another 32x32 like Lode Runner
-        elif samples.shape[1] == 31:
+        elif samples.shape[2] == 32:
             tile_images = LR_tiles()
-            tile_size = 32
+            tile_size = 16
         for i, sample in enumerate(samples):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
             sample_indices.append(sample_index)
@@ -669,4 +679,3 @@ if __name__ == "__main__":
             print(b)
             break
             last_size = b.shape
-        
