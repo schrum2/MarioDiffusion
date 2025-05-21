@@ -684,6 +684,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     # Generate captions
     captioned_dataset = []
     for scene in dataset:
+        # caption blank/empty for lode runner
         caption = "" # assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
         if "broken" in caption:
