@@ -82,7 +82,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         if os.path.exists(text_encoder_path):
             try:
-                text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True)
+                text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
                 tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
             except (ValueError, KeyError):
                 text_encoder = TransformerModel.from_pretrained(text_encoder_path)
