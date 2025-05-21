@@ -77,6 +77,7 @@ def parse_args():
     
     # Diffusion scheduler args
     parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
+    parser.add_argument("--num_inference_timesteps", type=int, default=10, help="Number of diffusion timesteps during inference (samples, caption adherence)")
     parser.add_argument("--beta_schedule", type=str, default="linear", help="Beta schedule type")
     parser.add_argument("--beta_start", type=float, default=0.0001, help="Beta schedule start value")
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
@@ -623,7 +624,8 @@ def main():
                 ).to(device)
                 # Only use the positive captions for scoring
 
-                inference_steps = 50
+                inference_steps = args.num_inference_timesteps
+                # TODO: These should be argparse parameters
                 guidance_scale = 7.5
                 avg_caption_score, _ = calculate_caption_score_and_samples(
                     device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
@@ -669,7 +671,7 @@ def main():
                     samples = pipeline(
                         batch_size=4,
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps = 50, # Fewer steps needed for inference
+                        num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
                         caption=sample_captions,
                         negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
@@ -689,7 +691,7 @@ def main():
                     samples = pipeline(
                         batch_size=4,
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps = 50, # Fewer steps needed for inference
+                        num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
                     ).images
 

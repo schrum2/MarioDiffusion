@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4, help="Training batch size") 
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--inference_steps", type=int, default=50, help="Number of denoising steps") # Large reduction from the 500 used during training
+    parser.add_argument("--inference_steps", type=int, default=10, help="Number of denoising steps") # Large reduction from the 500 used during training
     parser.add_argument("--guidance_scale", type=float, default=7.5, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
 
@@ -33,7 +33,6 @@ def parse_args():
 
     # Output args
     parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory if not comparing checkpoints (subdir of model directory)")
-
 
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
 
