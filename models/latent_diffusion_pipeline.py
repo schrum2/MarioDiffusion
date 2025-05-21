@@ -4,17 +4,27 @@ import torch.nn.functional as F
 from typing import Optional, Union, List, Tuple
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.ddpm.pipeline_ddpm import ImagePipelineOutput
+import util.common_settings as common_settings
 
 class UnconditionalDDPMPipeline(DDPMPipeline):
+
+    def give_sprite_scaling_factors(self, sprite_scaling_factors):
+        """
+        Set the sprite scaling factors for the pipeline.
+        This is used to apply per-sprite temperature scaling during inference.
+        """
+        self.sprite_scaling_factors = sprite_scaling_factors
+
     def __call__(
         self,
         batch_size: int = 1,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
-        num_inference_steps: int = 50,
+        num_inference_steps: int = common_settings.NUM_INFERENCE_STEPS,
         output_type: Optional[str] = "tensor",
         return_dict: bool = True,
         height: int = 16, width: int = 16, 
         latents: Optional[torch.FloatTensor] = None,
+        show_progress_bar=True,
     ) -> Union[ImagePipelineOutput, Tuple]:
 
         self.unet.eval()
@@ -34,10 +44,15 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
 
             self.scheduler.set_timesteps(num_inference_steps)
 
-            for t in self.progress_bar(self.scheduler.timesteps):
+            iterator = self.progress_bar(self.scheduler.timesteps) if show_progress_bar else self.scheduler.timesteps
+            for t in iterator:
                 #print(image.shape)
                 model_output = self.unet(image, t).sample
                 image = self.scheduler.step(model_output, t, image, generator=generator).prev_sample
+
+            # Apply per-sprite temperature scaling if enabled
+            if hasattr(self,"sprite_scaling_factors") and self.sprite_scaling_factors is not None:
+                image = image / self.sprite_scaling_factors.view(1, -1, 1, 1)
 
             # Why is this code not in the conditional model?
             image = F.softmax(image, dim=1)

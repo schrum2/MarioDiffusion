@@ -1,7 +1,6 @@
 import argparse
 import os
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup 
@@ -21,7 +20,7 @@ from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel
-
+import util.common_settings as common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -33,9 +32,9 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split')
-    parser.add_argument('--train_pct', type=float, default=0.8, help='Train split percentage (default 0.8)')
+    parser.add_argument('--train_pct', type=float, default=0.9, help='Train split percentage (default 0.8)')
     parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
-    parser.add_argument('--test_pct', type=float, default=0.15, help='Test split percentage (default 0.15)')
+    parser.add_argument('--test_pct', type=float, default=0.05, help='Test split percentage (default 0.15)')
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
@@ -72,6 +71,7 @@ def parse_args():
     
     # Diffusion scheduler args
     parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
+    parser.add_argument("--num_inference_timesteps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of diffusion timesteps during inference (samples, caption adherence)")
     parser.add_argument("--beta_schedule", type=str, default="linear", help="Beta schedule type")
     parser.add_argument("--beta_start", type=float, default=0.0001, help="Beta schedule start value")
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
@@ -83,20 +83,103 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
 
+    # For block2vec embedding model
+    parser.add_argument("--block_embedding_model_path", type=str, default=None, help="Path to trained block embedding model (.pt)")
+
+    # Allows for optional loss function: default is MSE and cross-entropy is the alternative
+    parser.add_argument(
+        "--loss_type",
+        type=str,
+        default="MSE",
+        choices=["MSE", "CROSS"],
+        help="Loss function to use: 'MSE' for mean squared error (default), 'CROSS' for cross entropy"
+    )
+
+    parser.add_argument(
+        "--sprite_temperature_n",
+        type=int,
+        default=None,
+        help="If set, enables per-sprite temperature scaling with the specified n (e.g., 2, 4, 8) during inference."
+    )
 
     return parser.parse_args()
 
+# TODO: We'll probably want to move this somewhere else eventually
+def compute_sprite_scaling_factors(json_path, num_tiles, n):
+    """
+    Computes per-sprite scaling factors for temperature scaling.
+    Args:
+        json_path (str): Path to your level JSON file.
+        num_tiles (int): Number of tile types.
+        n (int): The temperature scaling root (e.g., 2, 4, 8).
+    Returns:
+        torch.Tensor: Scaling factors of shape [num_tiles].
+    """
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+    counts = [0] * num_tiles
+    for entry in data:
+        # Assumes entry['level'] is a 2D array of tile indices
+        level = entry.get('level')
+        if level is not None:
+            for row in level:
+                for tile in row:
+                    counts[tile] += 1
+    # Avoid division by zero for unused tiles
+    counts = [c if c > 0 else 1 for c in counts]
+    scalings = [c ** (1 / n) for c in counts]
+    min_scaling = min(scalings)
+    scalings = [s / min_scaling for s in scalings]
+    return torch.tensor(scalings, dtype=torch.float32)
+
 def main():
     args = parse_args()
+
+    """
+        The following logic defines the loss function variable based on user input.
+        Note: The model expects one-hot encoded targets for both loss types.
+        When using --loss_type CROSS, the script expects one-hot encoded targets and will automatically convert them to class indices for cross-entropy loss.
+    """
+    if args.loss_type == "MSE":
+        loss_fn = torch.nn.functional.mse_loss
+    elif args.loss_type == "CROSS":
+        def cross_entropy_loss(pred, target):
+            # pred: [batch, classes, ...], target: [batch, classes, ...] (one-hot)
+            target_indices = target.argmax(dim=1)
+            return torch.nn.functional.cross_entropy(pred, target_indices)
+        loss_fn = cross_entropy_loss
+    else:
+        raise ValueError(f"Unknown loss type: {args.loss_type}")
+    # Print the selected loss function to console
+    print(f"Using loss function: {args.loss_type}")
 
     # Check if config file is provided before training loop begins
     if hasattr(args, 'config') and args.config:
         config = load_config_from_json(args.config)
         args = update_args_from_config(args, config)
         print("Training will use parameters from the config file.")
+
+    # Check if output directory already exists
+    if os.path.exists(args.output_dir):
+        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+        exit()
     
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
+    
+    """
+    If sprite temperature scaling is enabled and the model is unconditional, 
+    then compute the scaling factors.
+    Note: Applying per-sprite temperature scaling could conflict with the intent of the prompt
+    on conditional models. Thus, this argument is only for unconditional models.
+    """
+    sprite_scaling_factors = None
+    if (not args.text_conditional) and (args.sprite_temperature_n is not None):
+        sprite_scaling_factors = compute_sprite_scaling_factors(
+            args.json, args.num_tiles, args.sprite_temperature_n
+        )
+        print(f"Sprite scaling factors: {sprite_scaling_factors}")
+
 
     # Set random seeds for reproducibility
     random.seed(args.seed)
@@ -110,8 +193,6 @@ def main():
         gradient_accumulation_steps=args.gradient_accumulation_steps
     )
     
-    device = accelerator.device
-
     # Initialize tokenizer
     if args.pkl:
         tokenizer = Tokenizer()
@@ -121,20 +202,40 @@ def main():
 
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
+    tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
     if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
-        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model).to(device)
+        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(accelerator.device)
         text_encoder.eval() # Set to evaluation mode
         model_embedding_dim = text_encoder.config.hidden_size# Done here to allow for cross-functionality with the mlm model
         tokenizer_hf = AutoTokenizer.from_pretrained(args.pretrained_language_model)
         print(f"Loaded text encoder from {args.pretrained_language_model}")
     elif args.text_conditional and args.mlm_model_dir:
-        text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(device)
+        text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(accelerator.device)
         text_encoder.eval()  # Set to evaluation mode
         model_embedding_dim = text_encoder.embedding_dim #Done to allow for cross-functionality with the huggingface model
-        tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
     data_mode = ("diffusion" if not args.pretrained_language_model else "diff_text") if args.text_conditional else "diff_text"
+
+    # Load block embedding model if specified
+    block_embeddings = None
+    embedding_dim = None
+    if args.block_embedding_model_path:
+        try:
+            # Load embeddings from the embeddings.pt file in the model directory
+            block_embeddings = torch.load(
+                os.path.join(args.block_embedding_model_path, "embeddings.pt"),
+                map_location=accelerator.device
+            )
+            
+            embedding_dim = block_embeddings.shape[1]
+            print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
+            print("Block embedding model loaded successfully.")
+        except Exception as e:
+            print(f"Error loading block embedding model: {e}")
+            raise
+    else:
+        print("No block embedding model specified. One-hot encoding enabled.")
 
     # Initialize dataset
     if args.split:
@@ -146,7 +247,8 @@ def main():
             mode=data_mode,
             augment=args.augment,
             num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training
+            negative_captions=args.negative_prompt_training,
+            block_embeddings=block_embeddings
         )
         val_dataset = LevelDataset(
             json_path=val_json,
@@ -155,7 +257,8 @@ def main():
             mode=data_mode,
             augment=False,
             num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training
+            negative_captions=args.negative_prompt_training,
+            block_embeddings=block_embeddings
         )
     else:
         train_dataset = LevelDataset(
@@ -165,7 +268,8 @@ def main():
             mode=data_mode,
             augment=args.augment,
             num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training
+            negative_captions=args.negative_prompt_training,
+            block_embeddings=block_embeddings
         )
         val_dataset = None
 
@@ -192,7 +296,7 @@ def main():
             batch_size=args.batch_size,
             shuffle=False,
             num_workers=4,
-            drop_last=True
+            drop_last=False
         )
 
     if args.text_conditional:
@@ -237,12 +341,18 @@ def main():
             for caption in sample_captions:
                 print(caption)
 
+    # if there is no block embedding model, set the channels to num_tiles
+    in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
+    # else set channels to the embedding dimension of the model
+    out_channels = in_channels
+
+
     # Setup the UNet model - use conditional version if text conditioning is enabled
     if args.text_conditional:
         model = UNet2DConditionModel(
             sample_size=(scene_height, scene_width),  # Fixed size for your level scenes
-            in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
-            out_channels=args.num_tiles,
+            in_channels=in_channels,  # Number of tile types (for one-hot encoding)
+            out_channels=out_channels,
             layers_per_block=args.num_res_blocks,
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types=args.down_block_types,
@@ -256,8 +366,8 @@ def main():
     else:
         model = UNet2DModel(
             sample_size=(scene_height, scene_width),  # Fixed size for your level scenes
-            in_channels=args.num_tiles,  # Number of tile types (for one-hot encoding)
-            out_channels=args.num_tiles,
+            in_channels=in_channels,  # Number of tile types (for one-hot encoding)
+            out_channels=out_channels,
             layers_per_block=args.num_res_blocks,
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types = [item.replace("CrossAttn", "") for item in args.down_block_types],
@@ -299,10 +409,11 @@ def main():
     )
     
     # Create output directory
-    if os.path.exists(args.output_dir):
-        print(f"Error: Output directory '{args.output_dir}' already exists. Exiting.")
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    else:
+        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
         exit()
-    os.makedirs(args.output_dir)
     
     # Training loop
     global_step = 0
@@ -367,71 +478,17 @@ def main():
         model.train()
         train_loss = 0.0
         
-        for batch_idx, batch in enumerate(train_dataloader):
-            # Process batch data
-            if args.text_conditional:
-                # Unpack scenes and captions
-                if args.negative_prompt_training:
-                    scenes, captions, negative_captions = batch
-                else:
-                    scenes, captions = batch
-                    negative_captions = None
+        for batch in train_dataloader:
 
-                # First generate timesteps before we duplicate anything
-                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
-
-                # Get text embeddings from the text encoder
-                combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=negative_captions)
-
-                # Add noise to the clean scenes
-                noise = torch.randn_like(scenes_for_train)
-                noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
-
-
-                with accelerator.accumulate(model):
-                    # Predict the noise with conditioning
-                    noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
-                    # Compute loss
-                    loss = F.mse_loss(noise_pred, noise)
-        
-                    # Backpropagation
-                    accelerator.backward(loss)
-        
-                    # Update the model parameters
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad()
-            else:
-                # For unconditional generation, we don't need captions
-                if isinstance(batch, list):
-                    scenes, _ = batch  # Ignore captions
-                else:
-                    scenes = batch
-
-                # Add noise to the clean scenes
-                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
-                noise = torch.randn_like(scenes)
-                noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
-    
-                # print(model)
-
-                with accelerator.accumulate(model):
-                    # Predict the noise
-                    noise_pred = model(noisy_scenes, timesteps).sample
-
-                    # Compute loss
-                    loss = F.mse_loss(noise_pred, noise)
-        
-                    # Backpropagation
-                    accelerator.backward(loss)
-        
-                    # Update the model parameters
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad()
-            
+            with accelerator.accumulate(model):
+                loss = process_diffusion_batch(
+                    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="train"
+                )
+                accelerator.backward(loss)
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
             train_loss += loss.detach().item()
-            
             # Update progress bar
             progress_bar.update(1)
             logs = {"loss": loss.detach().item(), "step": global_step}
@@ -448,54 +505,12 @@ def main():
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
-            caption_score_sum = 0.0
-            caption_score_count = 0
             with torch.no_grad():
                 for val_batch in val_dataloader:
-                    if args.text_conditional:  
-                        if args.negative_prompt_training:
-                            val_scenes, val_captions, val_negative_captions = val_batch
-                            val_negative_captions = val_negative_captions.to(device)
-                        else:
-                            val_scenes, val_captions = val_batch
-                            val_negative_captions = None
-                        
-                        val_scenes = val_scenes.to(device)
-                        if(not args.pretrained_language_model):
-                            val_captions = val_captions.to(device) #Avoids error, pretrained model path is not a tensor, so cannot be sent to the GPU
-                            
-                        val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
-                                                    (val_scenes.shape[0],), device=device).long()
-                        
-                        
-
-                        # Use the same tokenizer as in training
-                        val_combined_embeddings, val_scenes_for_eval, val_timesteps_for_eval = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=negative_captions)
-                                
-
-                        val_noise = torch.randn_like(val_scenes)
-                        val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
-
-
-                        val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
-                                            encoder_hidden_states=val_combined_embeddings).sample
-                        val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))                        
-                    else:
-                        if isinstance(val_batch, list):
-                            val_scenes, _ = val_batch
-                        else:
-                            val_scenes = val_batch
-                        val_scenes = val_scenes.to(device)
-                            
-                        val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
-                                                    (val_scenes.shape[0],), device=device).long()
-                        val_noise = torch.randn_like(val_scenes)
-                        val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
-                        val_noise_pred = model(val_noisy_scenes, val_timesteps).sample
-                        val_batch_loss = F.mse_loss(val_noise_pred, val_noise)
-                        
+                    val_batch_loss = process_diffusion_batch(
+                        args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="val"
+                    )
                     val_loss += val_batch_loss.item()
-                    
             val_loss /= len(val_dataloader)
 
             if args.text_conditional and args.plot_validation_caption_score:
@@ -505,13 +520,14 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
                     tokenizer=tokenizer_hf if args.pretrained_language_model else None
-                ).to(device)
+                ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
-                inference_steps = 50
-                guidance_scale = 7.5
+                inference_steps = args.num_inference_timesteps
+                # TODO: These should be argparse parameters
+                guidance_scale = common_settings.GUIDANCE_SCALE
                 avg_caption_score, _ = calculate_caption_score_and_samples(
-                    device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
+                    accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False
                 )
@@ -545,17 +561,19 @@ def main():
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
-                    text_encoder=text_encoder
-                ).to("cuda")
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                ).to(accelerator.device)
                                 
                 # Use the raw negative captions instead of tokens
                 with torch.no_grad():
                     samples = pipeline(
                         batch_size=4,
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps = 50, # Fewer steps needed for inference
+                        num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
                         caption=sample_captions,
+                        show_progress_bar=False,
                         negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
                     ).images
             else:
@@ -564,14 +582,18 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler
                 )
+                if sprite_scaling_factors is not None:
+                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+
                 
                 # Generate sample levels
                 with torch.no_grad():
                     samples = pipeline(
                         batch_size=4,
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps = 50, # Fewer steps needed for inference
+                        num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
+                        show_progress_bar=False,
                     ).images
 
             # Convert one-hot samples to tile indices and visualize
@@ -584,13 +606,19 @@ def main():
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
-                    text_encoder=text_encoder
-                ).to("cuda")
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                ).to(accelerator.device)
                 # Save negative prompt support flag if enabled
                 if args.negative_prompt_training:
                     pipeline.supports_negative_prompt = True
             else:
-                pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+                pipeline = UnconditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler
+                )
+                if sprite_scaling_factors is not None:
+                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
                 
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
     
@@ -616,10 +644,16 @@ def main():
         pipeline = TextConditionalDDPMPipeline(
             unet=accelerator.unwrap_model(model), 
             scheduler=noise_scheduler,
-            text_encoder=text_encoder
-        ).to("cuda")
+            text_encoder=text_encoder,
+            tokenizer=tokenizer_hf if args.pretrained_language_model else None
+        ).to(accelerator.device)
     else:
-        pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+        pipeline = UnconditionalDDPMPipeline(
+            unet=accelerator.unwrap_model(model), 
+            scheduler=noise_scheduler
+        )
+        if sprite_scaling_factors is not None:
+            pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
         
     pipeline.save_pretrained(args.output_dir)
 
@@ -700,7 +734,61 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
             combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
             timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
+
         return combined_embeddings, scenes_for_train, timesteps_for_train
+
+def process_diffusion_batch(
+    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="train"
+):
+    """
+    Handles a single batch for training or validation.
+    Returns: loss (if mode=="train"), or batch_loss (if mode=="val")
+    """
+    if args.text_conditional:
+        if args.negative_prompt_training:
+            scenes, captions, negative_captions = batch
+        else:
+            scenes, captions = batch
+            negative_captions = None
+
+        scenes = scenes.to(accelerator.device)
+        if not args.pretrained_language_model:
+            captions = captions.to(accelerator.device)
+        if negative_captions is not None:
+            negative_captions = negative_captions.to(accelerator.device)
+
+        timesteps = torch.randint(
+            0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
+        ).long()
+
+        combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(
+            args, tokenizer_hf, text_encoder, scenes, captions, timesteps, accelerator.device, negative_captions=negative_captions
+        )
+
+        noise = torch.randn_like(scenes_for_train)
+        noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
+
+        noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
+        target_noise = noise
+        
+        batch_loss = loss_fn(noise_pred, target_noise)
+        return batch_loss
+
+    else:
+        # Unconditional
+        if isinstance(batch, list):
+            scenes, _ = batch
+        else:
+            scenes = batch
+        scenes = scenes.to(accelerator.device)
+        timesteps = torch.randint(
+            0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
+        ).long()
+        noise = torch.randn_like(scenes)
+        noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
+        noise_pred = model(noisy_scenes, timesteps).sample
+        batch_loss = loss_fn(noise_pred, noise)
+        return batch_loss
 
 if __name__ == "__main__":
     main()

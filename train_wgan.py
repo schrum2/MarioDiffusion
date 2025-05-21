@@ -105,6 +105,14 @@ def main():
         config = load_config_from_json(args.config)
         args = update_args_from_config(args, config)
         print("Training will use parameters from the config file.")
+
+    # Check if output directory exists
+    if os.path.exists(args.output_dir):
+        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+        exit()
+
+    # Create output directory if it doesn't exist
+    os.makedirs(args.output_dir)    
     
     # Set random seeds for reproducibility
     random.seed(args.seed)

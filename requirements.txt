@@ -13,3 +13,4 @@ datasets
 matplotlib
 mario-gpt
 cmaes
+timm==0.9.12

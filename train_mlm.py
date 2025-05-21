@@ -48,11 +48,9 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
     # Get formatted timestamp for filenames
     formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
     
-    # Create output directory
-    if os.path.exists(args.output_dir):
-        print(f"Error: Output directory '{args.output_dir}' already exists. Exiting.")
-        exit()
-    os.makedirs(args.output_dir)
+    # Create output directory if it doesn't exist
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
 
     # Create log files
     log_file = os.path.join(args.output_dir, f"mlm_training_log_{formatted_date}.jsonl")
@@ -253,6 +251,11 @@ if __name__ == "__main__":
     
     global args
     args = parser.parse_args()
+
+    # Check if the output directory exists
+    if os.path.exists(args.output_dir):
+        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+        exit()
     
     # Set random seeds for reproducibility
     seed = 42
