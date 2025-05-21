@@ -76,12 +76,12 @@ def colors():
 
     return colorslist
 
-def tiles():
+def mario_tiles():
     """
     Maps integers 0-15 to 16x16 pixel sprites from mapsheet.png.
 
     Returns:
-        A list of 16x16 pixel tile images.
+        A list of 16x16 pixel tile images for Mario.
     """
     global _sprite_sheet
 
@@ -151,7 +151,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
 
     if use_tiles:
-        tile_images = tiles()
+        tile_images = mario_tiles()
         tile_size = 16
         for i, sample in enumerate(samples):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
