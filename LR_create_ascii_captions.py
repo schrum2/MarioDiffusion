@@ -147,6 +147,7 @@ def count_caption_phrase(scene, tiles, name, names, offset = 0, describe_absence
     else:
         return ""
 
+# DO NOT NEED FOR LODE RUNNER SINCE NO CANNONS
 def describe_broken_cannons(scene, char_to_id):
     count = 0
     for r in range(len(scene)):
@@ -315,6 +316,7 @@ def describe_horizontal_lines(lines, label, describe_locations, describe_absence
         count = len(lines)
         return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count != 1 else ''}."
 
+# DO NOT NEED FOR LODE RUNNER SINCE IMPOSSIBLE TO JUMP
 def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
     """
     Detects staircases in the scene.
@@ -353,6 +355,7 @@ def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already
     else:
         return ""
 
+# DO NOT NEED FOR LODE RUNNER SINCE NO STAIRCASES
 def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row, verticality, already_accounted):
     """
     Checks if there's a valid 3-step staircase starting at (start_col, start_row).
@@ -439,6 +442,8 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
 
     return structures
 
+# DO NOT NEED FOR LODE RUNNER SINCE NO PIPES
+# possibly could use for ladders or ropes
 def valid_pipe(top_row, left_column, scene, char_to_id):
     """
         Is this a valid pipe or not?
@@ -493,7 +498,7 @@ def valid_pipe(top_row, left_column, scene, char_to_id):
         return True
 
     return False
-
+# DO NOT NEED FOR LODE RUNNER SINCE NO PIPES
 def valid_upside_down_pipe(bottom_row, left_column, scene, char_to_id):
     """
         Is this a valid upside down pipe or not?
@@ -793,10 +798,12 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     #print("after enemy", (10,0) in already_accounted)
 
+    # DO NOT NEED FOR LODE RUNNER SINCE NO QUESTION BLOCKS
     # Count question blocks
     question_block_phrase = count_caption_phrase(scene, [char_to_id['Q'], char_to_id['?']], "question block", "question blocks", describe_absence=describe_absence)
     add_to_caption(question_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['Q'], char_to_id['?']]])
 
+    # DO NOT NEED FOR LODE RUNNER SINCE NO CANNONS
     #print("after qb", (10,0) in already_accounted)
     #print(already_accounted)
     # Count cannons
@@ -807,14 +814,18 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     #print("after cannon", (10,0) in already_accounted)
 
+    # DO NOT NEED FOR LODE RUNNER SINCE NO BROKEN CANNONS
     # Describe broken cannons
     broken_cannon_phrase = describe_broken_cannons(scene, char_to_id)
     add_to_caption(broken_cannon_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']])
 
+    # DO NOT NEED FOR LODE RUNNER SINCE NO COINS
+    # possibly could use for chests
     # Count coins
     coin_phrase = count_caption_phrase(scene, [char_to_id['o']], "coin", "coins", describe_absence=describe_absence)
     add_to_caption(coin_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['o']])
 
+    # DO NOT NEED FOR LODE RUNNER SINCE NO COIN LINES
     # Coin lines
     coin_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="coin", min_run_length=2)
     coin_line_phrase = describe_horizontal_lines(coin_lines, "coin line", describe_locations, describe_absence=describe_absence)
@@ -827,6 +838,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations, describe_absence=describe_absence)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
 
+    # DO NOT NEED FOR LODE RUNNER SINCE NO STAIRS
     #print("after platform", (10,0) in already_accounted)
     #print("before stairs", (10,0) in already_accounted)
     # Staircases
@@ -836,6 +848,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     #print(already_accounted)
     already_accounted.update(up_stair_set)
 
+    # DO NOT NEED FOR LODE RUNNER SINCE NO STAIRS
     down_stair_set = set()
     descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=down_stair_set)
     add_to_caption(descending_caption, list(down_stair_set))
