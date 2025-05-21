@@ -66,7 +66,7 @@ python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC
 
 Extract a json data set of 22 by 32 level scenes from the VGLC data for Lode Runner with a command like this:
 ```
-python LR_create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json"
+python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json" --target_height 32 --target_width 32
 ```
 
 These files only contains the level scenes. Create captions for all level scenes with commands like this (currently created blank captions so that we can run unconditional diffusion):
