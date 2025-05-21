@@ -64,9 +64,24 @@ python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC
 ```
 ## Can I also get Lode Runner Data? (TODO)
 
-This line works but others don't (yet).
+Extract a json data set of 22 by 32 level scenes from the VGLC data for Lode Runner with a command like this:
 ```
-python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json"
+python LR_create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json"
+```
+
+These files only contains the level scenes. Create captions for all level scenes with commands like this (currently created blank captions so that we can run unconditional diffusion):
+```
+python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-regular.json
+```
+
+To train an unconditional diffusion model without any text embeddings, run this command:
+```
+python train_diffusion.py --augment --output_dir "LR-unconditional" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --split --num_tiles 10 --batch_size 5
+```
+
+Run trained unconditional diffusion model and save 100 random levels to json (will currently look like Mario Levels)
+```
+python run_diffusion.py --model_path LR-unconditional --num_samples 100 --save_as_json --output_dir "LR-unconditional-samples"
 ```
 
 ## Train text encoder

@@ -277,6 +277,13 @@ def main():
         )
         val_dataset = None
 
+    first_sample = train_dataset[0]
+    scene_height = first_sample[0].shape[1]
+    scene_width = first_sample[0].shape[2]
+
+    print(f"Scene height: {scene_height}")
+    print(f"Scene width: {scene_width}")
+
     # Create dataloader
     train_dataloader = DataLoader(
         train_dataset,
@@ -347,7 +354,7 @@ def main():
     # Setup the UNet model - use conditional version if text conditioning is enabled
     if args.text_conditional:
         model = UNet2DConditionModel(
-            sample_size=(16, 16),  # Fixed size for your level scenes
+            sample_size=(scene_height, scene_width),  # Fixed size for your level scenes
             in_channels=in_channels,  # Number of tile types (for one-hot encoding)
             out_channels=out_channels,
             layers_per_block=args.num_res_blocks,
@@ -362,7 +369,7 @@ def main():
             model.negative_prompt_support = True
     else:
         model = UNet2DModel(
-            sample_size=(16, 16),  # Fixed size for your level scenes
+            sample_size=(scene_height, scene_width),  # Fixed size for your level scenes
             in_channels=in_channels,  # Number of tile types (for one-hot encoding)
             out_channels=out_channels,
             layers_per_block=args.num_res_blocks,
@@ -476,7 +483,6 @@ def main():
         train_loss = 0.0
         
         for batch_idx, batch in enumerate(train_dataloader):
-
             # Process batch data
             if args.text_conditional:
                 # Unpack scenes and captions
@@ -485,21 +491,21 @@ def main():
                 else:
                     scenes, captions = batch
                     negative_captions = None
-    
+
                 # First generate timesteps before we duplicate anything
                 timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
 
                 # Get text embeddings from the text encoder
                 combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=negative_captions)
-    
+
                 # Add noise to the clean scenes
                 noise = torch.randn_like(scenes_for_train)
                 noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
-    
+
+
                 with accelerator.accumulate(model):
                     # Predict the noise with conditioning
                     noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
-        
                     # Compute loss
                     loss = loss_fn(noise_pred, noise)
         
@@ -522,6 +528,8 @@ def main():
                 noise = torch.randn_like(scenes)
                 noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
     
+                # print(model)
+
                 with accelerator.accumulate(model):
                     # Predict the noise
                     noise_pred = model(noisy_scenes, timesteps).sample

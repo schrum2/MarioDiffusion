@@ -5,20 +5,22 @@ from collections import Counter
 
 # The width of generated scenes may not be 16
 #WIDTH = 16
-HEIGHT = 16
+# height is 22 for Lode Runner
+HEIGHT = 22
 
 # The floor is the last row of the scene (0-indexed)
 FLOOR = HEIGHT - 1
-CEILING = 4
+CEILING = 1
 
 # This is used for describing locations, but it doesn't work well
-STANDARD_WIDTH = 16
+# standard width of Lode Runner scenes are 32
+STANDARD_WIDTH = 32
 
-LEFT = STANDARD_WIDTH / 3
+LEFT = STANDARD_WIDTH // 3
 RIGHT = STANDARD_WIDTH - LEFT
 
-TOP = (FLOOR - CEILING) / 3 + CEILING
-BOTTOM = FLOOR - ((FLOOR - CEILING) / 3)
+TOP = (FLOOR - CEILING) // 3 + CEILING
+BOTTOM = FLOOR - ((FLOOR - CEILING) // 3)
 
 # Could define these via the command line, but for now they are hardcoded
 coarse_locations = True
@@ -669,7 +671,7 @@ def extract_tileset(tileset_path):
 
     return tile_chars, id_to_char, char_to_id, tile_descriptors
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True):
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence):
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
@@ -677,9 +679,9 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     # Generate captions
     captioned_dataset = []
     for scene in dataset:
-        caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
+        caption = "" # assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
-        if exclude_broken and "broken" in caption:
+        if "broken" in caption:
             print("Broken pipe in training data")
             print(caption)
             current = len(captioned_dataset)
@@ -730,7 +732,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
             if return_details and details is not None:
                 details[phrase.strip()] = contributing_blocks
 
-    caption = ""
+    caption = "" # assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
     # Analyze floor
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
