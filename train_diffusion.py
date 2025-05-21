@@ -476,6 +476,7 @@ def main():
         train_loss = 0.0
         
         for batch in train_dataloader:
+
             with accelerator.accumulate(model):
                 loss = process_diffusion_batch(
                     args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="train"
