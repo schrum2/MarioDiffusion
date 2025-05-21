@@ -9,7 +9,7 @@ from models.text_model import TransformerModel
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
-
+import util.common_settings as common_settings
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
@@ -111,8 +111,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         caption: Optional[str | list[str]] = None,
         negative_prompt: Optional[str | list[str]] = None,
         generator: Optional[torch.Generator] = None,
-        num_inference_steps: int = 50,
-        guidance_scale: float = 7.5,
+        num_inference_steps: int = common_settings.NUM_INFERENCE_STEPS,
+        guidance_scale: float = common_settings.GUIDANCE_SCALE,
         height: int = 16,
         width: int = 16,
         raw_latent_sample: Optional[torch.FloatTensor] = None,

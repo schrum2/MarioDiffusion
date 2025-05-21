@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from typing import Optional, Union, List, Tuple
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.ddpm.pipeline_ddpm import ImagePipelineOutput
+import util.common_settings as common_settings
 
 class UnconditionalDDPMPipeline(DDPMPipeline):
 
@@ -18,7 +19,7 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
         self,
         batch_size: int = 1,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
-        num_inference_steps: int = 50,
+        num_inference_steps: int = common_settings.NUM_INFERENCE_STEPS,
         output_type: Optional[str] = "tensor",
         return_dict: bool = True,
         height: int = 16, width: int = 16, 

@@ -20,7 +20,7 @@ from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel
-
+import util.common_settings as common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -71,7 +71,7 @@ def parse_args():
     
     # Diffusion scheduler args
     parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
-    parser.add_argument("--num_inference_timesteps", type=int, default=10, help="Number of diffusion timesteps during inference (samples, caption adherence)")
+    parser.add_argument("--num_inference_timesteps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of diffusion timesteps during inference (samples, caption adherence)")
     parser.add_argument("--beta_schedule", type=str, default="linear", help="Beta schedule type")
     parser.add_argument("--beta_start", type=float, default=0.0001, help="Beta schedule start value")
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
@@ -525,7 +525,7 @@ def main():
 
                 inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
-                guidance_scale = 7.5
+                guidance_scale = common_settings.GUIDANCE_SCALE
                 avg_caption_score, _ = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,

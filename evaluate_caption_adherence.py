@@ -11,6 +11,7 @@ from level_dataset import visualize_samples, convert_to_level_format, samples_to
 from create_ascii_captions import assign_caption, save_level_data, extract_tileset
 from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
+import util.common_settings as common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
@@ -22,8 +23,8 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4, help="Training batch size") 
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--inference_steps", type=int, default=10, help="Number of denoising steps") # Large reduction from the 500 used during training
-    parser.add_argument("--guidance_scale", type=float, default=7.5, help="Guidance scale for classifier-free guidance")
+    parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps") # Large reduction from the 500 used during training
+    parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
 
     # Used to generate captions when generating images
