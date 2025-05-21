@@ -125,12 +125,12 @@ def mario_tiles():
 
     return tile_images
 
-def LR_tiles():
+def lr_tiles():
     """
-    Maps integers 0-10 to 32x32 pixel sprites from LR_mapsheet.png.
+    Maps integers 0-10 to 8x8 pixel sprites from LR_mapsheet.png.
 
     Returns:
-        A list of 32x32 pixel tile images for Lode Runner.
+        A list of 8x8 pixel tile images for Lode Runner.
     """
     global _sprite_sheet
 
@@ -140,30 +140,32 @@ def LR_tiles():
 
     # Hardcoded coordinates for the first 10 tiles (row, col)
     LR_tile_coordinates = [
-       (11, 2),     # 0 = Ladder
-       (12, 3),     # 1 = Rope
-       (0, 0),      # 2 = Passable, Empty
-       (3, 3),      # 3 = Solid Ground
-       (3, 1),      # 4 = Enemy
-       (4, 1),      # 5 = Gold
-       (17, 20),    # 6 = Spawn
-       (1, 3),      # 7 = Diggable Ground
-       (0,0),       # 8 = Nothing
+       (12, 3),     # 0 = Ladder            done
+       (13, 4),     # 1 = Rope              done
+       (1, 1),      # 2 = Passable, Empty   done
+       (2, 3),      # 3 = Solid Ground      done
+       (3, 2),      # 4 = Enemy             done
+       (5, 2),      # 5 = Gold              done
+       (18, 21),    # 6 = Spawn             done
+       (1, 22),     # 7 = Diggable Ground   done
+       (0,0)        # 8 = Nothing           done
 
     ]
+
+    DIM = 8
 
     # Extract each tile as a 8x8 image
     LR_tile_images = []
     for col, row in LR_tile_coordinates:
-        left = col * 8
-        upper = row * 8
-        right = left + 8
-        lower = upper + 8
+        left = col * DIM
+        upper = 4 + row * DIM
+        right = left + DIM
+        lower = upper + DIM
         tile = _sprite_sheet.crop((left, upper, right, lower))
         LR_tile_images.append(tile)
 
     # Add a blank tile for the extra tile (padding)
-    blank_tile = Image.new('RGB', (8, 8), color=(128, 128, 128))
+    blank_tile = Image.new('RGB', (DIM, DIM), color=(128, 128, 128))
     LR_tile_images.append(blank_tile)
 
     return LR_tile_images
@@ -205,8 +207,8 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
             tile_size = 16
         # Broken if there is another 32x32 like Lode Runner
         elif samples.shape[2] == 32:
-            tile_images = LR_tiles()
-            tile_size = 16
+            tile_images = lr_tiles()
+            tile_size = 8
         for i, sample in enumerate(samples):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
             sample_indices.append(sample_index)
