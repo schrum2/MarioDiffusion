@@ -121,6 +121,43 @@ def mario_tiles():
 
     return tile_images
 
+def LR_tiles():
+    """
+    Maps integers 0-10 to 32x32 pixel sprites from LR_mapsheet.png.
+
+    Returns:
+        A list of 32x32 pixel tile images for Lode Runner.
+    """
+    global _sprite_sheet
+
+    # Load the sprite sheet only once
+    if _sprite_sheet is None:
+        _sprite_sheet = Image.open("mapsheet.png")
+
+    # Hardcoded coordinates for the first 10 tiles (row, col)
+    LR_tile_coordinates = [
+       (11, 2),     # 0 = Ladder
+       (12, 3),     # 1 = Rope
+       (0, 0),      # 2 = Passable, Empty
+       (3, 2),      # 3 = Solid Ground
+       (3, 1),      # 4 = Enemy
+       (4, 1),      # 5 = Gold
+       (17, 20),    # 6 = Spawn
+       (0, 2),      # 7 = Diggable Ground
+    ]
+
+    # Extract each tile as a 32x32 image
+    LR_tile_images = []
+    for col, row in LR_tile_coordinates:
+        left = col * 32
+        upper = row * 32
+        right = left + 32
+        lower = upper + 32
+        tile = _sprite_sheet.crop((left, upper, right, lower))
+        LR_tile_images.append(tile)
+
+    return LR_tile_images
+
 def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
     """
     Visualize generated samples and save as images.
