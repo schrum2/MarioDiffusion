@@ -8,6 +8,8 @@ import json
 from models.text_model import TransformerModel  
 import torch
 import torch.nn.functional as F
+from transformers import AutoTokenizer, AutoModel
+
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
@@ -53,14 +55,17 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         if self.tokenizer is not None and hasattr(self.tokenizer, 'save_pretrained'):
             # Save tokenizer if it has a save_pretrained method.
             # Otherwise, we presume the tokenizer was saved by the text encoder.
-            self.tokenizer.save_pretrained(os.path.join(save_directory, "tokenizer"))
+            self.tokenizer.save_pretrained(os.path.join(save_directory, "text_encoder"))
             
         # Save supports_negative_prompt flag
         with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
-            json.dump({"supports_negative_prompt": self.supports_negative_prompt}, f)
+            json.dump({
+                "supports_negative_prompt": self.supports_negative_prompt,
+                "text_encoder_type": type(self.text_encoder).__name__   
+            }, f)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_path, **kwargs):
+    def from_pretrained(cls, pretrained_model_path, using_pretrained = False, **kwargs):
         #from diffusers.utils import load_config, load_state_dict
         # Load model_index.json
         #model_index = load_config(pretrained_model_path)
@@ -76,8 +81,12 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         if os.path.exists(text_encoder_path):
-            text_encoder = TransformerModel.from_pretrained(text_encoder_path)
-            tokenizer = text_encoder.tokenizer
+            try:
+                text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True)
+                tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
+            except (ValueError, KeyError):
+                text_encoder = TransformerModel.from_pretrained(text_encoder_path)
+                tokenizer = text_encoder.tokenizer
         else:
             text_encoder = None
 
@@ -208,31 +217,49 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     max_length = self.text_encoder.max_seq_length
                     empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
                     text_embeddings = self.text_encoder.get_embeddings(empty_ids)
-            else:
-                if captions is not None: #TODO: add support for negitive prompts
-                    tokens = self.tokenizer(captions, return_tensors="pt", padding=True, truncation=True).to(self.device)
-                    text_embeddings = self.text_encoder(**tokens).last_hidden_state
-                else: 
-                    def mean_pooling(model_output, attention_mask):
-                        token_embeddings = model_output.last_hidden_state
-                        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-                        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-                    
-                    def encode(texts):
-                        # Tokenize sentences
-                        encoded_input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='tf')
-
-                        # Compute token embeddings
+            else: #Case for the pre-trained text encoder
+                def mean_pooling(model_output, attention_mask):
+                    token_embeddings = model_output.last_hidden_state
+                    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+                    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+                #Encode text
+                def encode(texts):
+                    # Tokenize sentences
+                    encoded_input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
+                    encoded_input = encoded_input.to(self.device)
+                    # Compute token embeddings
+                    with torch.no_grad():
                         model_output = self.text_encoder(**encoded_input, return_dict=True)
 
-                        # Perform pooling
-                        embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
+                    # Perform pooling
+                    embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
 
-                        # Normalize embeddings
-                        embeddings = F.normalize(embeddings, p=2, dim=1)
+                    # Normalize embeddings
+                    embeddings = F.normalize(embeddings, p=2, dim=1)
+                    
+                    return embeddings
+                if captions is not None:
 
-                        return embeddings
-                    text_embeddings = encode("")
+                    text_embeddings = encode(captions)
+                    uncond_embeddings = encode([""] * batch_size)
+
+                    if negatives is not None:
+                        # Negative prompt embeddings
+                        neg_tokens = self.tokenizer(negatives, return_tensors="pt", padding=True, truncation=True).to(self.device)
+                        neg_embeddings = self.text_encoder(**neg_tokens).last_hidden_state  # [batch, seq_len, hidden_size]
+                        # Concatenate [neg, uncond, cond]
+                        text_embeddings = torch.cat([neg_embeddings, uncond_embeddings, text_embeddings], dim=0)
+                    else:
+                        # Concatenate [uncond, cond]
+                        
+                        text_embeddings = torch.cat([uncond_embeddings, text_embeddings], dim=0)
+
+                else:
+                    # Unconditional generation: use unconditional embeddings only
+                    text_embeddings = encode([""] * batch_size)
+                text_embeddings = text_embeddings.unsqueeze(1)  # (batch_size, 1, hidden_size)
+            
+            
 
 
 

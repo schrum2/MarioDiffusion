@@ -210,7 +210,7 @@ def main():
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
     if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
-        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model).to(device)
+        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(device)
         text_encoder.eval() # Set to evaluation mode
         model_embedding_dim = text_encoder.config.hidden_size# Done here to allow for cross-functionality with the mlm model
         tokenizer_hf = AutoTokenizer.from_pretrained(args.pretrained_language_model)
@@ -222,7 +222,7 @@ def main():
         tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
-    data_mode = ("diffusion" if not args.pretrained_language_model else "pretrained_language_model") if args.text_conditional else "diff_text"
+    data_mode = ("diffusion" if not args.pretrained_language_model else "diff_text") if args.text_conditional else "diff_text"
 
     # Load block embedding model if specified
     block_embeddings = None
@@ -652,7 +652,8 @@ def main():
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
-                    text_encoder=text_encoder
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
                 ).to("cuda")
                                 
                 # Use the raw negative captions instead of tokens
@@ -694,7 +695,8 @@ def main():
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
-                    text_encoder=text_encoder
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
                 ).to("cuda")
                 # Save negative prompt support flag if enabled
                 if args.negative_prompt_training:
@@ -731,7 +733,8 @@ def main():
         pipeline = TextConditionalDDPMPipeline(
             unet=accelerator.unwrap_model(model), 
             scheduler=noise_scheduler,
-            text_encoder=text_encoder
+            text_encoder=text_encoder,
+            tokenizer=tokenizer_hf if args.pretrained_language_model else None
         ).to("cuda")
     else:
         pipeline = UnconditionalDDPMPipeline(
@@ -820,6 +823,7 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
             combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
             timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
+
         return combined_embeddings, scenes_for_train, timesteps_for_train
 
 if __name__ == "__main__":
