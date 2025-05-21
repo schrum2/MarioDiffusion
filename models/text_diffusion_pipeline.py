@@ -118,7 +118,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         raw_latent_sample: Optional[torch.FloatTensor] = None,
         input_scene: Optional[torch.Tensor] = None,
         output_type: str = "tensor",
-        batch_size: int = 1
+        batch_size: int = 1,
+        show_progress_bar: bool = True,
     ) -> PipelineOutput:
         """Generate a batch of images based on text input using the diffusion model.
 
@@ -299,7 +300,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             self.scheduler.set_timesteps(num_inference_steps)
 
             # Denoising loop
-            for t in self.progress_bar(self.scheduler.timesteps):
+            iterator = self.progress_bar(self.scheduler.timesteps) if show_progress_bar else self.scheduler.timesteps
+            for t in iterator:
                 # Handle conditional generation
                 if captions is not None:
                     if negatives is not None:

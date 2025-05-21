@@ -569,6 +569,7 @@ def main():
                         num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
                         caption=sample_captions,
+                        show_progress_bar=False,
                         negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
                     ).images
             else:
@@ -588,6 +589,7 @@ def main():
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                         num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
+                        show_progress_bar=False,
                     ).images
 
             # Convert one-hot samples to tile indices and visualize
