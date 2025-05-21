@@ -475,71 +475,16 @@ def main():
         model.train()
         train_loss = 0.0
         
-        for batch_idx, batch in enumerate(train_dataloader):
-            # Process batch data
-            if args.text_conditional:
-                # Unpack scenes and captions
-                if args.negative_prompt_training:
-                    scenes, captions, negative_captions = batch
-                else:
-                    scenes, captions = batch
-                    negative_captions = None
-
-                # First generate timesteps before we duplicate anything
-                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
-
-                # Get text embeddings from the text encoder
-                combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, accelerator.device, negative_captions=negative_captions)
-
-                # Add noise to the clean scenes
-                noise = torch.randn_like(scenes_for_train)
-                noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
-
-
-                with accelerator.accumulate(model):
-                    # Predict the noise with conditioning
-                    noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
-                    # Compute loss
-                    loss = loss_fn(noise_pred, noise)
-        
-                    # Backpropagation
-                    accelerator.backward(loss)
-        
-                    # Update the model parameters
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad()
-            else:
-                # For unconditional generation, we don't need captions
-                if isinstance(batch, list):
-                    scenes, _ = batch  # Ignore captions
-                else:
-                    scenes = batch
-
-                # Add noise to the clean scenes
-                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
-                noise = torch.randn_like(scenes)
-                noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
-    
-                # print(model)
-
-                with accelerator.accumulate(model):
-                    # Predict the noise
-                    noise_pred = model(noisy_scenes, timesteps).sample
-
-                    # Compute loss
-                    loss = loss_fn(noise_pred, noise)
-        
-                    # Backpropagation
-                    accelerator.backward(loss)
-        
-                    # Update the model parameters
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad()
-            
+        for batch in train_dataloader:
+            with accelerator.accumulate(model):
+                loss = process_diffusion_batch(
+                    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="train"
+                )
+                accelerator.backward(loss)
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
             train_loss += loss.detach().item()
-            
             # Update progress bar
             progress_bar.update(1)
             logs = {"loss": loss.detach().item(), "step": global_step}
@@ -558,39 +503,9 @@ def main():
             val_loss = 0.0
             with torch.no_grad():
                 for val_batch in val_dataloader:
-                    if args.text_conditional:  
-                        if args.negative_prompt_training:
-                            val_scenes, val_captions, val_negative_captions = val_batch
-                            val_negative_captions = val_negative_captions.to(accelerator.device)
-                        else:
-                            val_scenes, val_captions = val_batch
-                            val_negative_captions = None
-                        
-                        val_scenes = val_scenes.to(accelerator.device)
-                        if(not args.pretrained_language_model):
-                            val_captions = val_captions.to(accelerator.device)
-                        val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
-                                                    (val_scenes.shape[0],), device=accelerator.device).long()
-                        # Use the same tokenizer as in training
-                        val_combined_embeddings, val_scenes_for_eval, val_timesteps_for_eval = prepare_conditioned_batch(
-                            args, tokenizer_hf, text_encoder, val_scenes, val_captions, val_timesteps, accelerator.device, negative_captions=val_negative_captions)
-                        val_noise = torch.randn_like(val_scenes)
-                        val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
-                        val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
-                                            encoder_hidden_states=val_combined_embeddings).sample
-                        val_batch_loss = loss_fn(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))
-                    else:
-                        if isinstance(val_batch, list):
-                            val_scenes, _ = val_batch
-                        else:
-                            val_scenes = val_batch
-                        val_scenes = val_scenes.to(accelerator.device)
-                        val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
-                                                    (val_scenes.shape[0],), device=accelerator.device).long()
-                        val_noise = torch.randn_like(val_scenes)
-                        val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
-                        val_noise_pred = model(val_noisy_scenes, val_timesteps).sample
-                        val_batch_loss = loss_fn(val_noise_pred, val_noise)
+                    val_batch_loss = process_diffusion_batch(
+                        args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="val"
+                    )
                     val_loss += val_batch_loss.item()
             val_loss /= len(val_dataloader)
 
@@ -815,6 +730,64 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
             timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
 
         return combined_embeddings, scenes_for_train, timesteps_for_train
+
+def process_diffusion_batch(
+    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="train"
+):
+    """
+    Handles a single batch for training or validation.
+    Returns: loss (if mode=="train"), or batch_loss (if mode=="val")
+    """
+    if args.text_conditional:
+        if args.negative_prompt_training:
+            scenes, captions, negative_captions = batch
+        else:
+            scenes, captions = batch
+            negative_captions = None
+
+        scenes = scenes.to(accelerator.device)
+        if not args.pretrained_language_model:
+            captions = captions.to(accelerator.device)
+        if negative_captions is not None:
+            negative_captions = negative_captions.to(accelerator.device)
+
+        timesteps = torch.randint(
+            0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
+        ).long()
+
+        combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(
+            args, tokenizer_hf, text_encoder, scenes, captions, timesteps, accelerator.device, negative_captions=negative_captions
+        )
+
+        noise = torch.randn_like(scenes_for_train)
+        noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
+
+        noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
+        target_noise = noise
+
+        # For validation, need to repeat noise for guidance
+        if mode == "val":
+            repeat_factor = 3 if args.negative_prompt_training else 2
+            target_noise = torch.cat([noise] * repeat_factor)
+
+        batch_loss = loss_fn(noise_pred, target_noise)
+        return batch_loss
+
+    else:
+        # Unconditional
+        if isinstance(batch, list):
+            scenes, _ = batch
+        else:
+            scenes = batch
+        scenes = scenes.to(accelerator.device)
+        timesteps = torch.randint(
+            0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
+        ).long()
+        noise = torch.randn_like(scenes)
+        noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
+        noise_pred = model(noisy_scenes, timesteps).sample
+        batch_loss = loss_fn(noise_pred, noise)
+        return batch_loss
 
 if __name__ == "__main__":
     main()
