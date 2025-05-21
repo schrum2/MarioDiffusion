@@ -777,11 +777,6 @@ def process_diffusion_batch(
         print(f"Noise pred shape: {noise_pred.shape}")  
         print(f"Target noise shape: {target_noise.shape}")
 
-        # For validation, need to repeat noise for guidance
-        if mode == "val":
-            repeat_factor = 3 if args.negative_prompt_training else 2
-            target_noise = torch.cat([noise] * repeat_factor)
-
         batch_loss = loss_fn(noise_pred, target_noise)
         return batch_loss
 
