@@ -32,14 +32,9 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split')
-    # parser.add_argument('--train_pct', type=float, default=0.8, help='Train split percentage (default 0.8)')
-    # parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
-    # parser.add_argument('--test_pct', type=float, default=0.15, help='Test split percentage (default 0.15)')
-
-    # Adjusted split percentages for testing
-    parser.add_argument('--train_pct', type=float, default=0.1, help='Train split percentage (default 0.1)')
+    parser.add_argument('--train_pct', type=float, default=0.9, help='Train split percentage (default 0.8)')
     parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
-    parser.add_argument('--test_pct', type=float, default=0.85, help='Test split percentage (default 0.85)')
+    parser.add_argument('--test_pct', type=float, default=0.05, help='Test split percentage (default 0.15)')
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
