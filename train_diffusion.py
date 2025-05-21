@@ -225,9 +225,8 @@ def main():
             # Load embeddings from the embeddings.pt file in the model directory
             block_embeddings = torch.load(
                 os.path.join(args.block_embedding_model_path, "embeddings.pt"),
-                map_location=accelerator.device
+                map_location='cpu'
             )
-            
             embedding_dim = block_embeddings.shape[1]
             print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
             print("Block embedding model loaded successfully.")
@@ -479,6 +478,9 @@ def main():
         train_loss = 0.0
         
         for batch in train_dataloader:
+            # Add explicit memory clearing at start of batch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             with accelerator.accumulate(model):
                 loss = process_diffusion_batch(
@@ -489,10 +491,19 @@ def main():
                 lr_scheduler.step()
                 optimizer.zero_grad()
             train_loss += loss.detach().item()
+
+
             # Update progress bar
             progress_bar.update(1)
             logs = {"loss": loss.detach().item(), "step": global_step}
             progress_bar.set_postfix(**logs)
+            
+            # Detach tensors and clear memory
+            del loss
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            
                         
             global_step += 1
         
@@ -511,6 +522,11 @@ def main():
                         args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="val"
                     )
                     val_loss += val_batch_loss.item()
+                    # Clear memory after each validation batch
+                    del val_batch_loss
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+
             val_loss /= len(val_dataloader)
 
             if args.text_conditional and args.plot_validation_caption_score:
