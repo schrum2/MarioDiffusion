@@ -202,6 +202,7 @@ def main():
 
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
+    tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
     if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
         text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(accelerator.device)
         text_encoder.eval() # Set to evaluation mode
@@ -212,7 +213,6 @@ def main():
         text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(accelerator.device)
         text_encoder.eval()  # Set to evaluation mode
         model_embedding_dim = text_encoder.embedding_dim #Done to allow for cross-functionality with the huggingface model
-        tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
     data_mode = ("diffusion" if not args.pretrained_language_model else "diff_text") if args.text_conditional else "diff_text"
@@ -230,9 +230,12 @@ def main():
             
             embedding_dim = block_embeddings.shape[1]
             print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
+            print("Block embedding model loaded successfully.")
         except Exception as e:
             print(f"Error loading block embedding model: {e}")
             raise
+    else:
+        print("No block embedding model specified. One-hot encoding enabled.")
 
     # Initialize dataset
     if args.split:
@@ -476,6 +479,7 @@ def main():
         train_loss = 0.0
         
         for batch in train_dataloader:
+
             with accelerator.accumulate(model):
                 loss = process_diffusion_batch(
                     args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="train"
@@ -569,6 +573,7 @@ def main():
                         num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
                         caption=sample_captions,
+                        show_progress_bar=False,
                         negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
                     ).images
             else:
@@ -588,6 +593,7 @@ def main():
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                         num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
+                        show_progress_bar=False,
                     ).images
 
             # Convert one-hot samples to tile indices and visualize
@@ -764,12 +770,7 @@ def process_diffusion_batch(
 
         noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
         target_noise = noise
-
-        # For validation, need to repeat noise for guidance
-        if mode == "val":
-            repeat_factor = 3 if args.negative_prompt_training else 2
-            target_noise = torch.cat([noise] * repeat_factor)
-
+        
         batch_loss = loss_fn(noise_pred, target_noise)
         return batch_loss
 

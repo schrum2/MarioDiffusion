@@ -23,6 +23,7 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
         return_dict: bool = True,
         height: int = 16, width: int = 16, 
         latents: Optional[torch.FloatTensor] = None,
+        show_progress_bar=True,
     ) -> Union[ImagePipelineOutput, Tuple]:
 
         self.unet.eval()
@@ -42,7 +43,8 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
 
             self.scheduler.set_timesteps(num_inference_steps)
 
-            for t in self.progress_bar(self.scheduler.timesteps):
+            iterator = self.progress_bar(self.scheduler.timesteps) if show_progress_bar else self.scheduler.timesteps
+            for t in iterator:
                 #print(image.shape)
                 model_output = self.unet(image, t).sample
                 image = self.scheduler.step(model_output, t, image, generator=generator).prev_sample
