@@ -20,7 +20,7 @@ from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel
-
+import util.common_settings as common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -71,7 +71,7 @@ def parse_args():
     
     # Diffusion scheduler args
     parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
-    parser.add_argument("--num_inference_timesteps", type=int, default=10, help="Number of diffusion timesteps during inference (samples, caption adherence)")
+    parser.add_argument("--num_inference_timesteps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of diffusion timesteps during inference (samples, caption adherence)")
     parser.add_argument("--beta_schedule", type=str, default="linear", help="Beta schedule type")
     parser.add_argument("--beta_start", type=float, default=0.0001, help="Beta schedule start value")
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
@@ -202,6 +202,7 @@ def main():
 
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
+    tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
     if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
         text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(accelerator.device)
         text_encoder.eval() # Set to evaluation mode
@@ -212,7 +213,6 @@ def main():
         text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(accelerator.device)
         text_encoder.eval()  # Set to evaluation mode
         model_embedding_dim = text_encoder.embedding_dim #Done to allow for cross-functionality with the huggingface model
-        tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
     data_mode = ("diffusion" if not args.pretrained_language_model else "diff_text") if args.text_conditional else "diff_text"
@@ -230,9 +230,12 @@ def main():
             
             embedding_dim = block_embeddings.shape[1]
             print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
+            print("Block embedding model loaded successfully.")
         except Exception as e:
             print(f"Error loading block embedding model: {e}")
             raise
+    else:
+        print("No block embedding model specified. One-hot encoding enabled.")
 
     # Initialize dataset
     if args.split:
@@ -476,6 +479,7 @@ def main():
         train_loss = 0.0
         
         for batch in train_dataloader:
+
             with accelerator.accumulate(model):
                 loss = process_diffusion_batch(
                     args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="train"
@@ -521,7 +525,7 @@ def main():
 
                 inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
-                guidance_scale = 7.5
+                guidance_scale = common_settings.GUIDANCE_SCALE
                 avg_caption_score, _ = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
@@ -569,6 +573,7 @@ def main():
                         num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
                         caption=sample_captions,
+                        show_progress_bar=False,
                         negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
                     ).images
             else:
@@ -588,6 +593,7 @@ def main():
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                         num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
+                        show_progress_bar=False,
                     ).images
 
             # Convert one-hot samples to tile indices and visualize
@@ -764,7 +770,7 @@ def process_diffusion_batch(
 
         noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
         target_noise = noise
-
+        
         batch_loss = loss_fn(noise_pred, target_noise)
         return batch_loss
 

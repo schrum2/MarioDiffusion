@@ -12,6 +12,7 @@ from level_dataset import visualize_samples, convert_to_level_format
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
 from create_ascii_captions import assign_caption, extract_tileset
+import util.common_settings as common_settings
 
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
@@ -56,13 +57,13 @@ class CaptionBuilder(ParentBuilder):
         self.num_steps_label.pack()
         self.num_steps_entry = ttk.Entry(self.caption_frame)
         self.num_steps_entry.pack()
-        self.num_steps_entry.insert(0, "50")
+        self.num_steps_entry.insert(0, f"{common_settings.NUM_INFERENCE_STEPS}")
         
         self.guidance_label = ttk.Label(self.caption_frame, text="Guidance Scale:")
         self.guidance_label.pack()
         self.guidance_entry = ttk.Entry(self.caption_frame)
         self.guidance_entry.pack()
-        self.guidance_entry.insert(0, "7.5")
+        self.guidance_entry.insert(0, f"{common_settings.GUIDANCE_SCALE}")
 
         self.width_label = ttk.Label(self.caption_frame, text="Width (in tiles):")
         self.width_label.pack()

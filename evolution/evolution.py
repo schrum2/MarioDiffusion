@@ -2,13 +2,13 @@ from evolution.image_grid import ImageGridViewer
 import tkinter as tk
 import random
 from abc import ABC, abstractmethod
-
+import util.common_settings as common_settings
 
 class Evolver(ABC):
     def __init__(self, population_size = 9):
         self.population_size = population_size
-        self.steps = 50
-        self.guidance_scale = 7.5
+        self.steps = common_settings.NUM_INFERENCE_STEPS
+        self.guidance_scale = common_settings.GUIDANCE_SCALE
 
         self.evolution_history = []
         self.generation = 0

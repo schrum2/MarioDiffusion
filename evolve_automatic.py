@@ -15,7 +15,7 @@ from level_dataset import visualize_samples, convert_to_level_format
 from captions.caption_match import process_scene_segments
 from create_ascii_captions import extract_tileset
 import os
-
+import util.common_settings as common_settings
 
 def caption_fitness(x):
     """
@@ -144,8 +144,8 @@ if __name__ == "__main__":
     parser.add_argument("--model_path", type=str, required=True, help="Path to model whose latent space will be explored")
     parser.add_argument("--target_caption", type=str, required=True, help="Caption that scenes will be evolved to match")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
-    parser.add_argument("--num_inference_steps", type=int, default=50, help="Number of diffusion steps")
-    parser.add_argument("--guidance_scale", type=float, default=7.5, help="Guidance scale for diffusion model")
+    parser.add_argument("--num_inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of diffusion steps")
+    parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Guidance scale for diffusion model")
     parser.add_argument("--population_size", type=int, default=10, help="Number of genomes in the population")
 
     parser.add_argument("--tileset", default=os.path.join('..', 'TheVGLC', 'Super Mario Bros', 'smb.json'), help="Descriptions of individual tile types")

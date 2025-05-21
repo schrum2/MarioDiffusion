@@ -11,6 +11,7 @@ from level_dataset import visualize_samples, convert_to_level_format, samples_to
 from create_ascii_captions import assign_caption, save_level_data, extract_tileset
 from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
+import util.common_settings as common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
@@ -22,8 +23,8 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4, help="Training batch size") 
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--inference_steps", type=int, default=10, help="Number of denoising steps") # Large reduction from the 500 used during training
-    parser.add_argument("--guidance_scale", type=float, default=7.5, help="Guidance scale for classifier-free guidance")
+    parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps") # Large reduction from the 500 used during training
+    parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
 
     # Used to generate captions when generating images
@@ -68,8 +69,7 @@ def main():
         shuffle=False,
         mode="text",
         augment=False,
-        num_tiles=args.num_tiles,
-        block_embeddings=None
+        num_tiles=args.num_tiles
     )
 
     # Create dataloader
@@ -138,10 +138,9 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     if os.path.isdir(os.path.join(args.model_path, "unet")):
         checkpoint_dirs.append((checkpoint_dirs[-1][0] + 1, args.model_path))
 
-    # Prepare output paths - Fix the path construction
-    base_name = args.json.split('.')[0]
-    scores_jsonl_path = os.path.join(args.model_path, f"{base_name}_scores_by_epoch.jsonl")
-    plot_png_path = os.path.join(args.model_path, f"{base_name}_caption_scores_plot.png")
+    # Prepare output paths
+    scores_jsonl_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_scores_by_epoch.jsonl")
+    plot_png_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_caption_scores_plot.png")
 
     # Initialize Plotter
     plotter = Plotter(

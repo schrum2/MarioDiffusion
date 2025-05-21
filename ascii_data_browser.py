@@ -6,6 +6,7 @@ import os
 import level_dataset
 import torch
 from create_ascii_captions import assign_caption, extract_tileset
+import util.common_settings as common_settings
 
 class TileViewer(tk.Tk):
     def __init__(self, dataset_path=None, tileset_path=None):
@@ -206,7 +207,7 @@ class TileViewer(tk.Tk):
             print(f"Invalid step count: {e}")
             self.steps_entry.delete(0, tk.END)
             self.steps_entry.insert(0, "50")  # Reset to default
-            num_steps = 50
+            num_steps = common_settings.NUM_INFERENCE_STEPS
 
         sample = self.dataset[self.current_sample_idx]
         input_scene = sample['scene']
@@ -217,7 +218,7 @@ class TileViewer(tk.Tk):
                 batch_size=1,
                 input_scene=input_scene,
                 num_inference_steps=num_steps,  # Use the value from entry
-                guidance_scale=7.5,
+                guidance_scale=common_settings.GUIDANCE_SCALE,
                 height=len(input_scene),
                 width=len(input_scene[0])
             )

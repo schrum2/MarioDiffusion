@@ -9,7 +9,7 @@ from models.text_model import TransformerModel
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
-
+import util.common_settings as common_settings
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
@@ -111,14 +111,15 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         caption: Optional[str | list[str]] = None,
         negative_prompt: Optional[str | list[str]] = None,
         generator: Optional[torch.Generator] = None,
-        num_inference_steps: int = 50,
-        guidance_scale: float = 7.5,
+        num_inference_steps: int = common_settings.NUM_INFERENCE_STEPS,
+        guidance_scale: float = common_settings.GUIDANCE_SCALE,
         height: int = 16,
         width: int = 16,
         raw_latent_sample: Optional[torch.FloatTensor] = None,
         input_scene: Optional[torch.Tensor] = None,
         output_type: str = "tensor",
-        batch_size: int = 1
+        batch_size: int = 1,
+        show_progress_bar: bool = True,
     ) -> PipelineOutput:
         """Generate a batch of images based on text input using the diffusion model.
 
@@ -299,7 +300,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             self.scheduler.set_timesteps(num_inference_steps)
 
             # Denoising loop
-            for t in self.progress_bar(self.scheduler.timesteps):
+            iterator = self.progress_bar(self.scheduler.timesteps) if show_progress_bar else self.scheduler.timesteps
+            for t in iterator:
                 # Handle conditional generation
                 if captions is not None:
                     if negatives is not None:

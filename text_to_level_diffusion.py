@@ -5,6 +5,7 @@ from level_dataset import visualize_samples, convert_to_level_format
 from captions.caption_match import compare_captions, process_scene_segments
 from create_ascii_captions import assign_caption, extract_tileset
 import argparse
+import util.common_settings as common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")    
@@ -32,8 +33,8 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 "width": 16,
                 "start_seed": 1,
                 "end_seed": 1,  # Will be set to start_seed if blank
-                "num_inference_steps": 10,
-                "guidance_scale": 7.5,
+                "num_inference_steps": common_settings.NUM_INFERENCE_STEPS,
+                "guidance_scale": common_settings.GUIDANCE_SCALE,
                 "caption": "",
                 "negative_prompt": ""
             }
