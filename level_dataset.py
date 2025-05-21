@@ -188,8 +188,14 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
 
     if use_tiles:
-        tile_images = mario_tiles()
-        tile_size = 16
+        # Broken if there is another 16x16 like Mario
+        if samples.shape[1] == 15:
+            tile_images = mario_tiles()
+            tile_size = 16
+        # Broken if there is another 32x32 like Lode Runner
+        elif samples.shape[1] == 31:
+            tile_images = LR_tiles()
+            tile_size = 32
         for i, sample in enumerate(samples):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
             sample_indices.append(sample_index)
