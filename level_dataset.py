@@ -37,7 +37,7 @@ def convert_to_level_format(sample, block_embeddings=None):
     Convert model output to level indices
     Expected input shape: [samples, channels, height, width]
     """
-    if block_embeddings:
+    if block_embeddings is not None:
         # Reshape sample to [batch_size * height * width, embedding_dim]
         batch_size, embedding_dim, height, width = sample.shape
         flat_samples = sample.permute(0, 2, 3, 1).reshape(-1, embedding_dim)
@@ -501,24 +501,36 @@ class LevelDataset(Dataset):
         """
 
         # Change so this uses convert_to_level_format
-
-        # Check if we have a batched input
-        is_batched = len(one_hot_scene.shape) == 4
-    
-        if is_batched:
-            print(one_hot_scene.shape)
+        if len(one_hot_scene.shape) == 4:
             raise ValueError("Call decode_scene with a single scene, not a batch")
-    
-        # Permute back to [height, width, num_tiles] format
-        one_hot_permuted = one_hot_scene.permute(1, 2, 0)
-    
-        # Get the indices (tile IDs) where the one-hot encoding has a 1
-        scene_indices = torch.argmax(one_hot_permuted, dim=2)
-    
-        # Convert to a list of lists
-        scene_list = scene_indices.tolist()
-    
+        
+        # Add batch dimension for convert_to_level_format
+        scene = one_hot_scene.unsqueeze(0)  # [1, channels, height, width]
+
+        # Use convert_to_level_format with appropriate block embeddings
+        indices = convert_to_level_format(scene, self.block_embeddings)
+
+        # Remove batch dimension and convert to list
+        scene_list = indices[0].tolist()  # [height, width]
         return scene_list
+
+        # # Check if we have a batched input
+        # is_batched = len(one_hot_scene.shape) == 4
+    
+        # if is_batched:
+        #     print(one_hot_scene.shape)
+        #     raise ValueError("Call decode_scene with a single scene, not a batch")
+    
+        # # Permute back to [height, width, num_tiles] format
+        # one_hot_permuted = one_hot_scene.permute(1, 2, 0)
+    
+        # # Get the indices (tile IDs) where the one-hot encoding has a 1
+        # scene_indices = torch.argmax(one_hot_permuted, dim=2)
+    
+        # # Convert to a list of lists
+        # scene_list = scene_indices.tolist()
+    
+        # return scene_list
 
 if __name__ == "__main__":
 
@@ -528,8 +540,21 @@ if __name__ == "__main__":
     tokenizer = Tokenizer()
     tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
 
+    # Load block embeddings
+    block_embeddings = torch.load('test_block2vec_save/embeddings.pt')
+
     # Create Diffusion dataset
-    diffusion_dataset = LevelDataset('SMB1_LevelsAndCaptions-regular.json', tokenizer, mode="diffusion", shuffle=False, block_embeddings=None) 
+    diffusion_dataset = LevelDataset(
+        'SMB1_LevelsAndCaptions-regular.json',
+        tokenizer, 
+        mode="diffusion", 
+        shuffle=False,
+        block_embeddings=block_embeddings
+    )
+
+    for i, emb in enumerate(block_embeddings):
+        print(f"Tile {i}: {emb}")
+
     scene, caption = diffusion_dataset[0]
     print("Diffusion Sample Shapes:", scene.shape, caption.shape) 
     print(scene)
@@ -540,9 +565,9 @@ if __name__ == "__main__":
     scenes, captions = next(iter(diffusion_dataloader))
     print("Diffusion Batch Shapes:", scenes.shape, captions.shape) 
 
-    print(scenes[0])
-    print(torch.tensor(diffusion_dataset.decode_scene(scenes[0])))
-    print(diffusion_dataset.tokenizer.decode(captions[0].tolist()))
+    print(scenes[10])
+    print(torch.tensor(diffusion_dataset.decode_scene(scenes[10])))
+    print(diffusion_dataset.tokenizer.decode(captions[10].tolist()))
 
 
     quit()
