@@ -618,42 +618,54 @@ def main():
                 if sprite_scaling_factors is not None:
                     pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
                 
+            # Ensure all processes are synchronized
+            accelerator.wait_for_everyone()
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
     
-    # Clean up plotting resources
-    if accelerator.is_local_main_process and plotter:
-        # Better thread cleanup
-        if plot_thread and plot_thread.is_alive():
-            plotter.stop_plotting()
-            plot_thread.join(timeout=5.0)
-            if plot_thread.is_alive():
-                print("Warning: Plot thread did not terminate properly")
-        if caption_score_plot_thread and caption_score_plot_thread.is_alive():
-            caption_score_plotter.stop_plotting()
-            caption_score_plot_thread.join(timeout=5.0)
-            if caption_score_plot_thread.is_alive():
-                print("Warning: Caption score plot thread did not terminate properly")
+    try:
+        # Clean up plotting resources
+        if accelerator.is_local_main_process and plotter:
+            # Better thread cleanup
+            if plot_thread and plot_thread.is_alive():
+                plotter.stop_plotting()
+                plot_thread.join(timeout=5.0)
+                if plot_thread.is_alive():
+                    print("Warning: Plot thread did not terminate properly")
+            if caption_score_plot_thread and caption_score_plot_thread.is_alive():
+                caption_score_plotter.stop_plotting()
+                caption_score_plot_thread.join(timeout=5.0)
+                if caption_score_plot_thread.is_alive():
+                    print("Warning: Caption score plot thread did not terminate properly")
 
-    # Close progress bar and TensorBoard writer
-    progress_bar.close()
-    
-    # Final model save
-    if args.text_conditional:
-        pipeline = TextConditionalDDPMPipeline(
-            unet=accelerator.unwrap_model(model), 
-            scheduler=noise_scheduler,
-            text_encoder=text_encoder,
-            tokenizer=tokenizer_hf if args.pretrained_language_model else None
-        ).to(accelerator.device)
-    else:
-        pipeline = UnconditionalDDPMPipeline(
-            unet=accelerator.unwrap_model(model), 
-            scheduler=noise_scheduler
-        )
-        if sprite_scaling_factors is not None:
-            pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+        # Force CUDA cleanup
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+
+        # Ensure all processes are synchronized
+        accelerator.wait_for_everyone()
+
+    finally:
+        # Close progress bar and TensorBoard writer
+        progress_bar.close()
         
-    pipeline.save_pretrained(args.output_dir)
+        # Final model save
+        if args.text_conditional:
+            pipeline = TextConditionalDDPMPipeline(
+                unet=accelerator.unwrap_model(model), 
+                scheduler=noise_scheduler,
+                text_encoder=text_encoder,
+                tokenizer=tokenizer_hf if args.pretrained_language_model else None
+            ).to(accelerator.device)
+        else:
+            pipeline = UnconditionalDDPMPipeline(
+                unet=accelerator.unwrap_model(model), 
+                scheduler=noise_scheduler
+            )
+            if sprite_scaling_factors is not None:
+                pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+            
+        pipeline.save_pretrained(args.output_dir)
 
 # Add function to load config from JSON
 def load_config_from_json(config_path):
