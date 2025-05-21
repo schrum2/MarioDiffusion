@@ -15,11 +15,10 @@ import threading
 from datetime import datetime
 from util.plotter import Plotter
 from models.text_model import TransformerModel
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
-from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel
+from models.fdm import Gen
 
 
 def parse_args():
@@ -40,7 +39,7 @@ def parse_args():
     parser.add_argument("--pretrained_language_model", type=str, default=None, help="Link to a pre-trained language model, everything after huggingface.co/. This will override the mlm_model_dir argument.")
     
     # Model args
-    parser.add_argument("--embedding_dim", type=int, default=384, help="Base size of the embedded tokens into the model")
+    parser.add_argument("--embedding_dim", type=int, default=384, help="Base size of the embedded tokens into the model")#TODO: not sure if this can be changed
     parser.add_argument("--z_dim", type=int, default=5, help="Size of the concatenated noise vector for varitey (Default 5)")
     parser.add_argument("--kern_size", type=int, default=7, help="Kernel size for convolutional layers (default 7)")
     parser.add_argument("--filter_count", type=int, default=128, help="Number of filters in the convolutional layers (default 128)")
@@ -73,7 +72,92 @@ def parse_args():
 
 def main():
     args = parse_args()
+
+    # Check if output directory already exists
+    if os.path.exists(args.output_dir):
+        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+        exit()
     
+    # Set random seeds for reproducibility
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+
+
+
+    # Initialize tokenizer
+    if args.pkl:
+        tokenizer = Tokenizer()
+        tokenizer.load(args.pkl)
+    else:
+        tokenizer = None
+
+    # Load text embedding model if text conditioning is enabled
+    if args.pretrained_language_model: #Default to huggingface model, if it exists
+        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(accelerator.device)
+        text_encoder.eval() # Set to evaluation mode
+        model_embedding_dim = text_encoder.config.hidden_size#TODO: not sure if this can be changed
+        tokenizer_hf = AutoTokenizer.from_pretrained(args.pretrained_language_model)
+        print(f"Loaded text encoder from {args.pretrained_language_model}")
+    elif args.mlm_model_dir:
+        text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(accelerator.device)
+        text_encoder.eval()  # Set to evaluation mode
+        model_embedding_dim = text_encoder.embedding_dim#TODO: not sure if this can be changed
+        tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
+        print(f"Loaded text encoder from {args.mlm_model_dir}")
+    
+    data_mode = "diffusion" if not args.pretrained_language_model else "diff_text"
+
+    # Load block embedding model if specified
+    block_embeddings = None
+    embedding_dim = None
+    if args.block_embedding_model_path:
+        try:
+            # Load embeddings from the embeddings.pt file in the model directory
+            block_embeddings = torch.load(
+                os.path.join(args.block_embedding_model_path, "embeddings.pt"),
+                map_location=accelerator.device
+            )
+            
+            embedding_dim = block_embeddings.shape[1]
+            print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
+        except Exception as e:
+            print(f"Error loading block embedding model: {e}")
+            raise
+    
+
+    
+
+
+
+
+
+
+    model = Gen(
+        model_name=args.mlm_model_dir,
+        embedding_dim=args.embedding_dim,
+        z_dim=args.z_dim,
+        kern_size=args.kern_size,
+        filter_count=args.filter_count,
+        num_res_blocks=args.num_res_blocks
+    )
+    print(f"Model: {model}")
+
+
+
+    #Required steps:
+    #Setup model, new Gen object
+    #Setup dataset
+        #Split dataset into train/val/test
+            #Generally follow fdm.py
+    #Setup tokenizer
+        #Get encoding of a word (length of embedding_dim)
+        #Get noise vector (length of z_dim)
+        #Concat
+    #Setup training loop
+        #follow the train method
+
 
 
 
