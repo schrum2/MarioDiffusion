@@ -53,6 +53,7 @@ def main(tileset_path, levels_dir, output_path, target_height, target_width):
     with open(output_path, 'w') as f:
         json.dump(dataset, f, indent=2)
 
+#Hi bess
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--tileset', default='..\\TheVGLC\\Super Mario Bros\\smb.json', help='Path to the tile set JSON')
