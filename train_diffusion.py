@@ -771,14 +771,6 @@ def process_diffusion_batch(
         noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
         target_noise = noise
         
-        # # HERE FOR DEBUGGING
-        # target_noise = torch.cat([noise] * 2)
-        # batch_loss = loss_fn(noise_pred, target_noise)
-
-        print(f"Noise shape: {noise.shape}")
-        print(f"Noise pred shape: {noise_pred.shape}")  
-        print(f"Target noise shape: {target_noise.shape}")
-
         batch_loss = loss_fn(noise_pred, target_noise)
         return batch_loss
 
