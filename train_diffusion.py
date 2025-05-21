@@ -193,8 +193,6 @@ def main():
         gradient_accumulation_steps=args.gradient_accumulation_steps
     )
     
-    device = accelerator.device
-
     # Initialize tokenizer
     if args.pkl:
         tokenizer = Tokenizer()
@@ -205,13 +203,13 @@ def main():
     # Load text embedding model if text conditioning is enabled
     text_encoder = None
     if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
-        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(device)
+        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(accelerator.device)
         text_encoder.eval() # Set to evaluation mode
         model_embedding_dim = text_encoder.config.hidden_size# Done here to allow for cross-functionality with the mlm model
         tokenizer_hf = AutoTokenizer.from_pretrained(args.pretrained_language_model)
         print(f"Loaded text encoder from {args.pretrained_language_model}")
     elif args.text_conditional and args.mlm_model_dir:
-        text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(device)
+        text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(accelerator.device)
         text_encoder.eval()  # Set to evaluation mode
         model_embedding_dim = text_encoder.embedding_dim #Done to allow for cross-functionality with the huggingface model
         tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
@@ -227,7 +225,7 @@ def main():
             # Load embeddings from the embeddings.pt file in the model directory
             block_embeddings = torch.load(
                 os.path.join(args.block_embedding_model_path, "embeddings.pt"),
-                map_location=device
+                map_location=accelerator.device
             )
             
             embedding_dim = block_embeddings.shape[1]
@@ -491,7 +489,7 @@ def main():
                 timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=scenes.device).long()
 
                 # Get text embeddings from the text encoder
-                combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=negative_captions)
+                combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, accelerator.device, negative_captions=negative_captions)
 
                 # Add noise to the clean scenes
                 noise = torch.randn_like(scenes_for_train)
@@ -558,26 +556,24 @@ def main():
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
-            caption_score_sum = 0.0
-            caption_score_count = 0
             with torch.no_grad():
                 for val_batch in val_dataloader:
                     if args.text_conditional:  
                         if args.negative_prompt_training:
                             val_scenes, val_captions, val_negative_captions = val_batch
-                            val_negative_captions = val_negative_captions.to(device)
+                            val_negative_captions = val_negative_captions.to(accelerator.device)
                         else:
                             val_scenes, val_captions = val_batch
                             val_negative_captions = None
                         
-                        val_scenes = val_scenes.to(device)
+                        val_scenes = val_scenes.to(accelerator.device)
                         if(not args.pretrained_language_model):
-                            val_captions = val_captions.to(device)
+                            val_captions = val_captions.to(accelerator.device)
                         val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
-                                                    (val_scenes.shape[0],), device=device).long()
+                                                    (val_scenes.shape[0],), device=accelerator.device).long()
                         # Use the same tokenizer as in training
                         val_combined_embeddings, val_scenes_for_eval, val_timesteps_for_eval = prepare_conditioned_batch(
-                            args, tokenizer_hf, text_encoder, val_scenes, val_captions, val_timesteps, device, negative_captions=val_negative_captions)
+                            args, tokenizer_hf, text_encoder, val_scenes, val_captions, val_timesteps, accelerator.device, negative_captions=val_negative_captions)
                         val_noise = torch.randn_like(val_scenes)
                         val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
                         val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
@@ -588,9 +584,9 @@ def main():
                             val_scenes, _ = val_batch
                         else:
                             val_scenes = val_batch
-                        val_scenes = val_scenes.to(device)
+                        val_scenes = val_scenes.to(accelerator.device)
                         val_timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, 
-                                                    (val_scenes.shape[0],), device=device).long()
+                                                    (val_scenes.shape[0],), device=accelerator.device).long()
                         val_noise = torch.randn_like(val_scenes)
                         val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
                         val_noise_pred = model(val_noisy_scenes, val_timesteps).sample
@@ -605,14 +601,14 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
                     tokenizer=tokenizer_hf if args.pretrained_language_model else None
-                ).to(device)
+                ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
                 inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
                 guidance_scale = 7.5
                 avg_caption_score, _ = calculate_caption_score_and_samples(
-                    device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
+                    accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False
                 )
@@ -648,7 +644,7 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
                     tokenizer=tokenizer_hf if args.pretrained_language_model else None
-                ).to("cuda")
+                ).to(accelerator.device)
                                 
                 # Use the raw negative captions instead of tokens
                 with torch.no_grad():
@@ -691,7 +687,7 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
                     tokenizer=tokenizer_hf if args.pretrained_language_model else None
-                ).to("cuda")
+                ).to(accelerator.device)
                 # Save negative prompt support flag if enabled
                 if args.negative_prompt_training:
                     pipeline.supports_negative_prompt = True
@@ -729,7 +725,7 @@ def main():
             scheduler=noise_scheduler,
             text_encoder=text_encoder,
             tokenizer=tokenizer_hf if args.pretrained_language_model else None
-        ).to("cuda")
+        ).to(accelerator.device)
     else:
         pipeline = UnconditionalDDPMPipeline(
             unet=accelerator.unwrap_model(model), 
