@@ -6,6 +6,14 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.ddpm.pipeline_ddpm import ImagePipelineOutput
 
 class UnconditionalDDPMPipeline(DDPMPipeline):
+
+    def give_sprite_scaling_factors(self, sprite_scaling_factors):
+        """
+        Set the sprite scaling factors for the pipeline.
+        This is used to apply per-sprite temperature scaling during inference.
+        """
+        self.sprite_scaling_factors = sprite_scaling_factors
+
     def __call__(
         self,
         batch_size: int = 1,
@@ -38,6 +46,10 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
                 #print(image.shape)
                 model_output = self.unet(image, t).sample
                 image = self.scheduler.step(model_output, t, image, generator=generator).prev_sample
+
+            # Apply per-sprite temperature scaling if enabled
+            if hasattr(self,"sprite_scaling_factors") and self.sprite_scaling_factors is not None:
+                image = image / self.sprite_scaling_factors.view(1, -1, 1, 1)
 
             # Why is this code not in the conditional model?
             image = F.softmax(image, dim=1)

@@ -33,9 +33,14 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split')
-    parser.add_argument('--train_pct', type=float, default=0.8, help='Train split percentage (default 0.8)')
+    # parser.add_argument('--train_pct', type=float, default=0.8, help='Train split percentage (default 0.8)')
+    # parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
+    # parser.add_argument('--test_pct', type=float, default=0.15, help='Test split percentage (default 0.15)')
+
+    # Adjusted split percentages for testing
+    parser.add_argument('--train_pct', type=float, default=0.1, help='Train split percentage (default 0.1)')
     parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
-    parser.add_argument('--test_pct', type=float, default=0.15, help='Test split percentage (default 0.15)')
+    parser.add_argument('--test_pct', type=float, default=0.85, help='Test split percentage (default 0.85)')
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
@@ -86,11 +91,72 @@ def parse_args():
     # For block2vec embedding model
     parser.add_argument("--block_embedding_model_path", type=str, default=None, help="Path to trained block embedding model (.pt)")
 
+    # Allows for optional loss function: default is MSE and cross-entropy is the alternative
+    parser.add_argument(
+        "--loss_type",
+        type=str,
+        default="MSE",
+        choices=["MSE", "CROSS"],
+        help="Loss function to use: 'MSE' for mean squared error (default), 'CROSS' for cross entropy"
+    )
+
+    parser.add_argument(
+        "--sprite_temperature_n",
+        type=int,
+        default=None,
+        help="If set, enables per-sprite temperature scaling with the specified n (e.g., 2, 4, 8) during inference."
+    )
 
     return parser.parse_args()
 
+# TODO: We'll probably want to move this somewhere else eventually
+def compute_sprite_scaling_factors(json_path, num_tiles, n):
+    """
+    Computes per-sprite scaling factors for temperature scaling.
+    Args:
+        json_path (str): Path to your level JSON file.
+        num_tiles (int): Number of tile types.
+        n (int): The temperature scaling root (e.g., 2, 4, 8).
+    Returns:
+        torch.Tensor: Scaling factors of shape [num_tiles].
+    """
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+    counts = [0] * num_tiles
+    for entry in data:
+        # Assumes entry['level'] is a 2D array of tile indices
+        level = entry.get('level')
+        if level is not None:
+            for row in level:
+                for tile in row:
+                    counts[tile] += 1
+    # Avoid division by zero for unused tiles
+    counts = [c if c > 0 else 1 for c in counts]
+    scalings = [c ** (1 / n) for c in counts]
+    min_scaling = min(scalings)
+    scalings = [s / min_scaling for s in scalings]
+    return torch.tensor(scalings, dtype=torch.float32)
+
 def main():
     args = parse_args()
+
+    """
+        The following logic defines the loss function variable based on user input.
+        Note: The model expects one-hot encoded targets for both loss types.
+        When using --loss_type CROSS, the script expects one-hot encoded targets and will automatically convert them to class indices for cross-entropy loss.
+    """
+    if args.loss_type == "MSE":
+        loss_fn = torch.nn.functional.mse_loss
+    elif args.loss_type == "CROSS":
+        def cross_entropy_loss(pred, target):
+            # pred: [batch, classes, ...], target: [batch, classes, ...] (one-hot)
+            target_indices = target.argmax(dim=1)
+            return torch.nn.functional.cross_entropy(pred, target_indices)
+        loss_fn = cross_entropy_loss
+    else:
+        raise ValueError(f"Unknown loss type: {args.loss_type}")
+    # Print the selected loss function to console
+    print(f"Using loss function: {args.loss_type}")
 
     # Check if config file is provided before training loop begins
     if hasattr(args, 'config') and args.config:
@@ -105,6 +171,20 @@ def main():
     
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
+    
+    """
+    If sprite temperature scaling is enabled and the model is unconditional, 
+    then compute the scaling factors.
+    Note: Applying per-sprite temperature scaling could conflict with the intent of the prompt
+    on conditional models. Thus, this argument is only for unconditional models.
+    """
+    sprite_scaling_factors = None
+    if (not args.text_conditional) and (args.sprite_temperature_n is not None):
+        sprite_scaling_factors = compute_sprite_scaling_factors(
+            args.json, args.num_tiles, args.sprite_temperature_n
+        )
+        print(f"Sprite scaling factors: {sprite_scaling_factors}")
+
 
     # Set random seeds for reproducibility
     random.seed(args.seed)
@@ -328,6 +408,9 @@ def main():
     # Create output directory
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
+    else:
+        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+        exit()
     
     # Training loop
     global_step = 0
@@ -418,7 +501,7 @@ def main():
                     noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
         
                     # Compute loss
-                    loss = F.mse_loss(noise_pred, noise)
+                    loss = loss_fn(noise_pred, noise)
         
                     # Backpropagation
                     accelerator.backward(loss)
@@ -444,7 +527,7 @@ def main():
                     noise_pred = model(noisy_scenes, timesteps).sample
 
                     # Compute loss
-                    loss = F.mse_loss(noise_pred, noise)
+                    loss = loss_fn(noise_pred, noise)
         
                     # Backpropagation
                     accelerator.backward(loss)
@@ -503,7 +586,7 @@ def main():
 
                         val_noise_pred = model(val_scenes_for_eval, val_timesteps_for_eval, 
                                             encoder_hidden_states=val_combined_embeddings).sample
-                        val_batch_loss = F.mse_loss(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))                        
+                        val_batch_loss = loss_fn(val_noise_pred, torch.cat([val_noise] * (3 if args.negative_prompt_training else 2)))                        
                     else:
                         if isinstance(val_batch, list):
                             val_scenes, _ = val_batch
@@ -516,7 +599,7 @@ def main():
                         val_noise = torch.randn_like(val_scenes)
                         val_noisy_scenes = noise_scheduler.add_noise(val_scenes, val_noise, val_timesteps)
                         val_noise_pred = model(val_noisy_scenes, val_timesteps).sample
-                        val_batch_loss = F.mse_loss(val_noise_pred, val_noise)
+                        val_batch_loss = loss_fn(noise_pred, noise)
                         
                     val_loss += val_batch_loss.item()
                     
@@ -588,6 +671,9 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler
                 )
+                if sprite_scaling_factors is not None:
+                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+
                 
                 # Generate sample levels
                 with torch.no_grad():
@@ -614,7 +700,12 @@ def main():
                 if args.negative_prompt_training:
                     pipeline.supports_negative_prompt = True
             else:
-                pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+                pipeline = UnconditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler
+                )
+                if sprite_scaling_factors is not None:
+                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
                 
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
     
@@ -643,7 +734,12 @@ def main():
             text_encoder=text_encoder
         ).to("cuda")
     else:
-        pipeline = UnconditionalDDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+        pipeline = UnconditionalDDPMPipeline(
+            unet=accelerator.unwrap_model(model), 
+            scheduler=noise_scheduler
+        )
+        if sprite_scaling_factors is not None:
+            pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
         
     pipeline.save_pretrained(args.output_dir)
 
