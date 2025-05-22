@@ -49,9 +49,27 @@ def main():
     parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size')
     parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=LR, help='Learning rate')
-    parser.add_argument('--patch_size', type=int, default=3, help='Size of patches (e.g. 3 for 3x3)')
-    # 
+    
+    # Replace with your dataset's patch size
+    
+    #parser.add_argument('--patch_size', type=int, default=3, help='Size of patches (e.g. 3 for 3x3)')
+     
     args = parser.parse_args()
+
+    # Load first patch from JSON to determine patch size
+    try:
+        with open(args.json_file, 'r') as f:
+            data = json.load(f)
+            if not data:
+                raise ValueError("Empty dataset")
+            first_patch = data[0]
+            patch_size = len(first_patch)  # Get dimensions from first patch
+            if not all(len(row) == patch_size for row in first_patch):
+                raise ValueError("Patches must be square")
+            print(f"Detected patch size: {patch_size}x{patch_size}")
+    except Exception as e:
+        print(f"Error determining patch size from dataset: {e}")
+        raise
 
     # Check if the output directory exists
     if os.path.exists(args.output_dir):
@@ -63,7 +81,7 @@ def main():
         os.makedirs(args.output_dir)
 
     # Load dataset
-    dataset = MarioPatchDataset(json_path=args.json_file)
+    dataset = MarioPatchDataset(json_path=args.json_file, patch_size=args.patch_size)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     # Determine vocab size from the dataset
