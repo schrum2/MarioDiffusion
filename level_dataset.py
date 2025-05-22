@@ -84,6 +84,9 @@ def mario_tiles():
     Returns:
         A list of 16x16 pixel tile images for Mario.
     """
+
+    raise ValueError("Why is this being called!")
+
     global _sprite_sheet
 
     # Load the sprite sheet only once
@@ -203,17 +206,21 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
 
     if use_tiles:
-        # Broken if there is another 16x16 like Mario
-        # Gets which tileset to use based on the number of height
-        if samples.shape[2] == 16:
+        channels = samples.shape[1]
+        height = samples.shape[2]
+        width = samples.shape[3]
+        print("channels, height, width", channels, height, width)
+        if channels == 15 and height == 16 and width == 16:
+            print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = 16
-        # Broken if there is another 32x32 like Lode Runner
-        elif samples.shape[2] == 32:
+            raise ValueError("Why is channels == 15 and height == 16 and width == 16 for Lode Runner!")
+        elif channels == 10 and height == 32 and width == 32:
+            print("Using Lode Runner tiles")
             tile_images = lr_tiles()
             tile_size = 8
         else:
-            raise ValueError("Unsupported tile size. Expected 16 (Mario) or 32 (Lode Runner).")
+            raise ValueError(f"Unsupported sample shape or channel count: channels={channels}, height={height}, width={width}. Expected (15,16,16) for Mario or (10,32,32) for Lode Runner.")
 
         for i, sample in enumerate(samples):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
