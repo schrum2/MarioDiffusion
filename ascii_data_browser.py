@@ -171,6 +171,7 @@ class TileViewer(tk.Tk):
             self.redraw()
         except Exception as e:
             print(f"Error loading files: {e}")
+            raise e
 
     def load_model(self):
         """Load a trained diffusion model."""
