@@ -236,22 +236,308 @@ def main():
         filter_count=args.filter_count,
         num_res_blocks=args.num_res_blocks
     )
-    print(f"Model: {model}")
+    model.to(accelerator.device)
 
     # if there is no block embedding model, set the channels to num_tiles
     in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
     # else set channels to the embedding dimension of the model
     out_channels = in_channels
+    
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    else:
+        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+        exit()
 
-    print(train_dataloader)
-    print(train_dataloader.dataset)
-    print(train_dataloader.dataset[0][0].shape)
-    print(train_dataloader.dataset[0][1].shape)
-    for embeddings, ytrue in train_dataloader:
-        print(embeddings.shape)
-        print(ytrue.shape)
+        # Training loop
+    global_step = 0
+    progress_bar = tqdm(total=args.num_epochs * len(train_dataloader), disable=not accelerator.is_local_main_process)
+    progress_bar.set_description("Steps")
+    
+    # Get formatted timestamp for filenames
+    formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
 
-    train(model, args.num_epochs, train_dataloader, val_dataloader, None, accelerator.device)
+    # Create log files
+    log_file = os.path.join(args.output_dir, f"training_log_{formatted_date}.jsonl")
+    config_file = os.path.join(args.output_dir, f"hyperparams_{formatted_date}.json")
+
+    # Save hyperparameters to JSON file
+    if accelerator.is_local_main_process:
+        hyperparams = vars(args)
+        with open(config_file, "w") as f:
+            json.dump(hyperparams, f, indent=4)
+        print(f"Saved configuration to: {config_file}")
+
+
+    # Initialize plotter if we're on the main process
+    plotter = None
+    plot_thread = None
+    caption_score_plotter = None
+    caption_score_plot_thread = None
+    caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
+    if accelerator.is_local_main_process:
+        plotter = Plotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss',
+                             left_label='Training Loss', right_label='Validation Loss', output_png=f'training_loss_{formatted_date}.png')
+        plot_thread = threading.Thread(target=plotter.start_plotting)
+        plot_thread.daemon = True
+        plot_thread.start()
+        print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, f'training_loss_{formatted_date}.png')}")
+        caption_score_plotter = None
+        if args.plot_validation_caption_score:
+            # Caption score plotter
+            caption_score_plotter = Plotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
+                                                left_label='Caption Match Score', right_label=None, output_png=f'caption_score_{formatted_date}.png')
+            caption_score_plot_thread = threading.Thread(target=caption_score_plotter.start_plotting)
+            caption_score_plot_thread.daemon = True
+            caption_score_plot_thread.start()
+            print(f"Caption match score plotting enabled. Progress will be saved to {os.path.join(args.output_dir, f'caption_score_{formatted_date}.png')}")
+
+            _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+    
+
+    optimizer = torch.optim.Adam(model.parameters())
+    
+
+
+
+
+
+    formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
+    log_file = os.path.join(args.output_dir, f"training_log_{formatted_date}.jsonl")
+    config_file = os.path.join(args.output_dir, f"hyperparams_{formatted_date}.json")
+
+    def log_metrics(epoch, loss, lr, step=None, val_loss=None):
+        if accelerator.is_local_main_process:
+            log_entry = {
+                "epoch": epoch,
+                "loss": loss,
+                "lr": lr,
+                "step": step if step is not None else epoch * len(train_dataloader),
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            if val_loss is not None:
+                log_entry["val_loss"] = val_loss
+            with open(log_file, 'a') as f:
+                f.write(json.dumps(log_entry) + '\n')
+
+    global_step = 0
+
+    loss_metric_train = torch.zeros(args.num_epochs).to(accelerator.device)
+    for epoch in range(args.num_epochs):
+        model.train()
+        train_loss = 0.0
+
+        for batch in train_dataloader:
+            with accelerator.accumulate(model):
+                #TODO: Calc loss
+                loss = process_fdm_batch(
+                    args, model, batch, tokenizer_hf, text_encoder, accelerator, epoch, loss_metric_train)
+                accelerator.backward(loss)
+                optimizer.step()
+                optimizer.zero_grad()
+            
+            train_loss += loss.detach().item()
+            # Update progress bar
+            progress_bar.update(1)
+            logs = {"loss": loss.detach().item(), "step": global_step}
+            progress_bar.set_postfix(**logs)
+                        
+            global_step += 1
+
+        # Calculate average training loss for the epoch
+        avg_train_loss = train_loss / len(train_dataloader)
+
+
+        # Calculate validation loss if validation dataset exists and it's time to validate
+        """val_loss = None
+        avg_caption_score = None
+        if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for val_batch in val_dataloader:
+                    val_batch_loss = process_diffusion_batch(
+                        args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="val"
+                    )
+                    val_loss += val_batch_loss.item()
+            val_loss /= len(val_dataloader)
+
+            if args.text_conditional and args.plot_validation_caption_score:
+                # Compute caption match score for this data
+                pipeline = TextConditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler,
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                ).to(accelerator.device)
+                # Only use the positive captions for scoring
+
+                inference_steps = args.num_inference_timesteps
+                # TODO: These should be argparse parameters
+                guidance_scale = common_settings.GUIDANCE_SCALE
+                avg_caption_score, _ = calculate_caption_score_and_samples(
+                    accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
+                    id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
+                    output=False
+                )
+            else:
+                # Is this how this should behave in the unconditional case?
+                # Or should I justs use 0 or -1?
+                avg_caption_score = None
+
+            model.train()
+            # Log caption match score
+            if accelerator.is_local_main_process:
+                with open(caption_score_log_file, 'a') as f:
+                    log_entry = {
+                        "epoch": epoch,
+                        "caption_score": avg_caption_score,                
+                        "step": global_step,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    f.write(json.dumps(log_entry) + '\n')
+        
+        # Log metrics including validation loss
+        log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
+        
+        # Generate and save sample levels every N epochs
+        if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
+            # Switch to eval mode
+            model.eval()
+            
+            # Create the appropriate pipeline for generation
+            if args.text_conditional:
+                pipeline = TextConditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler,
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                ).to(accelerator.device)
+                                
+                # Use the raw negative captions instead of tokens
+                with torch.no_grad():
+                    samples = pipeline(
+                        batch_size=4,
+                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
+                        num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
+                        output_type="tensor",
+                        caption=sample_captions,
+                        show_progress_bar=False,
+                        negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
+                    ).images
+            else:
+                # For unconditional generation
+                pipeline = UnconditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler
+                )
+                if sprite_scaling_factors is not None:
+                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+
+                
+                # Generate sample levels
+                with torch.no_grad():
+                    samples = pipeline(
+                        batch_size=4,
+                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
+                        num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
+                        output_type="tensor",
+                        show_progress_bar=False,
+                    ).images
+
+            # Convert one-hot samples to tile indices and visualize
+            visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
+            
+        # Save model every N epochs
+        if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
+            # Save the model
+            if args.text_conditional:
+                pipeline = TextConditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler,
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                ).to(accelerator.device)
+                # Save negative prompt support flag if enabled
+                if args.negative_prompt_training:
+                    pipeline.supports_negative_prompt = True
+            else:
+                pipeline = UnconditionalDDPMPipeline(
+                    unet=accelerator.unwrap_model(model), 
+                    scheduler=noise_scheduler
+                )
+                if sprite_scaling_factors is not None:
+                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+                
+            pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))"""
+
+
+
+        """for embeddings, ytrue in train_dataloader:
+            with accelerator.accumulate(model):
+                optimizer.zero_grad()
+                outputs = model(embeddings.to(accelerator.device), torch.rand(len(embeddings), model.z_dim).to(accelerator.device))
+                # NLLLoss expects log-probabilities and class indices
+                loss = torch.nn.NLLLoss()(torch.log(outputs), ytrue.argmax(dim=3).to(accelerator.device))
+                accelerator.backward(loss)
+                optimizer.step()
+            train_loss += loss.detach().item()
+            progress_bar.update(1)
+            progress_bar.set_postfix({"loss": loss.detach().item(), "step": global_step})
+            global_step += 1
+
+        avg_train_loss = train_loss / len(train_dataloader)
+        val_loss = None
+        if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for val_embeddings, val_ytrue in val_dataloader:
+                    outputs = model(val_embeddings.to(accelerator.device), torch.rand(len(val_embeddings), model.z_dim).to(accelerator.device))
+                    loss = torch.nn.NLLLoss()(torch.log(outputs), val_ytrue.argmax(dim=3).to(accelerator.device))
+                    val_loss += loss.item()
+            val_loss /= len(val_dataloader)
+            model.train()
+        log_metrics(epoch, avg_train_loss, step=global_step, val_loss=val_loss)
+
+        # Save model checkpoint
+        if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
+            if accelerator.is_local_main_process:
+                torch.save(model.state_dict(), os.path.join(args.output_dir, f"checkpoint_{epoch}.pt"))
+
+    progress_bar.close()
+    if accelerator.is_local_main_process:
+        torch.save(model.state_dict(), os.path.join(args.output_dir, "final_model.pt"))"""
+    
+            
+def process_fdm_batch(
+        args, model, batch, tokenizer_hf, text_encoder, accelerator, epoch, loss_metric_train
+        ):
+    """
+    Handles a single batch for training or validation.
+    """
+
+    scenes, captions = batch
+    text_embeddings, scenes_for_train, noisy_data = prepare_conditioned_batch(
+        args, tokenizer_hf, text_encoder, scenes, captions, accelerator.device)
+
+
+    text_embeddings = text_embeddings.to(accelerator.device)
+    scenes_for_train = scenes_for_train.to(accelerator.device)
+    noisy_data = noisy_data.to(accelerator.device)
+
+    print(f"Embedding shape: {text_embeddings.shape}")
+    print(f"Scene shape: {scenes_for_train.shape}")
+    print(f"Noise shape: {noisy_data.shape}")
+    outputs = model(text_embeddings, noisy_data)
+
+    print(f"Output shape: {outputs.shape}")
+    loss = torch.nn.NLLLoss()(torch.log(outputs), scenes_for_train.argmax(dim=1))
+
+    loss_metric_train[epoch] += loss
+
+    print(f"Epoch {epoch+1}/{epoch}, Loss: {loss_metric_train[epoch].item()}")
+    return loss_metric_train
     #Required steps:
     #Setup model, new Gen object
     #Setup dataset
@@ -266,29 +552,52 @@ def main():
 
 
 
-def train(model, EPOCHS, train_set, val_set, test_set, device):
 
-    
-    loss_metric_train = torch.zeros(EPOCHS).to(device)
-    
-    model.to(device)
-    
-    optimizer = torch.optim.Adam(model.parameters())
-    
-    for epoch in range(EPOCHS):
+
+
+def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, device):
+    #Prepares the batch for training with text conditioning.
+
+    #get text embeddings
+    #get scenes for text embeddings
+    #get noise vector
+    with torch.no_grad():         
+        if args.pretrained_language_model:
+            #Mean Pooling - Take average of all tokens
+            def mean_pooling(model_output, attention_mask):
+                token_embeddings = model_output.last_hidden_state
+                input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+                return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+            #Encode text
+            def encode(texts):
+                # Tokenize sentences
+                encoded_input = tokenizer_hf(texts, padding=True, truncation=True, return_tensors='pt')
+                # Move to GPU
+                encoded_input.to(device)
+
+                # Compute token embeddings
+                with torch.no_grad():
+                    model_output = text_encoder(**encoded_input, return_dict=True)
+
+                # Perform pooling
+                embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
+
+                # Normalize embeddings
+                embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+                
+                return embeddings
+            text_embeddings = encode(captions)
+        else:
+            text_embeddings = text_encoder.get_embeddings(captions)
         
-        for embeddings, ytrue in train_set:
-            optimizer.zero_grad()
-            outputs = model(embeddings.to(device), torch.rand(len(embeddings), 5).to(device))
+        scenes_for_train = scenes  # Repeat scenes twice
 
-            loss = torch.nn.NLLLoss()(torch.log(outputs), ytrue.argmax(dim=3).to(device))
-            #loss = torch.nn.functional.mse_loss(torch.log(outputs), ytrue.argmax(dim=1).to(device))
+        noiseVec = torch.randn(args.batch_size, args.z_dim, device=device)
+        return text_embeddings, scenes_for_train, noiseVec
+    
 
-            loss_metric_train[epoch] += loss
+    
 
-            loss.backward()
-            optimizer.step()
-        print(f"Epoch {epoch+1}/{EPOCHS}, Loss: {loss_metric_train[epoch].item()}")
 
 
 def split_dataset(json_path, train_pct, val_pct, test_pct):
