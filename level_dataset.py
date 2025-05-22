@@ -57,7 +57,7 @@ def get_pil_image_from_plt(fig):
 def colors():
     # Create custom colormap for integers 0-15
     colorslist = [
-        (0.8, 0.9, 1.0),    # 0 = very light blue: sky
+        (0.2, 0.3, 0.7),    # 0 = darker blue: sky
         (0.0, 0.4, 0.0),    # 1 = dark green: left upper lip of pipe
         (0.0, 0.2, 0.0),    # 2 = darker green: right upper lip of pipe
         (1.0, 0.7, 0.9),    # 3 = pink: question block with power up
@@ -105,7 +105,8 @@ def mario_tiles():
         (5,2),    # 10 = right edge of pipe body
         (4,0),    # 11 = Cannon support (should be 5,0 sometimes?)
         (7,1),    # 12 = coin
-        (0,1),    # 13 = Nothing
+        # Tile right below decides what the padded tile is (sky currently)
+        (2,5),    # 13 = Padding (sky)
         (0,6),    # 14 = Nothing
         (1,6),    # 15 = Nothing (extra just in case)
     ]
@@ -149,7 +150,8 @@ def lr_tiles():
        (5, 2),      # 5 = Gold              done
        (18, 21),    # 6 = Spawn             done
        (1, 22),     # 7 = Diggable Ground   done
-       (0,0)        # 8 = Nothing           done
+       # Tile right below decides what the padded tile is (empty space currently)
+       (1,1)        # 8 = Padding           done
 
     ]
 
