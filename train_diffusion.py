@@ -482,7 +482,7 @@ def main():
 
             with accelerator.accumulate(model):
                 loss = process_diffusion_batch(
-                    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="train"
+                    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator
                 )
                 accelerator.backward(loss)
                 optimizer.step()
@@ -508,7 +508,7 @@ def main():
             with torch.no_grad():
                 for val_batch in val_dataloader:
                     val_batch_loss = process_diffusion_batch(
-                        args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="val"
+                        args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator
                     )
                     val_loss += val_batch_loss.item()
             val_loss /= len(val_dataloader)
@@ -738,11 +738,10 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
         return combined_embeddings, scenes_for_train, timesteps_for_train
 
 def process_diffusion_batch(
-    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="train"
+    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator
 ):
     """
     Handles a single batch for training or validation.
-    Returns: loss (if mode=="train"), or batch_loss (if mode=="val")
     """
     if args.text_conditional:
         if args.negative_prompt_training:
