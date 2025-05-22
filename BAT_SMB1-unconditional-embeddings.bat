@@ -1,3 +1,4 @@
-python train_block2vec.py --epochs 300 --save_checkpoints --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --output_dir "SMB1-unconditional-block2vec" --split --embedding_dim 32 --batch_size 256
-python train_diffusion.py --augment --output_dir "SMB1-unconditional-block2vec" --num_epochs 100 --json SMB1_LevelsAndCaptions-regular.json --pkl SMB1_Tokenizer-regular.pkl --mlm_model_dir "SMB1-block2vec-unconditional" --split --plot_validation_caption_score
+python create_tile_level_json_data.py --output "SMB1_3x3_tiles.json" --tile_size 3
+python train_block2vec.py --json_file "SMB1_3x3_tiles.json" --output_dir "SMB1-block2vec-embeddings" --embedding_dim 32 --epochs 100 --batch_size 32
+python train_diffusion.py --augment --output_dir "SMB1-unconditional-block2vec" --num_epochs 500 --json SMB1_LevelsAndCaptions-regular.json --split --block_embedding_model_path "SMB1-block2vec-embeddings"
 python run_diffusion.py --model_path "SMB1-unconditional-block2vec" --num_samples 100 --save_as_json --output_dir "SMB1-unconditional-block2vec-samples"
