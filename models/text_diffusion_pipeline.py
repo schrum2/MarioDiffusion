@@ -105,7 +105,22 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 config = json.load(f)
             pipeline.supports_negative_prompt = config.get("supports_negative_prompt", False)
         return pipeline
-        
+
+    # --- Handle batching for captions ---
+    def _prepare_text_batch(self, text: Optional[str | list[str]], batch_size: int, name: str) -> Optional[list[str]]:
+        if text is None:
+            return None
+        if isinstance(text, str):
+            return [text] * batch_size
+        if isinstance(text, list):
+            if len(text) == 1:
+                return text * batch_size
+            if len(text) != batch_size:
+                raise ValueError(f"{name} list length {len(text)} does not match batch_size {batch_size}")
+            return text
+        raise ValueError(f"{name} must be a string or list of strings")
+
+
     def __call__(
         self,
         caption: Optional[str | list[str]] = None,
@@ -189,22 +204,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             self.text_encoder.eval()
 
         with torch.no_grad():
-            # --- Handle batching for captions ---
-            def prepare_text_batch(text: Optional[str | list[str]], batch_size: int, name: str) -> Optional[list[str]]:
-                if text is None:
-                    return None
-                if isinstance(text, str):
-                    return [text] * batch_size
-                if isinstance(text, list):
-                    if len(text) == 1:
-                        return text * batch_size
-                    if len(text) != batch_size:
-                        raise ValueError(f"{name} list length {len(text)} does not match batch_size {batch_size}")
-                    return text
-                raise ValueError(f"{name} must be a string or list of strings")
-
-            captions = prepare_text_batch(caption, batch_size, "caption")
-            negatives = prepare_text_batch(negative_prompt, batch_size, "negative_prompt")
+            captions = self._prepare_text_batch(caption, batch_size, "caption")
+            negatives = self._prepare_text_batch(negative_prompt, batch_size, "negative_prompt")
 
             # --- Prepare text embeddings ---
             if(isinstance(self.text_encoder, TransformerModel)):
