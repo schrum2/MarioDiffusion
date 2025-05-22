@@ -607,7 +607,8 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
             spawn_phrase = f" {describe_quantity(len(spawn_positions)) if coarse_counts else len(spawn_positions)} spawn points."
         else:
             spawn_phrase = ""
-        add_to_caption(spawn_phrase, spawn_positions)
+        # Don't need to say there is a spawn point since there is only one
+        #add_to_caption(spawn_phrase, spawn_positions)
 
     # Platforms
     platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[] if ceiling_row == None else [ceiling_row])
