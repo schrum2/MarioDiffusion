@@ -68,13 +68,10 @@ def parse_args():
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
-    parser.add_argument('--split', action='store_true', help='Enable train/val/test split')
-    parser.add_argument('--train_pct', type=float, default=0.9, help='Train split percentage (default 0.8)')
-    parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
-    parser.add_argument('--test_pct', type=float, default=0.05, help='Test split percentage (default 0.15)')
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
@@ -275,20 +272,20 @@ def main():
         print("No block embedding model specified. One-hot encoding enabled.")
 
     # Initialize dataset
-    if args.split:
-        train_json, val_json, test_json = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
-        train_dataset = LevelDataset(
-            json_path=train_json,
-            tokenizer=tokenizer,
-            shuffle=True,
-            mode=data_mode,
-            augment=args.augment,
-            num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training,
-            block_embeddings=block_embeddings
-        )
+    train_dataset = LevelDataset(
+        json_path=args.json,
+        tokenizer=tokenizer,
+        shuffle=True,
+        mode=data_mode,
+        augment=args.augment,
+        num_tiles=args.num_tiles,
+        negative_captions=args.negative_prompt_training,
+        block_embeddings=block_embeddings
+    )
+    val_dataset = None
+    if args.val_json is not None:
         val_dataset = LevelDataset(
-            json_path=val_json,
+            json_path=args.val_json,
             tokenizer=tokenizer,
             shuffle=False,
             mode=data_mode,
@@ -297,18 +294,6 @@ def main():
             negative_captions=args.negative_prompt_training,
             block_embeddings=block_embeddings
         )
-    else:
-        train_dataset = LevelDataset(
-            json_path=args.json,
-            tokenizer=tokenizer,
-            shuffle=True,
-            mode=data_mode,
-            augment=args.augment,
-            num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training,
-            block_embeddings=block_embeddings
-        )
-        val_dataset = None
 
     first_sample = train_dataset[0]
     scene_height = first_sample[0].shape[1]
@@ -719,33 +704,6 @@ def update_args_from_config(args, config):
         if hasattr(args, key):
             setattr(args, key, value)
     return args
-
-def split_dataset(json_path, train_pct, val_pct, test_pct):
-    """Splits the dataset into train/val/test and saves them as new JSON files."""
-    with open(json_path, 'r') as f:
-        data = json.load(f)
-    n = len(data)
-    indices = list(range(n))
-    random.shuffle(indices)
-    train_end = int(train_pct * n)
-    val_end = train_end + int(val_pct * n)
-    train_indices = indices[:train_end]
-    val_indices = indices[train_end:val_end]
-    test_indices = indices[val_end:]
-    train_data = [data[i] for i in train_indices]
-    val_data = [data[i] for i in val_indices]
-    test_data = [data[i] for i in test_indices]
-    base, ext = os.path.splitext(json_path)
-    train_path = f"{base}-train{ext}"
-    val_path = f"{base}-validate{ext}"
-    test_path = f"{base}-test{ext}"
-    with open(train_path, 'w') as f:
-        json.dump(train_data, f, indent=2)
-    with open(val_path, 'w') as f:
-        json.dump(val_data, f, indent=2)
-    with open(test_path, 'w') as f:
-        json.dump(test_data, f, indent=2)
-    return train_path, val_path, test_path
 
 def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=None):
     #Prepares the batch for training with text conditioning.
