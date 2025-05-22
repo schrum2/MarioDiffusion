@@ -120,6 +120,44 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             return text
         raise ValueError(f"{name} must be a string or list of strings")
 
+    def _prepare_initial_sample(self, 
+                                raw_latent_sample: Optional[torch.Tensor],
+                                input_scene: Optional[torch.Tensor],
+                                batch_size: int, height: int, width: int,
+                                generator: Optional[torch.Generator]) -> torch.Tensor:
+        """Prepare the initial sample for diffusion."""
+ 
+        sample_shape = (batch_size, self.unet.config.in_channels, height, width)
+
+        if raw_latent_sample is not None:
+            if input_scene is not None:
+                raise ValueError("Cannot provide both raw_latent_sample and input_scene")
+            sample = raw_latent_sample.to(self.device)
+            if sample.shape[1] != sample_shape[1]:
+                raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but got {sample.shape[1]}")
+            if sample.shape[0] == 1 and batch_size > 1:
+                sample = sample.repeat(batch_size, 1, 1, 1)
+            elif sample.shape[0] != batch_size:
+                raise ValueError(f"raw_latent_sample batch size {sample.shape[0]} does not match batch_size {batch_size}")
+        elif input_scene is not None:
+            # input_scene can be (H, W) or (batch_size, H, W)
+            scene_tensor = torch.tensor(input_scene, dtype=torch.long, device=self.device)
+            if scene_tensor.dim() == 2:
+                # (H, W) -> repeat for batch
+                scene_tensor = scene_tensor.unsqueeze(0).repeat(batch_size, 1, 1)
+            elif scene_tensor.shape[0] == 1 and batch_size > 1:
+                scene_tensor = scene_tensor.repeat(batch_size, 1, 1)
+            elif scene_tensor.shape[0] != batch_size:
+                raise ValueError(f"input_scene batch size {scene_tensor.shape[0]} does not match batch_size {batch_size}")
+            # One-hot encode: (batch, H, W, C)
+            one_hot = F.one_hot(scene_tensor, num_classes=self.unet.config.in_channels).float()
+            # (batch, H, W, C) -> (batch, C, H, W)
+            sample = one_hot.permute(0, 3, 1, 2)
+        else:
+            # Start from random noise
+            sample = torch.randn(sample_shape, generator=generator, device=self.device)
+
+        return sample
 
     def __call__(
         self,
@@ -299,41 +337,9 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     text_embeddings = encode([""] * batch_size)
                 text_embeddings = text_embeddings.unsqueeze(1)  # (batch_size, 1, hidden_size)
             
-            
-
-
-
             # --- Set up initial latent state ---
-            device = self.device
-            sample_shape = (batch_size, self.unet.config.in_channels, height, width)
-
-            if raw_latent_sample is not None:
-                if input_scene is not None:
-                    raise ValueError("Cannot provide both raw_latent_sample and input_scene")
-                sample = raw_latent_sample.to(device)
-                if sample.shape[1] != sample_shape[1]:
-                    raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but got {sample.shape[1]}")
-                if sample.shape[0] == 1 and batch_size > 1:
-                    sample = sample.repeat(batch_size, 1, 1, 1)
-                elif sample.shape[0] != batch_size:
-                    raise ValueError(f"raw_latent_sample batch size {sample.shape[0]} does not match batch_size {batch_size}")
-            elif input_scene is not None:
-                # input_scene can be (H, W) or (batch_size, H, W)
-                scene_tensor = torch.tensor(input_scene, dtype=torch.long, device=device)
-                if scene_tensor.dim() == 2:
-                    # (H, W) -> repeat for batch
-                    scene_tensor = scene_tensor.unsqueeze(0).repeat(batch_size, 1, 1)
-                elif scene_tensor.shape[0] == 1 and batch_size > 1:
-                    scene_tensor = scene_tensor.repeat(batch_size, 1, 1)
-                elif scene_tensor.shape[0] != batch_size:
-                    raise ValueError(f"input_scene batch size {scene_tensor.shape[0]} does not match batch_size {batch_size}")
-                # One-hot encode: (batch, H, W, C)
-                one_hot = F.one_hot(scene_tensor, num_classes=self.unet.config.in_channels).float()
-                # (batch, H, W, C) -> (batch, C, H, W)
-                sample = one_hot.permute(0, 3, 1, 2)
-            else:
-                # Start from random noise
-                sample = torch.randn(sample_shape, generator=generator, device=device)
+            sample = self._prepare_initial_sample(raw_latent_sample, input_scene, 
+                                                 batch_size, height, width, generator)
 
             # --- Set up diffusion process ---
             self.scheduler.set_timesteps(num_inference_steps)
