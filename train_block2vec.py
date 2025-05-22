@@ -9,11 +9,11 @@ import threading
 from util.plotter import Plotter  # Import the Plotter class
 
 # ====== Config ======
-EMBEDDING_DIM = 32
-BATCH_SIZE = 256
-EPOCHS = 10
+EMBEDDING_DIM = 16
+BATCH_SIZE = 32
+EPOCHS = 100
 LR = 1e-3
-#VOCAB_SIZE = 16  # number of real tile types (adjust as needed)
+VOCAB_SIZE = 15  # number of real tile types (adjust as needed)
 
 # ====== Your dataset class (must yield (center, context_list)) ======
 # Dataset must yield:
@@ -49,6 +49,8 @@ def main():
     parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size')
     parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=LR, help='Learning rate')
+    parser.add_argument('--patch_size', type=int, default=3, help='Size of patches (e.g. 3 for 3x3)')
+    # 
     args = parser.parse_args()
 
     # Check if the output directory exists
@@ -65,7 +67,18 @@ def main():
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     # Determine vocab size from the dataset
-    vocab_size = max(max(patch) for sample in dataset.patches for patch in sample) + 1
+    #vocab_size = max(max(patch) for sample in dataset.patches for patch in sample) + 1
+
+    # Modified voacb size calculation with type conversion
+    try: 
+        vocab_size = max(max(patch) for sample in dataset.patches for patch in sample) + 1
+        # Convert to integer if necessary
+        vocab_size = int(vocab_size)
+    except ValueError as e:
+        print(f"Error converting tile IDs to integers: {e}")
+        raise
+    print(f"Detected vocab size: {vocab_size}")
+
 
     # Model, optimizer
     model = Block2Vec(vocab_size=vocab_size, embedding_dim=args.embedding_dim)

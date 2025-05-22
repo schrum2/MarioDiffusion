@@ -16,7 +16,7 @@ import numpy as np
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
 
-def samples_to_scenes(all_samples):
+def samples_to_scenes(all_samples, block_embeddings=None):
     # Convert to list
     samples_list = [all_samples[i] for i in range(len(all_samples))]
     scenes = []
@@ -24,7 +24,7 @@ def samples_to_scenes(all_samples):
     for _, sample in enumerate(samples_list):
         # Convert to indices
         sample_tensor = sample.unsqueeze(0) # if sample.shape[0] == args.num_tiles else sample
-        sample_indices = convert_to_level_format(sample_tensor)
+        sample_indices = convert_to_level_format(sample_tensor, block_embeddings)
         
         # Add level data to the list
         scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
@@ -151,7 +151,7 @@ def tiles():
 
     return tile_images
 
-def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
+def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, block_embeddings=None):
     """
     Visualize generated samples and save as images.
 
@@ -176,7 +176,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
 
     # Convert from one-hot to tile indices
     # sample_indices = []
-    sample_indices = convert_to_level_format(samples)
+    sample_indices = convert_to_level_format(samples, block_embeddings)
     num_samples = len(samples)
     grid_cols = min(4, num_samples)  # Limit to 4 columns
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
