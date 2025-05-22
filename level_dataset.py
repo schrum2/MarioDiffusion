@@ -212,6 +212,9 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
         elif samples.shape[2] == 32:
             tile_images = lr_tiles()
             tile_size = 8
+        else:
+            raise ValueError("Unsupported tile size. Expected 16 (Mario) or 32 (Lode Runner).")
+
         for i, sample in enumerate(samples):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
             sample_indices.append(sample_index)
