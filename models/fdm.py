@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 seed = 7499629
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"**--Using {device}--**")
+#print(f"**--Using {device}--**")
 def main():
     model = Gen("maps_gpt4_aug", embedding_dim=384, z_dim=5, kern_size=7, filter_count=128, num_res_blocks=3)
     model.to(device)
@@ -102,7 +102,7 @@ def load_data(path, scaling_factor=6, BATCH_SIZE=32):
     embeddings = embeddings * scaling_factor
 
     images, images_test, labels, labels_test, embeddings, embeddings_test = train_test_split(
-    images, labels, embeddings, test_size=24, random_state=seed)
+    images, labels, embeddings, test_size=24, random_state=seed) #split into train and test sets
 
     train_dataset = [embeddings, images]
     test_dataset = [embeddings_test, images_test]
