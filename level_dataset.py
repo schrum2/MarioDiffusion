@@ -77,12 +77,12 @@ def colors():
 
     return colorslist
 
-def tiles():
+def mario_tiles():
     """
     Maps integers 0-15 to 16x16 pixel sprites from mapsheet.png.
 
     Returns:
-        A list of 16x16 pixel tile images.
+        A list of 16x16 pixel tile images for Mario.
     """
     global _sprite_sheet
 
@@ -107,7 +107,7 @@ def tiles():
         (7,1),    # 12 = coin
         (0,1),    # 13 = Nothing
         (0,6),    # 14 = Nothing
-        (1,6)     # 15 = Nothing (extra just in case)
+        (1,6),    # 15 = Nothing (extra just in case)
     ]
 
     # Extract each tile as a 16x16 image
@@ -120,7 +120,56 @@ def tiles():
         tile = _sprite_sheet.crop((left, upper, right, lower))
         tile_images.append(tile)
 
+    # Add a blank tile for the extra tile (padding)
+    blank_tile = Image.new('RGB', (16, 16), color=(128, 128, 128))  # Gray or any color
+    tile_images.append(blank_tile)
+
     return tile_images
+
+def lr_tiles():
+    """
+    Maps integers 0-10 to 8x8 pixel sprites from LR_mapsheet.png.
+
+    Returns:
+        A list of 8x8 pixel tile images for Lode Runner.
+    """
+    global _sprite_sheet
+
+    # Load the sprite sheet only once
+    if _sprite_sheet is None:
+        _sprite_sheet = Image.open("LR_mapsheet.png")
+
+    # Hardcoded coordinates for the first 10 tiles (row, col)
+    LR_tile_coordinates = [
+       (12, 4),     # 0 = Ladder            done
+       (14, 4),     # 1 = Rope              done
+       (1, 1),      # 2 = Passable, Empty   done
+       (2, 3),      # 3 = Solid Ground      done
+       (3, 2),      # 4 = Enemy             done
+       (5, 2),      # 5 = Gold              done
+       (18, 21),    # 6 = Spawn             done
+       (1, 22),     # 7 = Diggable Ground   done
+       (0,0)        # 8 = Nothing           done
+
+    ]
+
+    DIM = 8
+
+    # Extract each tile as a 8x8 image
+    LR_tile_images = []
+    for col, row in LR_tile_coordinates:
+        left = col * DIM
+        upper = 4 + row * DIM
+        right = left + DIM
+        lower = upper + DIM
+        tile = _sprite_sheet.crop((left, upper, right, lower))
+        LR_tile_images.append(tile)
+
+    # Add a blank tile for the extra tile (padding)
+    blank_tile = Image.new('RGB', (DIM, DIM), color=(128, 128, 128))
+    LR_tile_images.append(blank_tile)
+
+    return LR_tile_images
 
 def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
     """
@@ -152,8 +201,15 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
 
     if use_tiles:
-        tile_images = tiles()
-        tile_size = 16
+        # Broken if there is another 16x16 like Mario
+        # Gets which tileset to use based on the number of height
+        if samples.shape[2] == 16:
+            tile_images = mario_tiles()
+            tile_size = 16
+        # Broken if there is another 32x32 like Lode Runner
+        elif samples.shape[2] == 32:
+            tile_images = lr_tiles()
+            tile_size = 8
         for i, sample in enumerate(samples):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
             sample_indices.append(sample_index)
@@ -641,4 +697,3 @@ if __name__ == "__main__":
             print(b)
             break
             last_size = b.shape
-        

@@ -72,7 +72,7 @@ def get_tile_descriptors(tileset):
     return result
 
 def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
-    """Analyzes the last row of the 16x16 scene and generates a floor description."""
+    """Analyzes the last row of the 32x32 scene and generates a floor description."""
     WIDTH = len(scene[0])
     last_row = scene[-1]  # The FLOOR row of the scene
     solid_count = sum(1 for tile in last_row if "solid" in tile_descriptors.get(id_to_char[tile], []))
@@ -147,19 +147,6 @@ def count_caption_phrase(scene, tiles, name, names, offset = 0, describe_absence
     else:
         return ""
 
-def describe_broken_cannons(scene, char_to_id):
-    count = 0
-    for r in range(len(scene)):
-        for c in range(len(scene[r])):
-            if scene[r][c] == char_to_id['b']:
-                if r == 0 or scene[r-1][c] != char_to_id['B']:
-                    count += 1
-
-    if count > 0:
-        return f" {describe_quantity(count) if coarse_counts else count} broken " + ("cannons" if pluralize and count > 1 else "cannon") + "."
-    else:
-        return ""
-
 def in_column(scene, x, tile):
     for row in scene:
         if row[x] == tile:
@@ -209,7 +196,6 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
     """
     Finds horizontal lines (runs) of tiles with the target descriptor.
     - Skips the FLOOR row
-    - Skips tiles marked as 'pipe'
     - Can require non-solid space above and below (for platforms)
     - exclude_rows may not be needed because of the alread_accounted set
     Returns a list of (y, start_x, end_x) tuples
@@ -229,10 +215,6 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
         while x < width:
             tile_char = id_to_char[scene[y][x]]
             descriptors = tile_descriptors.get(tile_char, [])
-
-            if (target_descriptor not in descriptors) or ("pipe" in descriptors):
-                x += 1
-                continue
 
             # If required, check for passable tiles above and below
             if require_above_below_not_solid:
@@ -262,7 +244,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
                 tile_char = id_to_char[scene[y][x]]
                 descriptors = tile_descriptors.get(tile_char, [])
 
-                if (target_descriptor in descriptors and "pipe" not in descriptors):
+                if (target_descriptor in descriptors):
                     if require_above_below_not_solid:
                         if y > 0 and "solid" in tile_descriptors.get(id_to_char[scene[y - 1][x]], []):
                             break
@@ -315,80 +297,6 @@ def describe_horizontal_lines(lines, label, describe_locations, describe_absence
         count = len(lines)
         return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count != 1 else ''}."
 
-def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
-    """
-    Detects staircases in the scene.
-    verticality = 1 for descending, verticality = -1 for ascending
-    A staircase is a sequence of at least 3 columns where solid tiles form steps increasing by 1 row each.
-    Above each solid block must be passable.
-    Returns a caption phrase or empty string.
-    """
-    height = len(scene)
-    width = len(scene[0]) if height > 0 else 0
-    staircases = 0
-    col = 0
-    staircase_lengths = []
-
-    while col <= width - 3:
-        # Try to find the start of a staircase
-        step_cols = []
-        for start_row in range(0 if verticality == 1 else 3, height - 2 if verticality == 1 else height):
-            if is_staircase_from(scene, id_to_char, tile_descriptors, col, start_row, verticality, already_accounted):
-                #print(f"staircase at {start_row} {col} {verticality}")
-                # Now count how many columns this staircase extends
-                length = 3
-                while col + length < width and is_staircase_from(scene, id_to_char, tile_descriptors, col + length - 2, start_row + verticality*(length - 2), verticality, already_accounted):
-                    length += 1
-                staircases += 1
-                col += length  # Skip past this staircase
-                staircase_lengths.append(length)
-                #print(f"staircase length {length} {already_accounted}")
-                break  # Restart staircase search from new col
-        else:
-            col += 1  # No staircase starting here, move right
-
-    type = "descending" if verticality == 1 else "ascending"
-    if staircases > 0:
-        return f" {describe_quantity(staircases) if coarse_counts else staircases} {type} staircase{'s' if pluralize and staircases > 1 else ''}"+ (f" with length{'s' if staircases > 1 else ''} {', '.join(map(str, staircase_lengths))}" if give_staircase_lengths else "")+ "."
-    else:
-        return ""
-
-def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row, verticality, already_accounted):
-    """
-    Checks if there's a valid 3-step staircase starting at (start_col, start_row).
-    verticality = 1 for descending staircase, verticality = -1 for ascending
-    """
-    try:
-        blocks_in_stairs = set()
-        for step in range(3):
-            row = start_row + verticality*step
-            if row == len(scene): 
-                return False # Do not count floor in staircases
-            col = start_col + step
-            tile = scene[row][col]
-            if "solid" not in tile_descriptors.get(id_to_char[tile], []):
-                #if start_col == 0: print("not solid at", row, col)
-                return False
-            # Check above this block is passable
-            if row > 0:
-                tile_above = scene[row - 1][col]
-                if "solid" in tile_descriptors.get(id_to_char[tile_above], []):
-                    #if start_col == 0: print("solid above", row, col)
-                    return False
-                else:
-                    # Blocks beneath the stairs are also part of stairs
-                    row2 = row
-                    while row2 < len(scene) and "solid" in tile_descriptors.get(id_to_char[scene[row2][col]], []): 
-                        blocks_in_stairs.add( (row2,col) )
-                        row2 += 1                    
-
-        # Only add all of the blocks once it is confirmed to be a staircase
-        already_accounted.update(blocks_in_stairs)
-        #if start_col == 0: print("staircase at", start_row, start_col, verticality)
-        return True
-    except IndexError:
-        print(f"IndexError at start_col {start_col}, start_row {start_row}, verticality {verticality}")
-        return False  # Out of bounds means no staircase
 
 def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptors, excluded, pipes=False):
     stack = [(start_row, start_col)]
@@ -439,113 +347,7 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
 
     return structures
 
-def valid_pipe(top_row, left_column, scene, char_to_id):
-    """
-        Is this a valid pipe or not?
-
-        <>
-        []
-       ...
-        []
-    """
-    # Case: left edge of screen
-    if left_column == 0 and scene[top_row][left_column] == char_to_id['>']:
-        # go down looking for ] or >
-        row = top_row+1
-        while row < len(scene):
-            # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
-            if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]: #, char_to_id['-']]: # emptiness under base also invalid
-                return False
-            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
-                row += 1
-            else:
-                return True
-
-        return True
-    # Case: right edge of screen
-    elif left_column == len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<']:
-        # go down looking for [ or <
-        row = top_row+1
-        while row < len(scene):
-            if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
-                row += 1
-            # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
-            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]: #, char_to_id['-']]:
-                return False
-            else:
-                return True
-
-        return True
-
-    # Case: Full pipe
-    elif left_column < len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<'] and scene[top_row][left_column+1] == char_to_id['>']:
-        # go down looking for [] or <>
-        row = top_row+1
-        while row < len(scene):
-            if (scene[row][left_column] == char_to_id['<'] and scene[row][left_column+1] == char_to_id['>']) or (scene[row][left_column] == char_to_id['['] and scene[row][left_column+1] == char_to_id[']']):
-                row += 1
-            # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
-            elif scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']] or scene[row][left_column+1] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']]:
-                return False
-            else:
-                return True
-
-        return True
-
-    return False
-
-def valid_upside_down_pipe(bottom_row, left_column, scene, char_to_id):
-    """
-        Is this a valid upside down pipe or not?
-
-        []
-        []
-        <>
-    """
-    # Case: left edge of screen
-    if left_column == 0 and scene[bottom_row][left_column] == char_to_id['>']:
-        # go up looking for ] or >
-        row = bottom_row - 1
-        while row >= 0:
-            if scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['-']]:  # emptiness above base also invalid
-                return False
-            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
-                row -= 1
-            else:
-                return True
-
-        return True
-    # Case: right edge of screen
-    elif left_column == len(scene[0]) - 1 and scene[bottom_row][left_column] == char_to_id['<']:
-        # go up looking for [ or <
-        row = bottom_row - 1
-        while row >= 0:
-            if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
-                row -= 1
-            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']'], char_to_id['-']]:
-                return False
-            else:
-                return True
-
-        return True
-
-    # Case: Full upside down pipe
-    elif left_column < len(scene[0]) - 1 and scene[bottom_row][left_column] == char_to_id['<'] and scene[bottom_row][left_column + 1] == char_to_id['>']:
-        # go up looking for [] or <>
-        row = bottom_row - 1
-        while row >= 0:
-            if (scene[row][left_column] == char_to_id['['] and scene[row][left_column + 1] == char_to_id[']']) or (scene[row][left_column] == char_to_id['<'] and scene[row][left_column + 1] == char_to_id['>']):
-                row -= 1
-            elif scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']'], char_to_id['-']] or scene[row][left_column + 1] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']'], char_to_id['-']]:
-                return False
-            else:
-                return True
-
-        return True
-
-    return False
-
-def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None):
+def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None):
     """
         scene and char_to_id are needed when pipes is True so that the specific tiles can be checked.
         Returns a list of tuples (phrase, coordinates) where coordinates is a set of (row, col) positions
@@ -566,22 +368,14 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         attached_to_ceiling = any(r == ceiling_row for r, c in struct)
         in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
 
-        if pipes:
-            if valid_pipe(min_row, min_col, scene, char_to_id):
-                desc = "pipe"
-            elif valid_upside_down_pipe(max_row, min_col, scene, char_to_id):
-                desc = "upside down pipe"
-            else:
-                desc = "broken pipe"
-        else:
-            if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
-                desc = "tower"
-            elif all((r, c) in struct for r in range(min_row, max_row + 1) for c in range(min_col, max_col + 1)):
-                desc = "rectangular block cluster"
+        if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
+           desc = "tower"
+        elif all((r, c) in struct for r in range(min_row, max_row + 1) for c in range(min_col, max_col + 1)):
+            desc = "rectangular block cluster"
             #elif not attached_to_ceiling and width >= 3 and height <= 2 and in_contact_with_floor:
             #    desc = "wall"
-            else:
-                desc = "irregular block cluster"
+        else:
+            desc = "irregular block cluster"
 
         if debug:
             print(f"{desc} at {min_row} {max_row} {min_col} {max_col}: {struct}: attached_to_ceiling: {attached_to_ceiling}, in_contact_with_floor: {in_contact_with_floor}")
@@ -615,9 +409,7 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
             # Pluralize the first word
             words = desc.split()
             for i in range(len(words)):
-                if words[i] == "pipe":
-                    words[i] = "pipes"
-                elif words[i] == "tower":
+                if words[i] == "tower":
                     words[i] = "towers"
                 #elif words[i] == "wall":
                 #    words[i] = "walls"
@@ -629,7 +421,7 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
 
     # Handle absence descriptions if needed
     if describe_absence:
-        absent_types = {"pipe": set(), "upside down pipe" : set()} if pipes else {"tower": set(), "rectangular block cluster": set(), "irregular block cluster": set()}
+        absent_types = {"tower": set(), "rectangular block cluster": set(), "irregular block cluster": set()}
         described_types = desc_to_structs.keys()
         
         for absent_type in absent_types:
@@ -656,8 +448,8 @@ def extract_tileset(tileset_path):
         tileset = json.load(f)
         #print(f"tileset: {tileset}")
         tile_chars = sorted(tileset['tiles'].keys())
-        # I've been saying everywhere that the number of tiles is 15, but there are really only
-        # 13 types. I can't remember why I wanted the wiggle room, but I think I should keep it for
+        # I've been saying everywhere that the number of tiles is 10, but there are really only
+        # 8 types. I can't remember why I wanted the wiggle room, but I think I should keep it for
         # now. However, this requires me to add some bogus tiles to the list.
         tile_chars.append('!') 
         tile_chars.append('*') 
@@ -679,7 +471,9 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     # Generate captions
     captioned_dataset = []
     for scene in dataset:
-        caption = "" # assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
+        # caption blank/empty for lode runner
+        #caption = " "
+        caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
         if "broken" in caption:
             print("Broken pipe in training data")
@@ -732,7 +526,9 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
             if return_details and details is not None:
                 details[phrase.strip()] = contributing_blocks
 
-    caption = "" # assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
+    # blank for lode runner
+    #caption = ""
+    caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
     # Analyze floor
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
@@ -778,7 +574,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     
     #print("after ceiling", (10,0) in already_accounted)
     
-    # Is the ceiling filled in even more? (Some SML levels do this)
+    # Is the ceiling filled in even more? 
     if ceiling_row and ceiling_phrase:
         for r in range(ceiling_row - 1, -1, -1):
             #print(r ,f"also ceiling '{ceiling_phrase.strip()}'", details)
@@ -793,73 +589,22 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     #print("after enemy", (10,0) in already_accounted)
 
-    # Count question blocks
-    question_block_phrase = count_caption_phrase(scene, [char_to_id['Q'], char_to_id['?']], "question block", "question blocks", describe_absence=describe_absence)
-    add_to_caption(question_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['Q'], char_to_id['?']]])
+    # possibly could use for chests
+    # Count gold
+    gold_phrase = count_caption_phrase(scene, [char_to_id['G']], "gold", describe_absence=describe_absence)
+    add_to_caption(gold_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['G']])
 
-    #print("after qb", (10,0) in already_accounted)
-    #print(already_accounted)
-    # Count cannons
-    cannon_phrase = count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons", describe_absence=describe_absence)
-    cannon_locations = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']]
-    add_to_caption(cannon_phrase, cannon_locations)
-    already_accounted.update(cannon_locations)
-
-    #print("after cannon", (10,0) in already_accounted)
-
-    # Describe broken cannons
-    broken_cannon_phrase = describe_broken_cannons(scene, char_to_id)
-    add_to_caption(broken_cannon_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']])
-
-    # Count coins
-    coin_phrase = count_caption_phrase(scene, [char_to_id['o']], "coin", "coins", describe_absence=describe_absence)
-    add_to_caption(coin_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['o']])
-
-    # Coin lines
-    coin_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="coin", min_run_length=2)
-    coin_line_phrase = describe_horizontal_lines(coin_lines, "coin line", describe_locations, describe_absence=describe_absence)
-    add_to_caption(coin_line_phrase, [(y, x) for y, start_x, end_x in coin_lines for x in range(start_x, end_x + 1)])
-
-    #print("after coin line", (10,0) in already_accounted)
     # Platforms
     platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[] if ceiling_row == None else [ceiling_row])
     #print("after platform_lines", (10,0) in already_accounted)
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations, describe_absence=describe_absence)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
 
-    #print("after platform", (10,0) in already_accounted)
-    #print("before stairs", (10,0) in already_accounted)
-    # Staircases
-    up_stair_set = set()
-    ascending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=up_stair_set)
-    add_to_caption(ascending_caption, list(up_stair_set))
-    #print(already_accounted)
-    already_accounted.update(up_stair_set)
-
-    down_stair_set = set()
-    descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=down_stair_set)
-    add_to_caption(descending_caption, list(down_stair_set))
-    #print(already_accounted)
-    already_accounted.update(down_stair_set)
-
-    #print(already_accounted)
-    if describe_absence and not ascending_caption:
-        add_to_caption(" no ascending staircases.", [])
-
-    if describe_absence and not descending_caption:
-        add_to_caption(" no descending staircases.", [])
-
 
     # Solid structures
 
     #print(already_accounted)
-    pipe_set = set() # pipes can double count with floor, but there should be no other conflicts
-    structures = find_solid_structures(scene, id_to_char, tile_descriptors, pipe_set, pipes=True)
-    pipe_phrase = describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id)
-    for phrase, coords in pipe_phrase:
-        add_to_caption(phrase, coords)
-    
-    already_accounted.update(pipe_set)
+   
 
     #print(already_accounted)
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
@@ -868,14 +613,14 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         add_to_caption(phrase, coords)
 
     #print(already_accounted)
-    loose_block_phrase = count_caption_phrase(scene, [char_to_id['X'], char_to_id['S']], "loose block", "loose blocks", describe_absence=describe_absence, exclude=already_accounted)
-    add_to_caption(loose_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['X'], char_to_id['S']] and (r, c) not in already_accounted])
+    loose_block_phrase = count_caption_phrase(scene, [char_to_id['B'], char_to_id['b']], "loose block", "loose blocks", describe_absence=describe_absence, exclude=already_accounted)
+    add_to_caption(loose_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['B'], char_to_id['b']] and (r, c) not in already_accounted])
 
     return (caption.strip(), details) if return_details else caption.strip()
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Generate captions for Mario screenshots")
+    parser = argparse.ArgumentParser(description="Generate captions for Lode Runner screenshots")
     parser.add_argument("--dataset", required=True, help="json with level scenes")
     
     # Fix unsupported escape sequence in argument parser
