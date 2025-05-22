@@ -105,7 +105,78 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 config = json.load(f)
             pipeline.supports_negative_prompt = config.get("supports_negative_prompt", False)
         return pipeline
-        
+
+    # --- Handle batching for captions ---
+    def _prepare_text_batch(self, text: Optional[str | list[str]], batch_size: int, name: str) -> Optional[list[str]]:
+        if text is None:
+            return None
+        if isinstance(text, str):
+            return [text] * batch_size
+        if isinstance(text, list):
+            if len(text) == 1:
+                return text * batch_size
+            if len(text) != batch_size:
+                raise ValueError(f"{name} list length {len(text)} does not match batch_size {batch_size}")
+            return text
+        raise ValueError(f"{name} must be a string or list of strings")
+
+    def _prepare_initial_sample(self, 
+                                raw_latent_sample: Optional[torch.Tensor],
+                                input_scene: Optional[torch.Tensor],
+                                batch_size: int, height: int, width: int,
+                                generator: Optional[torch.Generator]) -> torch.Tensor:
+        """Prepare the initial sample for diffusion."""
+ 
+        sample_shape = (batch_size, self.unet.config.in_channels, height, width)
+
+        if raw_latent_sample is not None:
+            if input_scene is not None:
+                raise ValueError("Cannot provide both raw_latent_sample and input_scene")
+            sample = raw_latent_sample.to(self.device)
+            if sample.shape[1] != sample_shape[1]:
+                raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but got {sample.shape[1]}")
+            if sample.shape[0] == 1 and batch_size > 1:
+                sample = sample.repeat(batch_size, 1, 1, 1)
+            elif sample.shape[0] != batch_size:
+                raise ValueError(f"raw_latent_sample batch size {sample.shape[0]} does not match batch_size {batch_size}")
+        elif input_scene is not None:
+            # input_scene can be (H, W) or (batch_size, H, W)
+            scene_tensor = torch.tensor(input_scene, dtype=torch.long, device=self.device)
+            if scene_tensor.dim() == 2:
+                # (H, W) -> repeat for batch
+                scene_tensor = scene_tensor.unsqueeze(0).repeat(batch_size, 1, 1)
+            elif scene_tensor.shape[0] == 1 and batch_size > 1:
+                scene_tensor = scene_tensor.repeat(batch_size, 1, 1)
+            elif scene_tensor.shape[0] != batch_size:
+                raise ValueError(f"input_scene batch size {scene_tensor.shape[0]} does not match batch_size {batch_size}")
+            # One-hot encode: (batch, H, W, C)
+            one_hot = F.one_hot(scene_tensor, num_classes=self.unet.config.in_channels).float()
+            # (batch, H, W, C) -> (batch, C, H, W)
+            sample = one_hot.permute(0, 3, 1, 2)
+        else:
+            # Start from random noise
+            sample = torch.randn(sample_shape, generator=generator, device=self.device)
+
+        return sample
+
+    def _encode_token_captions(self, captions, max_length):
+        """
+        Helper method to encode and pad captions to fixed length.
+        This approach specifically applies to a text encoder that
+        creates token embeddings, like my TransformerModel
+        """
+        caption_ids = []
+        for cap in captions:
+            ids = self.tokenizer.encode(cap)
+            ids = torch.tensor(ids, device=self.device)
+            if ids.shape[0] > max_length:
+                raise ValueError(f"Caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
+            elif ids.shape[0] < max_length:
+                padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
+                ids = torch.cat([ids, padding], dim=0)
+            caption_ids.append(ids.unsqueeze(0))
+        return torch.cat(caption_ids, dim=0)
+
     def __call__(
         self,
         caption: Optional[str | list[str]] = None,
@@ -141,6 +212,44 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         Returns:
             PipelineOutput containing the generated image tensor (batch_size, ...).
         """
+
+        #       I would like to simplify the code to this, but the AI suggestion didn't work, and 
+        #       I did not feel good just pasting it all in. Will need to tackle it bit by bit.
+
+        #        if caption is not None and self.text_encoder is None:
+        #            raise ValueError("Text encoder required for conditional generation")
+    
+        #        self.unet.eval()
+        #        if self.text_encoder is not None:
+        #            self.text_encoder.to(self.device)
+        #            self.text_encoder.eval()
+        #
+        #        with torch.no_grad():
+        #            # Process text inputs
+        #            captions = self.prepare_text_batch(caption, batch_size, "caption")
+        #            negatives = self.prepare_text_batch(negative_prompt, batch_size, "negative_prompt")
+         
+        #            # Get embeddings
+        #            text_embeddings = self.prepare_embeddings(captions, negatives, batch_size)
+        #            
+        #            # Set up initial latent state
+        #            sample = self.prepare_initial_sample(raw_latent_sample, input_scene, 
+        #                                              batch_size, height, width, generator)
+           
+        #            # Run diffusion process
+        #            sample = self.run_diffusion(sample, text_embeddings, num_inference_steps,
+        #                                      guidance_scale, generator, show_progress_bar,
+        #                                      has_caption=caption is not None,
+        #                                      has_negative=negative_prompt is not None)
+         
+        #            # Format output
+        #            if output_type == "tensor":
+        #                sample = F.softmax(sample, dim=1)
+        #            else:
+        #                raise ValueError(f"Unsupported output type: {output_type}")
+
+        #        return PipelineOutput(images=sample)
+
         # Validate text encoder if we need it
         if caption is not None and self.text_encoder is None:
             raise ValueError("Text encoder is required for conditional generation")
@@ -151,55 +260,25 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             self.text_encoder.eval()
 
         with torch.no_grad():
-            # --- Handle batching for captions ---
-            def prepare_text_batch(text: Optional[str | list[str]], batch_size: int, name: str) -> Optional[list[str]]:
-                if text is None:
-                    return None
-                if isinstance(text, str):
-                    return [text] * batch_size
-                if isinstance(text, list):
-                    if len(text) == 1:
-                        return text * batch_size
-                    if len(text) != batch_size:
-                        raise ValueError(f"{name} list length {len(text)} does not match batch_size {batch_size}")
-                    return text
-                raise ValueError(f"{name} must be a string or list of strings")
-
-            captions = prepare_text_batch(caption, batch_size, "caption")
-            negatives = prepare_text_batch(negative_prompt, batch_size, "negative_prompt")
+            captions = self._prepare_text_batch(caption, batch_size, "caption")
+            negatives = self._prepare_text_batch(negative_prompt, batch_size, "negative_prompt")
 
             # --- Prepare text embeddings ---
             if(isinstance(self.text_encoder, TransformerModel)):
                 if captions is not None:
                     max_length = self.text_encoder.max_seq_length
-                    caption_ids = []
-                    for cap in captions:
-                        ids = self.tokenizer.encode(cap)
-                        ids = torch.tensor(ids, device=self.device)
-                        if ids.shape[0] > max_length:
-                            raise ValueError(f"Caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
-                        elif ids.shape[0] < max_length:
-                            padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
-                            ids = torch.cat([ids, padding], dim=0)
-                        caption_ids.append(ids.unsqueeze(0))
-                    caption_ids = torch.cat(caption_ids, dim=0)  # (batch_size, max_length)
+    
+                    # Encode positive captions
+                    caption_ids = self._encode_token_captions(captions, max_length)
                     caption_embedding = self.text_encoder.get_embeddings(caption_ids)
 
                     # Handle negative prompt if provided
                     if negatives is not None:
                         if not self.supports_negative_prompt:
                             raise ValueError("This model was not trained with negative prompt support")
-                        negative_ids = []
-                        for neg in negatives:
-                            ids = self.tokenizer.encode(neg)
-                            ids = torch.tensor(ids, device=self.device)
-                            if ids.shape[0] > max_length:
-                                raise ValueError(f"Negative caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
-                            elif ids.shape[0] < max_length:
-                                padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
-                                ids = torch.cat([ids, padding], dim=0)
-                            negative_ids.append(ids.unsqueeze(0))
-                        negative_ids = torch.cat(negative_ids, dim=0)
+        
+                        # Encode negative captions
+                        negative_ids = self._encode_token_captions(negatives, max_length)
                         negative_embedding = self.text_encoder.get_embeddings(negative_ids)
 
                         # Get unconditional (empty) embedding
@@ -224,6 +303,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
                     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
                 #Encode text
+                # TODO: Can we remove this? I'm not sure it is consistent across all models. Code is also messy
                 def encode(texts):
                     # Tokenize sentences
                     encoded_input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
@@ -260,41 +340,9 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     text_embeddings = encode([""] * batch_size)
                 text_embeddings = text_embeddings.unsqueeze(1)  # (batch_size, 1, hidden_size)
             
-            
-
-
-
             # --- Set up initial latent state ---
-            device = self.device
-            sample_shape = (batch_size, self.unet.config.in_channels, height, width)
-
-            if raw_latent_sample is not None:
-                if input_scene is not None:
-                    raise ValueError("Cannot provide both raw_latent_sample and input_scene")
-                sample = raw_latent_sample.to(device)
-                if sample.shape[1] != sample_shape[1]:
-                    raise ValueError(f"Wrong number of channels in raw_latent_sample: Expected {self.unet.config.in_channels} but got {sample.shape[1]}")
-                if sample.shape[0] == 1 and batch_size > 1:
-                    sample = sample.repeat(batch_size, 1, 1, 1)
-                elif sample.shape[0] != batch_size:
-                    raise ValueError(f"raw_latent_sample batch size {sample.shape[0]} does not match batch_size {batch_size}")
-            elif input_scene is not None:
-                # input_scene can be (H, W) or (batch_size, H, W)
-                scene_tensor = torch.tensor(input_scene, dtype=torch.long, device=device)
-                if scene_tensor.dim() == 2:
-                    # (H, W) -> repeat for batch
-                    scene_tensor = scene_tensor.unsqueeze(0).repeat(batch_size, 1, 1)
-                elif scene_tensor.shape[0] == 1 and batch_size > 1:
-                    scene_tensor = scene_tensor.repeat(batch_size, 1, 1)
-                elif scene_tensor.shape[0] != batch_size:
-                    raise ValueError(f"input_scene batch size {scene_tensor.shape[0]} does not match batch_size {batch_size}")
-                # One-hot encode: (batch, H, W, C)
-                one_hot = F.one_hot(scene_tensor, num_classes=self.unet.config.in_channels).float()
-                # (batch, H, W, C) -> (batch, C, H, W)
-                sample = one_hot.permute(0, 3, 1, 2)
-            else:
-                # Start from random noise
-                sample = torch.randn(sample_shape, generator=generator, device=device)
+            sample = self._prepare_initial_sample(raw_latent_sample, input_scene, 
+                                                 batch_size, height, width, generator)
 
             # --- Set up diffusion process ---
             self.scheduler.set_timesteps(num_inference_steps)
