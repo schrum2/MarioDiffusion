@@ -2,6 +2,7 @@ import argparse
 import os
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
 from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup 
 from tqdm.auto import tqdm
@@ -47,7 +48,7 @@ def parse_args():
 
 
     # Training args
-    parser.add_argument("--epochs", type=float, default=100, help="Number of epochs to train for")
+    parser.add_argument("--num_epochs", type=int, default=100, help="Number of epochs to train for")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--save_image_epochs", type=int, default=20, help="Save generated levels every N epochs")
     parser.add_argument("--save_model_epochs", type=int, default=20, help="Save model every N epochs")
@@ -70,6 +71,22 @@ def parse_args():
 
     return parser.parse_args()
 
+
+
+class imageDataSet(Dataset):
+
+    def __init__(self, dataset):
+        self.data = dataset
+
+    def __len__(self):
+        return len(self.data[0])
+
+    def __getitem__(self,idx):
+        return self.data[0][idx], self.data[1][idx]
+
+
+
+
 def main():
     args = parse_args()
 
@@ -84,7 +101,10 @@ def main():
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-
+    # Setup accelerator
+    accelerator = Accelerator(
+            mixed_precision=args.mixed_precision,
+        )
 
     # Initialize tokenizer
     if args.pkl:
@@ -127,13 +147,87 @@ def main():
             raise
     
 
+     # Initialize dataset
+    if args.split:
+        train_json, val_json, test_json = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
+        train_dataset = LevelDataset(
+            json_path=train_json,
+            tokenizer=tokenizer,
+            shuffle=True,
+            mode=data_mode,
+            augment=args.augment,
+            num_tiles=args.num_tiles,
+            block_embeddings=block_embeddings
+        )
+        val_dataset = LevelDataset(
+            json_path=val_json,
+            tokenizer=tokenizer,
+            shuffle=False,
+            mode=data_mode,
+            augment=False,
+            num_tiles=args.num_tiles,
+            block_embeddings=block_embeddings
+        )
+    else:
+        train_dataset = LevelDataset(
+            json_path=args.json,
+            tokenizer=tokenizer,
+            shuffle=True,
+            mode=data_mode,
+            augment=args.augment,
+            num_tiles=args.num_tiles,
+            block_embeddings=block_embeddings
+        )
+        val_dataset = None
+
+    first_sample = train_dataset[0]
+    scene_height = first_sample[0].shape[1]
+    scene_width = first_sample[0].shape[2]
+
+    print(f"Scene height: {scene_height}")
+    print(f"Scene width: {scene_width}")
+
+    # Create dataloader
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=4,
+        drop_last=True
+    )
+    
+    val_dataloader = None
+    if val_dataset is not None:
+        val_dataloader = DataLoader(
+            val_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=4,
+            drop_last=False
+        )
+
+
+        # Sample four random captions from the dataset
+        sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
+        # Original code for positive-only captions
+        sample_embedding_vectors = [train_dataset[i][1] for i in sample_indices]
+        if not args.pretrained_language_model:
+            sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
+            pad_token = tokenizer.token_to_id["[PAD]"]
+            sample_captions = [
+                tokenizer.decode([token for token in caption if token != pad_token]) 
+                for caption in sample_embedding_vectors
+            ]
+        else:
+            sample_captions = [
+                v for v in sample_embedding_vectors
+            ]
+        print("Sample captions:")
+        for caption in sample_captions:
+            print(caption)
     
 
-
-
-
-
-
+    #Create an instance of the model
     model = Gen(
         model_name=args.mlm_model_dir,
         embedding_dim=args.embedding_dim,
@@ -144,8 +238,20 @@ def main():
     )
     print(f"Model: {model}")
 
+    # if there is no block embedding model, set the channels to num_tiles
+    in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
+    # else set channels to the embedding dimension of the model
+    out_channels = in_channels
 
+    print(train_dataloader)
+    print(train_dataloader.dataset)
+    print(train_dataloader.dataset[0][0].shape)
+    print(train_dataloader.dataset[0][1].shape)
+    for embeddings, ytrue in train_dataloader:
+        print(embeddings.shape)
+        print(ytrue.shape)
 
+    train(model, args.num_epochs, train_dataloader, val_dataloader, None, accelerator.device)
     #Required steps:
     #Setup model, new Gen object
     #Setup dataset
@@ -160,7 +266,57 @@ def main():
 
 
 
+def train(model, EPOCHS, train_set, val_set, test_set, device):
 
+    
+    loss_metric_train = torch.zeros(EPOCHS).to(device)
+    
+    model.to(device)
+    
+    optimizer = torch.optim.Adam(model.parameters())
+    
+    for epoch in range(EPOCHS):
+        
+        for embeddings, ytrue in train_set:
+            optimizer.zero_grad()
+            outputs = model(embeddings.to(device), torch.rand(len(embeddings), 5).to(device))
+
+            loss = torch.nn.NLLLoss()(torch.log(outputs), ytrue.argmax(dim=3).to(device))
+            #loss = torch.nn.functional.mse_loss(torch.log(outputs), ytrue.argmax(dim=1).to(device))
+
+            loss_metric_train[epoch] += loss
+
+            loss.backward()
+            optimizer.step()
+        print(f"Epoch {epoch+1}/{EPOCHS}, Loss: {loss_metric_train[epoch].item()}")
+
+
+def split_dataset(json_path, train_pct, val_pct, test_pct):
+    """Splits the dataset into train/val/test and saves them as new JSON files."""
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+    n = len(data)
+    indices = list(range(n))
+    random.shuffle(indices)
+    train_end = int(train_pct * n)
+    val_end = train_end + int(val_pct * n)
+    train_indices = indices[:train_end]
+    val_indices = indices[train_end:val_end]
+    test_indices = indices[val_end:]
+    train_data = [data[i] for i in train_indices]
+    val_data = [data[i] for i in val_indices]
+    test_data = [data[i] for i in test_indices]
+    base, ext = os.path.splitext(json_path)
+    train_path = f"{base}-train{ext}"
+    val_path = f"{base}-validate{ext}"
+    test_path = f"{base}-test{ext}"
+    with open(train_path, 'w') as f:
+        json.dump(train_data, f, indent=2)
+    with open(val_path, 'w') as f:
+        json.dump(val_data, f, indent=2)
+    with open(test_path, 'w') as f:
+        json.dump(test_data, f, indent=2)
+    return train_path, val_path, test_path
 
 
 if __name__ == "__main__":
