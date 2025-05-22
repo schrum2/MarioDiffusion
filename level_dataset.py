@@ -85,7 +85,8 @@ def mario_tiles():
         A list of 16x16 pixel tile images for Mario.
     """
 
-    raise ValueError("Why is this being called!")
+    # DEBUGGING
+    #raise ValueError("Why is this being called!")
 
     global _sprite_sheet
 
@@ -209,12 +210,10 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
         channels = samples.shape[1]
         height = samples.shape[2]
         width = samples.shape[3]
-        print("channels, height, width", channels, height, width)
         if channels == 15 and height == 16 and width == 16:
             print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = 16
-            raise ValueError("Why is channels == 15 and height == 16 and width == 16 for Lode Runner!")
         elif channels == 10 and height == 32 and width == 32:
             print("Using Lode Runner tiles")
             tile_images = lr_tiles()
