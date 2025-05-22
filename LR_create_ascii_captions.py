@@ -214,14 +214,14 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
         x = 0
         while x < width:
             tile_char = id_to_char[scene[y][x]]
-            descriptors = tile_descriptors.get(tile_char, [])
+            descriptors = tile_descriptors.get(tile_char, set())  # Ensure this is always a set
 
             # If required, check for passable tiles above and below
             if require_above_below_not_solid:
                 # Above
                 if y > 0:
                     above_char = id_to_char[scene[y - 1][x]]
-                    if "solid" in tile_descriptors.get(above_char, []):
+                    if "solid" in tile_descriptors.get(above_char, set()):
                         x += 1
                         continue
                 else:
@@ -230,7 +230,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
                 # Below
                 if y + 1 < height:
                     below_char = id_to_char[scene[y + 1][x]]
-                    if "solid" in tile_descriptors.get(below_char, []):
+                    if "solid" in tile_descriptors.get(below_char, set()):
                         x += 1
                         continue
                 else:
@@ -242,13 +242,13 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
             run_start = x
             while x < width:
                 tile_char = id_to_char[scene[y][x]]
-                descriptors = tile_descriptors.get(tile_char, [])
+                descriptors = tile_descriptors.get(tile_char, set())
 
                 if (target_descriptor in descriptors):
                     if require_above_below_not_solid:
-                        if y > 0 and "solid" in tile_descriptors.get(id_to_char[scene[y - 1][x]], []):
+                        if y > 0 and "solid" in tile_descriptors.get(id_to_char[scene[y - 1][x]], set()):
                             break
-                        if y + 1 < height and "solid" in tile_descriptors.get(id_to_char[scene[y + 1][x]], []):
+                        if y + 1 < height and "solid" in tile_descriptors.get(id_to_char[scene[y + 1][x]], set()):
                             break
 
                     possible_locations.add( (y,x) )
@@ -259,6 +259,8 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
             if run_length >= min_run_length:
                 already_accounted.update(possible_locations) # Blocks of the line are now accounted for
                 lines.append((y, run_start, x - 1))
+            else:
+                x += 1
 
     return lines
 
@@ -308,19 +310,12 @@ def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptor
             continue
         tile = scene[row][col]
         descriptors = tile_descriptors.get(id_to_char[tile], [])
-        if "solid" not in descriptors or (not pipes and "pipe" in descriptors) or (pipes and "pipe" not in descriptors):
-            continue
 
         visited.add((row, col))
         structure.append((row, col))
 
         # Check neighbors
         for d_row, d_col in [(-1,0), (1,0), (0,-1), (0,1)]:
-            # Weird special case for adjacent pipes
-            if (id_to_char[tile] == '>' or id_to_char[tile] == ']') and d_col == 1: # if on the right edge of a pipe
-                continue # Don't go right if on the right edge of a pipe
-            if (id_to_char[tile] == '<' or id_to_char[tile] == '[') and d_col == -1: # if on the left edge of a pipe
-                continue # Don't go left if on the left edge of a pipe
 
             n_row, n_col = row + d_row, col + d_col
             if 0 <= n_row < len(scene) and 0 <= n_col < len(scene[0]):
@@ -341,9 +336,8 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
             descriptors = tile_descriptors.get(id_to_char[tile], [])
             if (not pipes and "solid" in descriptors and "pipe" not in descriptors) or (pipes and "pipe" in descriptors):
                 structure = flood_fill(scene, visited, row, col, id_to_char, tile_descriptors, already_accounted, pipes)
-                if pipes or len(structure) >= 3:  # Ignore tiny groups of blocks, but keep all pipes
+                if structure:
                     structures.append(structure)
-                    already_accounted.update(structure)
 
     return structures
 
@@ -507,14 +501,6 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         already_accounted.add((FLOOR, x))
 
     floor_row = FLOOR
-    # Check if the row above the floor is identical to the floor row.
-    # Some levels in SMB2 have a doubly thick floor.
-    # There is also a special case when pipes are embedded in a thick floor. The pipe lip makes the
-    # two rows unequal, but this is still an example of a double thick floor.
-    if scene[FLOOR] == list(map(lambda x : char_to_id['['] if x == char_to_id['<'] else char_to_id[']'] if x == char_to_id['>'] else x, scene[FLOOR - 1])):
-        floor_row = FLOOR - 1
-        for x in range(WIDTH):
-            already_accounted.add((FLOOR - 1, x))
 
     def add_to_caption(phrase, contributing_blocks):
         nonlocal caption
@@ -527,8 +513,8 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
                 details[phrase.strip()] = contributing_blocks
 
     # blank for lode runner
-    #caption = ""
-    caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
+    caption = ""
+    #caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
     # Analyze floor
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
@@ -589,10 +575,33 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     #print("after enemy", (10,0) in already_accounted)
 
-    # possibly could use for chests
     # Count gold
-    gold_phrase = count_caption_phrase(scene, [char_to_id['G']], "gold", describe_absence=describe_absence)
-    add_to_caption(gold_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['G']])
+    if 'G' in char_to_id:
+        gold_phrase = count_caption_phrase(scene, [char_to_id['G']], "gold", "gold", describe_absence=describe_absence)
+        add_to_caption(gold_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['G']])
+
+     # Count ropes
+    if '-' in char_to_id:
+        rope_phrase = count_caption_phrase(scene, [char_to_id['-']], "rope", "ropes", describe_absence=describe_absence)
+        add_to_caption(rope_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['-']])
+
+    # Count ladders
+    if '#' in char_to_id:
+        ladder_phrase = count_caption_phrase(scene, [char_to_id['#']], "ladder", "ladders", describe_absence=describe_absence)
+        add_to_caption(ladder_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['#']])
+
+    # Count player spawn (M) - only one allowed
+    if 'M' in char_to_id:
+        spawn_positions = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['M']]
+        if len(spawn_positions) == 1:
+            spawn_phrase = " one spawn point."
+        elif len(spawn_positions) == 0 and describe_absence:
+            spawn_phrase = " no spawn point."
+        elif len(spawn_positions) > 1:
+            spawn_phrase = f" {describe_quantity(len(spawn_positions)) if coarse_counts else len(spawn_positions)} spawn points."
+        else:
+            spawn_phrase = ""
+        add_to_caption(spawn_phrase, spawn_positions)
 
     # Platforms
     platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[] if ceiling_row == None else [ceiling_row])
@@ -602,9 +611,6 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
 
     # Solid structures
-
-    #print(already_accounted)
-   
 
     #print(already_accounted)
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
@@ -627,8 +633,10 @@ if __name__ == "__main__":
     def escape_path(path):
         return path.replace("\\", "\\\\")
 
-    parser.add_argument("--tileset", default=escape_path('..\\TheVGLC\\Super Mario Bros\\smb.json'), help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=escape_path('..\\TheVGLC\\Lode Runner\\Loderunner.json'), help="Descriptions of individual tile types")
     parser.add_argument("--output", required=True, help="Output JSON file path")
+    parser.add_argument('--target_height', type=int, default=32, help='Target output height (e.g., 32)')
+    parser.add_argument('--target_width', type=int, default=32, help='Target output width (e.g., 32)')
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     global args
