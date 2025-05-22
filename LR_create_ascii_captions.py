@@ -633,6 +633,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 def find_vertical_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_left_right_not_solid=False, exclude_cols = [], already_accounted = set()):
     """
     Finds vertical lines (runs) of tiles with the target descriptor.
+    Used for ladders mainly.
     Returns a list of (x, start_y, end_y) tuples
     """
     lines = []
