@@ -590,8 +590,11 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Count ladders
     if '#' in char_to_id:
-        ladder_phrase = count_caption_phrase(scene, [char_to_id['#']], "ladder", "ladders", describe_absence=describe_absence)
-        add_to_caption(ladder_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['#']])
+        ladder_lines = find_vertical_lines(
+            scene, id_to_char, tile_descriptors, target_descriptor="ladder", min_run_length=1
+        )
+        ladder_phrase = describe_vertical_lines(ladder_lines, "ladder", describe_locations, describe_absence=describe_absence)
+        add_to_caption(ladder_phrase, [(y, x) for x, start_y, end_y in ladder_lines for y in range(start_y, end_y + 1)])
 
     # Count player spawn (M) - only one allowed
     if 'M' in char_to_id:
@@ -626,6 +629,97 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     add_to_caption(loose_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['B'], char_to_id['b']] and (r, c) not in already_accounted])
 
     return (caption.strip(), details) if return_details else caption.strip()
+
+def find_vertical_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_left_right_not_solid=False, exclude_cols = [], already_accounted = set()):
+    """
+    Finds vertical lines (runs) of tiles with the target descriptor.
+    Returns a list of (x, start_y, end_y) tuples
+    """
+    lines = []
+    height = len(scene)
+    width = len(scene[0]) if height > 0 else 0
+
+    for x in range(width):
+        if x in exclude_cols:
+            continue
+        y = 0
+        while y < height:
+            tile_char = id_to_char[scene[y][x]]
+            descriptors = tile_descriptors.get(tile_char, set())
+
+            # If required, check for passable tiles left and right
+            if require_left_right_not_solid:
+                # Left
+                if x > 0:
+                    left_char = id_to_char[scene[y][x - 1]]
+                    if "solid" in tile_descriptors.get(left_char, set()):
+                        y += 1
+                        continue
+                else:
+                    y += 1
+                    continue
+                # Right
+                if x + 1 < width:
+                    right_char = id_to_char[scene[y][x + 1]]
+                    if "solid" in tile_descriptors.get(right_char, set()):
+                        y += 1
+                        continue
+                else:
+                    y += 1
+                    continue
+
+            # Start of valid run
+            possible_locations = set()
+            run_start = y
+            while y < height:
+                tile_char = id_to_char[scene[y][x]]
+                descriptors = tile_descriptors.get(tile_char, set())
+                if (target_descriptor in descriptors):
+                    if require_left_right_not_solid:
+                        if x > 0 and "solid" in tile_descriptors.get(id_to_char[scene[y][x - 1]], set()):
+                            break
+                        if x + 1 < width and "solid" in tile_descriptors.get(id_to_char[scene[y][x + 1]], set()):
+                            break
+                    possible_locations.add((y, x))
+                    y += 1
+                else:
+                    break
+            run_length = y - run_start
+            if run_length >= min_run_length:
+                already_accounted.update(possible_locations)
+                lines.append((x, run_start, y - 1))
+            else:
+                y += 1
+    return lines
+
+def describe_vertical_lines(lines, label, describe_locations, describe_absence):
+    if not lines:
+        if describe_absence:
+            return f" no {label}s."
+        else:
+            return ""
+    if describe_locations:
+        if coarse_locations:
+            location_counts = {}
+            for x, start_y, end_y in sorted(lines):
+                location_str = f"{describe_location(x, (end_y + start_y)/2.0)}"
+                if location_str in location_counts:
+                    location_counts[location_str] += 1
+                else:
+                    location_counts[location_str] = 1
+            return " " + ". ".join([f"{describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''} at {location}" for location, count in location_counts.items()]) + "."
+        else:
+            parts = []
+            for x, start_y, end_y in sorted(lines):
+                parts.append(f"{x} (rows {start_y}-{end_y})")
+            count = len(lines)
+            location_description = f"at col{'s' if pluralize and count > 1 else ''} " + ", ".join(parts)
+            plural = label + "s" if pluralize and count > 1 else label
+            return f" {describe_quantity(count) if coarse_counts else count} {plural} " + location_description + "."
+    else:
+        count = len(lines)
+        return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count != 1 else ''}."
+
 
 if __name__ == "__main__":
     import argparse
