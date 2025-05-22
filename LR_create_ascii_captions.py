@@ -582,8 +582,11 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
      # Count ropes
     if '-' in char_to_id:
-        rope_phrase = count_caption_phrase(scene, [char_to_id['-']], "rope", "ropes", describe_absence=describe_absence)
-        add_to_caption(rope_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['-']])
+        rope_lines = find_horizontal_lines(
+            scene, id_to_char, tile_descriptors, target_descriptor="rope", min_run_length=1
+        )
+        rope_phrase = describe_horizontal_lines(rope_lines, "rope", describe_locations, describe_absence=describe_absence)
+        add_to_caption(rope_phrase, [(y, x) for y, start_x, end_x in rope_lines for x in range(start_x, end_x + 1)])
 
     # Count ladders
     if '#' in char_to_id:
