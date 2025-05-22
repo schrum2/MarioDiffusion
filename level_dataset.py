@@ -16,7 +16,7 @@ import numpy as np
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
 
-def samples_to_scenes(all_samples):
+def samples_to_scenes(all_samples, block_embeddings=None):
     # Convert to list
     samples_list = [all_samples[i] for i in range(len(all_samples))]
     scenes = []
@@ -24,7 +24,7 @@ def samples_to_scenes(all_samples):
     for _, sample in enumerate(samples_list):
         # Convert to indices
         sample_tensor = sample.unsqueeze(0) # if sample.shape[0] == args.num_tiles else sample
-        sample_indices = convert_to_level_format(sample_tensor)
+        sample_indices = convert_to_level_format(sample_tensor, block_embeddings)
         
         # Add level data to the list
         scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
@@ -32,11 +32,40 @@ def samples_to_scenes(all_samples):
 
     return scenes
 
-def convert_to_level_format(sample):
-    """Convert model output to level indices"""
-    sample_indices = torch.argmax(sample, dim=1).cpu().numpy()
-    #print(sample_indices.shape)
-    return sample_indices
+def convert_to_level_format(sample, block_embeddings=None):
+    """
+    Convert model output to level indices
+    Expected input shape: [samples, channels, height, width]
+    """
+    if block_embeddings is not None:
+        # Reshape sample to [batch_size * height * width, embedding_dim]
+        batch_size, embedding_dim, height, width = sample.shape
+        flat_samples = sample.permute(0, 2, 3, 1).reshape(-1, embedding_dim)
+        
+        # Normalize vectors for cosine similarity
+        flat_samples = F.normalize(flat_samples, p=2, dim=1)
+        block_embeddings = F.normalize(block_embeddings, p=2, dim=1)
+        
+        # Calculate cosine similarity between each position and all tile embeddings
+        similarities = torch.matmul(flat_samples, block_embeddings.t())
+        
+        # Get indices of most similar tiles
+        indices = torch.argmax(similarities, dim=1)
+        
+        # Reshape back to [batch_size, height, width]
+        indices = indices.reshape(batch_size, height, width)
+        
+        return indices.cpu().numpy()
+
+        # #use cosine similarity to get the closest tile
+        # # go through samples
+        # print(sample.shape)
+        # quit()
+        # return None
+    else:
+        sample_indices = torch.argmax(sample, dim=1).cpu().numpy()
+        #print(sample_indices.shape)
+        return sample_indices
 
 def get_pil_image_from_plt(fig):
     """
@@ -171,7 +200,7 @@ def lr_tiles():
 
     return LR_tile_images
 
-def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
+def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, block_embeddings=None):
     """
     Visualize generated samples and save as images.
 
@@ -195,7 +224,8 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
         os.makedirs(output_dir, exist_ok=True)
 
     # Convert from one-hot to tile indices
-    sample_indices = []
+    # sample_indices = []
+    sample_indices = convert_to_level_format(samples, block_embeddings)
     num_samples = len(samples)
     grid_cols = min(4, num_samples)  # Limit to 4 columns
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
@@ -214,13 +244,14 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
             sample_indices.append(sample_index)
 
+        for i, sample_index in enumerate(sample_indices):
             # Create a blank image to hold the tile-based visualization
             height, width = sample_index.shape
             composite_image = Image.new('RGB', (width * tile_size, height * tile_size))
 
             for row in range(height):
                 for col in range(width):
-                    tile_id = sample_index[row, col]
+                    tile_id = int(sample_index[row, col] % len(tile_images))  # Ensure tile_id is within bounds
                     tile_image = tile_images[tile_id]
                     composite_image.paste(tile_image, (col * tile_size, row * tile_size))
 
@@ -236,9 +267,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
 
         plt.figure(figsize=(4 * grid_cols, 4 * grid_rows))  # Adjust figure size dynamically
 
-        for i, sample in enumerate(samples):
-            sample_index = torch.argmax(sample, dim=0).cpu().numpy()
-            sample_indices.append(sample_index)
+        for i, sample_index in enumerate(sample_indices):
 
             # Plot and save
             plt.subplot(grid_rows, grid_cols, i + 1)
@@ -486,7 +515,7 @@ class LevelDataset(Dataset):
             #print("after permute", one_hot_scene.shape)
 
         one_hot_scene = one_hot_scene.permute(2, 0, 1)
-        
+
         if self.mode == "diff_text":
             # Return the raw caption for the pretrained model, this should be moved up later
             #TODO: add support for negative captions
@@ -522,23 +551,38 @@ class LevelDataset(Dataset):
         Returns:
             List of lists of integers representing the original scene layout
         """
-        # Check if we have a batched input
-        is_batched = len(one_hot_scene.shape) == 4
-    
-        if is_batched:
-            print(one_hot_scene.shape)
+
+        # Change so this uses convert_to_level_format
+        if len(one_hot_scene.shape) == 4:
             raise ValueError("Call decode_scene with a single scene, not a batch")
-    
-        # Permute back to [height, width, num_tiles] format
-        one_hot_permuted = one_hot_scene.permute(1, 2, 0)
-    
-        # Get the indices (tile IDs) where the one-hot encoding has a 1
-        scene_indices = torch.argmax(one_hot_permuted, dim=2)
-    
-        # Convert to a list of lists
-        scene_list = scene_indices.tolist()
-    
+        
+        # Add batch dimension for convert_to_level_format
+        scene = one_hot_scene.unsqueeze(0)  # [1, channels, height, width]
+
+        # Use convert_to_level_format with appropriate block embeddings
+        indices = convert_to_level_format(scene, self.block_embeddings)
+
+        # Remove batch dimension and convert to list
+        scene_list = indices[0].tolist()  # [height, width]
         return scene_list
+
+        # # Check if we have a batched input
+        # is_batched = len(one_hot_scene.shape) == 4
+    
+        # if is_batched:
+        #     print(one_hot_scene.shape)
+        #     raise ValueError("Call decode_scene with a single scene, not a batch")
+    
+        # # Permute back to [height, width, num_tiles] format
+        # one_hot_permuted = one_hot_scene.permute(1, 2, 0)
+    
+        # # Get the indices (tile IDs) where the one-hot encoding has a 1
+        # scene_indices = torch.argmax(one_hot_permuted, dim=2)
+    
+        # # Convert to a list of lists
+        # scene_list = scene_indices.tolist()
+    
+        # return scene_list
 
 if __name__ == "__main__":
 
@@ -547,6 +591,50 @@ if __name__ == "__main__":
 
     tokenizer = Tokenizer()
     tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
+
+    # Load block embeddings
+    block_embeddings = torch.load('test_block2vec_save/embeddings.pt')
+
+    # Create Diffusion dataset
+    diffusion_dataset = LevelDataset(
+        'SMB1_LevelsAndCaptions-regular.json',
+        tokenizer, 
+        mode="diffusion", 
+        shuffle=False,
+        block_embeddings=block_embeddings
+    )
+
+    for i, emb in enumerate(block_embeddings):
+        print(f"Tile {i}: {emb}")
+
+    scene, caption = diffusion_dataset[0]
+    print("Diffusion Sample Shapes:", scene.shape, caption.shape) 
+    print(scene)
+    print(torch.tensor(diffusion_dataset.decode_scene(scene)))
+    print(diffusion_dataset.tokenizer.decode(caption.tolist()))
+
+    diffusion_dataloader = DataLoader(diffusion_dataset, batch_size=16, shuffle=False)
+    scenes, captions = next(iter(diffusion_dataloader))
+    print("Diffusion Batch Shapes:", scenes.shape, captions.shape) 
+
+    print(scenes[10])
+    print(torch.tensor(diffusion_dataset.decode_scene(scenes[10])))
+    print(diffusion_dataset.tokenizer.decode(captions[10].tolist()))
+
+
+    quit()
+
+
+
+
+
+
+
+
+
+
+
+
 
     negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-absence.json', tokenizer, mode="text", negative_captions=True)
     print("Negative MLM dataset size:", len(negatives_mlm_dataset))
@@ -632,9 +720,6 @@ if __name__ == "__main__":
         print(f"      NEG: {tokenizer.decode(sample[2].tolist())}")
 
     print("----------------------------------")
-
-
-    quit()
 
     # Create MLM dataset
     mlm_dataset = LevelDataset('Mario_LevelsAndCaptions.json', tokenizer, mode="mlm")

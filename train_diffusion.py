@@ -225,9 +225,8 @@ def main():
             # Load embeddings from the embeddings.pt file in the model directory
             block_embeddings = torch.load(
                 os.path.join(args.block_embedding_model_path, "embeddings.pt"),
-                map_location=accelerator.device
+                map_location='cpu'
             )
-            
             embedding_dim = block_embeddings.shape[1]
             print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
             print("Block embedding model loaded successfully.")
@@ -479,6 +478,9 @@ def main():
         train_loss = 0.0
         
         for batch in train_dataloader:
+            # Add explicit memory clearing at start of batch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             with accelerator.accumulate(model):
                 loss = process_diffusion_batch(
@@ -489,10 +491,19 @@ def main():
                 lr_scheduler.step()
                 optimizer.zero_grad()
             train_loss += loss.detach().item()
+
+
             # Update progress bar
             progress_bar.update(1)
             logs = {"loss": loss.detach().item(), "step": global_step}
             progress_bar.set_postfix(**logs)
+            
+            # Detach tensors and clear memory
+            del loss
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            
                         
             global_step += 1
         
@@ -511,6 +522,11 @@ def main():
                         args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="val"
                     )
                     val_loss += val_batch_loss.item()
+                    # Clear memory after each validation batch
+                    del val_batch_loss
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+
             val_loss /= len(val_dataloader)
 
             if args.text_conditional and args.plot_validation_caption_score:
@@ -620,42 +636,54 @@ def main():
                 if sprite_scaling_factors is not None:
                     pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
                 
+            # Ensure all processes are synchronized
+            accelerator.wait_for_everyone()
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
     
-    # Clean up plotting resources
-    if accelerator.is_local_main_process and plotter:
-        # Better thread cleanup
-        if plot_thread and plot_thread.is_alive():
-            plotter.stop_plotting()
-            plot_thread.join(timeout=5.0)
-            if plot_thread.is_alive():
-                print("Warning: Plot thread did not terminate properly")
-        if caption_score_plot_thread and caption_score_plot_thread.is_alive():
-            caption_score_plotter.stop_plotting()
-            caption_score_plot_thread.join(timeout=5.0)
-            if caption_score_plot_thread.is_alive():
-                print("Warning: Caption score plot thread did not terminate properly")
+    try:
+        # Clean up plotting resources
+        if accelerator.is_local_main_process and plotter:
+            # Better thread cleanup
+            if plot_thread and plot_thread.is_alive():
+                plotter.stop_plotting()
+                plot_thread.join(timeout=5.0)
+                if plot_thread.is_alive():
+                    print("Warning: Plot thread did not terminate properly")
+            if caption_score_plot_thread and caption_score_plot_thread.is_alive():
+                caption_score_plotter.stop_plotting()
+                caption_score_plot_thread.join(timeout=5.0)
+                if caption_score_plot_thread.is_alive():
+                    print("Warning: Caption score plot thread did not terminate properly")
 
-    # Close progress bar and TensorBoard writer
-    progress_bar.close()
-    
-    # Final model save
-    if args.text_conditional:
-        pipeline = TextConditionalDDPMPipeline(
-            unet=accelerator.unwrap_model(model), 
-            scheduler=noise_scheduler,
-            text_encoder=text_encoder,
-            tokenizer=tokenizer_hf if args.pretrained_language_model else None
-        ).to(accelerator.device)
-    else:
-        pipeline = UnconditionalDDPMPipeline(
-            unet=accelerator.unwrap_model(model), 
-            scheduler=noise_scheduler
-        )
-        if sprite_scaling_factors is not None:
-            pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+        # Force CUDA cleanup
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+
+        # Ensure all processes are synchronized
+        accelerator.wait_for_everyone()
+
+    finally:
+        # Close progress bar and TensorBoard writer
+        progress_bar.close()
         
-    pipeline.save_pretrained(args.output_dir)
+        # Final model save
+        if args.text_conditional:
+            pipeline = TextConditionalDDPMPipeline(
+                unet=accelerator.unwrap_model(model), 
+                scheduler=noise_scheduler,
+                text_encoder=text_encoder,
+                tokenizer=tokenizer_hf if args.pretrained_language_model else None
+            ).to(accelerator.device)
+        else:
+            pipeline = UnconditionalDDPMPipeline(
+                unet=accelerator.unwrap_model(model), 
+                scheduler=noise_scheduler
+            )
+            if sprite_scaling_factors is not None:
+                pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+            
+        pipeline.save_pretrained(args.output_dir)
 
 # Add function to load config from JSON
 def load_config_from_json(config_path):

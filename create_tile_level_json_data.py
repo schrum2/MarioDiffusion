@@ -22,7 +22,7 @@ def pad_and_sample(level, tile_to_id, window_size):
     height = len(level)
     width = max(len(row) for row in level)
     samples = []
-
+    
     # Iterate through the level, extracting tiles that fit entirely within bounds
     for y in range(0, height - window_size + 1):
         for x in range(0, width - window_size + 1):
@@ -33,7 +33,7 @@ def pad_and_sample(level, tile_to_id, window_size):
                     window_row.append(tile_to_id.get(level[row_idx][col_idx], -1))
                 sample.append(window_row)
             samples.append(sample)
-
+        
     return samples
 
 def main(tileset_path, levels_dir, output_path, window_size):
@@ -56,18 +56,11 @@ if __name__ == "__main__":
     parser.add_argument('--tile_size', type=int, required=False, help='Size of the tile (window) to extract')
     args = parser.parse_args()
 
-    # Prompt user for tile size if not provided
-    if args.tile_size is None:
-        while True:
-            try:
-                tile_size = int(input("Enter the tile (window) size (e.g., 16): "))
-                if tile_size > 0:
-                    break
-                else:
-                    print("Tile size must be a positive integer.")
-            except ValueError:
-                print("Please enter a valid integer.")
-    else:
-        tile_size = args.tile_size
+    # Add debug prints
+    print(f"Loading tileset from: {args.tileset}")
+    print(f"Loading levels from: {args.levels}")
+    print(f"Output will be saved to: {args.output}")
+    print(f"Using tile size: {args.tile_size}")
 
-    main(args.tileset, args.levels, args.output, tile_size)
+    # Call main with parsed arguments
+    main(args.tileset, args.levels, args.output, args.tile_size)
