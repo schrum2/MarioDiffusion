@@ -141,8 +141,8 @@ def lr_tiles():
 
     # Hardcoded coordinates for the first 10 tiles (row, col)
     LR_tile_coordinates = [
-       (12, 3),     # 0 = Ladder            done
-       (13, 4),     # 1 = Rope              done
+       (12, 4),     # 0 = Ladder            done
+       (14, 4),     # 1 = Rope              done
        (1, 1),      # 2 = Passable, Empty   done
        (2, 3),      # 3 = Solid Ground      done
        (3, 2),      # 4 = Enemy             done
