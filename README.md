@@ -74,6 +74,11 @@ These files only contains the level scenes. Create captions for all level scenes
 python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-regular.json
 ```
 
+You can also make the captions explicitly mention things that are absent from each scene with the `--describe_absence` flag:
+```
+python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-absence.json --describe_absence
+```
+
 Browse LR data with ascii browser
 ```
 python ascii_data_browser.py LR_LevelsAndCaptions-regular.json "..\\TheVGLC\\Lode Runner\\Loderunner.json"
