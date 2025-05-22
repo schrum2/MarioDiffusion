@@ -30,6 +30,7 @@ Returns a list of levels, where each level is a list of strings.
 def load_levels(levels_dir):
     levels = []
     for file in sorted(Path(levels_dir).glob("*.txt")):
+        print(f"Loading level file: {file}")
         with open(file, 'r') as f:
             level = [line.strip() for line in f if line.strip()]
             levels.append(level)
