@@ -546,7 +546,7 @@ def main():
                 avg_caption_score, _ = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
-                    output=False
+                    output=False, height=scene_height, width=scene_width
                 )
             else:
                 # Is this how this should behave in the unconditional case?
@@ -589,6 +589,8 @@ def main():
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                         num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
+                        height=scene_height,
+                        width=scene_width,
                         caption=sample_captions,
                         show_progress_bar=False,
                         negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
@@ -607,6 +609,8 @@ def main():
                 with torch.no_grad():
                     samples = pipeline(
                         batch_size=4,
+                        height=scene_height,
+                        width=scene_width,
                         generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                         num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                         output_type="tensor",
@@ -798,6 +802,11 @@ def process_diffusion_batch(
         else:
             scenes = batch
         scenes = scenes.to(accelerator.device)
+
+
+        if scenes.shape[2] != 32:
+            raise ValueError("Expected 32 for Lode Runner")
+
         timesteps = torch.randint(
             0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
         ).long()
