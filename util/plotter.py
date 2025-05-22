@@ -127,7 +127,7 @@ class Plotter:
         self.right_label = right_label
 
     def update_plot(self):
-        general_update_plot(self.log_file, self.left_key, self.right_key, self.left_label, self.right_label, self.output_png, self.fig, self.ax, self.log_dir)
+        general_update_plot(self.log_file, self.left_key, self.right_key, self.left_label, self.right_label, self.output_png, update_interval=self.update_interval)
     
     def start_plotting(self):
         """Method for plotting to run in thread"""
