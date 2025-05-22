@@ -9,7 +9,7 @@ def load_tileset(tileset_path):
     # ! is used to indicate the outside of actual level
     # and is not a tile in the tileset
     global extra_tile
-    extra_tile = '%'
+    #extra_tile = '-'
     if extra_tile not in tile_chars:
         tile_chars.append(extra_tile)
     tile_to_id = {char: idx for idx, char in enumerate(tile_chars)}
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', required=True, help='Path to the output JSON file')
     parser.add_argument('--target_height', type=int, default=16, help='Target output height (e.g., 16 or 14)')
     parser.add_argument('--target_width', type=int, default=16, help='Target output width (e.g., 16)')
-    parser.add_argument('--extra_tile', default='%', help='Padding tile character (should not be a real tile)')
+    parser.add_argument('--extra_tile', default='-', help='Padding tile character (should not be a real tile)')
     args = parser.parse_args()
     global extra_tile
     extra_tile = args.extra_tile
