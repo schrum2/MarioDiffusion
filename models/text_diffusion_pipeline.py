@@ -159,6 +159,24 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
         return sample
 
+    def _encode_token_captions(self, captions, max_length):
+        """
+        Helper method to encode and pad captions to fixed length.
+        This approach specifically applies to a text encoder that
+        creates token embeddings, like my TransformerModel
+        """
+        caption_ids = []
+        for cap in captions:
+            ids = self.tokenizer.encode(cap)
+            ids = torch.tensor(ids, device=self.device)
+            if ids.shape[0] > max_length:
+                raise ValueError(f"Caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
+            elif ids.shape[0] < max_length:
+                padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
+                ids = torch.cat([ids, padding], dim=0)
+            caption_ids.append(ids.unsqueeze(0))
+        return torch.cat(caption_ids, dim=0)
+
     def __call__(
         self,
         caption: Optional[str | list[str]] = None,
@@ -249,34 +267,18 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             if(isinstance(self.text_encoder, TransformerModel)):
                 if captions is not None:
                     max_length = self.text_encoder.max_seq_length
-                    caption_ids = []
-                    for cap in captions:
-                        ids = self.tokenizer.encode(cap)
-                        ids = torch.tensor(ids, device=self.device)
-                        if ids.shape[0] > max_length:
-                            raise ValueError(f"Caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
-                        elif ids.shape[0] < max_length:
-                            padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
-                            ids = torch.cat([ids, padding], dim=0)
-                        caption_ids.append(ids.unsqueeze(0))
-                    caption_ids = torch.cat(caption_ids, dim=0)  # (batch_size, max_length)
+    
+                    # Encode positive captions
+                    caption_ids = self._encode_token_captions(captions, max_length)
                     caption_embedding = self.text_encoder.get_embeddings(caption_ids)
 
                     # Handle negative prompt if provided
                     if negatives is not None:
                         if not self.supports_negative_prompt:
                             raise ValueError("This model was not trained with negative prompt support")
-                        negative_ids = []
-                        for neg in negatives:
-                            ids = self.tokenizer.encode(neg)
-                            ids = torch.tensor(ids, device=self.device)
-                            if ids.shape[0] > max_length:
-                                raise ValueError(f"Negative caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
-                            elif ids.shape[0] < max_length:
-                                padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
-                                ids = torch.cat([ids, padding], dim=0)
-                            negative_ids.append(ids.unsqueeze(0))
-                        negative_ids = torch.cat(negative_ids, dim=0)
+        
+                        # Encode negative captions
+                        negative_ids = self._encode_token_captions(negatives, max_length)
                         negative_embedding = self.text_encoder.get_embeddings(negative_ids)
 
                         # Get unconditional (empty) embedding
