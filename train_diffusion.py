@@ -165,7 +165,7 @@ def main():
         args.num_tiles = 15
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = 8 # TODO
+        args.num_tiles = 10 # TODO
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
     else:
         raise ValueError(f"Unknown game: {args.game}")
