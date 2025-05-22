@@ -22,7 +22,7 @@ T = TypeVar('T')
 
 #tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
 tileset_path = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     'TheVGLC',
     'Super Mario Bros',
     'smb.json'
@@ -55,7 +55,7 @@ except FileNotFoundError:
                 print(f"{indent}    └── {file}")
     except Exception as e:
         print(f"Error walking directory: {e}")
-        
+
     raise
 
 def edit_distance(level1: Sequence[Sequence[T]], level2: Sequence[Sequence[T]]) -> int:
