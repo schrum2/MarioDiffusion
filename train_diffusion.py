@@ -18,7 +18,7 @@ from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
-from create_ascii_captions import extract_tileset
+from create_ascii_captions import extract_tileset # TODO: Move this to a caption_util.py file
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 
@@ -96,6 +96,14 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
+
+    parser.add_argument(
         "--sprite_temperature_n",
         type=int,
         default=None,
@@ -152,6 +160,15 @@ def main():
         raise ValueError(f"Unknown loss type: {args.loss_type}")
     # Print the selected loss function to console
     print(f"Using loss function: {args.loss_type}")
+
+    if args.game == "Mario":
+        args.num_tiles = 15
+        args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+    elif args.game == "LR":
+        args.num_tiles = 8 # TODO
+        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
+    else:
+        raise ValueError(f"Unknown game: {args.game}")
 
     # Check if config file is provided before training loop begins
     if hasattr(args, 'config') and args.config:
