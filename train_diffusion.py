@@ -21,6 +21,47 @@ from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset # TODO: Move this to a caption_util.py file
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
+from torch.distributions import Categorical
+
+
+def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
+    """Standard MSE loss between prediction and target."""
+    return torch.nn.functional.mse_loss(pred, target)
+
+
+def reconstruction_loss(pred, target, scene_oh, noisy_scenes, timesteps=None, scheduler=None, **kwargs):
+    """
+    Reconstruction loss using negative log-likelihood (cross-entropy) as in DDPM for categorical data.
+    Args:
+        pred: predicted noise, shape [batch, classes, H, W]
+        scene_oh: original scene, one-hot, shape [batch, classes, H, W]
+        noisy_scenes: x_t, shape [batch, classes, H, W]
+        timesteps: [batch] (long tensor of timesteps for each sample)
+        scheduler: DDPMScheduler instance (needed for alphas_cumprod)
+    """
+    if timesteps is None or scheduler is None:
+        raise ValueError("timesteps and scheduler must be provided for reconstruction_loss")
+    # Get alpha_hat for each sample in the batch
+    alpha_hat = scheduler.alphas_cumprod[timesteps].to(pred.device)  # [batch]
+    sqrt_alpha_hat = torch.sqrt(alpha_hat)[:, None, None, None]      # [batch, 1, 1, 1]
+    sqrt_one_minus_alpha_hat = torch.sqrt(1. - alpha_hat)[:, None, None, None]  # [batch, 1, 1, 1]
+    # Reconstruct logits for x_0 (original image)
+    logits = (1.0 / sqrt_alpha_hat) * (noisy_scenes - sqrt_one_minus_alpha_hat * pred)  # [batch, classes, H, W]
+    # Prepare targets as class indices
+    target_indices = scene_oh.argmax(dim=1)  # [batch, H, W]
+    # Categorical expects [batch, H, W, classes]
+    logits = logits.permute(0, 2, 3, 1)  # [batch, H, W, classes]
+    dist = Categorical(logits=logits)
+    rec_loss = -dist.log_prob(target_indices).sum(dim=(1,2)).mean()
+    return rec_loss
+
+
+def combined_loss(pred, target, scene_oh=None, noisy_scenes=None, timesteps=None, scheduler=None, **kwargs):
+    """Combined MSE and reconstruction loss."""
+    mse = mse_loss(pred, target)
+    rec = reconstruction_loss(pred, target, scene_oh, noisy_scenes, timesteps=timesteps, scheduler=scheduler)
+    return mse + 0.001 * rec  # 0.001 can be made a parameter
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -28,13 +69,10 @@ def parse_args():
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
-    parser.add_argument('--split', action='store_true', help='Enable train/val/test split')
-    parser.add_argument('--train_pct', type=float, default=0.9, help='Train split percentage (default 0.8)')
-    parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
-    parser.add_argument('--test_pct', type=float, default=0.05, help='Test split percentage (default 0.15)')
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
@@ -91,8 +129,16 @@ def parse_args():
         "--loss_type",
         type=str,
         default="MSE",
-        choices=["MSE", "CROSS"],
-        help="Loss function to use: 'MSE' for mean squared error (default), 'CROSS' for cross entropy"
+        choices=["MSE", "REC", "COMBO"],
+        help="Loss function to use: 'MSE' for mean squared error (default), 'REC' for reconstuction loss, 'COMBO' for both (TODO: add weight parameter)",
+    )
+
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR"],
+        help="Which game to create a model for (affects sample style and tile count)"
     )
 
     parser.add_argument(
@@ -145,17 +191,14 @@ def main():
 
     """
         The following logic defines the loss function variable based on user input.
-        Note: The model expects one-hot encoded targets for both loss types.
-        When using --loss_type CROSS, the script expects one-hot encoded targets and will automatically convert them to class indices for cross-entropy loss.
+        Note: The model expects one-hot encoded targets for both loss types..
     """
     if args.loss_type == "MSE":
-        loss_fn = torch.nn.functional.mse_loss
-    elif args.loss_type == "CROSS":
-        def cross_entropy_loss(pred, target):
-            # pred: [batch, classes, ...], target: [batch, classes, ...] (one-hot)
-            target_indices = target.argmax(dim=1)
-            return torch.nn.functional.cross_entropy(pred, target_indices)
-        loss_fn = cross_entropy_loss
+        loss_fn = mse_loss
+    elif args.loss_type == "REC":
+        loss_fn = reconstruction_loss
+    elif args.loss_type == "COMBO":
+        loss_fn = combined_loss
     else:
         raise ValueError(f"Unknown loss type: {args.loss_type}")
     # Print the selected loss function to console
@@ -254,20 +297,20 @@ def main():
         print("No block embedding model specified. One-hot encoding enabled.")
 
     # Initialize dataset
-    if args.split:
-        train_json, val_json, test_json = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
-        train_dataset = LevelDataset(
-            json_path=train_json,
-            tokenizer=tokenizer,
-            shuffle=True,
-            mode=data_mode,
-            augment=args.augment,
-            num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training,
-            block_embeddings=block_embeddings
-        )
+    train_dataset = LevelDataset(
+        json_path=args.json,
+        tokenizer=tokenizer,
+        shuffle=True,
+        mode=data_mode,
+        augment=args.augment,
+        num_tiles=args.num_tiles,
+        negative_captions=args.negative_prompt_training,
+        block_embeddings=block_embeddings
+    )
+    val_dataset = None
+    if args.val_json is not None:
         val_dataset = LevelDataset(
-            json_path=val_json,
+            json_path=args.val_json,
             tokenizer=tokenizer,
             shuffle=False,
             mode=data_mode,
@@ -276,18 +319,6 @@ def main():
             negative_captions=args.negative_prompt_training,
             block_embeddings=block_embeddings
         )
-    else:
-        train_dataset = LevelDataset(
-            json_path=args.json,
-            tokenizer=tokenizer,
-            shuffle=True,
-            mode=data_mode,
-            augment=args.augment,
-            num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training,
-            block_embeddings=block_embeddings
-        )
-        val_dataset = None
 
     first_sample = train_dataset[0]
     scene_height = first_sample[0].shape[1]
@@ -732,33 +763,6 @@ def update_args_from_config(args, config):
             setattr(args, key, value)
     return args
 
-def split_dataset(json_path, train_pct, val_pct, test_pct):
-    """Splits the dataset into train/val/test and saves them as new JSON files."""
-    with open(json_path, 'r') as f:
-        data = json.load(f)
-    n = len(data)
-    indices = list(range(n))
-    random.shuffle(indices)
-    train_end = int(train_pct * n)
-    val_end = train_end + int(val_pct * n)
-    train_indices = indices[:train_end]
-    val_indices = indices[train_end:val_end]
-    test_indices = indices[val_end:]
-    train_data = [data[i] for i in train_indices]
-    val_data = [data[i] for i in val_indices]
-    test_data = [data[i] for i in test_indices]
-    base, ext = os.path.splitext(json_path)
-    train_path = f"{base}-train{ext}"
-    val_path = f"{base}-validate{ext}"
-    test_path = f"{base}-test{ext}"
-    with open(train_path, 'w') as f:
-        json.dump(train_data, f, indent=2)
-    with open(val_path, 'w') as f:
-        json.dump(val_data, f, indent=2)
-    with open(test_path, 'w') as f:
-        json.dump(test_data, f, indent=2)
-    return train_path, val_path, test_path
-
 def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=None):
     #Prepares the batch for training with text conditioning.
     with torch.no_grad():         
@@ -818,8 +822,10 @@ def process_diffusion_batch(
 
         noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
         target_noise = noise
-        
-        batch_loss = loss_fn(noise_pred, target_noise)
+        batch_loss = loss_fn(
+            noise_pred, target_noise, scenes_for_train, noisy_scenes,
+            timesteps=timesteps_for_train, scheduler=noise_scheduler
+        )
         return batch_loss
 
     else:
@@ -840,7 +846,10 @@ def process_diffusion_batch(
         noise = torch.randn_like(scenes)
         noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
         noise_pred = model(noisy_scenes, timesteps).sample
-        batch_loss = loss_fn(noise_pred, noise)
+        batch_loss = loss_fn(
+            noise_pred, noise, scenes, noisy_scenes,
+            timesteps=timesteps, scheduler=noise_scheduler
+        )
         return batch_loss
 
 if __name__ == "__main__":
