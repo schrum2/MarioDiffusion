@@ -141,6 +141,44 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         Returns:
             PipelineOutput containing the generated image tensor (batch_size, ...).
         """
+
+        #       I would like to simplify the code to this, but the AI suggestion didn't work, and 
+        #       I did not feel good just pasting it all in. Will need to tackle it bit by bit.
+
+        #        if caption is not None and self.text_encoder is None:
+        #            raise ValueError("Text encoder required for conditional generation")
+    
+        #        self.unet.eval()
+        #        if self.text_encoder is not None:
+        #            self.text_encoder.to(self.device)
+        #            self.text_encoder.eval()
+        #
+        #        with torch.no_grad():
+        #            # Process text inputs
+        #            captions = self.prepare_text_batch(caption, batch_size, "caption")
+        #            negatives = self.prepare_text_batch(negative_prompt, batch_size, "negative_prompt")
+         
+        #            # Get embeddings
+        #            text_embeddings = self.prepare_embeddings(captions, negatives, batch_size)
+        #            
+        #            # Set up initial latent state
+        #            sample = self.prepare_initial_sample(raw_latent_sample, input_scene, 
+        #                                              batch_size, height, width, generator)
+           
+        #            # Run diffusion process
+        #            sample = self.run_diffusion(sample, text_embeddings, num_inference_steps,
+        #                                      guidance_scale, generator, show_progress_bar,
+        #                                      has_caption=caption is not None,
+        #                                      has_negative=negative_prompt is not None)
+         
+        #            # Format output
+        #            if output_type == "tensor":
+        #                sample = F.softmax(sample, dim=1)
+        #            else:
+        #                raise ValueError(f"Unsupported output type: {output_type}")
+
+        #        return PipelineOutput(images=sample)
+
         # Validate text encoder if we need it
         if caption is not None and self.text_encoder is None:
             raise ValueError("Text encoder is required for conditional generation")
