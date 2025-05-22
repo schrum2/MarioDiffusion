@@ -185,7 +185,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, output=True):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, output=True, height=16, width=16):
     original_mode = dataloader.dataset.mode
     dataloader.dataset.mode = "text"  # Set mode to text for caption generation
 
@@ -201,6 +201,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     "caption": list(positive_captions),
                     "negative_prompt": list(negative_captions),
                     "num_inference_steps": inference_steps,
+                    "height": scene_height,
+                    "width": scene_width,
                     "guidance_scale": guidance_scale,
                     "output_type": "tensor",
                     "batch_size": len(positive_captions)
@@ -209,6 +211,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 param_values = {
                     "caption": list(batch),
                     "num_inference_steps": inference_steps,
+                    "height": scene_height,
+                    "width": scene_width,
                     "guidance_scale": guidance_scale,
                     "output_type": "tensor",
                     "batch_size": len(batch)

@@ -86,7 +86,7 @@ def get_pil_image_from_plt(fig):
 def colors():
     # Create custom colormap for integers 0-15
     colorslist = [
-        (0.8, 0.9, 1.0),    # 0 = very light blue: sky
+        (0.2, 0.3, 0.7),    # 0 = darker blue: sky
         (0.0, 0.4, 0.0),    # 1 = dark green: left upper lip of pipe
         (0.0, 0.2, 0.0),    # 2 = darker green: right upper lip of pipe
         (1.0, 0.7, 0.9),    # 3 = pink: question block with power up
@@ -113,6 +113,10 @@ def mario_tiles():
     Returns:
         A list of 16x16 pixel tile images for Mario.
     """
+
+    # DEBUGGING
+    #raise ValueError("Why is this being called!")
+
     global _sprite_sheet
 
     # Load the sprite sheet only once
@@ -134,7 +138,8 @@ def mario_tiles():
         (5,2),    # 10 = right edge of pipe body
         (4,0),    # 11 = Cannon support (should be 5,0 sometimes?)
         (7,1),    # 12 = coin
-        (0,1),    # 13 = Nothing
+        # Tile right below decides what the padded tile is (sky currently)
+        (2,5),    # 13 = Padding (sky)
         (0,6),    # 14 = Nothing
         (1,6),    # 15 = Nothing (extra just in case)
     ]
@@ -178,7 +183,8 @@ def lr_tiles():
        (5, 2),      # 5 = Gold              done
        (18, 21),    # 6 = Spawn             done
        (1, 22),     # 7 = Diggable Ground   done
-       (0,0)        # 8 = Nothing           done
+       # Tile right below decides what the padded tile is (empty space currently)
+       (1,1)        # 8 = Padding           done
 
     ]
 
@@ -231,15 +237,18 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
 
     if use_tiles:
-        # Broken if there is another 16x16 like Mario
-        # Gets which tileset to use based on the number of height
-        if samples.shape[2] == 16:
+        channels = samples.shape[1]
+        height = samples.shape[2]
+        width = samples.shape[3]
+        if height == 16 and width == 16:
+            #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = 16
-        # Broken if there is another 32x32 like Lode Runner
-        elif samples.shape[2] == 32:
+        elif height == 32 and width == 32:
+            #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
             tile_size = 8
+
         for i, sample in enumerate(samples):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
             sample_indices.append(sample_index)
