@@ -20,6 +20,46 @@ from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel
+from torch.distributions import Categorical
+
+
+def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
+    """Standard MSE loss between prediction and target."""
+    return torch.nn.functional.mse_loss(pred, target)
+
+
+def reconstruction_loss(pred, target, scene_oh, noisy_scenes, timesteps=None, scheduler=None, **kwargs):
+    """
+    Reconstruction loss using negative log-likelihood (cross-entropy) as in DDPM for categorical data.
+    Args:
+        pred: predicted noise, shape [batch, classes, H, W]
+        scene_oh: original scene, one-hot, shape [batch, classes, H, W]
+        noisy_scenes: x_t, shape [batch, classes, H, W]
+        timesteps: [batch] (long tensor of timesteps for each sample)
+        scheduler: DDPMScheduler instance (needed for alphas_cumprod)
+    """
+    if timesteps is None or scheduler is None:
+        raise ValueError("timesteps and scheduler must be provided for reconstruction_loss")
+    # Get alpha_hat for each sample in the batch
+    alpha_hat = scheduler.alphas_cumprod[timesteps].to(pred.device)  # [batch]
+    sqrt_alpha_hat = torch.sqrt(alpha_hat)[:, None, None, None]      # [batch, 1, 1, 1]
+    sqrt_one_minus_alpha_hat = torch.sqrt(1. - alpha_hat)[:, None, None, None]  # [batch, 1, 1, 1]
+    # Reconstruct logits for x_0 (original image)
+    logits = (1.0 / sqrt_alpha_hat) * (noisy_scenes - sqrt_one_minus_alpha_hat * pred)  # [batch, classes, H, W]
+    # Prepare targets as class indices
+    target_indices = scene_oh.argmax(dim=1)  # [batch, H, W]
+    # Categorical expects [batch, H, W, classes]
+    logits = logits.permute(0, 2, 3, 1)  # [batch, H, W, classes]
+    dist = Categorical(logits=logits)
+    rec_loss = -dist.log_prob(target_indices).sum(dim=(1,2)).mean()
+    return rec_loss
+
+
+def combined_loss(pred, target, scene_oh=None, noisy_scenes=None, timesteps=None, scheduler=None, **kwargs):
+    """Combined MSE and reconstruction loss."""
+    mse = mse_loss(pred, target)
+    rec = reconstruction_loss(pred, target, scene_oh, noisy_scenes, timesteps=timesteps, scheduler=scheduler)
+    return mse + 0.001 * rec  # 0.001 can be made a parameter
 
 
 def parse_args():
@@ -91,8 +131,8 @@ def parse_args():
         "--loss_type",
         type=str,
         default="MSE",
-        choices=["MSE", "CROSS"],
-        help="Loss function to use: 'MSE' for mean squared error (default), 'CROSS' for cross entropy"
+        choices=["MSE", "REC", "COMBO"],
+        help="Loss function to use: 'MSE' for mean squared error (default), 'REC' for reconstuction loss, 'COMBO' for both (TODO: add weight parameter)",
     )
 
     parser.add_argument(
@@ -137,17 +177,14 @@ def main():
 
     """
         The following logic defines the loss function variable based on user input.
-        Note: The model expects one-hot encoded targets for both loss types.
-        When using --loss_type CROSS, the script expects one-hot encoded targets and will automatically convert them to class indices for cross-entropy loss.
+        Note: The model expects one-hot encoded targets for both loss types..
     """
     if args.loss_type == "MSE":
-        loss_fn = torch.nn.functional.mse_loss
-    elif args.loss_type == "CROSS":
-        def cross_entropy_loss(pred, target):
-            # pred: [batch, classes, ...], target: [batch, classes, ...] (one-hot)
-            target_indices = target.argmax(dim=1)
-            return torch.nn.functional.cross_entropy(pred, target_indices)
-        loss_fn = cross_entropy_loss
+        loss_fn = mse_loss
+    elif args.loss_type == "REC":
+        loss_fn = reconstruction_loss
+    elif args.loss_type == "COMBO":
+        loss_fn = combined_loss
     else:
         raise ValueError(f"Unknown loss type: {args.loss_type}")
     # Print the selected loss function to console
@@ -770,8 +807,10 @@ def process_diffusion_batch(
 
         noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
         target_noise = noise
-        
-        batch_loss = loss_fn(noise_pred, target_noise)
+        batch_loss = loss_fn(
+            noise_pred, target_noise, scenes_for_train, noisy_scenes,
+            timesteps=timesteps_for_train, scheduler=noise_scheduler
+        )
         return batch_loss
 
     else:
@@ -787,7 +826,10 @@ def process_diffusion_batch(
         noise = torch.randn_like(scenes)
         noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
         noise_pred = model(noisy_scenes, timesteps).sample
-        batch_loss = loss_fn(noise_pred, noise)
+        batch_loss = loss_fn(
+            noise_pred, noise, scenes, noisy_scenes,
+            timesteps=timesteps, scheduler=noise_scheduler
+        )
         return batch_loss
 
 if __name__ == "__main__":
