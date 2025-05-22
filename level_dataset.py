@@ -211,11 +211,11 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
         height = samples.shape[2]
         width = samples.shape[3]
         if channels == 15 and height == 16 and width == 16:
-            print("Using Mario tiles")
+            #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = 16
         elif channels == 10 and height == 32 and width == 32:
-            print("Using Lode Runner tiles")
+            #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
             tile_size = 8
         else:
