@@ -301,6 +301,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
                     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
                 #Encode text
+                # TODO: Can we remove this? I'm not sure it is consistent across all models. Code is also messy
                 def encode(texts):
                     # Tokenize sentences
                     encoded_input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
