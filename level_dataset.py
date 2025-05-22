@@ -210,16 +210,14 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0):
         channels = samples.shape[1]
         height = samples.shape[2]
         width = samples.shape[3]
-        if channels == 15 and height == 16 and width == 16:
+        if height == 16 and width == 16:
             #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = 16
-        elif channels == 10 and height == 32 and width == 32:
+        elif height == 32 and width == 32:
             #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
             tile_size = 8
-        else:
-            raise ValueError(f"Unsupported sample shape or channel count: channels={channels}, height={height}, width={width}. Expected (15,16,16) for Mario or (10,32,32) for Lode Runner.")
 
         for i, sample in enumerate(samples):
             sample_index = torch.argmax(sample, dim=0).cpu().numpy()
