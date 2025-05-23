@@ -511,5 +511,8 @@ if __name__ == "__main__":
             print("Invalid file paths provided. Ignoring command-line files.")
             dataset_path = tileset_path = None
 
+    # Debugging
+    #print("dataset_path", dataset_path)
+    #print("tileset_path", tileset_path)
     app = TileViewer(dataset_path, tileset_path)
     app.mainloop()
