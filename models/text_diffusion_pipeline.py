@@ -65,7 +65,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             }, f)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_path, using_pretrained = False, **kwargs):
+    def from_pretrained(cls, pretrained_model_path, **kwargs):
         #from diffusers.utils import load_config, load_state_dict
         # Load model_index.json
         #model_index = load_config(pretrained_model_path)
