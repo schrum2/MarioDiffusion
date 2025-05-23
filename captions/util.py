@@ -172,7 +172,7 @@ def extract_tileset(tileset_path):
 
     return tile_chars, id_to_char, char_to_id, tile_descriptors
 
-def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptors, excluded, pipes=False):
+def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptors, excluded, pipes=False, target_descriptor=None):
     stack = [(start_row, start_col)]
     structure = []
 
@@ -182,8 +182,13 @@ def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptor
             continue
         tile = scene[row][col]
         descriptors = tile_descriptors.get(id_to_char[tile], [])
-        if "solid" not in descriptors or (not pipes and "pipe" in descriptors) or (pipes and "pipe" not in descriptors):
-            continue
+        # Use target_descriptor if provided, otherwise default to old solid/pipe logic
+        if target_descriptor is not None:
+            if target_descriptor not in descriptors:
+                continue
+        else:
+            if "solid" not in descriptors or (not pipes and "pipe" in descriptors) or (pipes and "pipe" not in descriptors):
+                continue
 
         visited.add((row, col))
         structure.append((row, col))
