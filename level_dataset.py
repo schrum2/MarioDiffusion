@@ -249,10 +249,6 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
             tile_images = lr_tiles()
             tile_size = 8
 
-        for i, sample in enumerate(samples):
-            sample_index = torch.argmax(sample, dim=0).cpu().numpy()
-            sample_indices.append(sample_index)
-
         for i, sample_index in enumerate(sample_indices):
             # Create a blank image to hold the tile-based visualization
             height, width = sample_index.shape
@@ -274,24 +270,25 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
         colorslist = colors()
         custom_cmap = matplotlib.colors.ListedColormap(colorslist[:15])
 
-        plt.figure(figsize=(4 * grid_cols, 4 * grid_rows))  # Adjust figure size dynamically
+        fig = plt.figure(figsize=(4 * grid_cols, 4 * grid_rows))  # Adjust figure size dynamically
+        try:
+            for i, sample_index in enumerate(sample_indices):
 
-        for i, sample_index in enumerate(sample_indices):
+                # Plot and save
+                plt.subplot(grid_rows, grid_cols, i + 1)
+                plt.imshow(sample_index, cmap=custom_cmap, vmin=0, vmax=14)  # Set vmin and vmax to ensure color mapping
+                plt.title(f"Sample {i+1}")
 
-            # Plot and save
-            plt.subplot(grid_rows, grid_cols, i + 1)
-            plt.imshow(sample_index, cmap=custom_cmap, vmin=0, vmax=14)  # Set vmin and vmax to ensure color mapping
-            plt.title(f"Sample {i+1}")
+            plt.tight_layout()
 
-        plt.tight_layout()
-
-        if output_dir:
-            plt.savefig(os.path.join(output_dir, "samples_grid.png"))
-            result = None
-        else:
-            result = get_pil_image_from_plt(plt.gcf())
-
-        plt.close()
+            if output_dir:
+                plt.savefig(os.path.join(output_dir, "samples_grid.png"))
+                result = None
+            else:
+                result = get_pil_image_from_plt(plt.gcf())
+        finally:
+            # Always close the figure, even if an error occurs
+            plt.close(fig)
 
         # Returning an image instead of saving many images
         if result:

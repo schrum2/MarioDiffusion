@@ -20,11 +20,7 @@ def parse_args():
     parser.add_argument("--update_interval", type=int, default=1.0, help="The update inteval in epochs")
     parser.add_argument("--start_point", type=int, default=None, help="The start point for the plot")
 
-
-
     return parser.parse_args()
-
-
 
 
 def main():
@@ -39,26 +35,21 @@ def main():
     update_interval = args.update_interval
     start_point = args.start_point
 
-
     general_update_plot(log_file, left_key, right_key, left_label, right_label, output_png, update_interval=update_interval, startPoint=start_point)
 
 
-
-
-
-
-def general_update_plot(log_file, left_key, right_key, left_label, right_label, output_png, update_interval=1.0, startPoint = None):
+def general_update_plot(log_file, left_key, right_key, left_label, right_label, output_png, update_interval=1.0, startPoint=None):
     log_dir = os.path.dirname(log_file)
     
-    matplotlib.use('Agg')
-        
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    if os.path.exists(log_file):
-        try:
+    # Create figure here and ensure it's closed
+    fig = plt.figure(figsize=(10, 6))
+    ax = fig.add_subplot(111)
+    
+    try:
+        if os.path.exists(log_file):
             with open(log_file, 'r') as f:
                 data = [json.loads(line) for line in f if line.strip()]
-                
+            
             if not data:
                 return
             
@@ -98,49 +89,54 @@ def general_update_plot(log_file, left_key, right_key, left_label, right_label, 
 
             # Use the stored base directory instead of getting it from log_file
             if os.path.isabs(output_png) or os.path.dirname(output_png):
-                output_path =output_png
+                output_path = output_png
             else:
                 output_path = os.path.join(log_dir, output_png)
 
-
-
             fig.savefig(output_path)
-        except (json.JSONDecodeError, ValueError) as e:
-            print(f"Error parsing log file: {e}")
+    finally:
+        plt.close(fig)  # Ensure figure is closed even if an error occurs
 
 class Plotter:
-    def __init__(self, log_file, update_interval=1.0, left_key='loss', right_key='lr', left_label='Loss', right_label='Learning Rate', output_png='training_progress.png'):
+    def __init__(self, log_file, update_interval=1.0, left_key='loss', right_key='lr', 
+                 left_label='Loss', right_label='Learning Rate', output_png='training_progress.png'):
         self.log_dir = os.path.dirname(log_file)
-
         self.log_file = log_file
         self.update_interval = update_interval
         self.running = True
         self.output_png = output_png
-
-        matplotlib.use('Agg')
-        
-        self.fig, self.ax = plt.subplots(figsize=(10, 6))
-        
         self.left_key = left_key
         self.right_key = right_key
         self.left_label = left_label
         self.right_label = right_label
+        
+        matplotlib.use('Agg')
+        
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop_plotting()
+        
+    def __del__(self):
+        self.stop_plotting()
 
     def update_plot(self):
-        general_update_plot(self.log_file, self.left_key, self.right_key, self.left_label, self.right_label, self.output_png, update_interval=self.update_interval)
+        general_update_plot(self.log_file, self.left_key, self.right_key, 
+                          self.left_label, self.right_label, self.output_png, 
+                          update_interval=self.update_interval)
     
     def start_plotting(self):
-        """Method for plotting to run in thread"""
         print("Starting plotting in background")
         while self.running:
             self.update_plot()
             time.sleep(self.update_interval)
     
     def stop_plotting(self):
-        self.running = False
-        self.update_plot()
-        plt.close(self.fig)
-        print("Plotting stopped")
+        if hasattr(self, 'running'):  # Check if already stopped
+            self.running = False
+            self.update_plot()
+            print("Plotting stopped")
 
 if __name__ == "__main__":
     main()
