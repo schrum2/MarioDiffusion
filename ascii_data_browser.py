@@ -5,7 +5,8 @@ import sys
 import os
 import level_dataset
 import torch
-from create_ascii_captions import assign_caption, extract_tileset
+from create_ascii_captions import assign_caption
+from captions.util import extract_tileset 
 import util.common_settings as common_settings
 
 class TileViewer(tk.Tk):
