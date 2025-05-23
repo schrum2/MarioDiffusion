@@ -113,6 +113,64 @@ def min_edit_distance(level: Sequence[Sequence[T]],
     except ValueError as e:
         raise ValueError("All levels in collection must have same dimensions as input level") from e
 
+def average_min_edit_distance(level_collection: List[List[List[int]]]) -> float:
+    """
+    Calculate the average minimum edit distance between each level and all other levels.
+    
+    Args:
+        level_collection: List of level layouts
+        
+    Returns:
+        Average of minimum edit distances
+    """
+    if len(level_collection) < 2:
+        raise ValueError("Need at least 2 levels to compare")
+        
+    total_min_distance = 0
+    
+    for i, level in enumerate(level_collection):
+        # Create list of all levels except current one
+        other_levels = level_collection[:i] + level_collection[i+1:]
+        min_dist = min_edit_distance(level, other_levels)
+        total_min_distance += min_dist
+        
+    return total_min_distance / len(level_collection)
+
+def test_edit_distances():
+    """Test the edit distance functions on SMB1 levels"""
+    
+    # Load some test levels
+    with open("SMB1_LevelsAndCaptions-regular.json", 'r') as f:
+        data = json.load(f)
+        levels = [entry['scene'] for entry in data if 'scene' in entry][:20]  # Take first 5 levels
+        
+    print("\nTesting edit_distance:")
+    print("-" * 30)
+    # Test edit_distance between first two levels
+    try:
+        dist = edit_distance(levels[0], levels[16])
+        print(f"Edit distance between level 0 and 1: {dist}")
+    except Exception as e:
+        print(f"Error computing edit_distance: {e}")
+        
+    print("\nTesting min_edit_distance:")
+    print("-" * 30)
+    # Test min_edit_distance for first level against others
+    try:
+        min_dist = min_edit_distance(levels[0], levels[1:])
+        print(f"Min edit distance for level 0: {min_dist}")
+    except Exception as e:
+        print(f"Error computing min_edit_distance: {e}")
+        
+    print("\nTesting average_min_edit_distance:")
+    print("-" * 30)
+    # Test average minimum edit distance across all levels
+    try:
+        avg_dist = average_min_edit_distance(levels)
+        print(f"Average minimum edit distance: {avg_dist}")
+    except Exception as e:
+        print(f"Error computing average_min_edit_distance: {e}")
+
 def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
     """
     Calculate percentage of captions mentioning a broken feature
@@ -263,6 +321,8 @@ def analyze_scene_captions_from_json(json_path: str, feature: str) -> float:
 if __name__ == "__main__":
     # Test the metrics functions
     import os
+    
+    test_edit_distances()
 
     # Use absolute paths for datasets in the MarioDiffusion directory
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
