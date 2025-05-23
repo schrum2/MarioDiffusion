@@ -264,11 +264,12 @@ if __name__ == "__main__":
     # Test the metrics functions
     import os
 
-    # Update dataset paths to match you actual files
+    # Use absolute paths for datasets in the MarioDiffusion directory
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     datasets = [
-        "SMB1_LevelsAndCaptions-regular.json",
-        "SMB2_LevelsAndCaptions-regular.json",
-        "SML_LevelsAndCaptions-regular.json",
+        os.path.join(base_dir, "broken_pipes.json"),
+        os.path.join(base_dir, "SMB2_LevelsAndCaptions-regular.json"),
+        os.path.join(base_dir, "SML_LevelsAndCaptions-regular.json"),
     ]
 
     print("Analyzing broken features:")
@@ -276,6 +277,19 @@ if __name__ == "__main__":
     
     for dataset in datasets:
         try:
+            print(f"\nAnalyzing dataset: {dataset}")
+
+            # Load and verify data
+            with open(dataset, 'r') as f:
+                data = json.load(f)
+            print(f"Found {len(data)} entries in dataset")
+            
+            # Print sample captions for debugging
+            print("\nSample captions:")
+            for entry in data[:3]:
+                if 'caption' in entry:
+                    print(f"- {entry['caption']}")
+
             # Check for broken pipes
             pipe_percentage = analyze_scene_captions_from_json(dataset, "pipe")
             print(f"{dataset} - Broken pipes: {pipe_percentage:.1f}%")
