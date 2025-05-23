@@ -393,8 +393,25 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Count gold
     if 'G' in char_to_id:
-        gold_phrase = count_caption_phrase(scene, [char_to_id['G']], "gold", "gold", describe_absence=describe_absence)
-        add_to_caption(gold_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['G']])
+        gold_lines = find_horizontal_lines(
+            scene, id_to_char, tile_descriptors, target_descriptor="gold", min_run_length=2
+        )
+        gold_line_coords = set()
+        for y, start_x, end_x in gold_lines:
+            for x in range(start_x, end_x + 1):
+                gold_line_coords.add((y, x))
+        # Describe gold lines
+        gold_line_phrase = describe_horizontal_lines(gold_lines, "gold line", describe_locations, describe_absence=describe_absence)
+        add_to_caption(gold_line_phrase, list(gold_line_coords))
+        # Now find single gold tiles (not in any gold line)
+        single_gold_coords = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row)
+                             if t == char_to_id['G'] and (r, c) not in gold_line_coords]
+        if single_gold_coords:
+            single_gold_phrase = count_caption_phrase(scene, [char_to_id['G']], "gold", "gold", describe_absence=describe_absence, exclude=gold_line_coords)
+            add_to_caption(single_gold_phrase, single_gold_coords)
+        elif describe_absence and not gold_lines:
+            # No gold at all
+            add_to_caption(" no gold.", [])
 
      # Count ropes
     if '-' in char_to_id:
