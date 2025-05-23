@@ -117,11 +117,11 @@ class SampleOutput:
         return SampleOutput(level=level)
 
     def play(self):
-        simulator = Simulator(level=self.level)
+        simulator = MMNEATSimulator(level=self.level)
         simulator.interactive()
 
     def run_astar(self, render=True):
-        simulator = Simulator(level=self.level)
+        simulator = MMNEATSimulator(level=self.level)
         simulator.astar(render)
 
 
