@@ -108,7 +108,7 @@ def min_edit_distance(level: Sequence[Sequence[T]],
         raise ValueError("Level collection cannot be empty")
         
     try:
-        distances = [edit_distance(level, other) for other in level_collection]
+        distances = [edit_distance(level, other) for other in level_collection if other != level]
         return min(distances)
     except ValueError as e:
         raise ValueError("All levels in collection must have same dimensions as input level") from e
@@ -319,47 +319,67 @@ def analyze_scene_captions_from_json(json_path: str, feature: str) -> float:
         raise
 
 if __name__ == "__main__":
-    # Test the metrics functions
-    import os
-    
-    test_edit_distances()
-
-    # Use absolute paths for datasets in the MarioDiffusion directory
+    # Base directory for datasets
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    datasets = [
-        os.path.join(base_dir, "broken_pipes.json"),
-        os.path.join(base_dir, "SMB2_LevelsAndCaptions-regular.json"),
-        os.path.join(base_dir, "SML_LevelsAndCaptions-regular.json"),
-    ]
-
-    print("Analyzing broken features:")
-    print("-" * 30)
     
-    for dataset in datasets:
+    # List of all datasets to analyze
+    datasets = [
+        ("SMB1", "SMB1_LevelsAndCaptions-regular.json"),
+        ("SMB2", "SMB2_LevelsAndCaptions-regular.json"),
+        ("SML", "SML_LevelsAndCaptions-regular.json"),
+        ("SMB1AND2", "SMB1AND2_LevelsAndCaptions-regular.json"),
+        ("Mario-All", "Mario_LevelsAndCaptions-regular.json")
+    ]
+    #TESTING FOR EDIT DISTANCE #61
+    print("Analyzing Edit Distances Across Datasets")
+    print("=" * 50)
+    
+    """
+    Expected Results (based on previous runs):
+    
+    Super Mario Bros 1:
+    - Average Edit Distance: ~10.1
+    
+    Super Mario Bros 2:
+    - Average Edit Distance: ~11.3
+    
+    Super Mario Land:
+    - Average Edit Distance: ~14.6
+
+    Combined SMB1+2:
+    - Average Edit Distance: ~10.6
+    
+    All Mario Games:
+    - Average Edit Distance: ~11.6
+    """
+    
+    for game_name, dataset_file in datasets:
+        dataset_path = os.path.join(base_dir, dataset_file)
         try:
-            print(f"\nAnalyzing dataset: {dataset}")
+            print(f"\nAnalyzing {game_name} levels:")
+            print("-" * 30)
 
-            # Load and verify data
-            with open(dataset, 'r') as f:
+            # Load dataset
+            with open(dataset_path, 'r') as f:
                 data = json.load(f)
-            print(f"Found {len(data)} entries in dataset")
-            
-            # Print sample captions for debugging
-            print("\nSample captions:")
-            for entry in data[:3]:
-                if 'caption' in entry:
-                    print(f"- {entry['caption']}")
+                levels = [entry['scene'] for entry in data if 'scene' in entry]
 
-            # Check for broken pipes
-            pipe_percentage = analyze_scene_captions_from_json(dataset, "pipe")
-            print(f"{dataset} - Broken pipes: {pipe_percentage:.1f}%")
-            
-            # Check for broken cannons
-            cannon_percentage = analyze_scene_captions_from_json(dataset, "cannon")
-            print(f"{dataset} - Broken cannons: {cannon_percentage:.1f}%")
-            
+            print(f"Loaded {len(levels)} levels")
+
+            # Continue with existing analysis
+            # dist = edit_distance(levels[0], levels[1])
+            # print(f"Edit distance (Level 0 to 1): {dist}")
+
+            # min_dist = min_edit_distance(levels[0], levels[1:])
+            # print(f"Min edit distance (Level 0): {min_dist}")
+
+            avg_dist = average_min_edit_distance(levels)
+            print(f"Average minimum edit distance: {avg_dist:.1f}")
+
         except FileNotFoundError:
-            print(f"{dataset}: File not found")
+            print(f"Dataset file not found: {dataset_file}")
         except Exception as e:
-            print(f"{dataset}: Error - {str(e)}")
-        print()
+            print(f"Error processing {game_name}: {str(e)}\n")
+            print("Stack trace:")
+            import traceback
+            traceback.print_exc()
