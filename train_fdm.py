@@ -235,6 +235,11 @@ def main():
         num_res_blocks=args.num_res_blocks,
         out_channels=args.num_tiles
     )
+
+    
+
+    
+
     model.to(accelerator.device)
 
     # if there is no block embedding model, set the channels to num_tiles

@@ -4,7 +4,6 @@ import torch
 import torch.nn.functional as F
 from typing import NamedTuple, Optional
 import os
-from diffusers import DDPMPipeline, UNet2DConditionModel, DDPMScheduler
 import json
 # Running the main at the end of this requires messing with this import
 from models.text_model import TransformerModel  
@@ -13,9 +12,34 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 from safetensors.torch import save_file, load_file
+from models.fdm import Gen
 
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
+
+#Helper methods for encoding text
+def mean_pooling(model_output, attention_mask):
+    token_embeddings = model_output.last_hidden_state
+    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+
+#Encode text
+def encode(texts, tokenizer, text_encoder, device):
+    # Tokenize sentences
+    encoded_input = tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
+    encoded_input = encoded_input.to(device)
+    # Compute token embeddings
+    with torch.no_grad():
+        model_output = text_encoder(**encoded_input, return_dict=True)
+
+    # Perform pooling
+    embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
+
+    # Normalize embeddings
+    embeddings = F.normalize(embeddings, p=2, dim=1)
+    
+    return embeddings
+
 
 
 class FDMPipeline():
@@ -27,8 +51,8 @@ class FDMPipeline():
         self.model_name = model.model_name
         self.embedding_dim = model.embedding_dim
         self.z_dim = model.z_dim
-        self.kern_size = model.filter_count
-        self.filter_count = model.kern_size
+        self.kern_size = model.kern_size
+        self.filter_count = model.filter_count
         self.num_res_blocks = model.num_res_blocks
         self.out_channels = model.out_channels
         self.device = device
@@ -91,10 +115,15 @@ class FDMPipeline():
         with open(os.path.join(pretrained_model_path, "config.json")) as f:
             config = json.load(f)
 
-        model = cls(**config)
+        model = Gen(**config)
+
+        
 
         # Load weights
+        print(f"Loading model from {os.path.join(pretrained_model_path, 'model.safetensors')}")
         state_dict = load_file(os.path.join(pretrained_model_path, "model.safetensors"))
+
+
         model.load_state_dict(state_dict)
 
 
@@ -102,6 +131,8 @@ class FDMPipeline():
         pipeline = cls(
             text_encoder=text_encoder,
             tokenizer=tokenizer,
+            model=model,
+            device=None,
             **kwargs,
         )
         return pipeline
@@ -152,33 +183,11 @@ class FDMPipeline():
                     empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
                     text_embeddings = self.text_encoder.get_embeddings(empty_ids)
             else: #Case for the pre-trained text encoder
-                def mean_pooling(model_output, attention_mask):
-                    token_embeddings = model_output.last_hidden_state
-                    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-                    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-                #Encode text
-                # TODO: Can we remove this? I'm not sure it is consistent across all models. Code is also messy
-                def encode(texts):
-                    # Tokenize sentences
-                    encoded_input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
-                    encoded_input = encoded_input.to(self.device)
-                    # Compute token embeddings
-                    with torch.no_grad():
-                        model_output = self.text_encoder(**encoded_input, return_dict=True)
-
-                    # Perform pooling
-                    embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
-
-                    # Normalize embeddings
-                    embeddings = F.normalize(embeddings, p=2, dim=1)
-                    
-                    return embeddings
                 if captions is not None:
-
-                    text_embeddings = encode(captions)
+                    text_embeddings = encode(captions, self.tokenizer, self.text_encoder, self.device)
                 else:
                     # Unconditional generation: use unconditional embeddings only
-                    text_embeddings = encode([""] * batch_size)            
+                    text_embeddings = encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)           
             
             
             if noise_vector is not None:
@@ -229,3 +238,22 @@ class FDMPipeline():
 
 
 
+if __name__ == "__main__":
+
+    import os
+    import torch
+    from level_dataset import visualize_samples
+
+
+    # Example usage
+    model_path = "SMB1-conditional-fdm-test"
+    pipe = FDMPipeline.from_pretrained(model_path)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    pipe = pipe.to(device)
+
+    output = pipe("A beautiful sunset over the mountains", batch_size=4)
+    
+
+    sample_images = visualize_samples(output.images, use_tiles=True)
+    sample_images.show()
