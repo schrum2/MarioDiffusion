@@ -201,8 +201,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     "caption": list(positive_captions),
                     "negative_prompt": list(negative_captions),
                     "num_inference_steps": inference_steps,
-                    "height": scene_height,
-                    "width": scene_width,
+                    "height": height,
+                    "width": width,
                     "guidance_scale": guidance_scale,
                     "output_type": "tensor",
                     "batch_size": len(positive_captions)
@@ -211,8 +211,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 param_values = {
                     "caption": list(batch),
                     "num_inference_steps": inference_steps,
-                    "height": scene_height,
-                    "width": scene_width,
+                    "height": height,
+                    "width": width,
                     "guidance_scale": guidance_scale,
                     "output_type": "tensor",
                     "batch_size": len(batch)
