@@ -133,7 +133,7 @@ def main():
         plotter.update_plot()
 
     # ====== Save Embeddings ======
-    output_path = os.path.join(args.output_dir, "block2vec_embeddings.pt")
+    output_path = os.path.join(args.output_dir, "embeddings.pt")
     torch.save(model.in_embed.weight.detach(), output_path)
     print(f"Embeddings saved to {output_path}")
 
