@@ -234,7 +234,8 @@ def main():
         z_dim=args.z_dim,
         kern_size=args.kern_size,
         filter_count=args.filter_count,
-        num_res_blocks=args.num_res_blocks
+        num_res_blocks=args.num_res_blocks,
+        out_channels=args.num_tiles
     )
     model.to(accelerator.device)
 
@@ -331,7 +332,7 @@ def main():
             with accelerator.accumulate(model):
                 #TODO: Calc loss
                 loss = process_fdm_batch(
-                    args, model, batch, tokenizer_hf, text_encoder, accelerator, epoch, loss_metric_train)
+                    args, model, batch, tokenizer_hf, text_encoder, accelerator, epoch)
                 accelerator.backward(loss)
                 optimizer.step()
                 optimizer.zero_grad()
@@ -511,7 +512,7 @@ def main():
     
             
 def process_fdm_batch(
-        args, model, batch, tokenizer_hf, text_encoder, accelerator, epoch, loss_metric_train
+        args, model, batch, tokenizer_hf, text_encoder, accelerator, epoch
         ):
     """
     Handles a single batch for training or validation.
@@ -526,18 +527,12 @@ def process_fdm_batch(
     scenes_for_train = scenes_for_train.to(accelerator.device)
     noisy_data = noisy_data.to(accelerator.device)
 
-    print(f"Embedding shape: {text_embeddings.shape}")
-    print(f"Scene shape: {scenes_for_train.shape}")
-    print(f"Noise shape: {noisy_data.shape}")
+    
     outputs = model(text_embeddings, noisy_data)
 
-    print(f"Output shape: {outputs.shape}")
     loss = torch.nn.NLLLoss()(torch.log(outputs), scenes_for_train.argmax(dim=1))
-
-    loss_metric_train[epoch] += loss
-
-    print(f"Epoch {epoch+1}/{epoch}, Loss: {loss_metric_train[epoch].item()}")
-    return loss_metric_train
+    
+    return loss
     #Required steps:
     #Setup model, new Gen object
     #Setup dataset

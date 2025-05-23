@@ -59,7 +59,7 @@ class ResBlock(nn.Module):
         return x1 + x
 
 class Gen(nn.Module):
-    def __init__(self, model_name, embedding_dim=384, z_dim=5, kern_size=7, filter_count=128, num_res_blocks=3):
+    def __init__(self, model_name, embedding_dim=384, z_dim=5, kern_size=7, filter_count=128, num_res_blocks=3, out_channels=16):
         super().__init__()
 
         self.embedding_dim = embedding_dim
@@ -76,7 +76,7 @@ class Gen(nn.Module):
             self.res_blocks.append(ResBlock(self.kern_size, self.filter_count, i < 2))
 
         self.padding = nn.ZeroPad2d(1)
-        self.last_conv = nn.Conv2d(in_channels=self.filter_count, out_channels=16, kernel_size=9)
+        self.last_conv = nn.Conv2d(in_channels=self.filter_count, out_channels=16, kernel_size=9, padding=3)
         self.softmax = nn.Softmax(dim=1)
 
 
