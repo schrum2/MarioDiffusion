@@ -64,6 +64,7 @@ def main():
                 raise ValueError("Empty dataset")
             first_patch = data[0]
             patch_size = len(first_patch)  # Get dimensions from first patch
+            print(len(first_patch))
             if not all(len(row) == patch_size for row in first_patch):
                 raise ValueError("Patches must be square")
             print(f"Detected patch size: {patch_size}x{patch_size}")
@@ -81,7 +82,7 @@ def main():
         os.makedirs(args.output_dir)
 
     # Load dataset
-    dataset = MarioPatchDataset(json_path=args.json_file, patch_size=args.patch_size)
+    dataset = MarioPatchDataset(json_path=args.json_file, patch_size=first_patch)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     # Determine vocab size from the dataset
