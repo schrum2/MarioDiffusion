@@ -117,15 +117,26 @@ class SampleOutput:
         return SampleOutput(level=level)
 
     def play(self):
-        simulator = MMNEATSimulator(level=self.level)
+        #simulator = MMNEATSimulator(level=self.level)
+        simulator = Simulator(level=self.level)
         simulator.interactive()
 
     def run_astar(self, render=True):
-        simulator = MMNEATSimulator(level=self.level)
+        #simulator = MMNEATSimulator(level=self.level)
+        simulator = Simulator(level=self.level)
         simulator.astar(render)
 
 
 class MMNEATSimulator:
+    """
+        The classic Mario simulator used by MarioGPT is generally,
+        better, but it doesn't return any information about
+        Mario's performance. The main point of this simulator
+        is that information about the performance of the agent
+        is printed to the console (though I still need a way
+        to caption and return that information)
+    """
+
     def __init__(self, level):
         while len(level) > 15:
             level.pop(0)
