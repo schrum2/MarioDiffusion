@@ -481,7 +481,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
                 ladder_cluster_phrase = f" one ladder cluster." if cluster_count == 1 else f" {describe_quantity(cluster_count) if coarse_counts else cluster_count} ladder clusters."
                 add_to_caption(ladder_cluster_phrase, list(ladder_cluster_coords))
         # Describe each ladder type
-        short_phrase = describe_vertical_lines(short_ladders, "lone ladder", describe_locations, describe_absence=describe_absence)
+        short_phrase = describe_vertical_lines(short_ladders, "lone ladder tile", describe_locations, describe_absence=describe_absence)
         medium_phrase = describe_vertical_lines(medium_ladders, "short ladder", describe_locations, describe_absence=describe_absence)
         tall_phrase = describe_vertical_lines(tall_ladders, "tall ladder", describe_locations, describe_absence=describe_absence)
         add_to_caption(short_phrase, [(y, x) for x, start_y, end_y in short_ladders for y in range(start_y, end_y + 1) if (y, x) not in ladder_cluster_coords])
@@ -530,7 +530,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     elif describe_absence:
         add_to_caption(" no diggable ground.", [])
 
-    # --- Empty background area detection ---
+    # --- Empty background area and chamber detection ---
     # Find all empty background areas (excluding null area if defined)
     empty_char = None
     for k, v in tile_descriptors.items():
@@ -555,11 +555,28 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
                         empty_areas.append(set(area))
         # Only count areas not in null_area
         empty_areas = [area for area in empty_areas if not area.issubset(null_area)]
-        if empty_areas:
-            count = len(empty_areas)
+        chambers = []
+        non_chamber_empty_areas = []
+        for area in empty_areas:
+            # Chamber: does not touch boundary or null_area
+            touches_boundary = any(y == 0 or y == height-1 or x == 0 or x == width-1 for (y, x) in area)
+            touches_null = any((y, x) in null_area for (y, x) in area)
+            if not touches_boundary and not touches_null:
+                chambers.append(area)
+            else:
+                non_chamber_empty_areas.append(area)
+        if chambers:
+            count = len(chambers)
+            phrase = f" one chamber." if count == 1 else f" {describe_quantity(count) if coarse_counts else count} chambers."
+            all_coords = set()
+            for area in chambers:
+                all_coords.update(area)
+            add_to_caption(phrase, list(all_coords))
+        if non_chamber_empty_areas:
+            count = len(non_chamber_empty_areas)
             phrase = f" one empty background area." if count == 1 else f" {describe_quantity(count) if coarse_counts else count} empty background areas."
             all_coords = set()
-            for area in empty_areas:
+            for area in non_chamber_empty_areas:
                 all_coords.update(area)
             add_to_caption(phrase, list(all_coords))
 
