@@ -409,8 +409,25 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         ladder_lines = find_vertical_lines(
             scene, id_to_char, tile_descriptors, target_descriptor="ladder", min_run_length=1
         )
-        ladder_phrase = describe_vertical_lines(ladder_lines, "ladder", describe_locations, describe_absence=describe_absence)
-        add_to_caption(ladder_phrase, [(y, x) for x, start_y, end_y in ladder_lines for y in range(start_y, end_y + 1)])
+        # Classify ladders by height
+        short_ladders = []
+        medium_ladders = []
+        tall_ladders = []
+        for x, start_y, end_y in ladder_lines:
+            height = end_y - start_y + 1
+            if height == 1:
+                short_ladders.append((x, start_y, end_y))
+            elif 2 <= height <= 4:
+                medium_ladders.append((x, start_y, end_y))
+            elif height >= 5:
+                tall_ladders.append((x, start_y, end_y))
+        # Describe each ladder type
+        short_phrase = describe_vertical_lines(short_ladders, "short ladder", describe_locations, describe_absence=describe_absence)
+        medium_phrase = describe_vertical_lines(medium_ladders, "medium ladder", describe_locations, describe_absence=describe_absence)
+        tall_phrase = describe_vertical_lines(tall_ladders, "tall ladder", describe_locations, describe_absence=describe_absence)
+        add_to_caption(short_phrase, [(y, x) for x, start_y, end_y in short_ladders for y in range(start_y, end_y + 1)])
+        add_to_caption(medium_phrase, [(y, x) for x, start_y, end_y in medium_ladders for y in range(start_y, end_y + 1)])
+        add_to_caption(tall_phrase, [(y, x) for x, start_y, end_y in tall_ladders for y in range(start_y, end_y + 1)])
 
     # Count player spawn (M) - only one allowed
     if 'M' in char_to_id:
