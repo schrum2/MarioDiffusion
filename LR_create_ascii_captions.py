@@ -2,7 +2,7 @@ import json
 import sys
 import os
 from collections import Counter
-from captions.util import extract_tileset, describe_size, describe_quantity, get_tile_descriptors, analyze_floor, count_in_scene, count_caption_phrase, in_column, analyze_ceiling
+from captions.util import extract_tileset, describe_size, describe_quantity, get_tile_descriptors, analyze_floor, count_in_scene, count_caption_phrase, in_column, analyze_ceiling, flood_fill
 
 # The width of generated scenes may not be 16
 #WIDTH = 16
@@ -158,30 +158,6 @@ def describe_horizontal_lines(lines, label, describe_locations, describe_absence
     else: # Not describing locations at all
         count = len(lines)
         return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count != 1 else ''}."
-
-
-def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptors, excluded, pipes=False):
-    stack = [(start_row, start_col)]
-    structure = []
-
-    while stack:
-        row, col = stack.pop()
-        if (row, col) in visited or (row, col) in excluded:
-            continue
-        tile = scene[row][col]
-        descriptors = tile_descriptors.get(id_to_char[tile], [])
-
-        visited.add((row, col))
-        structure.append((row, col))
-
-        # Check neighbors
-        for d_row, d_col in [(-1,0), (1,0), (0,-1), (0,1)]:
-
-            n_row, n_col = row + d_row, col + d_col
-            if 0 <= n_row < len(scene) and 0 <= n_col < len(scene[0]):
-                stack.append((n_row, n_col))
-
-    return structure
 
 def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes = False):
     """Find unaccounted solid block structures"""
