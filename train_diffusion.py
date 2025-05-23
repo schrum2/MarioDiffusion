@@ -828,10 +828,6 @@ def process_diffusion_batch(
             scenes = batch
         scenes = scenes.to(accelerator.device)
 
-
-        if scenes.shape[2] != 32:
-            raise ValueError("Expected 32 for Lode Runner")
-
         timesteps = torch.randint(
             0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
         ).long()
