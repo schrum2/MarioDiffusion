@@ -6,8 +6,8 @@ from captions.util import extract_tileset, describe_size, describe_quantity, get
 
 # The width of generated scenes may not be 16
 #WIDTH = 16
-# height is 22 for Lode Runner
-HEIGHT = 22
+# height is 32 for Lode Runner
+HEIGHT = 32
 
 # The floor is the last row of the scene (0-indexed)
 FLOOR = HEIGHT - 1
@@ -481,7 +481,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
                 ladder_cluster_phrase = f" one ladder cluster." if cluster_count == 1 else f" {describe_quantity(cluster_count) if coarse_counts else cluster_count} ladder clusters."
                 add_to_caption(ladder_cluster_phrase, list(ladder_cluster_coords))
         # Describe each ladder type
-        short_phrase = describe_vertical_lines(short_ladders, "lone ladder tile", describe_locations, describe_absence=describe_absence)
+        short_phrase = describe_vertical_lines(short_ladders, "lone ladder", describe_locations, describe_absence=describe_absence)
         medium_phrase = describe_vertical_lines(medium_ladders, "short ladder", describe_locations, describe_absence=describe_absence)
         tall_phrase = describe_vertical_lines(tall_ladders, "tall ladder", describe_locations, describe_absence=describe_absence)
         add_to_caption(short_phrase, [(y, x) for x, start_y, end_y in short_ladders for y in range(start_y, end_y + 1) if (y, x) not in ladder_cluster_coords])
