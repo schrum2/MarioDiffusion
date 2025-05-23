@@ -86,12 +86,12 @@ python ascii_data_browser.py LR_LevelsAndCaptions-regular.json "..\\TheVGLC\\Lod
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --augment --output_dir "LR-unconditional" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --split --num_tiles 10 --batch_size 5 --game LR
+python train_diffusion.py --augment --output_dir "LR-unconditional-regular" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --split --num_tiles 10 --batch_size 5 --game LR
 ```
 
 Run trained unconditional diffusion model and save 100 random levels to json:
 ```
-python run_diffusion.py --model_path LR-unconditional --num_samples 100 --save_as_json --output_dir "LR-unconditional-samples"
+python run_diffusion.py --model_path LR-unconditional-regular --num_samples 100 --save_as_json --output_dir "LR-unconditional-regular-samples" --game LR
 ```
 
 ## Train text encoder
