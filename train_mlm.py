@@ -195,7 +195,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
         if args.save_checkpoints and args.checkpoint_freq > 0 and (epoch + 1) % args.checkpoint_freq == 0:
             # Evaluate model on train and validation sets
             train_accuracy, train_correct, train_total = evaluate_model(model, tokenizer, train_loader, device, console_output=False)
-            val_accuracy = None
+            val_accuracy = float("nan")
             if val_loader is not None:
                 val_accuracy, val_correct, val_total = evaluate_model(model, tokenizer, val_loader, device, console_output=False)
             
