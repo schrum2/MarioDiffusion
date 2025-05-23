@@ -4,9 +4,10 @@ import torch
 import numpy as np
 from models.wgan_model import WGAN_Generator
 from tokenizer import Tokenizer
-from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
+from level_dataset import visualize_samples, samples_to_scenes
 import random
-from create_ascii_captions import assign_caption, get_tile_descriptors, save_level_data
+from create_ascii_captions import save_level_data
+import util.common_settings as common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate samples from a trained WGAN generator")
@@ -58,8 +59,8 @@ def main():
     tokenizer = Tokenizer()
     tokenizer.load(args.pkl)
     
-    # Set input image size (16x16 for your level data)
-    isize = 16
+    # Set input image size (assumes square)
+    isize = common_settings.MARIO_HEIGHT
     
     # Initialize generator
     netG = WGAN_Generator(isize, args.nz, args.num_tiles, args.ngf, n_extra_layers=args.n_extra_layers)

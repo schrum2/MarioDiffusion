@@ -184,8 +184,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         generator: Optional[torch.Generator] = None,
         num_inference_steps: int = common_settings.NUM_INFERENCE_STEPS,
         guidance_scale: float = common_settings.GUIDANCE_SCALE,
-        height: int = 16,
-        width: int = 16,
+        height: int = common_settings.MARIO_HEIGHT,
+        width: int = common_settings.MARIO_WIDTH,
         raw_latent_sample: Optional[torch.FloatTensor] = None,
         input_scene: Optional[torch.Tensor] = None,
         output_type: str = "tensor",
@@ -399,33 +399,3 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         else:
             print("No text encoder is set.")
 
-if __name__ == "__main__":
-    import os
-    import torch
-    from level_dataset import visualize_samples
-
-    # This won't run unless some imports at the top of the file are modified
-
-    # Set up the pipeline
-    model_path = "prev-cond-model"
-    pipe = TextConditionalDDPMPipeline.from_pretrained(model_path)
-    
-    # Move to GPU if available
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    pipe = pipe.to(device)
-
-    # Generate with test prompt
-    output = pipe(
-        caption="full floor. two pipes.",
-        num_inference_steps=50,
-        guidance_scale=7.5,
-        height=16,
-        width=16,
-    )
-
-    # Convert output to proper format for visualization
-    sample_images = visualize_samples(output.images, use_tiles=True)
-    sample_images.show()
-
-    # The visualize_samples function will save the image and also return the tile indices
-    print("Generation complete! Check the generated image.")

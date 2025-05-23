@@ -30,7 +30,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 "guidance_scale": float
             },
             default_parameters={
-                "width": 16,
+                "width": common_settings.MARIO_WIDTH,
                 "start_seed": 1,
                 "end_seed": 1,  # Will be set to start_seed if blank
                 "num_inference_steps": common_settings.NUM_INFERENCE_STEPS,
@@ -71,7 +71,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         # Use the new function to process scene segments
         average_score, segment_captions, segment_scores = process_scene_segments(
             scene=scene,
-            segment_width=16,
+            segment_width=common_settings.MARIO_WIDTH,
             prompt=param_values.get("caption", ""),
             id_to_char=self.id_to_char,
             char_to_id=self.char_to_id,

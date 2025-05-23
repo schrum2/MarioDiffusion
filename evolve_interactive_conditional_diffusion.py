@@ -6,7 +6,7 @@ import argparse
 import torch
 from evolution.genome import LatentGenome
 from create_ascii_captions import assign_caption
-from evolution.image_grid import ImageGridViewer
+import util.common_settings as common_settings
 
 class TextDiffusionEvolver(Evolver):
     def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json', args = None):
@@ -22,7 +22,7 @@ class TextDiffusionEvolver(Evolver):
 
     def random_latent(self, seed=1):
         # Create the initial noise latents (this is what the pipeline does internally)
-        height = 16
+        height = common_settings.MARIO_HEIGHT
         width = self.width
         num_channels_latents = len(self.id_to_char)
         latents_shape = (1, num_channels_latents, height, width)
@@ -80,7 +80,7 @@ def parse_args():
     parser.add_argument("--tileset_path", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
-    parser.add_argument("--width", type=int, default=16, help="Tile width of generated level")
+    parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Tile width of generated level")
 
     return parser.parse_args()
 

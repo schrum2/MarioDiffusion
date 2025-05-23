@@ -3,8 +3,6 @@ import sys
 import os
 from collections import Counter
 
-# The width of generated scenes may not be 16
-#WIDTH = 16
 # height is 22 for Lode Runner
 HEIGHT = 22
 

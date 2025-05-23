@@ -79,13 +79,6 @@ def generate_levels(args):
                 output_type="tensor"
             ).images
 
-            #for i in range(16):
-            #    for j in range(16):
-            #        values = samples[0, :, i, j]  # Get channel values at (i, j)
-            #        values = torch.tensor(values)
-            #        max_idx = torch.argmax(values).item()
-            #        print(f"({i},{j}): max idx={max_idx}, values={values.cpu().detach().numpy()}")
-
             all_samples.append(samples)
 
             # Create a unique subdirectory for each batch

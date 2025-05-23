@@ -2,17 +2,14 @@ import json
 import sys
 import os
 from collections import Counter
-
-# The width of generated scenes may not be 16
-#WIDTH = 16
-HEIGHT = 16
+import util.common_settings as common_settings
 
 # The floor is the last row of the scene (0-indexed)
-FLOOR = HEIGHT - 1
-CEILING = 4
+FLOOR = common_settings.MARIO_HEIGHT - 1
+CEILING = common_settings.MARIO_HEIGHT - 12 #  4
 
 # This is used for describing locations, but it doesn't work well
-STANDARD_WIDTH = 16
+STANDARD_WIDTH = common_settings.MARIO_WIDTH
 
 LEFT = STANDARD_WIDTH / 3
 RIGHT = STANDARD_WIDTH - LEFT
