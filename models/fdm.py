@@ -68,6 +68,7 @@ class Gen(nn.Module):
         self.filter_count = filter_count
         self.kern_size = kern_size
         self.num_res_blocks = num_res_blocks
+        self.out_channels = out_channels
 
         self.lin1 = nn.Linear(self.embedding_dim + self.z_dim, self.filter_count * 4 * 4)
 
@@ -76,7 +77,7 @@ class Gen(nn.Module):
             self.res_blocks.append(ResBlock(self.kern_size, self.filter_count, i < 2))
 
         self.padding = nn.ZeroPad2d(1)
-        self.last_conv = nn.Conv2d(in_channels=self.filter_count, out_channels=16, kernel_size=9, padding=3)
+        self.last_conv = nn.Conv2d(in_channels=self.filter_count, out_channels=self.out_channels, kernel_size=9, padding=3)
         self.softmax = nn.Softmax(dim=1)
 
 
