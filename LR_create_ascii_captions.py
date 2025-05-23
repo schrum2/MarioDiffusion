@@ -198,12 +198,11 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
         attached_to_ceiling = any(r == ceiling_row for r, c in struct)
         in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
 
+        # Remove towers from captions by skipping them
         if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
-           desc = "tower"
+            continue  # skip towers
         elif all((r, c) in struct for r in range(min_row, max_row + 1) for c in range(min_col, max_col + 1)):
             desc = "rectangular block cluster"
-            #elif not attached_to_ceiling and width >= 3 and height <= 2 and in_contact_with_floor:
-            #    desc = "wall"
         else:
             desc = "irregular block cluster"
 
@@ -239,11 +238,9 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
             # Pluralize the first word
             words = desc.split()
             for i in range(len(words)):
-                if words[i] == "tower":
-                    words[i] = "towers"
                 #elif words[i] == "wall":
                 #    words[i] = "walls"
-                elif words[i] == "cluster":
+                if words[i] == "cluster":
                     words[i] = "clusters"
             phrase = f" {describe_quantity(count)} " + " ".join(words)
         
@@ -251,7 +248,7 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
 
     # Handle absence descriptions if needed
     if describe_absence:
-        absent_types = {"tower": set(), "rectangular block cluster": set(), "irregular block cluster": set()}
+        absent_types = {"rectangular block cluster": set(), "irregular block cluster": set()}
         described_types = desc_to_structs.keys()
         
         for absent_type in absent_types:
@@ -475,9 +472,19 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     for phrase, coords in structure_phrase:
         add_to_caption(phrase, coords)
 
-    #print(already_accounted)
-    loose_block_phrase = count_caption_phrase(scene, [char_to_id['B'], char_to_id['b']], "loose block", "loose blocks", describe_absence=describe_absence, exclude=already_accounted)
-    add_to_caption(loose_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['B'], char_to_id['b']] and (r, c) not in already_accounted])
+    # Distinguish between solid ground (B) and solid diggable ground (b)
+    solid_ground_coords = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id.get('B') and (r, c) not in already_accounted]
+    diggable_ground_coords = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id.get('b') and (r, c) not in already_accounted]
+    if solid_ground_coords:
+        solid_ground_phrase = count_caption_phrase(scene, [char_to_id['B']], "solid ground", "solid ground", describe_absence=describe_absence, exclude=already_accounted)
+        add_to_caption(solid_ground_phrase, solid_ground_coords)
+    elif describe_absence:
+        add_to_caption(" no solid ground.", [])
+    if diggable_ground_coords:
+        diggable_ground_phrase = count_caption_phrase(scene, [char_to_id['b']], "diggable ground", "diggable ground", describe_absence=describe_absence, exclude=already_accounted)
+        add_to_caption(diggable_ground_phrase, diggable_ground_coords)
+    elif describe_absence:
+        add_to_caption(" no diggable ground.", [])
 
     return (caption.strip(), details) if return_details else caption.strip()
 
