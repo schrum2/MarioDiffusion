@@ -171,3 +171,33 @@ def extract_tileset(tileset_path):
         #print(f"tile_descriptors: {tile_descriptors}")
 
     return tile_chars, id_to_char, char_to_id, tile_descriptors
+
+def flood_fill(scene, visited, start_row, start_col, id_to_char, tile_descriptors, excluded, pipes=False):
+    stack = [(start_row, start_col)]
+    structure = []
+
+    while stack:
+        row, col = stack.pop()
+        if (row, col) in visited or (row, col) in excluded:
+            continue
+        tile = scene[row][col]
+        descriptors = tile_descriptors.get(id_to_char[tile], [])
+        if "solid" not in descriptors or (not pipes and "pipe" in descriptors) or (pipes and "pipe" not in descriptors):
+            continue
+
+        visited.add((row, col))
+        structure.append((row, col))
+
+        # Check neighbors
+        for d_row, d_col in [(-1,0), (1,0), (0,-1), (0,1)]:
+            # Weird special case for adjacent pipes
+            if (id_to_char[tile] == '>' or id_to_char[tile] == ']') and d_col == 1: # if on the right edge of a pipe
+                continue # Don't go right if on the right edge of a pipe
+            if (id_to_char[tile] == '<' or id_to_char[tile] == '[') and d_col == -1: # if on the left edge of a pipe
+                continue # Don't go left if on the left edge of a pipe
+
+            n_row, n_col = row + d_row, col + d_col
+            if 0 <= n_row < len(scene) and 0 <= n_col < len(scene[0]):
+                stack.append((n_row, n_col))
+
+    return structure
