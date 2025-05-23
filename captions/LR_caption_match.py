@@ -10,7 +10,8 @@ TOPIC_KEYWORDS = [
     "gold line", "gold",
     "platform", #"wall",  
     "ladder cluster",
-    "lone ladder", "short ladder", "tall ladder",
+    "lone ladder tile", "short ladder", "tall ladder",
+    "chamber",
     "rope",
     "rectangular",
     "irregular", 
@@ -22,9 +23,10 @@ TOPIC_KEYWORDS = [
 
 KEYWORD_TO_NEGATED_PLURAL = [
     ("ladder cluster.", "ladder clusters."),
-    ("lone ladder.", "lone ladders."),
+    ("lone ladder tile.", "lone ladders tiles."),
     ("short ladder.", "short ladders."),
     ("tall ladder.", "tall ladders."),
+    ("chamber.", "chambers."),
     ("rope", "ropes"),
     ("platform", "platforms"),
     ("enem", "enemies"),
