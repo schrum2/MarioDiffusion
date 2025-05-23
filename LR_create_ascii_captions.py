@@ -439,8 +439,8 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
             elif height >= 5:
                 tall_ladders.append((x, start_y, end_y))
         # Describe each ladder type
-        short_phrase = describe_vertical_lines(short_ladders, "short ladder", describe_locations, describe_absence=describe_absence)
-        medium_phrase = describe_vertical_lines(medium_ladders, "medium ladder", describe_locations, describe_absence=describe_absence)
+        short_phrase = describe_vertical_lines(short_ladders, "lone ladder tile", describe_locations, describe_absence=describe_absence)
+        medium_phrase = describe_vertical_lines(medium_ladders, "short ladder", describe_locations, describe_absence=describe_absence)
         tall_phrase = describe_vertical_lines(tall_ladders, "tall ladder", describe_locations, describe_absence=describe_absence)
         add_to_caption(short_phrase, [(y, x) for x, start_y, end_y in short_ladders for y in range(start_y, end_y + 1)])
         add_to_caption(medium_phrase, [(y, x) for x, start_y, end_y in medium_ladders for y in range(start_y, end_y + 1)])
