@@ -142,14 +142,6 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--game",
-        type=str,
-        default="Mario",
-        choices=["Mario", "LR"],
-        help="Which game to create a model for (affects sample style and tile count)"
-    )
-
-    parser.add_argument(
         "--sprite_temperature_n",
         type=int,
         default=None,
