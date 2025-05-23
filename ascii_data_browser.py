@@ -6,6 +6,7 @@ import os
 import level_dataset
 import torch
 from create_ascii_captions import assign_caption
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset 
 import util.common_settings as common_settings
 
@@ -46,14 +47,30 @@ class TileViewer(tk.Tk):
         if not self.dataset:
             return
         sample = self.dataset[self.current_sample_idx]
-        caption, details = assign_caption(sample['scene'], 
-                                       self.id_to_char, 
-                                       self.char_to_id, 
-                                       self.tile_descriptors, 
-                                       describe_locations=False, #self.describe_locations.get(), 
-                                       describe_absence=self.describe_absence.get(), 
-                                       debug=True, 
-                                       return_details=True)
+        # Example: check for Lode Runner by a property or filename
+        if hasattr(self, "is_lode_runner") and self.is_lode_runner:
+            caption, details = lr_assign_caption(
+                sample['scene'],
+                self.id_to_char,
+                self.char_to_id,
+                self.tile_descriptors,
+                describe_locations=False,
+                describe_absence=self.describe_absence.get(),
+                debug=True,
+                return_details=True
+            )
+        # If not Lode Runner than Mario
+        else:
+            caption, details = assign_caption(
+                sample['scene'],
+                self.id_to_char,
+                self.char_to_id,
+                self.tile_descriptors,
+                describe_locations=False,
+                describe_absence=self.describe_absence.get(),
+                debug=True,
+                return_details=True
+            )
         sample['caption'] = caption
         sample['details'] = details
         print(f"New caption: {caption}")
@@ -165,6 +182,12 @@ class TileViewer(tk.Tk):
 
     def load_files_from_paths(self, dataset_path, tileset_path):
         try:
+            # Set Lode Runner flag based on filename
+            lr_flag = ("lr" in os.path.basename(dataset_path).lower() or
+                       "lode" in os.path.basename(dataset_path).lower() or
+                       "lr" in os.path.basename(tileset_path).lower() or
+                       "lode" in os.path.basename(tileset_path).lower())
+            self.is_lode_runner = lr_flag
             with open(dataset_path, 'r') as f:
                 self.dataset = json.load(f)
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
@@ -294,8 +317,15 @@ class TileViewer(tk.Tk):
 
         # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
         from captions.caption_match import TOPIC_KEYWORDS
+        from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
         import colorsys
         # Generate a palette of distinct colors algorithmically
+        # See if running Lode Runner
+        if hasattr(self, "is_lode_runner") and self.is_lode_runner:
+            TOPIC_KEYWORDS = LR_TOPIC_KEYWORDS
+        # If not Lode Runner, use the default topic keywords of Mario
+        else:
+            TOPIC_KEYWORDS = TOPIC_KEYWORDS
         num_topics = len(TOPIC_KEYWORDS)
         topic_colors = {}
         for i, topic in enumerate(TOPIC_KEYWORDS):
