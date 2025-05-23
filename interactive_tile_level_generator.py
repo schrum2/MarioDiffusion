@@ -409,8 +409,24 @@ Average Segment Score: {avg_segment_score}"""
     def save_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            level = self.get_sample_output(scene)
-            level.save("ComposedLevel.txt")
+            # Always open in the current working directory or a subfolder
+            initial_dir = os.path.join(os.getcwd(), "Composed Levels")
+            os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
+
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt")],
+                title="Save Composed Level As",
+                initialdir=initial_dir
+            )
+            if file_path:
+                level = self.get_sample_output(scene)
+                level.save(file_path)
+                print(f"Composed level saved to {file_path}")
+            else:
+                print("Save operation cancelled.")
+        else:
+            print("No composed scene to save.")
 
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
