@@ -530,6 +530,39 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     elif describe_absence:
         add_to_caption(" no diggable ground.", [])
 
+    # --- Empty background area detection ---
+    # Find all empty background areas (excluding null area if defined)
+    empty_char = None
+    for k, v in tile_descriptors.items():
+        if "empty" in v:
+            empty_char = k
+            break
+    if empty_char is not None:
+        empty_id = char_to_id[empty_char]
+        height = len(scene)
+        width = len(scene[0])
+        visited = set()
+        # Define null_area as the top 10 rows
+        null_area = set((y, x) for y in range(10) for x in range(width))
+        empty_areas = []
+        for y in range(height):
+            for x in range(width):
+                if (y, x) in visited or (y, x) in null_area:
+                    continue
+                if scene[y][x] == empty_id:
+                    area = flood_fill(scene, visited, y, x, id_to_char, tile_descriptors, null_area, False, target_descriptor="empty")
+                    if area:
+                        empty_areas.append(set(area))
+        # Only count areas not in null_area
+        empty_areas = [area for area in empty_areas if not area.issubset(null_area)]
+        if empty_areas:
+            count = len(empty_areas)
+            phrase = f" one empty background area." if count == 1 else f" {describe_quantity(count) if coarse_counts else count} empty background areas."
+            all_coords = set()
+            for area in empty_areas:
+                all_coords.update(area)
+            add_to_caption(phrase, list(all_coords))
+
     return (caption.strip(), details) if return_details else caption.strip()
 
 def find_vertical_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_left_right_not_solid=False, exclude_cols = [], already_accounted = set()):
