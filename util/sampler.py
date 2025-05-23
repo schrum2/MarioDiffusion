@@ -127,6 +127,11 @@ class SampleOutput:
 
 class MMNEATSimulator:
     def __init__(self, level):
+        while len(level) > 15:
+            level.pop(0)
+        # For some reason, my older A* agent
+        # crashes on Mario levels with 16 rows or more
+
         self.level = level
         self.jar_path = "MarioEval.jar"
 
