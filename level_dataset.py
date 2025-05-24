@@ -233,6 +233,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
     # Convert from one-hot to tile indices
     # sample_indices = []
     sample_indices = convert_to_level_format(samples, block_embeddings)
+    #print(sample_indices.shape)
     num_samples = len(samples)
     grid_cols = min(4, num_samples)  # Limit to 4 columns
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
@@ -600,7 +601,7 @@ if __name__ == "__main__":
     tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
 
     # Load block embeddings
-    block_embeddings = torch.load('test_block2vec_save/embeddings.pt')
+    block_embeddings = torch.load('SMB1-block2vec-embeddings/embeddings.pt')
 
     # Create Diffusion dataset
     diffusion_dataset = LevelDataset(
@@ -627,6 +628,9 @@ if __name__ == "__main__":
     print(scenes[10])
     print(torch.tensor(diffusion_dataset.decode_scene(scenes[10])))
     print(diffusion_dataset.tokenizer.decode(captions[10].tolist()))
+
+    print(scenes.shape)
+    image = visualize_samples(scenes, output_dir="TEMP", use_tiles=True, start_index=0, block_embeddings=block_embeddings)
 
 
     quit()
