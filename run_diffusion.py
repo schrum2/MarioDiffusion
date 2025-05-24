@@ -10,6 +10,9 @@ from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from create_ascii_captions import save_level_data
 import util.common_settings as common_settings
 
+global height
+global width
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")
     
@@ -22,6 +25,16 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
+
+    # Hopefully always the user to specify the game they wish to run diffusion on
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
+
 
     # Used to generate captions when generating images
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
@@ -53,11 +66,21 @@ def generate_levels(args):
     else:
         pipeline = UnconditionalDDPMPipeline.from_pretrained(args.model_path)
     pipeline.to(device)
-    
+
     # Determine number of tiles from model
     num_tiles = pipeline.unet.config.in_channels
     print(f"Model configured for {num_tiles} tile types")
-    
+
+    # Get scene size from model config
+    if hasattr(pipeline.unet.config, 'sample_size'):
+        if isinstance(pipeline.unet.config.sample_size, (tuple, list)):
+            scene_height, scene_width = pipeline.unet.config.sample_size
+        else:
+            scene_height = scene_width = pipeline.unet.config.sample_size
+    else:
+        raise ValueError("Model config does not have sample_size attribute.")
+    print(f"Model scene size: {scene_height}x{scene_width}")
+
     # Generate in batches
     total_samples = args.num_samples
     num_batches = (total_samples + args.batch_size - 1) // args.batch_size
@@ -75,7 +98,9 @@ def generate_levels(args):
                 batch_size=current_batch_size,
                 generator=torch.Generator(device).manual_seed(args.seed + batch_idx),
                 num_inference_steps=args.inference_steps,
-                output_type="tensor"
+                output_type="tensor",
+                height=scene_height,
+                width=scene_width,
             ).images
 
             all_samples.append(samples)
@@ -97,4 +122,16 @@ def generate_levels(args):
 
 if __name__ == "__main__":
     args = parse_args()
+    if args.game == "Mario":
+        args.num_tiles = 15
+        height=16,
+        width=16,
+        args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+    elif args.game == "LR":
+        args.num_tiles = 10 # TODO
+        height=32,
+        width=32,
+        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
+    else:
+        raise ValueError(f"Unknown game: {args.game}")
     generate_levels(args)
