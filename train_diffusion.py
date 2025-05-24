@@ -612,16 +612,30 @@ def main():
                 avg_caption_score = None
 
             model.train()
+
+            # Log caption match score
+            if accelerator.is_local_main_process:
+                with open(caption_score_log_file, 'a') as f:
+                    log_entry = {
+                        "epoch": epoch,
+                        "caption_score": avg_caption_score,                
+                        "step": global_step,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    f.write(json.dumps(log_entry) + '\n')
+
             # Early stopping logic: check if EITHER metric improved in the epoch
             val_loss_improved = val_loss is not None and val_loss < best_val_loss
             caption_score_improved = avg_caption_score is not None and avg_caption_score > best_caption_score
 
             # Save best model if BOTH metrics improve, or if validation loss improves
             # CONSIDER: Save the model if either metric improves? Base improvement on the best of the two?
-            if (val_loss_improved and caption_score_improved) or val_loss_improved:
+            if caption_score_improved:
+                best_caption_score = avg_caption_score
+
+            if val_loss_improved: # consider caption_score_improved too?
                 best_val_loss = val_loss
-                if caption_score_improved:
-                    best_caption_score = avg_caption_score
+
                 best_model_state = {
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
