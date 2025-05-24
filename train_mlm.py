@@ -15,33 +15,6 @@ from datetime import datetime
 from util.plotter import Plotter
 import random
 
-def split_dataset(json_path, train_pct, val_pct, test_pct):
-    """Splits the dataset into train/val/test and saves them as new JSON files."""
-    with open(json_path, 'r') as f:
-        data = json.load(f)
-    n = len(data)
-    indices = list(range(n))
-    random.shuffle(indices)
-    train_end = int(train_pct * n)
-    val_end = train_end + int(val_pct * n)
-    train_indices = indices[:train_end]
-    val_indices = indices[train_end:val_end]
-    test_indices = indices[val_end:]
-    train_data = [data[i] for i in train_indices]
-    val_data = [data[i] for i in val_indices]
-    test_data = [data[i] for i in test_indices]
-    base, ext = os.path.splitext(json_path)
-    train_path = f"{base}-train{ext}"
-    val_path = f"{base}-validate{ext}"
-    test_path = f"{base}-test{ext}"
-    with open(train_path, 'w') as f:
-        json.dump(train_data, f, indent=2)
-    with open(val_path, 'w') as f:
-        json.dump(val_data, f, indent=2)
-    with open(test_path, 'w') as f:
-        json.dump(test_data, f, indent=2)
-    return train_path, val_path, test_path
-
 def train(model, train_loader, val_loader, criterion, optimizer, device, epochs, tokenizer, patience=20):
     global args
 
@@ -235,6 +208,8 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=5e-5, help="Learning rate")
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file (determines early stopping)")
+    parser.add_argument("--test_json", type=str, default=None, help="Optional path to testing dataset json file (used at end of training)")
     parser.add_argument("--embedding_dim", type=int, default=128, help="Length of text embedding vectors")
     parser.add_argument("--hidden_dim", type=int, default=256, help="Units in hidden layers")
     parser.add_argument("--batch_size", type=int, default=16, help="Training samples per batch")
@@ -243,10 +218,6 @@ if __name__ == "__main__":
     parser.add_argument('--no-augment', action='store_false', dest='augment', help='Disable data augmentation (default: True)')
     parser.add_argument("--checkpoint_freq", type=int, default=20, help="Save checkpoint every N epochs (0 to disable)")
     parser.add_argument("--save_checkpoints", action="store_true", help="Enable periodic checkpoint saving")
-    parser.add_argument('--split', action='store_true', help='Enable train/val/test split')
-    parser.add_argument('--train_pct', type=float, default=0.7, help='Train split percentage (default 0.7)')
-    parser.add_argument('--val_pct', type=float, default=0.1, help='Validation split percentage (default 0.1)')
-    parser.add_argument('--test_pct', type=float, default=0.2, help='Test split percentage (default 0.2)')
     parser.add_argument("--patience", type=int, default=30, help="Number of epochs to wait for improvement in val loss before early stopping (default: 20)")
     
     global args
@@ -270,19 +241,13 @@ if __name__ == "__main__":
     tokenizer = Tokenizer()
     tokenizer.load(args.pkl)
     
-    if args.split:
-        # Ensure percentages sum to 1.0
-        total = args.train_pct + args.val_pct + args.test_pct
-        if abs(total - 1.0) > 1e-6:
-            raise ValueError(f"Split percentages must sum to 1.0, got {total}")
-        train_json, val_json, test_json = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
-        train_dataset = LevelDataset(train_json, tokenizer, mode="mlm", augment=args.augment, limit=args.data_limit)
-        val_dataset = LevelDataset(val_json, tokenizer, mode="mlm", augment=False, limit=-1)
-        test_dataset = LevelDataset(test_json, tokenizer, mode="mlm", augment=False, limit=-1)
-    else:
-        train_dataset = LevelDataset(args.json, tokenizer, mode="mlm", augment=args.augment, limit=args.data_limit)
-        val_dataset = None
-        test_dataset = None
+    train_dataset = LevelDataset(args.json, tokenizer, mode="mlm", augment=args.augment, limit=args.data_limit)
+    val_dataset = None
+    if args.val_json:
+        val_dataset = LevelDataset(args.val_json, tokenizer, mode="mlm", augment=False, limit=-1, shuffle=False, )
+    test_dataset = None
+    if args.test_json:
+        test_dataset = LevelDataset(args.test_json, tokenizer, mode="mlm", augment=False, limit=-1, shuffle=False, )
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False) if val_dataset is not None else None
@@ -314,13 +279,11 @@ if __name__ == "__main__":
 
     # Final evaluation on all splits
     print("\nFinal evaluation:")
-    if args.split:
-        print("Train set:")
-        evaluate_model(model, tokenizer, train_loader, device)
+    print("Train set:")
+    evaluate_model(model, tokenizer, train_loader, device)
+    if val_loader:
         print("Validation set:")
         evaluate_model(model, tokenizer, val_loader, device)
+    if test_loader:
         print("Test set:")
         evaluate_model(model, tokenizer, test_loader, device)
-    else:
-        print("Full data:")
-        evaluate_model(model, tokenizer, train_loader, device)
