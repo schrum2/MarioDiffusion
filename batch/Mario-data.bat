@@ -1,7 +1,5 @@
 cd ..
 
-if not exist "datasets" mkdir datasets
-
 :: Merge SMB1, SMB2, and SML JSON datasets (assume previous batch files have already been run)
 python combine_data.py datasets\\Mario_Levels.json datasets\\SMB1_Levels.json datasets\\SMB2_Levels.json datasets\\SML_Levels.json
 
