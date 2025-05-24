@@ -12,6 +12,7 @@ from create_ascii_captions import assign_caption, save_level_data, extract_tiles
 from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
+from models.fdm_pipeline import FDMPipeline
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
@@ -206,6 +207,11 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     "guidance_scale": guidance_scale,
                     "output_type": "tensor",
                     "batch_size": len(positive_captions)
+                }
+            elif isinstance(pipe, FDMPipeline):
+                param_values = {
+                    "caption": list(batch),
+                    "batch_size": len(batch),
                 }
             else:
                 param_values = {

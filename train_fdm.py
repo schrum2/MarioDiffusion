@@ -3,8 +3,6 @@ import os
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
-from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler
-from diffusers.optimization import get_cosine_schedule_with_warmup 
 from tqdm.auto import tqdm
 import random
 import numpy as np
@@ -20,6 +18,7 @@ from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel
 from models.fdm import Gen
+from models.fdm_pipeline import FDMPipeline
 
 
 def parse_args():
@@ -118,13 +117,12 @@ def main():
         text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(accelerator.device)
         text_encoder.eval() # Set to evaluation mode
         model_embedding_dim = text_encoder.config.hidden_size#TODO: not sure if this can be changed
-        tokenizer_hf = AutoTokenizer.from_pretrained(args.pretrained_language_model)
+        tokenizer = AutoTokenizer.from_pretrained(args.pretrained_language_model)
         print(f"Loaded text encoder from {args.pretrained_language_model}")
     elif args.mlm_model_dir:
         text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(accelerator.device)
         text_encoder.eval()  # Set to evaluation mode
         model_embedding_dim = text_encoder.embedding_dim#TODO: not sure if this can be changed
-        tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
     data_mode = "diffusion" if not args.pretrained_language_model else "diff_text"
@@ -229,13 +227,19 @@ def main():
 
     #Create an instance of the model
     model = Gen(
-        model_name=args.mlm_model_dir,
+        model_name="Five-Dollar-Model",
         embedding_dim=args.embedding_dim,
         z_dim=args.z_dim,
         kern_size=args.kern_size,
         filter_count=args.filter_count,
-        num_res_blocks=args.num_res_blocks
+        num_res_blocks=args.num_res_blocks,
+        out_channels=args.num_tiles
     )
+
+    
+
+    
+
     model.to(accelerator.device)
 
     # if there is no block embedding model, set the channels to num_tiles
@@ -306,12 +310,11 @@ def main():
     log_file = os.path.join(args.output_dir, f"training_log_{formatted_date}.jsonl")
     config_file = os.path.join(args.output_dir, f"hyperparams_{formatted_date}.json")
 
-    def log_metrics(epoch, loss, lr, step=None, val_loss=None):
+    def log_metrics(epoch, loss, step=None, val_loss=None):
         if accelerator.is_local_main_process:
             log_entry = {
                 "epoch": epoch,
                 "loss": loss,
-                "lr": lr,
                 "step": step if step is not None else epoch * len(train_dataloader),
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
@@ -331,7 +334,7 @@ def main():
             with accelerator.accumulate(model):
                 #TODO: Calc loss
                 loss = process_fdm_batch(
-                    args, model, batch, tokenizer_hf, text_encoder, accelerator, epoch, loss_metric_train)
+                    args, model, batch, tokenizer, text_encoder, accelerator)
                 accelerator.backward(loss)
                 optimizer.step()
                 optimizer.zero_grad()
@@ -349,34 +352,29 @@ def main():
 
 
         # Calculate validation loss if validation dataset exists and it's time to validate
-        """val_loss = None
+        val_loss = None
         avg_caption_score = None
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
             with torch.no_grad():
                 for val_batch in val_dataloader:
-                    val_batch_loss = process_diffusion_batch(
-                        args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, mode="val"
+                    val_batch_loss = process_fdm_batch(
+                        args, model, val_batch, tokenizer, text_encoder, accelerator
                     )
                     val_loss += val_batch_loss.item()
             val_loss /= len(val_dataloader)
 
-            if args.text_conditional and args.plot_validation_caption_score:
+            if args.plot_validation_caption_score:
                 # Compute caption match score for this data
-                pipeline = TextConditionalDDPMPipeline(
-                    unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler,
-                    text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                pipeline = FDMPipeline(
+                    tokenizer, text_encoder, model, accelerator.device
                 ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
-                inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
-                guidance_scale = common_settings.GUIDANCE_SCALE
                 avg_caption_score, _ = calculate_caption_score_and_samples(
-                    accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
+                    accelerator.device, pipeline, val_dataloader, None, None, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False
                 )
@@ -398,52 +396,26 @@ def main():
                     f.write(json.dumps(log_entry) + '\n')
         
         # Log metrics including validation loss
-        log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
+        log_metrics(epoch, avg_train_loss, val_loss=val_loss, step=global_step)
         
         # Generate and save sample levels every N epochs
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
             # Switch to eval mode
             model.eval()
             
-            # Create the appropriate pipeline for generation
-            if args.text_conditional:
-                pipeline = TextConditionalDDPMPipeline(
-                    unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler,
-                    text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
-                ).to(accelerator.device)
-                                
-                # Use the raw negative captions instead of tokens
-                with torch.no_grad():
-                    samples = pipeline(
-                        batch_size=4,
-                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
-                        output_type="tensor",
-                        caption=sample_captions,
-                        show_progress_bar=False,
-                        negative_prompt=sample_negative_captions if args.negative_prompt_training else None 
-                    ).images
-            else:
-                # For unconditional generation
-                pipeline = UnconditionalDDPMPipeline(
-                    unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler
-                )
-                if sprite_scaling_factors is not None:
-                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
 
-                
-                # Generate sample levels
-                with torch.no_grad():
-                    samples = pipeline(
-                        batch_size=4,
-                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
-                        output_type="tensor",
-                        show_progress_bar=False,
-                    ).images
+            pipeline = FDMPipeline(
+                tokenizer, text_encoder, model, accelerator.device
+            ).to(accelerator.device)
+                            
+            # Use the raw negative captions instead of tokens
+            with torch.no_grad():
+                samples = pipeline(
+                    batch_size=4,
+                    generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
+                    caption=sample_captions,
+                    show_progress_bar=False,
+                ).images
 
             # Convert one-hot samples to tile indices and visualize
             visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
@@ -451,67 +423,15 @@ def main():
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
             # Save the model
-            if args.text_conditional:
-                pipeline = TextConditionalDDPMPipeline(
-                    unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler,
-                    text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
-                ).to(accelerator.device)
-                # Save negative prompt support flag if enabled
-                if args.negative_prompt_training:
-                    pipeline.supports_negative_prompt = True
-            else:
-                pipeline = UnconditionalDDPMPipeline(
-                    unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler
-                )
-                if sprite_scaling_factors is not None:
-                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+            pipeline = FDMPipeline(
+            tokenizer, text_encoder, model, accelerator.device
+            ).to(accelerator.device)
                 
-            pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))"""
+            pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
 
-
-
-        """for embeddings, ytrue in train_dataloader:
-            with accelerator.accumulate(model):
-                optimizer.zero_grad()
-                outputs = model(embeddings.to(accelerator.device), torch.rand(len(embeddings), model.z_dim).to(accelerator.device))
-                # NLLLoss expects log-probabilities and class indices
-                loss = torch.nn.NLLLoss()(torch.log(outputs), ytrue.argmax(dim=3).to(accelerator.device))
-                accelerator.backward(loss)
-                optimizer.step()
-            train_loss += loss.detach().item()
-            progress_bar.update(1)
-            progress_bar.set_postfix({"loss": loss.detach().item(), "step": global_step})
-            global_step += 1
-
-        avg_train_loss = train_loss / len(train_dataloader)
-        val_loss = None
-        if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
-            model.eval()
-            val_loss = 0.0
-            with torch.no_grad():
-                for val_embeddings, val_ytrue in val_dataloader:
-                    outputs = model(val_embeddings.to(accelerator.device), torch.rand(len(val_embeddings), model.z_dim).to(accelerator.device))
-                    loss = torch.nn.NLLLoss()(torch.log(outputs), val_ytrue.argmax(dim=3).to(accelerator.device))
-                    val_loss += loss.item()
-            val_loss /= len(val_dataloader)
-            model.train()
-        log_metrics(epoch, avg_train_loss, step=global_step, val_loss=val_loss)
-
-        # Save model checkpoint
-        if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
-            if accelerator.is_local_main_process:
-                torch.save(model.state_dict(), os.path.join(args.output_dir, f"checkpoint_{epoch}.pt"))
-
-    progress_bar.close()
-    if accelerator.is_local_main_process:
-        torch.save(model.state_dict(), os.path.join(args.output_dir, "final_model.pt"))"""
-    
             
 def process_fdm_batch(
-        args, model, batch, tokenizer_hf, text_encoder, accelerator, epoch, loss_metric_train
+        args, model, batch, tokenizer_hf, text_encoder, accelerator
         ):
     """
     Handles a single batch for training or validation.
@@ -526,18 +446,12 @@ def process_fdm_batch(
     scenes_for_train = scenes_for_train.to(accelerator.device)
     noisy_data = noisy_data.to(accelerator.device)
 
-    print(f"Embedding shape: {text_embeddings.shape}")
-    print(f"Scene shape: {scenes_for_train.shape}")
-    print(f"Noise shape: {noisy_data.shape}")
+
     outputs = model(text_embeddings, noisy_data)
 
-    print(f"Output shape: {outputs.shape}")
     loss = torch.nn.NLLLoss()(torch.log(outputs), scenes_for_train.argmax(dim=1))
-
-    loss_metric_train[epoch] += loss
-
-    print(f"Epoch {epoch+1}/{epoch}, Loss: {loss_metric_train[epoch].item()}")
-    return loss_metric_train
+    
+    return loss
     #Required steps:
     #Setup model, new Gen object
     #Setup dataset
@@ -592,7 +506,7 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
         
         scenes_for_train = scenes  # Repeat scenes twice
 
-        noiseVec = torch.randn(args.batch_size, args.z_dim, device=device)
+        noiseVec = torch.randn(text_embeddings.shape[0], args.z_dim, device=device)
         return text_embeddings, scenes_for_train, noiseVec
     
 
