@@ -1,5 +1,7 @@
 cd ..
 
+if not exist "datasets" mkdir datasets
+
 set default_out=datasets\SML_LevelsAndCaptions
 
 :: Convert SML raw level data to JSON

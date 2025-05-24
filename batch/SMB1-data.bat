@@ -1,5 +1,7 @@
 cd ..
 
+if not exist "datasets" mkdir datasets
+
 set default_out=datasets\SMB1_LevelsAndCaptions
 
 :: Convert SMB1 raw level data to JSON
