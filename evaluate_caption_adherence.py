@@ -140,8 +140,8 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         checkpoint_dirs.append((checkpoint_dirs[-1][0] + 1, args.model_path))
 
     # Prepare output paths
-    scores_jsonl_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_scores_by_epoch.jsonl")
-    plot_png_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_caption_scores_plot.png")
+    scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_scores_by_epoch.jsonl")
+    plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_caption_scores_plot.png")
 
     # Initialize Plotter
     plotter = Plotter(
