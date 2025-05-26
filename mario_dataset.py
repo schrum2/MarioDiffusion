@@ -29,7 +29,8 @@ class MarioPatchDataset(Dataset):
         self.sampling_probs = self._compute_subsampling_probs()
         self.samples = self._filter_patches()
 
-        self.plot_center_distribution("center_tile_distribution.png")
+        # Useful for diagnostics, but not strictly required each time
+        #self.plot_center_distribution("center_tile_distribution.png")
 
         print(f"Loaded {len(self.samples)} valid {patch_size}x{patch_size} patches")
 
