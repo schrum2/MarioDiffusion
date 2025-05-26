@@ -29,16 +29,19 @@ class Block2Vec(nn.Module):
         self.out_embed = nn.Embedding(vocab_size, embedding_dim)
 
     def forward(self, center_ids, context_ids):
-        # center_ids: (batch,)
-        # context_ids: (batch, context_len)
-        center_vec = self.in_embed(center_ids)                 # (batch, dim)
-        context_vec = self.out_embed(context_ids)              # (batch, context_len, dim)
-        
-        # Dot product between center and each context
-        score = torch.einsum('bd,bkd->bk', center_vec, context_vec)  # (batch, context_len)
-        log_probs = F.log_softmax(score, dim=1)                      # (batch, context_len)
-        loss = -log_probs.mean()
+        # Flatten context_ids to shape (batch * context_len)
+        batch_size, context_len = context_ids.shape
+        center_ids_expanded = center_ids.unsqueeze(1).expand(-1, context_len).reshape(-1)
+        context_ids_flat = context_ids.reshape(-1)
+
+        center_vec = self.in_embed(center_ids_expanded)  # (batch * context_len, dim)
+        context_vec = self.out_embed(context_ids_flat)   # (batch * context_len, dim)
+
+        scores = (center_vec * context_vec).sum(dim=1)  # dot product
+        loss = F.binary_cross_entropy_with_logits(scores, torch.ones_like(scores))  # positive pairs
+
         return loss
+
 
 # ====== Training ======
 def main():
