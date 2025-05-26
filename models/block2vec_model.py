@@ -5,7 +5,7 @@ import os
 import json
 from safetensors.torch import save_file, load_file
 
-class Block2VecModel(nn.Module):
+class Block2Vec(nn.Module):
     """Block2Vec model that learns tile embeddings through context prediction"""
     
     def __init__(self, vocab_size, embedding_dim):
@@ -19,35 +19,35 @@ class Block2VecModel(nn.Module):
         self.embedding_dim = embedding_dim
         
         # Two embedding layers - one for target tiles, one for context tiles
-        self.target_embeddings = nn.Embedding(vocab_size, embedding_dim)
-        self.context_embeddings = nn.Embedding(vocab_size, embedding_dim)
+        self.in_embed = nn.Embedding(vocab_size, embedding_dim)
+        self.out_embed = nn.Embedding(vocab_size, embedding_dim)
 
-    def forward(self, center_tiles, context_tiles):
+    def forward(self, center_ids, context_ids):
         """
         Forward pass computing loss for predicting context tiles given center tile
         
         Args:
-            center_tiles: Tensor of shape (batch_size,) containing target tile IDs
-            context_tiles: Tensor of shape (batch_size, context_size) containing context tile IDs
+            center_ids: Tensor of shape (batch_size,) containing target tile IDs
+            context_ids: Tensor of shape (batch_size, context_size) containing context tile IDs
         Returns:
             Tensor containing loss value
         """
-        # Get embeddings for center and context tiles
-        center_embeds = self.target_embeddings(center_tiles)  # (batch_size, embed_dim)
-        context_embeds = self.context_embeddings(context_tiles)  # (batch_size, context_size, embed_dim)
-        
-        # Compute dot product between center and context embeddings
-        logits = torch.einsum('be,bce->bc', center_embeds, context_embeds)
-        
-        # Loss is negative log softmax 
-        log_probs = F.log_softmax(logits, dim=1)
-        loss = -log_probs.mean()
-        
+        # Flatten context_ids to shape (batch * context_len)
+        batch_size, context_len = context_ids.shape
+        center_ids_expanded = center_ids.unsqueeze(1).expand(-1, context_len).reshape(-1)
+        context_ids_flat = context_ids.reshape(-1)
+
+        center_vec = self.in_embed(center_ids_expanded)  # (batch * context_len, dim)
+        context_vec = self.out_embed(context_ids_flat)   # (batch * context_len, dim)
+
+        scores = (center_vec * context_vec).sum(dim=1)  # dot product
+        loss = F.binary_cross_entropy_with_logits(scores, torch.ones_like(scores))  # positive pairs
+
         return loss
 
     def get_embeddings(self):
         """Returns the learned embeddings for all tiles"""
-        return self.target_embeddings.weight.detach()
+        return self.in_embed.weight.detach()
 
     def save_pretrained(self, save_directory):
         """Save model in HuggingFace format"""

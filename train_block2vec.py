@@ -7,42 +7,16 @@ import os
 import json
 import threading
 from util.plotter import Plotter  # Import the Plotter class
+from mario_dataset import MarioPatchDataset
+import torch.nn.functional as F
+from models.block2vec_model import Block2Vec
 
-# ====== Config ======
+# ====== Defaults, but overridden by params ======
 EMBEDDING_DIM = 16
 BATCH_SIZE = 32
 EPOCHS = 100
 LR = 1e-3
-VOCAB_SIZE = 15  # number of real tile types (adjust as needed)
-
-# ====== Your dataset class (must yield (center, context_list)) ======
-# Dataset must yield:
-#   center_tile: int
-#   context_tiles: List[int] (length ≤ 8, excluding -1s)
-from mario_dataset import MarioPatchDataset
-
-# ====== Model ======
-class Block2Vec(nn.Module):
-    def __init__(self, vocab_size, embedding_dim):
-        super().__init__()
-        self.in_embed = nn.Embedding(vocab_size, embedding_dim)
-        self.out_embed = nn.Embedding(vocab_size, embedding_dim)
-
-    def forward(self, center_ids, context_ids):
-        # Flatten context_ids to shape (batch * context_len)
-        batch_size, context_len = context_ids.shape
-        center_ids_expanded = center_ids.unsqueeze(1).expand(-1, context_len).reshape(-1)
-        context_ids_flat = context_ids.reshape(-1)
-
-        center_vec = self.in_embed(center_ids_expanded)  # (batch * context_len, dim)
-        context_vec = self.out_embed(context_ids_flat)   # (batch * context_len, dim)
-
-        scores = (center_vec * context_vec).sum(dim=1)  # dot product
-        loss = F.binary_cross_entropy_with_logits(scores, torch.ones_like(scores))  # positive pairs
-
-        return loss
-
-import torch.nn.functional as F
+VOCAB_SIZE = 15  # Mario, though there are technically just 13
 
 def print_nearest_neighbors(model, tile_id, k=5):
     emb = model.in_embed.weight
@@ -151,9 +125,8 @@ def main():
         print_nearest_neighbors(model, tile_id, k=5)
 
     # ====== Save Embeddings ======
-    output_path = os.path.join(args.output_dir, "embeddings.pt")
-    torch.save(model.in_embed.weight.detach(), output_path)
-    print(f"Embeddings saved to {output_path}")
+    model.save_pretrained(args.output_dir)
+    print(f"Embeddings saved to {args.output_dir}")
 
     # Stop the plotting thread
     plotter.stop_plotting()
