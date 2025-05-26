@@ -22,7 +22,7 @@ from create_ascii_captions import extract_tileset # TODO: Move this to a caption
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 from torch.distributions import Categorical
-
+from models.block2vec_model import Block2Vec
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -281,11 +281,8 @@ def main():
     embedding_dim = None
     if args.block_embedding_model_path:
         try:
-            # Load embeddings from the embeddings.pt file in the model directory
-            block_embeddings = torch.load(
-                os.path.join(args.block_embedding_model_path, "embeddings.pt"),
-                map_location='cpu'
-            )
+            block2vec = Block2Vec.from_pretrained(args.block_embedding_model_path)
+            block_embeddings = block2vec.get_embeddings()
             embedding_dim = block_embeddings.shape[1]
             print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
             print("Block embedding model loaded successfully.")
