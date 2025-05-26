@@ -42,6 +42,16 @@ class Block2Vec(nn.Module):
 
         return loss
 
+import torch.nn.functional as F
+
+def print_nearest_neighbors(model, tile_id, k=5):
+    emb = model.embedding.weight
+    norm_emb = F.normalize(emb, dim=1)
+    target = norm_emb[tile_id].unsqueeze(0)
+    sims = F.cosine_similarity(target, norm_emb)
+    topk = sims.topk(k + 1)  # include itself
+    for i in topk.indices[1:]:  # skip self
+        print(f"Tile {i.item()} similarity: {sims[i].item():.3f}")
 
 # ====== Training ======
 def main():
@@ -134,6 +144,10 @@ def main():
 
         # Update the plot
         plotter.update_plot()
+
+    print("Done: show nearest neighbors of each tile")
+    for tile_id in range(15): # TODO: Hard-coded to 15. Change later
+        print_nearest_neighbors(model, tile_id, k=5)
 
     # ====== Save Embeddings ======
     output_path = os.path.join(args.output_dir, "embeddings.pt")

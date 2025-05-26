@@ -3,6 +3,7 @@ import torch
 import random
 from torch.utils.data import Dataset
 from collections import Counter
+import matplotlib.pyplot as plt
 import math
 
 class MarioPatchDataset(Dataset):
@@ -28,7 +29,23 @@ class MarioPatchDataset(Dataset):
         self.sampling_probs = self._compute_subsampling_probs()
         self.samples = self._filter_patches()
 
+        self.plot_center_distribution("center_tile_distribution.png")
+
         print(f"Loaded {len(self.samples)} valid {patch_size}x{patch_size} patches")
+
+    def plot_center_distribution(self, save_path=None):
+        counts = Counter(center for center, _ in self.samples)
+        tiles, freqs = zip(*sorted(counts.items()))
+        
+        plt.figure(figsize=(10, 4))
+        plt.bar(tiles, freqs)
+        plt.xlabel("Tile ID (center)")
+        plt.ylabel("Frequency (after subsampling)")
+        plt.title("Center Tile Distribution After Subsampling")
+        if save_path:
+            plt.savefig(save_path)
+        else:
+            plt.show()
 
     def _count_center_frequencies(self):
         counts = Counter()
