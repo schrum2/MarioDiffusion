@@ -526,8 +526,10 @@ class LevelDataset(Dataset):
 
         if self.mode == "diff_text":
             # Return the raw caption for the pretrained model, this should be moved up later
-            #TODO: add support for negative captions
-            return one_hot_scene, augmented_caption
+            if self.negative_captions:
+                return one_hot_scene, augmented_caption, negative_caption
+            else:
+                return one_hot_scene, augmented_caption
         
         # The options below include the scene, but also the tokenized captions
 

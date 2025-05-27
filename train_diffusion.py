@@ -23,6 +23,7 @@ from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 from torch.distributions import Categorical
 from models.block2vec_model import Block2Vec
+import models.sentence_transformers_helper as st_helper
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -346,20 +347,24 @@ def main():
         # Sample four random captions from the dataset
         sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
         if args.negative_prompt_training: #TODO: Copy the pos prompt code for the negative prompt implementation of the pretrained model
-            sample_data = [train_dataset[i] for i in sample_indices]
-            pos_vectors = [data[1] for data in sample_data]
-            neg_vectors = [data[2] for data in sample_data]
-            pos_vectors = [v.tolist() for v in pos_vectors]
-            neg_vectors = [v.tolist() for v in neg_vectors]
-            pad_token = tokenizer.token_to_id["[PAD]"]
-            sample_captions = [
-                tokenizer.decode([token for token in caption if token != pad_token]) 
-                for caption in pos_vectors
-            ]
-            sample_negative_captions = [
-                tokenizer.decode([token for token in caption if token != pad_token]) 
-                for caption in neg_vectors
-            ]
+            if not args.pretrained_language_model:
+                sample_data = [train_dataset[i] for i in sample_indices]
+                pos_vectors = [data[1] for data in sample_data]
+                neg_vectors = [data[2] for data in sample_data]
+                pos_vectors = [v.tolist() for v in pos_vectors]
+                neg_vectors = [v.tolist() for v in neg_vectors]
+                pad_token = tokenizer.token_to_id["[PAD]"]
+                sample_captions = [
+                    tokenizer.decode([token for token in caption if token != pad_token]) 
+                    for caption in pos_vectors
+                ]
+                sample_negative_captions = [
+                    tokenizer.decode([token for token in caption if token != pad_token]) 
+                    for caption in neg_vectors
+                ]
+            else:
+                sample_captions = [train_dataset[i][1] for i in sample_indices]
+                sample_negative_captions = [train_dataset[i][2] for i in sample_indices]
             print("Sample positive captions:")
             for caption in sample_captions:
                 print(f"  POS: {caption}")
@@ -808,24 +813,30 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
     #Prepares the batch for training with text conditioning.
     with torch.no_grad():         
         if args.pretrained_language_model:
-            tokens = tokenizer_hf(captions, return_tensors="pt", padding=True, truncation=True).to(device)
-            text_embeddings = text_encoder(**tokens).last_hidden_state
-            uncond_embeddings = torch.zeros_like(text_embeddings)
+            combined_embeddings = st_helper.get_embeddings(batch_size=len(captions),
+                                                       tokenizer=tokenizer_hf,
+                                                       model=text_encoder,
+                                                       captions=captions,
+                                                       neg_captions=negative_captions,
+                                                       device=device)
+            
         else:
             text_embeddings = text_encoder.get_embeddings(captions)
             uncond_tokens = torch.zeros_like(captions)
             uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
 
         if args.negative_prompt_training:
-            negative_embeddings = text_encoder.get_embeddings(negative_captions) #TODO: Add support for huggingface model
-            # For negative prompt training, we use three sets of embeddings:
-            # [negative_embeddings, uncond_embeddings, text_embeddings]
-            combined_embeddings = torch.cat([negative_embeddings, uncond_embeddings, text_embeddings])
+            if not args.pretrained_language_model:
+                negative_embeddings = text_encoder.get_embeddings(negative_captions)
+                # For negative prompt training, we use three sets of embeddings:
+                # [negative_embeddings, uncond_embeddings, text_embeddings]
+                combined_embeddings = torch.cat([negative_embeddings, uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 3)  # Repeat scenes three times
             timesteps_for_train = torch.cat([timesteps] * 3)  # Repeat timesteps three times
         else:
             # Original classifier-free guidance with just uncond and cond
-            combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+            if not args.pretrained_language_model:
+                combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
             timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
 
@@ -847,8 +858,8 @@ def process_diffusion_batch(
         scenes = scenes.to(accelerator.device)
         if not args.pretrained_language_model:
             captions = captions.to(accelerator.device)
-        if negative_captions is not None:
-            negative_captions = negative_captions.to(accelerator.device)
+            if negative_captions is not None:
+                negative_captions = negative_captions.to(accelerator.device)
 
         timesteps = torch.randint(
             0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
@@ -861,6 +872,7 @@ def process_diffusion_batch(
         noise = torch.randn_like(scenes_for_train)
         noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
 
+        
         noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
         target_noise = noise
         batch_loss = loss_fn(

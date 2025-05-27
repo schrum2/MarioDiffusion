@@ -301,28 +301,14 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
                     text_embeddings = self.text_encoder.get_embeddings(empty_ids)
             else: #Case for the pre-trained text encoder
+                text_embeddings = st_helper.get_embeddings(batch_size = batch_size,
+                                                            tokenizer=self.tokenizer,
+                                                            model=self.text_encoder,
+                                                            captions=captions,
+                                                            neg_captions=negatives,
+                                                            device=self.device)
 
-                if captions is not None:
-
-                    text_embeddings = st_helper.encode(captions, self.tokenizer, self.text_encoder, self.device)
-                    uncond_embeddings = st_helper.encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)
-
-                    if negatives is not None:
-                        # Negative prompt embeddings
-                        neg_tokens = self.tokenizer(negatives, return_tensors="pt", padding=True, truncation=True).to(self.device)
-                        neg_embeddings = self.text_encoder(**neg_tokens).last_hidden_state  # [batch, seq_len, hidden_size]
-                        # Concatenate [neg, uncond, cond]
-                        text_embeddings = torch.cat([neg_embeddings, uncond_embeddings, text_embeddings], dim=0)
-                    else:
-                        # Concatenate [uncond, cond]
-                        
-                        text_embeddings = torch.cat([uncond_embeddings, text_embeddings], dim=0)
-
-                else:
-                    # Unconditional generation: use unconditional embeddings only
-                    text_embeddings = st_helper.encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)
-                text_embeddings = text_embeddings.unsqueeze(1)  # (batch_size, 1, hidden_size)
-            
+                            
             # --- Set up initial latent state ---
             sample = self._prepare_initial_sample(raw_latent_sample, input_scene, 
                                                  batch_size, height, width, generator)
