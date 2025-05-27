@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 import models.sentence_transformers_helper as st_helper
+import models.text_model as text_model
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
@@ -162,24 +163,6 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
         return sample
 
-    def _encode_token_captions(self, captions, max_length):
-        """
-        Helper method to encode and pad captions to fixed length.
-        This approach specifically applies to a text encoder that
-        creates token embeddings, like my TransformerModel
-        """
-        caption_ids = []
-        for cap in captions:
-            ids = self.tokenizer.encode(cap)
-            ids = torch.tensor(ids, device=self.device)
-            if ids.shape[0] > max_length:
-                raise ValueError(f"Caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
-            elif ids.shape[0] < max_length:
-                padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
-                ids = torch.cat([ids, padding], dim=0)
-            caption_ids.append(ids.unsqueeze(0))
-        return torch.cat(caption_ids, dim=0)
-
     def __call__(
         self,
         caption: Optional[str | list[str]] = None,
@@ -268,38 +251,12 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
             # --- Prepare text embeddings ---
             if(isinstance(self.text_encoder, TransformerModel)):
-                if captions is not None:
-                    max_length = self.text_encoder.max_seq_length
-    
-                    # Encode positive captions
-                    caption_ids = self._encode_token_captions(captions, max_length)
-                    caption_embedding = self.text_encoder.get_embeddings(caption_ids)
-
-                    # Handle negative prompt if provided
-                    if negatives is not None:
-                        if not self.supports_negative_prompt:
-                            raise ValueError("This model was not trained with negative prompt support")
-        
-                        # Encode negative captions
-                        negative_ids = self._encode_token_captions(negatives, max_length)
-                        negative_embedding = self.text_encoder.get_embeddings(negative_ids)
-
-                        # Get unconditional (empty) embedding
-                        empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                        empty_embedding = self.text_encoder.get_embeddings(empty_ids)
-
-                        # Concatenate [negative, unconditional, conditional] along batch
-                        text_embeddings = torch.cat([negative_embedding, empty_embedding, caption_embedding], dim=0)
-                    else:
-                        # Standard classifier-free guidance with just [unconditional, conditional]
-                        empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                        empty_embedding = self.text_encoder.get_embeddings(empty_ids)
-                        text_embeddings = torch.cat([empty_embedding, caption_embedding], dim=0)
-                else:
-                    # For unconditional generation, use empty embeddings matching max_seq_length
-                    max_length = self.text_encoder.max_seq_length
-                    empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                    text_embeddings = self.text_encoder.get_embeddings(empty_ids)
+                text_embeddings = text_model.get_embeddings(batch_size=batch_size,
+                                                            tokenizer=self.text_encoder.tokenizer,
+                                                            text_encoder=self.text_encoder,
+                                                            captions=captions,
+                                                            neg_captions=negatives,
+                                                            device=self.device)
             else: #Case for the pre-trained text encoder
                 text_embeddings = st_helper.get_embeddings(batch_size = batch_size,
                                                             tokenizer=self.tokenizer,
