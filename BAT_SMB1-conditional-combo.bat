@@ -1,5 +1,0 @@
-python split_data.py --json SMB1_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42
-
-python train_diffusion.py --augment --text_conditional --output_dir "SMB1-conditional-regular-combo" --num_epochs 500 --json SMB1_LevelsAndCaptions-regular-train.json --val_json SMB1_LevelsAndCaptions-regular-validate.json --pkl SMB1_Tokenizer-regular.pkl --mlm_model_dir SMB1-MLM-regular --plot_validation_caption_score --loss_type COMBO
-IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
-python run_diffusion.py --model_path SMB1-conditional-regular-combo --num_samples 100 --save_as_json --output_dir "SMB1-conditional-regular-combo-samples"
