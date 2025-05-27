@@ -7,7 +7,7 @@ import os
 import json
 import threading
 from util.plotter import Plotter  # Import the Plotter class
-from mario_dataset import MarioPatchDataset
+from patch_dataset import patch_dataset
 import torch.nn.functional as F
 from models.block2vec_model import Block2Vec
 
@@ -69,7 +69,7 @@ def main():
         os.makedirs(args.output_dir)
 
     # Load dataset
-    dataset = MarioPatchDataset(json_path=args.json_file, patch_size=first_patch)
+    dataset = patch_dataset(json_path=args.json_file, patch_size=first_patch)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     # Determine vocab size from the dataset
