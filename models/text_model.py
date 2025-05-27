@@ -21,7 +21,7 @@ def get_embeddings(batch_size, tokenizer, text_encoder, captions=None, neg_capti
         neg_embeddings = text_encoder.get_embeddings(neg_ids)
         embeddings = torch.cat((neg_embeddings, embeddings), dim=0)
     
-    return embeddings
+    return embeddings.to(device)
 
 def encode_token_captions(captions, tokenizer, max_length):
     caption_ids = []

@@ -125,7 +125,7 @@ def main():
         model_embedding_dim = text_encoder.embedding_dim#TODO: not sure if this can be changed
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
-    data_mode = "diffusion" if not args.pretrained_language_model else "diff_text"
+    data_mode = "diff_text"
 
     # Load block embedding model if specified
     block_embeddings = None

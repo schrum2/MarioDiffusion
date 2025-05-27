@@ -14,6 +14,7 @@ import threading
 from datetime import datetime
 from util.plotter import Plotter
 import random
+import models.text_model as text_model
 
 def train(model, train_loader, val_loader, criterion, optimizer, device, epochs, tokenizer, patience=20):
     global args
@@ -94,8 +95,10 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False)
         
         for batch in progress_bar:
+            batch = text_model.encode_token_captions(batch, tokenizer, model.max_seq_length)
             batch = batch.to(device)
             optimizer.zero_grad()
+
             
             # Masking: Replace some tokens with [MASK] (handled in dataset or here)
             input_batch, target_batch = batch.clone(), batch.clone()
@@ -125,6 +128,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             with torch.no_grad():
                 val_progress = tqdm(val_loader, desc=f"Validation", leave=False)
                 for val_batch in val_progress:
+                    val_batch = text_model.encode_token_captions(val_batch, tokenizer, model.max_seq_length)
                     val_batch = val_batch.to(device)
                     input_batch, target_batch = val_batch.clone(), val_batch.clone()
                     input_batch = masked_inputs(input_batch, tokenizer, device=device)
@@ -241,13 +245,13 @@ if __name__ == "__main__":
     tokenizer = Tokenizer()
     tokenizer.load(args.pkl)
     
-    train_dataset = LevelDataset(args.json, tokenizer, mode="mlm", augment=args.augment, limit=args.data_limit)
+    train_dataset = LevelDataset(args.json, tokenizer, mode="text", augment=args.augment, limit=args.data_limit)
     val_dataset = None
     if args.val_json:
-        val_dataset = LevelDataset(args.val_json, tokenizer, mode="mlm", augment=False, limit=-1, shuffle=False, )
+        val_dataset = LevelDataset(args.val_json, tokenizer, mode="text", augment=False, limit=-1, shuffle=False, )
     test_dataset = None
     if args.test_json:
-        test_dataset = LevelDataset(args.test_json, tokenizer, mode="mlm", augment=False, limit=-1, shuffle=False, )
+        test_dataset = LevelDataset(args.test_json, tokenizer, mode="text", augment=False, limit=-1, shuffle=False, )
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False) if val_dataset is not None else None

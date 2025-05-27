@@ -326,23 +326,21 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15, negative_captions=False, block_embeddings=None):
+    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=15, negative_captions=False, block_embeddings=None):
         """
             Args:
             json_path (str): Path to JSON file with captions.
             tokenizer (Tokenizer): Tokenizer instance.
             shuffle (bool): Whether to shuffle data at the start of an epoch.
             max_length (int, optional): Maximum length for tokenized captions.
-            mode (str): "diffusion" for level scenes + captions tokens, 
-                        "mlm" for masked language model training (tokenized captions only), 
-                        "text" for just the text captions, 
+            mode (str): "text" for just the text captions, 
                         "diff_text" for level scenes and text captions (used with a pretrained model).
             augment (bool): Whether to apply data augmentation to text captions.
             random_flip (bool): Whether to randomly flip the scene and caption.
             limit (int): restrict dataset to this size if not -1
             num_tiles (int): Number of different tile types for one-hot encoding
         """
-        assert mode in ["mlm", "diffusion","text", "diff_text"], "Mode must be 'mlm', 'text', 'diffusion', or 'diff_text'."
+        assert mode in ["text", "diff_text"], "Mode must be 'text' or 'diff_text'."
 
         self.shuffle = shuffle
         self.tokenizer = tokenizer
@@ -463,8 +461,9 @@ class LevelDataset(Dataset):
         Fetches one sample.
 
         Returns:
-            - In "mlm" mode: tokenized caption
-            - In "diffusion" mode: (scene_tensor, caption_tensor)
+            - In "text" mode: raw augmented caption (string) 
+                or a tuple of positive and negative captions if negative_captions is True.
+            - In "diff_text" mode: (scene_tensor, augmented_caption)
               scene_tensor is one-hot encoded with shape (num_tiles, height, width)
         """
         sample = self.data[idx]
@@ -473,6 +472,7 @@ class LevelDataset(Dataset):
         negative_caption = ""
         if self.negative_captions:
             augmented_caption, negative_caption = positive_negative_caption_split(augmented_caption, self.remove_upside_down_pipes, self.augment)
+            
 
         if self.mode == "text":
             if self.negative_captions:
@@ -482,33 +482,11 @@ class LevelDataset(Dataset):
                 # Return the raw caption for text mode
                 return augmented_caption
 
-        if self.mode != "diff_text":
-            caption_tokens = self.tokenizer.encode(augmented_caption)
-            if len(caption_tokens) > self.max_length:
-                raise ValueError(f"Caption length exceeds max_length: {len(caption_tokens)} > {self.max_length}: {augmented_caption}")
-            
-            caption_tokens = self.tokenizer.pad_sequence(caption_tokens, self.max_length)
-            caption_tensor = torch.tensor(caption_tokens, dtype=torch.long)
-
-            if self.negative_captions:
-                negative_caption_tokens = self.tokenizer.encode(negative_caption)
-                negative_caption_tokens = self.tokenizer.pad_sequence(negative_caption_tokens, self.max_length)
-                negative_caption_tensor = torch.tensor(negative_caption_tokens, dtype=torch.long)
-
-            if self.mode == "mlm":
-                if self.negative_captions:
-                    return caption_tensor, negative_caption_tensor
-                else:
-                    return caption_tensor  # MLM only uses caption tokens
-
         scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
         
         # Apply random flip if enabled
         if self.random_flip and random.choice([True, False]):
             scene_tensor = self._flip_scene(scene_tensor)
-            if self.mode != "diff_text":
-                caption_tensor = torch.tensor(self._swap_caption_tokens(caption), dtype=torch.long)
-
 
         # Added to support embeddings
         if self.block_embeddings is not None:
@@ -524,19 +502,11 @@ class LevelDataset(Dataset):
 
         one_hot_scene = one_hot_scene.permute(2, 0, 1)
 
-        if self.mode == "diff_text":
-            # Return the raw caption for the pretrained model, this should be moved up later
-            if self.negative_captions:
-                return one_hot_scene, augmented_caption, negative_caption
-            else:
-                return one_hot_scene, augmented_caption
-        
-        # The options below include the scene, but also the tokenized captions
-
         if self.negative_captions:
-            return one_hot_scene, caption_tensor, negative_caption_tensor
+            return one_hot_scene, augmented_caption, negative_caption
         else:
-            return one_hot_scene, caption_tensor
+            return one_hot_scene, augmented_caption
+
         
 
     def decode_caption(self, token_ids):
@@ -609,7 +579,7 @@ if __name__ == "__main__":
     diffusion_dataset = LevelDataset(
         'SMB1_LevelsAndCaptions-regular.json',
         tokenizer, 
-        mode="diffusion", 
+        mode="diff_text", 
         shuffle=False,
         block_embeddings=block_embeddings
     )
@@ -707,7 +677,7 @@ if __name__ == "__main__":
     tokenizer = Tokenizer()
     tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
 
-    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-absence.json', tokenizer, mode="diffusion", negative_captions=True)
+    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-absence.json', tokenizer, mode="diff_text", negative_captions=True)
     print("Negative MLM dataset size:", len(negatives_mlm_dataset))
     for i in range(5):
         sample = negatives_mlm_dataset[i]
@@ -722,7 +692,7 @@ if __name__ == "__main__":
     tokenizer = Tokenizer()
     tokenizer.load('SMB1AND2_Tokenizer-regular.pkl')
 
-    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-regular.json', tokenizer, mode="diffusion", negative_captions=True)
+    negatives_mlm_dataset = LevelDataset('SMB1AND2_LevelsAndCaptions-regular.json', tokenizer, mode="diff_text", negative_captions=True)
     print("Negative MLM dataset size:", len(negatives_mlm_dataset))
     for i in range(5):
         sample = negatives_mlm_dataset[i]
@@ -748,7 +718,7 @@ if __name__ == "__main__":
     print(mlm_dataset.tokenizer.decode(batch[0].tolist()))
 
     # Create Diffusion dataset
-    diffusion_dataset = LevelDataset('Mario_LevelsAndCaptions.json', tokenizer, mode="diffusion", shuffle=False)
+    diffusion_dataset = LevelDataset('Mario_LevelsAndCaptions.json', tokenizer, mode="diff_text", shuffle=False)
     scene, caption = diffusion_dataset[0]
     print("Diffusion Sample Shapes:", scene.shape, caption.shape) 
     print(scene)

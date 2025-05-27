@@ -138,7 +138,7 @@ def main():
         json_path=args.json,
         tokenizer=tokenizer,
         shuffle=True,
-        mode="diffusion",  # We need this for compatibility with your dataset class
+        mode="diff_text",  # We need this for compatibility with your dataset class
         augment=args.augment,
         num_tiles=args.num_tiles
     )

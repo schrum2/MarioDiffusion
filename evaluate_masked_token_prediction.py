@@ -79,7 +79,7 @@ if __name__ == "__main__":
     model = TransformerModel.from_pretrained(args.model_path).to(device)
     print(f"Loaded model from {args.model_path}")
     
-    dataset = LevelDataset(args.json, model.tokenizer, mode="mlm")
+    dataset = LevelDataset(args.json, model.tokenizer, mode="text")
     dataloader = DataLoader(dataset, batch_size=16, shuffle=False) # No shuffle for post-eval
     
     if args.compare_checkpoints: # Evaluate all checkpoints and save a plot
