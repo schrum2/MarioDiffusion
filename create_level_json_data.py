@@ -1,6 +1,7 @@
 import json
 import argparse
 from pathlib import Path
+import util.common_settings as common_settings
 
 """
 Loads a tileset JSON file (which defines what each tile character means).
@@ -183,8 +184,8 @@ if __name__ == "__main__":
     parser.add_argument('--levels', default='..\\TheVGLC\\Super Mario Bros\\Processed', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output JSON file')
 
-    parser.add_argument('--target_height', type=int, default=16, help='Target output height (e.g., 16 or 14)')
-    parser.add_argument('--target_width', type=int, default=16, help='Target output width (e.g., 16)')
+    parser.add_argument('--target_height', type=int, default=common_settings.MARIO_HEIGHT, help='Target output height (e.g., 16 or 14)')
+    parser.add_argument('--target_width', type=int, default=common_settings.MARIO_WIDTH, help='Target output width (e.g., 16)')
     parser.add_argument('--extra_tile', default='-', help='Padding tile character (should not be a real tile)')
     parser.add_argument('--scan_mode', default='platformer', choices=['platformer', 'room_cluster'], help='Sampling mode')
     parser.add_argument('--room_width', type=int, default=11, help='Room width (room_cluster mode)')

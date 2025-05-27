@@ -69,7 +69,7 @@ class CaptionBuilder(ParentBuilder):
         self.width_label.pack()
         self.width_entry = ttk.Entry(self.caption_frame)
         self.width_entry.pack()
-        self.width_entry.insert(0, "16")
+        self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
                 
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
@@ -310,13 +310,13 @@ class CaptionBuilder(ParentBuilder):
             #score_label = ttk.Label(img_frame, text=f"Comparison Score: {compare_score}", wraplength=300)
             #score_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
 
-            # Check if the scene is wider than 16 tiles and process segments if necessary
+            # Check if the scene is wider than standard number of tiles and process segments if necessary
             avg_segment_score = None
-            if len(scene[0]) > 16:
+            if len(scene[0]) > common_settings.MARIO_WIDTH:
                 from captions.caption_match import process_scene_segments
                 avg_segment_score, _, _ = process_scene_segments(
                     scene=scene,
-                    segment_width=16,
+                    segment_width=common_settings.MARIO_WIDTH,
                     prompt=prompt,
                     id_to_char=self.id_to_char,
                     char_to_id=self.char_to_id,
@@ -409,8 +409,24 @@ Average Segment Score: {avg_segment_score}"""
     def save_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            level = self.get_sample_output(scene)
-            level.save("ComposedLevel.txt")
+            # Always open in the current working directory or a subfolder
+            initial_dir = os.path.join(os.getcwd(), "Composed Levels")
+            os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
+
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt")],
+                title="Save Composed Level As",
+                initialdir=initial_dir
+            )
+            if file_path:
+                level = self.get_sample_output(scene)
+                level.save(file_path)
+                print(f"Composed level saved to {file_path}")
+            else:
+                print("Save operation cancelled.")
+        else:
+            print("No composed scene to save.")
 
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()

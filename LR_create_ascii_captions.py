@@ -4,8 +4,6 @@ import os
 from collections import Counter
 from captions.util import extract_tileset, describe_size, describe_quantity, get_tile_descriptors, analyze_floor, count_in_scene, count_caption_phrase, in_column, analyze_ceiling, flood_fill
 
-# The width of generated scenes may not be 16
-#WIDTH = 16
 # height is 32 for Lode Runner
 HEIGHT = 32
 

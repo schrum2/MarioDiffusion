@@ -7,38 +7,25 @@ import os
 import json
 import threading
 from util.plotter import Plotter  # Import the Plotter class
+from mario_dataset import MarioPatchDataset
+import torch.nn.functional as F
+from models.block2vec_model import Block2Vec
 
-# ====== Config ======
+# ====== Defaults, but overridden by params ======
 EMBEDDING_DIM = 16
 BATCH_SIZE = 32
 EPOCHS = 100
 LR = 1e-3
-VOCAB_SIZE = 15  # number of real tile types (adjust as needed)
+VOCAB_SIZE = 15  # Mario, though there are technically just 13
 
-# ====== Your dataset class (must yield (center, context_list)) ======
-# Dataset must yield:
-#   center_tile: int
-#   context_tiles: List[int] (length ≤ 8, excluding -1s)
-from mario_dataset import MarioPatchDataset
-
-# ====== Model ======
-class Block2Vec(nn.Module):
-    def __init__(self, vocab_size, embedding_dim):
-        super().__init__()
-        self.in_embed = nn.Embedding(vocab_size, embedding_dim)
-        self.out_embed = nn.Embedding(vocab_size, embedding_dim)
-
-    def forward(self, center_ids, context_ids):
-        # center_ids: (batch,)
-        # context_ids: (batch, context_len)
-        center_vec = self.in_embed(center_ids)                 # (batch, dim)
-        context_vec = self.out_embed(context_ids)              # (batch, context_len, dim)
-        
-        # Dot product between center and each context
-        score = torch.einsum('bd,bkd->bk', center_vec, context_vec)  # (batch, context_len)
-        log_probs = F.log_softmax(score, dim=1)                      # (batch, context_len)
-        loss = -log_probs.mean()
-        return loss
+def print_nearest_neighbors(model, tile_id, k=5):
+    emb = model.in_embed.weight
+    norm_emb = F.normalize(emb, dim=1)
+    target = norm_emb[tile_id].unsqueeze(0)
+    sims = F.cosine_similarity(target, norm_emb)
+    topk = sims.topk(k + 1)  # include itself
+    for i in topk.indices[1:]:  # skip self
+        print(f"Tile {i.item()} similarity: {sims[i].item():.3f}")
 
 # ====== Training ======
 def main():
@@ -64,6 +51,7 @@ def main():
                 raise ValueError("Empty dataset")
             first_patch = data[0]
             patch_size = len(first_patch)  # Get dimensions from first patch
+            print(len(first_patch))
             if not all(len(row) == patch_size for row in first_patch):
                 raise ValueError("Patches must be square")
             print(f"Detected patch size: {patch_size}x{patch_size}")
@@ -81,7 +69,7 @@ def main():
         os.makedirs(args.output_dir)
 
     # Load dataset
-    dataset = MarioPatchDataset(json_path=args.json_file, patch_size=args.patch_size)
+    dataset = MarioPatchDataset(json_path=args.json_file, patch_size=first_patch)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     # Determine vocab size from the dataset
@@ -131,10 +119,14 @@ def main():
         # Update the plot
         plotter.update_plot()
 
+    print("Done: show nearest neighbors of each tile")
+    for tile_id in range(vocab_size): 
+        print(f"Top neighbors of tile {tile_id}")
+        print_nearest_neighbors(model, tile_id, k=5)
+
     # ====== Save Embeddings ======
-    output_path = os.path.join(args.output_dir, "block2vec_embeddings.pt")
-    torch.save(model.in_embed.weight.detach(), output_path)
-    print(f"Embeddings saved to {output_path}")
+    model.save_pretrained(args.output_dir)
+    print(f"Embeddings saved to {args.output_dir}")
 
     # Stop the plotting thread
     plotter.stop_plotting()

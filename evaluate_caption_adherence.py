@@ -12,6 +12,7 @@ from create_ascii_captions import assign_caption, save_level_data, extract_tiles
 from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
+from models.fdm_pipeline import FDMPipeline
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
@@ -84,32 +85,6 @@ def main():
     if args.compare_checkpoints:
         scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors)
 
-        if args.save_as_json:
-            # Save scores_by_epoch to a JSON file
-            scores_json_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_scores_by_epoch.json")
-            with open(scores_json_path, "w") as f:
-                json.dump(scores_by_epoch, f, indent=4)
-            print(f"Saved scores by epoch to {scores_json_path}")
-
-        # Plot the scores
-        import matplotlib.pyplot as plt
-
-        epochs = [entry[0] for entry in scores_by_epoch]
-        scores = [entry[1] for entry in scores_by_epoch]
-
-        plt.figure(figsize=(10, 6))
-        plt.plot(epochs, scores, marker="o", label="Caption Score")
-        plt.xlabel("Epoch")
-        plt.ylabel("Caption Score")
-        plt.ylim(-1.0, 1.0)
-        plt.title("Caption Adherence Score by Epoch")
-        plt.grid(True)
-        plt.legend()
-
-        plot_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_caption_scores_plot.png")
-        plt.savefig(plot_path)
-        plt.close()
-        print(f"Saved caption scores plot to {plot_path}")
     else:
         # Just run on one model and get samples as well
         avg_score, all_samples = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False)
@@ -127,7 +102,6 @@ def main():
 from util.plotter import Plotter  # Add this import at the top
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
-    import json
 
     checkpoint_dirs = [
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))
@@ -139,8 +113,8 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         checkpoint_dirs.append((checkpoint_dirs[-1][0] + 1, args.model_path))
 
     # Prepare output paths
-    scores_jsonl_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_scores_by_epoch.jsonl")
-    plot_png_path = os.path.join(args.model_path, f"{args.json.split('.')[0]}_caption_scores_plot.png")
+    scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_scores_by_epoch.jsonl")
+    plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_caption_scores_plot.png")
 
     # Initialize Plotter
     plotter = Plotter(
@@ -185,7 +159,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, output=True, height=16, width=16):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH):
     original_mode = dataloader.dataset.mode
     dataloader.dataset.mode = "text"  # Set mode to text for caption generation
 
@@ -206,6 +180,11 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     "guidance_scale": guidance_scale,
                     "output_type": "tensor",
                     "batch_size": len(positive_captions)
+                }
+            elif isinstance(pipe, FDMPipeline):
+                param_values = {
+                    "caption": list(batch),
+                    "batch_size": len(batch),
                 }
             else:
                 param_values = {

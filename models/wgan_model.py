@@ -15,7 +15,7 @@ class WGAN_Discriminator(nn.Module):
         """
         super(WGAN_Discriminator, self).__init__()
         self.ngpu = ngpu
-        assert isize % 16 == 0, "isize has to be a multiple of 16"
+        #assert isize % 16 == 0, "isize has to be a multiple of 16"
 
         main = nn.Sequential()
         # Input is nc (tile types) x isize x isize
@@ -80,7 +80,7 @@ class WGAN_Generator(nn.Module):
         """
         super(WGAN_Generator, self).__init__()
         self.ngpu = ngpu
-        assert isize % 16 == 0, "isize has to be a multiple of 16"
+        #assert isize % 16 == 0, "isize has to be a multiple of 16"
 
         # Calculate initial feature map size
         cngf, tisize = ngf//2, 4

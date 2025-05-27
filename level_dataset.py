@@ -12,6 +12,7 @@ import io
 from PIL import Image
 from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEGATED_PLURAL
 import numpy as np
+import util.common_settings as common_settings
 
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
@@ -147,15 +148,15 @@ def mario_tiles():
     # Extract each tile as a 16x16 image
     tile_images = []
     for col, row in tile_coordinates:
-        left = col * 16
-        upper = row * 16
-        right = left + 16
-        lower = upper + 16
+        left = col * common_settings.MARIO_TILE_PIXEL_DIM
+        upper = row * common_settings.MARIO_TILE_PIXEL_DIM
+        right = left + common_settings.MARIO_TILE_PIXEL_DIM
+        lower = upper + common_settings.MARIO_TILE_PIXEL_DIM
         tile = _sprite_sheet.crop((left, upper, right, lower))
         tile_images.append(tile)
 
     # Add a blank tile for the extra tile (padding)
-    blank_tile = Image.new('RGB', (16, 16), color=(128, 128, 128))  # Gray or any color
+    blank_tile = Image.new('RGB', (common_settings.MARIO_TILE_PIXEL_DIM, common_settings.MARIO_TILE_PIXEL_DIM), color=(128, 128, 128))  # Gray or any color
     tile_images.append(blank_tile)
 
     return tile_images
@@ -232,6 +233,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
     # Convert from one-hot to tile indices
     # sample_indices = []
     sample_indices = convert_to_level_format(samples, block_embeddings)
+    #print(sample_indices.shape)
     num_samples = len(samples)
     grid_cols = min(4, num_samples)  # Limit to 4 columns
     grid_rows = (num_samples + grid_cols - 1) // grid_cols  # Calculate rows needed
@@ -240,11 +242,11 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
         channels = samples.shape[1]
         height = samples.shape[2]
         width = samples.shape[3]
-        if height == 16 and width == 16:
+        if height == common_settings.MARIO_HEIGHT and width == common_settings.MARIO_WIDTH:
             #print("Using Mario tiles")
             tile_images = mario_tiles()
-            tile_size = 16
-        elif height == 32 and width == 32:
+            tile_size = common_settings.MARIO_TILE_PIXEL_DIM
+        elif height == 32 and width == 32: # TODO: Define these constants in common_settings
             #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
             tile_size = 8
@@ -599,7 +601,7 @@ if __name__ == "__main__":
     tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
 
     # Load block embeddings
-    block_embeddings = torch.load('test_block2vec_save/embeddings.pt')
+    block_embeddings = torch.load('SMB1-block2vec-embeddings/embeddings.pt')
 
     # Create Diffusion dataset
     diffusion_dataset = LevelDataset(
@@ -626,6 +628,9 @@ if __name__ == "__main__":
     print(scenes[10])
     print(torch.tensor(diffusion_dataset.decode_scene(scenes[10])))
     print(diffusion_dataset.tokenizer.decode(captions[10].tolist()))
+
+    print(scenes.shape)
+    image = visualize_samples(scenes, output_dir="TEMP", use_tiles=True, start_index=0, block_embeddings=block_embeddings)
 
 
     quit()

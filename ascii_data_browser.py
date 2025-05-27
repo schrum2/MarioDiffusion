@@ -158,6 +158,14 @@ class TileViewer(tk.Tk):
         self.astar_composed_button.pack(side=tk.LEFT, padx=2)
         self.clear_composed_button = tk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
         self.clear_composed_button.pack(side=tk.LEFT, padx=2)
+        # Add button to save composed level
+        self.save_composed_button = tk.Button(
+            self.composed_frame,
+            text="Save Composed Level",
+            command=self.save_composed_level
+        )
+        self.save_composed_button.pack(side=tk.LEFT, padx=2)
+        # Add button to add current scene to composed level
         self.add_to_composed_level_button = tk.Button(
             self.composed_frame,
             text="Add To Level",
@@ -168,6 +176,39 @@ class TileViewer(tk.Tk):
         # Thumbnails for composed level
         self.composed_thumb_frame = tk.Frame(self)
         self.composed_thumb_frame.pack(fill=tk.X)
+
+    # method to enter txt file name and save composed level
+    def save_composed_level(self):
+        scene = self.merge_selected_scenes()
+        if scene:
+            # Always open in the current working directory or a subfolder
+            initial_dir = os.path.join(os.getcwd(), "Composed Levels")
+            os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
+
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt")],
+                title="Save Composed Level As",
+                initialdir=initial_dir
+            )
+            if file_path:
+                # Convert scene to character grid
+                char_grid = []
+                for row in scene:
+                    char_row = "".join([self.id_to_char[num] for num in row])
+                    char_grid.append(char_row)
+                # Write to file
+                try:
+                    with open(file_path, "w") as f:
+                        for line in char_grid:
+                            f.write(line + "\n")
+                    print(f"Composed level saved to {file_path}")
+                except Exception as e:
+                    print(f"Failed to save composed level: {e}")
+            else:
+                print("Save operation cancelled.")
+        else:
+            print("No composed scene to save.")
 
     def bind_keys(self):
         self.bind("<Right>", lambda e: self.next_sample())

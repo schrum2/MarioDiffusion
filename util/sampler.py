@@ -3,6 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
+import os
+import subprocess
+import tempfile
+
 import numpy as np
 import torch
 from PIL.Image import Image
@@ -113,13 +117,63 @@ class SampleOutput:
         return SampleOutput(level=level)
 
     def play(self):
+        #simulator = MMNEATSimulator(level=self.level)
         simulator = Simulator(level=self.level)
         simulator.interactive()
 
     def run_astar(self, render=True):
+        #simulator = MMNEATSimulator(level=self.level)
         simulator = Simulator(level=self.level)
         simulator.astar(render)
 
+
+class MMNEATSimulator:
+    """
+        The classic Mario simulator used by MarioGPT is generally,
+        better, but it doesn't return any information about
+        Mario's performance. The main point of this simulator
+        is that information about the performance of the agent
+        is printed to the console (though I still need a way
+        to caption and return that information)
+    """
+
+    def __init__(self, level):
+        while len(level) > 15:
+            level.pop(0)
+        # For some reason, my older A* agent
+        # crashes on Mario levels with 16 rows or more
+
+        self.level = level
+        self.jar_path = "MarioEval.jar"
+
+    def interactive(self):
+        t = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
+        save_level(self.level, t.name)
+        print(f"Playing level interactively -- {t.name}!")
+        _ = subprocess.run(
+            ["java", "-jar", self.jar_path, "human", t.name],
+            stdout=subprocess.PIPE,
+        )
+        t.close()
+        os.unlink(t.name)
+
+    def astar(self, render: bool = True):
+        t = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
+        save_level(self.level, t.name)
+        print(f"Running Astar agent on level! -- {t.name}")
+        render_str = "human" if render else "norender"
+        _ = subprocess.run(
+            ["java", "-jar", self.jar_path, "astar", t.name, render_str],
+            stdout=subprocess.PIPE,
+        )
+        t.close()
+        os.unlink(t.name)
+
+def save_level(level: List[str], filename: str):
+    concatenated = "\n".join(level)
+    with open(filename, "w") as f:
+        f.write(concatenated)
+    return filename
 
 class GPTSampler:
     def __init__(

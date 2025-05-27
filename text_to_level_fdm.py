@@ -1,6 +1,6 @@
 from interactive_generation import InteractiveGeneration
 import torch
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
+from models.fdm_pipeline import FDMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from captions.caption_match import compare_captions, process_scene_segments
 from create_ascii_captions import assign_caption, extract_tileset
@@ -8,7 +8,7 @@ import argparse
 import util.common_settings as common_settings
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")    
+    parser = argparse.ArgumentParser(description="Generate levels using a trained fdm model")    
     # Model and generation parameters
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
@@ -22,27 +22,18 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         super().__init__(
             {
                 "caption": str,
-                "width": int,
-                "negative_prompt": str,
                 "start_seed": int,
                 "end_seed": int,
-                "num_inference_steps": int,
-                "guidance_scale": float
             },
             default_parameters={
-                "width": common_settings.MARIO_WIDTH,
                 "start_seed": 1,
                 "end_seed": 1,  # Will be set to start_seed if blank
-                "num_inference_steps": common_settings.NUM_INFERENCE_STEPS,
-                "guidance_scale": common_settings.GUIDANCE_SCALE,
                 "caption": "",
-                "negative_prompt": ""
             }
         )
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(self.device)
-        self.pipe.print_unet_architecture()
+        self.pipe = FDMPipeline.from_pretrained(args.model_path).to(self.device)
 
         if args.tileset:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(args.tileset)
@@ -71,7 +62,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         # Use the new function to process scene segments
         average_score, segment_captions, segment_scores = process_scene_segments(
             scene=scene,
-            segment_width=common_settings.MARIO_WIDTH,
+            segment_width=16,
             prompt=param_values.get("caption", ""),
             id_to_char=self.id_to_char,
             char_to_id=self.char_to_id,
@@ -84,13 +75,10 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         return visualize_samples(images)
 
     def get_extra_params(self, param_values): 
-        if param_values["negative_prompt"] == "":
-            del param_values["negative_prompt"]
 
         if param_values["caption"] == "":
             del param_values["caption"]
 
-        param_values["output_type"] = "tensor"
         return dict()
 
 if __name__ == "__main__":

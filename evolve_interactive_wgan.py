@@ -7,6 +7,7 @@ from models.wgan_model import WGAN_Generator
 from run_wgan import generate_level_scene_from_latent
 from evolution.genome import LatentGenome
 from create_ascii_captions import assign_caption
+import util.common_settings as common_settings
 
 class WGANEvolver(Evolver):
     def __init__(self, args):
@@ -17,8 +18,8 @@ class WGANEvolver(Evolver):
         self.width = args.width
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Set input image size (16x16 for your level data)
-        isize = 16
+        # Set input image size (assumes square samples)
+        isize = common_settings.MARIO_HEIGHT
         self.netG = WGAN_Generator(isize, args.nz, args.num_tiles, args.ngf, n_extra_layers=args.n_extra_layers)
 
         # Load trained model
@@ -78,7 +79,7 @@ def parse_args():
     parser.add_argument("--tileset_path", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
-    parser.add_argument("--width", type=int, default=16, help="Tile width of generated level")
+    parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Tile width of generated level")
     parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
     
 
