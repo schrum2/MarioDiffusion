@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import math
 
 class PatchDataset(Dataset):
-    def __init__(self, json_path, patch_size, ignore_tile_id=-1, subsample_threshold=0.001):
+    def __init__(self, json_path, patch_size, ignore_tile_id=-1, subsample_threshold=0.01):
         with open(json_path, 'r') as f:
             self.patches = json.load(f)
 
@@ -30,7 +30,7 @@ class PatchDataset(Dataset):
         self.samples = self._filter_patches()
 
         # Useful for diagnostics, but not strictly required each time
-        #self.plot_center_distribution("center_tile_distribution.png")
+        self.plot_center_distribution("center_tile_distribution.png")
 
         print(f"Loaded {len(self.samples)} valid {patch_size}x{patch_size} patches")
 
