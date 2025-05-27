@@ -497,7 +497,7 @@ def main():
     plot_thread = None
     caption_score_plotter = None
     caption_score_plot_thread = None
-    caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
+    caption_score_log_file = None
     if accelerator.is_local_main_process:
         plotter = Plotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss',
                              left_label='Training Loss', right_label='Validation Loss', output_png=f'training_loss_{formatted_date}.png')
@@ -507,6 +507,7 @@ def main():
         print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, f'training_loss_{formatted_date}.png')}")
         caption_score_plotter = None
         if args.text_conditional and args.plot_validation_caption_score:
+            caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
             # Caption score plotter
             caption_score_plotter = Plotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
                                                 left_label='Caption Match Score', right_label=None, output_png=f'caption_score_{formatted_date}.png')
@@ -611,7 +612,7 @@ def main():
             model.train()
 
             # Log caption match score
-            if accelerator.is_local_main_process:
+            if accelerator.is_local_main_process and caption_score_log_file:
                 with open(caption_score_log_file, 'a') as f:
                     log_entry = {
                         "epoch": epoch,
