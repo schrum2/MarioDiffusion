@@ -5,7 +5,9 @@ import sys
 import os
 import level_dataset
 import torch
-from create_ascii_captions import assign_caption, extract_tileset
+from create_ascii_captions import assign_caption
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from captions.util import extract_tileset 
 import util.common_settings as common_settings
 
 class TileViewer(tk.Tk):
@@ -45,14 +47,30 @@ class TileViewer(tk.Tk):
         if not self.dataset:
             return
         sample = self.dataset[self.current_sample_idx]
-        caption, details = assign_caption(sample['scene'], 
-                                       self.id_to_char, 
-                                       self.char_to_id, 
-                                       self.tile_descriptors, 
-                                       describe_locations=False, #self.describe_locations.get(), 
-                                       describe_absence=self.describe_absence.get(), 
-                                       debug=True, 
-                                       return_details=True)
+        # Example: check for Lode Runner by a property or filename
+        if hasattr(self, "is_lode_runner") and self.is_lode_runner:
+            caption, details = lr_assign_caption(
+                sample['scene'],
+                self.id_to_char,
+                self.char_to_id,
+                self.tile_descriptors,
+                describe_locations=False,
+                describe_absence=self.describe_absence.get(),
+                debug=True,
+                return_details=True
+            )
+        # If not Lode Runner than Mario
+        else:
+            caption, details = assign_caption(
+                sample['scene'],
+                self.id_to_char,
+                self.char_to_id,
+                self.tile_descriptors,
+                describe_locations=False,
+                describe_absence=self.describe_absence.get(),
+                debug=True,
+                return_details=True
+            )
         sample['caption'] = caption
         sample['details'] = details
         print(f"New caption: {caption}")
@@ -140,6 +158,14 @@ class TileViewer(tk.Tk):
         self.astar_composed_button.pack(side=tk.LEFT, padx=2)
         self.clear_composed_button = tk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
         self.clear_composed_button.pack(side=tk.LEFT, padx=2)
+        # Add button to save composed level
+        self.save_composed_button = tk.Button(
+            self.composed_frame,
+            text="Save Composed Level",
+            command=self.save_composed_level
+        )
+        self.save_composed_button.pack(side=tk.LEFT, padx=2)
+        # Add button to add current scene to composed level
         self.add_to_composed_level_button = tk.Button(
             self.composed_frame,
             text="Add To Level",
@@ -150,6 +176,39 @@ class TileViewer(tk.Tk):
         # Thumbnails for composed level
         self.composed_thumb_frame = tk.Frame(self)
         self.composed_thumb_frame.pack(fill=tk.X)
+
+    # method to enter txt file name and save composed level
+    def save_composed_level(self):
+        scene = self.merge_selected_scenes()
+        if scene:
+            # Always open in the current working directory or a subfolder
+            initial_dir = os.path.join(os.getcwd(), "Composed Levels")
+            os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
+
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt")],
+                title="Save Composed Level As",
+                initialdir=initial_dir
+            )
+            if file_path:
+                # Convert scene to character grid
+                char_grid = []
+                for row in scene:
+                    char_row = "".join([self.id_to_char[num] for num in row])
+                    char_grid.append(char_row)
+                # Write to file
+                try:
+                    with open(file_path, "w") as f:
+                        for line in char_grid:
+                            f.write(line + "\n")
+                    print(f"Composed level saved to {file_path}")
+                except Exception as e:
+                    print(f"Failed to save composed level: {e}")
+            else:
+                print("Save operation cancelled.")
+        else:
+            print("No composed scene to save.")
 
     def bind_keys(self):
         self.bind("<Right>", lambda e: self.next_sample())
@@ -164,6 +223,12 @@ class TileViewer(tk.Tk):
 
     def load_files_from_paths(self, dataset_path, tileset_path):
         try:
+            # Set Lode Runner flag based on filename
+            lr_flag = ("lr" in os.path.basename(dataset_path).lower() or
+                       "lode" in os.path.basename(dataset_path).lower() or
+                       "lr" in os.path.basename(tileset_path).lower() or
+                       "lode" in os.path.basename(tileset_path).lower())
+            self.is_lode_runner = lr_flag
             with open(dataset_path, 'r') as f:
                 self.dataset = json.load(f)
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
@@ -293,8 +358,15 @@ class TileViewer(tk.Tk):
 
         # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
         from captions.caption_match import TOPIC_KEYWORDS
+        from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
         import colorsys
         # Generate a palette of distinct colors algorithmically
+        # See if running Lode Runner
+        if hasattr(self, "is_lode_runner") and self.is_lode_runner:
+            TOPIC_KEYWORDS = LR_TOPIC_KEYWORDS
+        # If not Lode Runner, use the default topic keywords of Mario
+        else:
+            TOPIC_KEYWORDS = TOPIC_KEYWORDS
         num_topics = len(TOPIC_KEYWORDS)
         topic_colors = {}
         for i, topic in enumerate(TOPIC_KEYWORDS):
@@ -511,5 +583,8 @@ if __name__ == "__main__":
             print("Invalid file paths provided. Ignoring command-line files.")
             dataset_path = tileset_path = None
 
+    # Debugging
+    #print("dataset_path", dataset_path)
+    #print("tileset_path", tileset_path)
     app = TileViewer(dataset_path, tileset_path)
     app.mainloop()

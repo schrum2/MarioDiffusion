@@ -86,14 +86,18 @@ python ascii_data_browser.py LR_LevelsAndCaptions-regular.json "..\\TheVGLC\\Lod
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --augment --output_dir "LR-unconditional" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --split --num_tiles 10 --batch_size 5 --game LR
+python train_diffusion.py --augment --output_dir "LR-unconditional-regular" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --split --num_tiles 10 --batch_size 5 --game LR
 ```
 
 Run trained unconditional diffusion model and save 100 random levels to json:
 ```
-python run_diffusion.py --model_path LR-unconditional --num_samples 100 --save_as_json --output_dir "LR-unconditional-samples"
+python run_diffusion.py --model_path LR-unconditional-regular --num_samples 100 --save_as_json --output_dir "LR-unconditional-regular-samples" --game LR
 ```
 
+First create a tokenizer for the caption data you want to train on. Most of these datasets have the same vocabulary, but there is a clear difference between datasets that describe the absence of entities and those that do not.
+```
+python tokenizer.py save --json_file LR_LevelsAndCaptions-regular.json --pkl_file LR_Tokenizer-regular.pkl
+```
 ## Train text encoder
 
 First create a tokenizer for the caption data you want to train on. Most of these datasets have the same vocabulary, but there is a clear difference between datasets that describe the absence of entities and those that do not. Also, SMB1 has no upside down pipes, but these are present in the other games. The `BAT_datasets.bat` already creates a tokenizer for each dataset, but if you make a tokenizer for all of the Mario data, you should be covered:

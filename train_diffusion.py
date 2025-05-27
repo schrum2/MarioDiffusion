@@ -22,7 +22,7 @@ from create_ascii_captions import extract_tileset # TODO: Move this to a caption
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 from torch.distributions import Categorical
-
+from models.block2vec_model import Block2Vec
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -146,6 +146,13 @@ def parse_args():
         type=int,
         default=None,
         help="If set, enables per-sprite temperature scaling with the specified n (e.g., 2, 4, 8) during inference."
+    )
+
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=30,
+        help="Number of epochs to wait for improvement before early stopping."
     )
 
     return parser.parse_args()
@@ -274,11 +281,8 @@ def main():
     embedding_dim = None
     if args.block_embedding_model_path:
         try:
-            # Load embeddings from the embeddings.pt file in the model directory
-            block_embeddings = torch.load(
-                os.path.join(args.block_embedding_model_path, "embeddings.pt"),
-                map_location='cpu'
-            )
+            block2vec = Block2Vec.from_pretrained(args.block_embedding_model_path)
+            block_embeddings = block2vec.get_embeddings()
             embedding_dim = block_embeddings.shape[1]
             print(f"Loaded block embeddings from {args.block_embedding_model_path} with dimension {embedding_dim}")
             print("Block embedding model loaded successfully.")
@@ -513,7 +517,17 @@ def main():
 
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
+    patience = args.patience if hasattr(args, 'patience') else 30
+    best_val_loss = float('inf')
+    best_caption_score = float('-inf')
+    epochs_no_improve = 0
+    early_stop = False
+    best_model_state = None
+
     for epoch in range(args.num_epochs):
+        if early_stop:
+            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss or caption score for {patience} epochs.")
+            break
         model.train()
         train_loss = 0.0
         
@@ -553,6 +567,8 @@ def main():
         # Calculate validation loss if validation dataset exists and it's time to validate
         val_loss = None
         avg_caption_score = None
+        val_loss_improved = False
+        caption_score_improved = False
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
@@ -593,6 +609,7 @@ def main():
                 avg_caption_score = None
 
             model.train()
+
             # Log caption match score
             if accelerator.is_local_main_process:
                 with open(caption_score_log_file, 'a') as f:
@@ -603,6 +620,38 @@ def main():
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     f.write(json.dumps(log_entry) + '\n')
+
+            # Early stopping logic: check if EITHER metric improved in the epoch
+            val_loss_improved = val_loss is not None and val_loss < best_val_loss
+            caption_score_improved = avg_caption_score is not None and avg_caption_score > best_caption_score
+
+            # Save best model if BOTH metrics improve, or if validation loss improves
+            # CONSIDER: Save the model if either metric improves? Base improvement on the best of the two?
+            if caption_score_improved:
+                best_caption_score = avg_caption_score
+
+            if val_loss_improved: # consider caption_score_improved too?
+                best_val_loss = val_loss
+
+                best_model_state = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'val_loss': val_loss,
+                    'caption_score': avg_caption_score,
+                }
+
+            # Reset patience if either metric improves
+            if val_loss_improved or caption_score_improved:
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+                print(f"No improvement in val loss or caption score for {epochs_no_improve}/{patience} epochs.")
+                if epochs_no_improve >= patience:
+                    print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
+                    if best_model_state is not None:
+                        model.load_state_dict(best_model_state['model_state_dict'])
+                    early_stop = True
         
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)

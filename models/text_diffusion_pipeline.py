@@ -14,6 +14,31 @@ import util.common_settings as common_settings
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
 
+#Helper methods for encoding text
+def mean_pooling(model_output, attention_mask):
+    token_embeddings = model_output.last_hidden_state
+    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+
+#Encode text
+def encode(texts, tokenizer, text_encoder, device):
+    # Tokenize sentences
+    encoded_input = tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
+    encoded_input = encoded_input.to(device)
+    # Compute token embeddings
+    with torch.no_grad():
+        model_output = text_encoder(**encoded_input, return_dict=True)
+
+    # Perform pooling
+    embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
+
+    # Normalize embeddings
+    embeddings = F.normalize(embeddings, p=2, dim=1)
+    
+    return embeddings
+    
+
+
 # Create a custom pipeline for text-conditional generation
 class TextConditionalDDPMPipeline(DDPMPipeline):
     def __init__(self, unet, scheduler, text_encoder=None, tokenizer=None):
@@ -65,7 +90,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             }, f)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_path, using_pretrained = False, **kwargs):
+    def from_pretrained(cls, pretrained_model_path, **kwargs):
         #from diffusers.utils import load_config, load_state_dict
         # Load model_index.json
         #model_index = load_config(pretrained_model_path)
@@ -184,8 +209,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         generator: Optional[torch.Generator] = None,
         num_inference_steps: int = common_settings.NUM_INFERENCE_STEPS,
         guidance_scale: float = common_settings.GUIDANCE_SCALE,
-        height: int = 16,
-        width: int = 16,
+        height: int = common_settings.MARIO_HEIGHT,
+        width: int = common_settings.MARIO_WIDTH,
         raw_latent_sample: Optional[torch.FloatTensor] = None,
         input_scene: Optional[torch.Tensor] = None,
         output_type: str = "tensor",
@@ -298,31 +323,11 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                     empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
                     text_embeddings = self.text_encoder.get_embeddings(empty_ids)
             else: #Case for the pre-trained text encoder
-                def mean_pooling(model_output, attention_mask):
-                    token_embeddings = model_output.last_hidden_state
-                    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-                    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-                #Encode text
-                # TODO: Can we remove this? I'm not sure it is consistent across all models. Code is also messy
-                def encode(texts):
-                    # Tokenize sentences
-                    encoded_input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
-                    encoded_input = encoded_input.to(self.device)
-                    # Compute token embeddings
-                    with torch.no_grad():
-                        model_output = self.text_encoder(**encoded_input, return_dict=True)
 
-                    # Perform pooling
-                    embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
-
-                    # Normalize embeddings
-                    embeddings = F.normalize(embeddings, p=2, dim=1)
-                    
-                    return embeddings
                 if captions is not None:
 
-                    text_embeddings = encode(captions)
-                    uncond_embeddings = encode([""] * batch_size)
+                    text_embeddings = encode(captions, self.tokenizer, self.text_encoder, self.device)
+                    uncond_embeddings = encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)
 
                     if negatives is not None:
                         # Negative prompt embeddings
@@ -399,33 +404,3 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         else:
             print("No text encoder is set.")
 
-if __name__ == "__main__":
-    import os
-    import torch
-    from level_dataset import visualize_samples
-
-    # This won't run unless some imports at the top of the file are modified
-
-    # Set up the pipeline
-    model_path = "prev-cond-model"
-    pipe = TextConditionalDDPMPipeline.from_pretrained(model_path)
-    
-    # Move to GPU if available
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    pipe = pipe.to(device)
-
-    # Generate with test prompt
-    output = pipe(
-        caption="full floor. two pipes.",
-        num_inference_steps=50,
-        guidance_scale=7.5,
-        height=16,
-        width=16,
-    )
-
-    # Convert output to proper format for visualization
-    sample_images = visualize_samples(output.images, use_tiles=True)
-    sample_images.show()
-
-    # The visualize_samples function will save the image and also return the tile indices
-    print("Generation complete! Check the generated image.")

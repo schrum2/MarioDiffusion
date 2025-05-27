@@ -4,6 +4,7 @@ Latent noise for diffusion model input. Can be mutated to change the configurati
 
 import random
 import torch
+import util.common_settings as common_settings
 
 MUTATE_MAX_STEP_DELTA = 10
 MUTATE_MAX_GUIDANCE_DELTA = 1.0
@@ -125,7 +126,7 @@ class LatentGenome:
         new_width = self.width + 4*delta
 
         # Clip new_width to the range [16, 64]
-        new_width = max(16, min(new_width, 64))
+        new_width = max(common_settings.MARIO_WIDTH, min(new_width, common_settings.MARIO_WIDTH*4))
 
         # Adjust latents to match the new width
         if self.latents is not None:

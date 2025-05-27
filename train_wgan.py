@@ -13,6 +13,7 @@ from datetime import datetime
 from util.plotter import Plotter
 from tokenizer import Tokenizer
 from models.wgan_model import WGAN_Generator, WGAN_Discriminator
+import util.common_settings as common_settings
 
 # For learning rate scheduler
 from torch.optim.lr_scheduler import LambdaLR
@@ -151,8 +152,8 @@ def main():
         drop_last=True
     )
     
-    # Set input image size (16x16 for your level data)
-    isize = 16
+    # Set input image size (assume square)
+    isize = common_settings.MARIO_HEIGHT
     
     # Initialize generator and discriminator
     netG = WGAN_Generator(isize, args.nz, args.num_tiles, args.ngf, n_extra_layers=args.n_extra_layers)

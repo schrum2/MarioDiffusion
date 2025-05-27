@@ -22,7 +22,7 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
         num_inference_steps: int = common_settings.NUM_INFERENCE_STEPS,
         output_type: Optional[str] = "tensor",
         return_dict: bool = True,
-        height: int = 16, width: int = 16, 
+        height: int = common_settings.MARIO_HEIGHT, width: int = common_settings.MARIO_WIDTH, 
         latents: Optional[torch.FloatTensor] = None,
         show_progress_bar=True,
     ) -> Union[ImagePipelineOutput, Tuple]:
