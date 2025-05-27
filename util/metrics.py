@@ -318,8 +318,8 @@ def analyze_scene_captions_from_json(json_path: str, feature: str) -> float:
     except KeyError as e:
         print(f"Error: Invalid data format - missing caption field")
         raise
-    
-    
+
+# TODO: create a function to create f1, precision, recall metrics for phrase targeting
 def analyze_phrase_targeting(prompt_caption_pairs: List[tuple[str, str]], target_phrase: str) -> tuple[int, int, int, int]:
     """
     Analyze how well the model targets specific phrases in generation    
@@ -359,6 +359,44 @@ def analyze_phrase_targeting(prompt_caption_pairs: List[tuple[str, str]], target
             false_negatives += 1
     
     return (true_positives, false_positives, true_negatives, false_negatives)
+
+def calculate_phrase_metrics(prompt_caption_pairs: List[tuple[str, str]], target_phrase: str) -> dict:
+    """
+    Calculate precision, recall, and F1 score for a specific phrase.
+    
+    Args:
+        prompt_caption_pairs: List of (input_prompt, generated_caption) pairs
+        target_phrase: Specific phrase to analyze (e.g., "two pipes")
+    
+    Returns:
+        A dictionary containing:
+        - true_positives
+        - false_positives
+        - true_negatives
+        - false_negatives
+        - precision
+        - recall
+        - f1_score
+    """
+    # Get counts from analyze_phrase_targeting
+    tp, fp, tn, fn = analyze_phrase_targeting(prompt_caption_pairs, target_phrase)
+    
+    # Calculate metrics
+    total = tp + fp + tn + fn
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    
+    return {
+        "true_positives": tp,
+        "false_positives": fp,
+        "true_negatives": tn,
+        "false_negatives": fn,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1,
+        "total": total
+    }
 
 if __name__ == "__main__":
     # Base directory for datasets
