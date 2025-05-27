@@ -64,6 +64,15 @@ python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC
 ```
 ## Can I also get Lode Runner Data? (TODO)
 
+This repository is needed to be able to play the Lode Runner levels:
+```
+git clone https://github.com/ManickYoj/LodeRunner.git
+```
+Next, enter the `LodeRunner` respository which is in `MarioDiffusion` repository.
+```
+cd MarioDiffusion\LodeRunner
+```
+
 Extract a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this (top 10 rows are filled with blank space):
 ```
 python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json" --target_height 32 --target_width 32 --extra_tile .
