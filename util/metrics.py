@@ -13,6 +13,9 @@ import traceback
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'captions'))
+
+from caption_match import TOPIC_KEYWORDS
 
 from create_ascii_captions import assign_caption, extract_tileset
 import numpy as np
@@ -318,9 +321,12 @@ def analyze_scene_captions_from_json(json_path: str, feature: str) -> float:
     except KeyError as e:
         print(f"Error: Invalid data format - missing caption field")
         raise
-
-# TODO: create a function to create f1, precision, recall metrics for phrase targeting
-def analyze_phrase_targeting(prompt_caption_pairs: List[tuple[str, str]], target_phrase: str) -> tuple[int, int, int, int]:
+    
+def analyze_phrase_targeting(
+    prompt_caption_pairs: List[tuple[str, str]],
+    target_phrase: str,
+    strict: bool
+) -> tuple[int, int, int, int]:
     """
     Analyze how well the model targets specific phrases in generation    
     
@@ -340,15 +346,24 @@ def analyze_phrase_targeting(prompt_caption_pairs: List[tuple[str, str]], target
     false_negatives = 0
     true_negatives = 0
     
+    # Normalize the target phrase for comparison
+    target_phrase = target_phrase.lower().strip()
+        
     for prompt, caption in prompt_caption_pairs:
-        # Clean strings for comparison
+        # Normalize prompt and caption
         prompt = prompt.lower().strip()
         caption = caption.lower().strip()
-        phrase = target_phrase.lower().strip()
         
-        in_prompt = phrase in prompt
-        in_caption = phrase in caption
+        # Determine presence of the phrase or topic
+        if strict:
+            in_prompt = target_phrase in prompt
+            in_caption = target_phrase in caption
+        else:
+            # Non-strict: Check if the target phrase's topic is present
+            in_prompt = any(topic in prompt for topic in TOPIC_KEYWORDS if topic in target_phrase)
+            in_caption = any(topic in caption for topic in TOPIC_KEYWORDS if topic in target_phrase)
         
+        # Update counts based on presence
         if in_prompt and in_caption:
             true_positives += 1
         elif not in_prompt and in_caption:
@@ -360,7 +375,12 @@ def analyze_phrase_targeting(prompt_caption_pairs: List[tuple[str, str]], target
     
     return (true_positives, false_positives, true_negatives, false_negatives)
 
-def calculate_phrase_metrics(prompt_caption_pairs: List[tuple[str, str]], target_phrase: str) -> dict:
+# TODO: implement strict and non-strict phrase targeting metrics
+def calculate_phrase_metrics(
+    prompt_caption_pairs: List[tuple[str, str]],
+    target_phrase: str,
+    strict: bool
+) -> dict:
     """
     Calculate precision, recall, and F1 score for a specific phrase.
     
@@ -379,7 +399,7 @@ def calculate_phrase_metrics(prompt_caption_pairs: List[tuple[str, str]], target
         - f1_score
     """
     # Get counts from analyze_phrase_targeting
-    tp, fp, tn, fn = analyze_phrase_targeting(prompt_caption_pairs, target_phrase)
+    tp, fp, tn, fn = analyze_phrase_targeting(prompt_caption_pairs, target_phrase, strict)
     
     # Calculate metrics
     total = tp + fp + tn + fn
@@ -401,7 +421,7 @@ def calculate_phrase_metrics(prompt_caption_pairs: List[tuple[str, str]], target
 if __name__ == "__main__":
     # Base directory for datasets
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
+
 #     # List of all datasets to analyze
 #     datasets = [
 #         ("SMB1", "SMB1_LevelsAndCaptions-regular.json"),
@@ -467,11 +487,12 @@ if __name__ == "__main__":
             
     # Test phrase targeting analysis
     test_phrases = [
-        "two pipes",
+        "full floor",
         "several enemies",
         "one cannon",
-        "full floor",
-        "broken pipe"
+        "one pipe",
+        "coin",
+        "tower"
     ]
     
     try:
@@ -487,31 +508,34 @@ if __name__ == "__main__":
         print(f"\nAnalyzing {len(pairs)} prompt-caption pairs")
         
         for phrase in test_phrases:
-            tp, fp, tn, fn = analyze_phrase_targeting(pairs, phrase)
-            total = tp + fp + tn + fn
+            print(f"\n{'-' * 30}")
+            print(f"Analyzing phrase: '{phrase}' (Strict Mode)")
             
-            if total == 0:
-                print(f"\nResults for phrase: '{phrase}'")
-                print("No samples found for analysis")
-                continue
+            # Strict mode
+            metrics_strict = calculate_phrase_metrics(pairs, phrase, strict=True)
+            print(f"Strict Mode Results:")
+            print(f"Total samples analyzed: {metrics_strict['total']}")
+            print(f"True Positives:  {metrics_strict['true_positives']} ({metrics_strict['true_positives']/metrics_strict['total']*100:.1f}%)")
+            print(f"False Positives: {metrics_strict['false_positives']} ({metrics_strict['false_positives']/metrics_strict['total']*100:.1f}%)")
+            print(f"True Negatives:  {metrics_strict['true_negatives']} ({metrics_strict['true_negatives']/metrics_strict['total']*100:.1f}%)")
+            print(f"False Negatives: {metrics_strict['false_negatives']} ({metrics_strict['false_negatives']/metrics_strict['total']*100:.1f}%)")
+            print(f"Precision: {metrics_strict['precision']:.3f}")
+            print(f"Recall:    {metrics_strict['recall']:.3f}")
+            print(f"F1 Score:  {metrics_strict['f1_score']:.3f}")
             
-            print(f"\nResults for phrase: '{phrase}'")
-            print(f"True Positives: {tp} ({(tp/total*100) if total > 0 else 0:.1f}%)")
-            print(f"False Positives: {fp} ({(fp/total*100) if total > 0 else 0:.1f}%)")
-            print(f"True Negatives: {tn} ({(tn/total*100) if total > 0 else 0:.1f}%)")
-            print(f"False Negatives: {fn} ({(fn/total*100) if total > 0 else 0:.1f}%)")
+            print(f"\nAnalyzing phrase: '{phrase}' (Non-Strict Mode)")
             
-            # Calculate additional metrics with zero handling
-            try:
-                precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-                recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-                f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-            
-                print(f"Precision: {precision:.3f}")
-                print(f"Recall: {recall:.3f}")
-                print(f"F1 Score: {f1:.3f}")
-            except ZeroDivisionError:
-                print("Could not calculate metrics - division by zero encountered")
+            # Non-strict mode
+            metrics_non_strict = calculate_phrase_metrics(pairs, phrase, strict=False)
+            print(f"Non-Strict Mode Results:")
+            print(f"Total samples analyzed: {metrics_non_strict['total']}")
+            print(f"True Positives:  {metrics_non_strict['true_positives']} ({metrics_non_strict['true_positives']/metrics_non_strict['total']*100:.1f}%)")
+            print(f"False Positives: {metrics_non_strict['false_positives']} ({metrics_non_strict['false_positives']/metrics_non_strict['total']*100:.1f}%)")
+            print(f"True Negatives:  {metrics_non_strict['true_negatives']} ({metrics_non_strict['true_negatives']/metrics_non_strict['total']*100:.1f}%)")
+            print(f"False Negatives: {metrics_non_strict['false_negatives']} ({metrics_non_strict['false_negatives']/metrics_non_strict['total']*100:.1f}%)")
+            print(f"Precision: {metrics_non_strict['precision']:.3f}")
+            print(f"Recall:    {metrics_non_strict['recall']:.3f}")
+            print(f"F1 Score:  {metrics_non_strict['f1_score']:.3f}")
             
     except Exception as e:
         print(f"Error in phrase targeting analysis: {str(e)}")
