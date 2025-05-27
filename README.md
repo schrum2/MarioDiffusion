@@ -110,6 +110,11 @@ First create a tokenizer for the caption data you want to train on. Most of thes
 ```
 python tokenizer.py save --json_file LR_LevelsAndCaptions-regular.json --pkl_file LR_Tokenizer-regular.pkl
 ```
+
+If the user wanted to play the levels, use the following command line. The following line allows the user to play the first level. If the user wants to play a different level, change the 0 to the level they wish to play.
+```
+python main.py MarioDiffusion/LR_LevelsAndCaptions-regular.json 0
+```
 ## Train text encoder
 
 First create a tokenizer for the caption data you want to train on. Most of these datasets have the same vocabulary, but there is a clear difference between datasets that describe the absence of entities and those that do not. Also, SMB1 has no upside down pipes, but these are present in the other games. The `BAT_datasets.bat` already creates a tokenizer for each dataset, but if you make a tokenizer for all of the Mario data, you should be covered:
