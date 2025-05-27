@@ -113,7 +113,7 @@ python tokenizer.py save --json_file LR_LevelsAndCaptions-regular.json --pkl_fil
 
 If the user wanted to play the levels, use the following command line. The following line allows the user to play the first level. If the user wants to play a different level, change the 0 to the level they wish to play.
 ```
-python main.py MarioDiffusion/LR_LevelsAndCaptions-regular.json 0
+python main.py MarioDiffusion/LR_LevelsAndCaptions-regular.json 1
 ```
 ## Train text encoder
 
