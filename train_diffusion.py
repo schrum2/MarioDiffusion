@@ -24,6 +24,7 @@ import util.common_settings as common_settings
 from torch.distributions import Categorical
 from models.block2vec_model import Block2Vec
 import models.sentence_transformers_helper as st_helper
+import models.text_model as text_model
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -275,7 +276,7 @@ def main():
         model_embedding_dim = text_encoder.embedding_dim #Done to allow for cross-functionality with the huggingface model
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
-    data_mode = ("diffusion" if not args.pretrained_language_model else "diff_text") if args.text_conditional else "diff_text"
+    data_mode = "diff_text"
 
     # Load block embedding model if specified
     block_embeddings = None
@@ -346,48 +347,17 @@ def main():
     if args.text_conditional:
         # Sample four random captions from the dataset
         sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
-        if args.negative_prompt_training: #TODO: Copy the pos prompt code for the negative prompt implementation of the pretrained model
-            if not args.pretrained_language_model:
-                sample_data = [train_dataset[i] for i in sample_indices]
-                pos_vectors = [data[1] for data in sample_data]
-                neg_vectors = [data[2] for data in sample_data]
-                pos_vectors = [v.tolist() for v in pos_vectors]
-                neg_vectors = [v.tolist() for v in neg_vectors]
-                pad_token = tokenizer.token_to_id["[PAD]"]
-                sample_captions = [
-                    tokenizer.decode([token for token in caption if token != pad_token]) 
-                    for caption in pos_vectors
-                ]
-                sample_negative_captions = [
-                    tokenizer.decode([token for token in caption if token != pad_token]) 
-                    for caption in neg_vectors
-                ]
-            else:
-                sample_captions = [train_dataset[i][1] for i in sample_indices]
-                sample_negative_captions = [train_dataset[i][2] for i in sample_indices]
-            print("Sample positive captions:")
-            for caption in sample_captions:
-                print(f"  POS: {caption}")
+
+        sample_captions = [train_dataset[i][1] for i in sample_indices]
+        print("Sample captions:")
+        for caption in sample_captions:
+            print(caption)
+
+        if args.negative_prompt_training:
+            sample_negative_captions = [train_dataset[i][2] for i in sample_indices]
             print("Sample negative captions:")
             for caption in sample_negative_captions:
                 print(f"  NEG: {caption}")
-        else:
-            # Original code for positive-only captions
-            sample_embedding_vectors = [train_dataset[i][1] for i in sample_indices]
-            if not args.pretrained_language_model:
-                sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
-                pad_token = tokenizer.token_to_id["[PAD]"]
-                sample_captions = [
-                    tokenizer.decode([token for token in caption if token != pad_token]) 
-                    for caption in sample_embedding_vectors
-                ]
-            else:
-                sample_captions = [
-                    v for v in sample_embedding_vectors
-                ]
-            print("Sample captions:")
-            for caption in sample_captions:
-                print(caption)
 
     # if there is no block embedding model, set the channels to num_tiles
     in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
@@ -821,22 +791,18 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
                                                        device=device)
             
         else:
-            text_embeddings = text_encoder.get_embeddings(captions)
-            uncond_tokens = torch.zeros_like(captions)
-            uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
+            combined_embeddings = text_model.get_embeddings(batch_size=len(captions),
+                                                       tokenizer=text_encoder.tokenizer,
+                                                       text_encoder=text_encoder,
+                                                       captions=captions,
+                                                       neg_captions=negative_captions,
+                                                       device=device)
 
         if args.negative_prompt_training:
-            if not args.pretrained_language_model:
-                negative_embeddings = text_encoder.get_embeddings(negative_captions)
-                # For negative prompt training, we use three sets of embeddings:
-                # [negative_embeddings, uncond_embeddings, text_embeddings]
-                combined_embeddings = torch.cat([negative_embeddings, uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 3)  # Repeat scenes three times
             timesteps_for_train = torch.cat([timesteps] * 3)  # Repeat timesteps three times
         else:
             # Original classifier-free guidance with just uncond and cond
-            if not args.pretrained_language_model:
-                combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
             timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
 
@@ -847,59 +813,38 @@ def process_diffusion_batch(
 ):
     """
     Handles a single batch for training or validation.
-    """
-    if args.text_conditional:
-        if args.negative_prompt_training:
-            scenes, captions, negative_captions = batch
-        else:
-            scenes, captions = batch
-            negative_captions = None
+    """ 
+    if args.negative_prompt_training:
+        scenes, captions, negative_captions = batch
+    else:
+        scenes, captions = batch
+        negative_captions = None
 
-        scenes = scenes.to(accelerator.device)
-        if not args.pretrained_language_model:
-            captions = captions.to(accelerator.device)
-            if negative_captions is not None:
-                negative_captions = negative_captions.to(accelerator.device)
+    scenes = scenes.to(accelerator.device)
 
-        timesteps = torch.randint(
-            0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
-        ).long()
+    timesteps = torch.randint(
+        0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
+    ).long()
+    
 
+    if args.text_conditional: #Here's the big difference between the two training modes
+        #If we're using text conditioning, we need to prepare the embeddings
         combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(
             args, tokenizer_hf, text_encoder, scenes, captions, timesteps, accelerator.device, negative_captions=negative_captions
         )
+    else: #Otherwise they can be set as is
+        combined_embeddings, scenes_for_train, timesteps_for_train = None, scenes, timesteps
 
-        noise = torch.randn_like(scenes_for_train)
-        noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
-
-        
-        noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
-        target_noise = noise
-        batch_loss = loss_fn(
-            noise_pred, target_noise, scenes_for_train, noisy_scenes,
-            timesteps=timesteps_for_train, scheduler=noise_scheduler
-        )
-        return batch_loss
-
-    else:
-        # Unconditional
-        if isinstance(batch, list):
-            scenes, _ = batch
-        else:
-            scenes = batch
-        scenes = scenes.to(accelerator.device)
-
-        timesteps = torch.randint(
-            0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
-        ).long()
-        noise = torch.randn_like(scenes)
-        noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
-        noise_pred = model(noisy_scenes, timesteps).sample
-        batch_loss = loss_fn(
-            noise_pred, noise, scenes, noisy_scenes,
-            timesteps=timesteps, scheduler=noise_scheduler
-        )
-        return batch_loss
+    noise = torch.randn_like(scenes_for_train)
+    noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
+    
+    noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
+    target_noise = noise
+    batch_loss = loss_fn(
+        noise_pred, target_noise, scenes_for_train, noisy_scenes,
+        timesteps=timesteps_for_train, scheduler=noise_scheduler
+    )
+    return batch_loss
 
 if __name__ == "__main__":
     main()

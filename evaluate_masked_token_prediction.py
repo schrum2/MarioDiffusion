@@ -26,7 +26,7 @@ def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15, console
     pad_token = tokenizer.token_to_id["[PAD]"]
     correct, total = 0, 0
     for batch in dataloader:
-        batch = text_model.encode_token_captions(batch, tokenizer, model.max_seq_length)
+        batch = text_model.encode_token_captions(batch, tokenizer, model.max_seq_length, device=device)
         for item in batch:
             masked_input = masked_inputs(item.clone(), tokenizer, device, mask_prob, generator=eval_generator)
             ground_truth = item.clone()

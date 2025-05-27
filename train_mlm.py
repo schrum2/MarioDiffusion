@@ -95,8 +95,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False)
         
         for batch in progress_bar:
-            batch = text_model.encode_token_captions(batch, tokenizer, model.max_seq_length)
-            batch = batch.to(device)
+            batch = text_model.encode_token_captions(batch, tokenizer, model.max_seq_length, device=device)
             optimizer.zero_grad()
 
             
@@ -128,8 +127,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             with torch.no_grad():
                 val_progress = tqdm(val_loader, desc=f"Validation", leave=False)
                 for val_batch in val_progress:
-                    val_batch = text_model.encode_token_captions(val_batch, tokenizer, model.max_seq_length)
-                    val_batch = val_batch.to(device)
+                    val_batch = text_model.encode_token_captions(val_batch, tokenizer, model.max_seq_length, device=device)
                     input_batch, target_batch = val_batch.clone(), val_batch.clone()
                     input_batch = masked_inputs(input_batch, tokenizer, device=device)
                     output = model(input_batch)
