@@ -10,32 +10,10 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
+import models.sentence_transformers_helper as st_helper
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
-
-#Helper methods for encoding text
-def mean_pooling(model_output, attention_mask):
-    token_embeddings = model_output.last_hidden_state
-    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-
-#Encode text
-def encode(texts, tokenizer, text_encoder, device):
-    # Tokenize sentences
-    encoded_input = tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
-    encoded_input = encoded_input.to(device)
-    # Compute token embeddings
-    with torch.no_grad():
-        model_output = text_encoder(**encoded_input, return_dict=True)
-
-    # Perform pooling
-    embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
-
-    # Normalize embeddings
-    embeddings = F.normalize(embeddings, p=2, dim=1)
-    
-    return embeddings
     
 
 
@@ -326,8 +304,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
                 if captions is not None:
 
-                    text_embeddings = encode(captions, self.tokenizer, self.text_encoder, self.device)
-                    uncond_embeddings = encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)
+                    text_embeddings = st_helper.encode(captions, self.tokenizer, self.text_encoder, self.device)
+                    uncond_embeddings = st_helper.encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)
 
                     if negatives is not None:
                         # Negative prompt embeddings
@@ -342,7 +320,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
                 else:
                     # Unconditional generation: use unconditional embeddings only
-                    text_embeddings = encode([""] * batch_size)
+                    text_embeddings = st_helper.encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)
                 text_embeddings = text_embeddings.unsqueeze(1)  # (batch_size, 1, hidden_size)
             
             # --- Set up initial latent state ---
