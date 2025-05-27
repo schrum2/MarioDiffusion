@@ -612,7 +612,7 @@ def main():
             model.train()
 
             # Log caption match score
-            if accelerator.is_local_main_process:
+            if args.text_conditional and args.plot_validation_caption_score and accelerator.is_local_main_process:
                 with open(caption_score_log_file, 'a') as f:
                     log_entry = {
                         "epoch": epoch,
@@ -643,12 +643,24 @@ def main():
                     'caption_score': avg_caption_score,
                 }
 
-            # Initiate early stopping if no improvement for patience epochs
-            if not val_loss_improved and not caption_score_improved:
+            # Early stopping logic: Conditional training end when both validation and caption metrics stop improving
+            # and unconditional training ends when validation loss stops improving
+            if args.text_conditional and args.plot_validation_caption_score:
+                no_improvement = not val_loss_improved and not caption_score_improved
+            else:
+                no_improvement = not val_loss_improved
+
+            if no_improvement:
                 epochs_since_improvement = epoch - best_epoch
-                print(f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs.")
+                if args.text_conditional and args.plot_validation_caption_score:
+                    print(f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs.")
+                else:
+                    print(f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs.")
                 if epochs_since_improvement >= patience:
-                    print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
+                    if args.text_conditional and args.plot_validation_caption_score:
+                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
+                    else:
+                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}")
                     if best_model_state is not None:
                         model.load_state_dict(best_model_state['model_state_dict'])
                     early_stop = True
@@ -671,7 +683,7 @@ def main():
                     f"Epoch {epoch+1}/{args.num_epochs}, "
                     f"Loss: {avg_train_loss:.4f}, "
                     f"Val Loss: {val_loss:.4f}, "
-                    f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs."
+                    f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs."
                 )
         else:
             print(
