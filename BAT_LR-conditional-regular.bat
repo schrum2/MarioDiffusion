@@ -1,0 +1,3 @@
+python train_mlm.py --epochs 300 --save_checkpoints --json LR_LevelsAndCaptions-regular.json --pkl LR_Tokenizer-regular.pkl --output_dir LR-MLM-regular --split
+python train_diffusion.py --augment --text_conditional --output_dir "LR-conditional-regular" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --pkl LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular --split --plot_validation_caption_score
+python run_diffusion.py --model_path LR-conditional-regular --num_samples 100 --text_conditional --save_as_json --output_dir "LR-conditional-regular-unconditional-samples"
