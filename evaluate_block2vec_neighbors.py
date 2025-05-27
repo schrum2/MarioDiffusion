@@ -1,8 +1,9 @@
 import torch
 from create_ascii_captions import extract_tileset
 import os
+from train_block2vec import print_nearest_neighbors
 
-def print_tile_embeddings(embedding_dir: str):
+def evaluate_block2vec_neighbors(embedding_dir: str):
     """Print embeddings for each tile from a trained block2vec model"""
     
     # Load tileset information
@@ -15,6 +16,13 @@ def print_tile_embeddings(embedding_dir: str):
         embeddings = torch.load(embedding_path)
         print(f"\nLoaded embeddings with shape: {embeddings.shape}")
         
+        # Create a mock model to use with print_nearest_neighbors
+        class MockModel:
+            def __init__(self, embeddings):
+                self.in_embed = torch.nn.Embedding.from_pretrained(embeddings)
+        
+        model = MockModel(embeddings)
+        
         # Print embeddings for each tile
         print("\nTile Embeddings:")
         print("-" * 50)
@@ -23,6 +31,7 @@ def print_tile_embeddings(embedding_dir: str):
                 embedding = embeddings[tile_id]
                 print(f"\nTile {tile_id} ('{char}'):")
                 print(f"Embedding: {embedding.tolist()}")
+                print_nearest_neighbors(model, tile_id, k=5)  # Use the function from train_block2vec
         
     except FileNotFoundError:
         print(f"Error: Could not find embeddings at {embedding_path}")
@@ -30,4 +39,4 @@ def print_tile_embeddings(embedding_dir: str):
 
 if __name__ == "__main__":
     embedding_dir = "SMB1-block2vec-embeddings"
-    print_tile_embeddings(embedding_dir)
+    evaluate_block2vec_neighbors(embedding_dir)

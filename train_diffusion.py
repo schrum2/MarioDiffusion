@@ -70,7 +70,7 @@ def parse_args():
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
-    parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
+    parser.add_argument("--num_tiles", type=int, default=13, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     
