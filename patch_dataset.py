@@ -6,7 +6,7 @@ from collections import Counter
 import matplotlib.pyplot as plt
 import math
 
-class MarioPatchDataset(Dataset):
+class PatchDataset(Dataset):
     def __init__(self, json_path, patch_size, ignore_tile_id=-1, subsample_threshold=0.001):
         with open(json_path, 'r') as f:
             self.patches = json.load(f)
