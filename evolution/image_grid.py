@@ -3,6 +3,8 @@ from PIL import Image, ImageTk, PngImagePlugin
 from math import ceil, sqrt
 import re
 from util.sampler import SampleOutput
+import os
+from tkinter import filedialog
 
 """
 Handles evolution in the latent space for generating level scenes.
@@ -176,9 +178,21 @@ class ImageGridViewer:
     def _save_composed_level(self):
         if self.added_image_indexes:
             level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
-            filename = "MarioLevel.txt"
-            level.save(filename)
-            print(f"Saved {filename}")
+            # Always open in the current working directory or a subfolder
+            initial_dir = os.path.join(os.getcwd(), "Composed Levels")
+            os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
+
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt")],
+                title="Save Composed Level As",
+                initialdir=initial_dir
+            )
+            if file_path:
+                level.save(file_path)
+                print(f"Composed level saved to {file_path}")
+            else:
+                print("Save operation cancelled.")
 
     def _play_composed_level(self):
         if self.added_image_indexes:
