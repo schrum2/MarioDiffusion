@@ -54,6 +54,10 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         self.pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(self.device)
         self.pipe.print_unet_architecture()
 
+        if not self.pipe.supports_negative_prompt:
+            self.input_parameters.pop('negative_prompt', None)
+            self.default_parameters.pop('negative_prompt', None)
+
         if args.tileset:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(args.tileset)
 
@@ -94,7 +98,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         return visualize_samples(images)
 
     def get_extra_params(self, param_values): 
-        if param_values["negative_prompt"] == "":
+        if "negative_prompt" in param_values and param_values["negative_prompt"] == "":
             del param_values["negative_prompt"]
 
         if param_values["caption"] == "":
