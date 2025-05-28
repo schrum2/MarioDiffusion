@@ -123,9 +123,9 @@ def generate_levels(args):
 if __name__ == "__main__":
     args = parse_args()
     if args.game == "Mario":
-        args.num_tiles = 15
-        height=16,
-        width=16,
+        args.num_tiles = common_settings.MARIO_TILE_COUNT
+        height=common_settings.MARIO_HEIGHT,
+        width=common_settings.MARIO_WIDTH,
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
         args.num_tiles = 10 # TODO
