@@ -16,6 +16,14 @@ from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import util.common_settings as common_settings
 
+# Add the parent directory to sys.path so sibling folders can be imported
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+try:
+    from LodeRunner import main as lr_main
+except ImportError:
+    lr_main = None  # Handle gracefully if not present
+
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
         super().__init__(master) 
@@ -140,6 +148,13 @@ class CaptionBuilder(ParentBuilder):
 
         self.bottom_canvas.pack(fill=tk.X, pady=(0, 0))
         self.bottom_scrollbar.pack(fill=tk.X, pady=(0, 10))
+
+        # Game selection
+        self.game_var = tk.StringVar(value="Mario")
+        self.game_label = ttk.Label(self.caption_frame, text="Select Game:")
+        self.game_label.pack()
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner"], state="readonly")
+        self.game_dropdown.pack()
 
     def get_patterns(self):
         # Different for LoRA and tile diffusion
