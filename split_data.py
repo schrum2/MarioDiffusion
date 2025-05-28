@@ -87,5 +87,9 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     random.seed(args.seed)
-    split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
+    test_split, train_split, val_split = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
     
+    # Verify coverage of required structures
+    # Should I do this for each of the splits?
+    # Dictionary for each of the splits. As a required structure is found, it is removed from the dictionary
+    # from caption_match import TOPIC_KEYWORDS
