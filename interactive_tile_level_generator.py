@@ -11,8 +11,18 @@ from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
-from create_ascii_captions import assign_caption, extract_tileset
+from create_ascii_captions import assign_caption
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from captions.util import extract_tileset
 import util.common_settings as common_settings
+
+# Add the parent directory to sys.path so sibling folders can be imported
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+try:
+    from LodeRunner import main as lr_main
+except ImportError:
+    lr_main = None  # Handle gracefully if not present
 
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
@@ -138,6 +148,13 @@ class CaptionBuilder(ParentBuilder):
 
         self.bottom_canvas.pack(fill=tk.X, pady=(0, 0))
         self.bottom_scrollbar.pack(fill=tk.X, pady=(0, 10))
+
+        # Game selection
+        self.game_var = tk.StringVar(value="Mario")
+        self.game_label = ttk.Label(self.caption_frame, text="Select Game:")
+        self.game_label.pack()
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner"], state="readonly")
+        self.game_dropdown.pack()
 
     def get_patterns(self):
         # Different for LoRA and tile diffusion
@@ -454,8 +471,26 @@ Average Segment Score: {avg_segment_score}"""
             return level
       
     def play_level(self, idx):
-        level = self.get_sample_output(idx)
-        level.play()
+        selected_game = self.game_var.get()
+        if selected_game == "Lode Runner":
+            import tempfile, json
+            scene = self.get_sample_output(idx).level  # list of strings
+            # Convert to Lode Runner JSON format
+            lr_json = [{
+                "scene": [[char for char in row] for row in scene],
+                "caption": ""
+            }]
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+                json.dump(lr_json, tmp)
+                tmp_path = tmp.name
+            if lr_main:
+                lr_main.play_level(tmp_path, 1)
+            else:
+                print("LodeRunner main module not found.")
+        else:
+            # Default: Mario play logic
+            level = self.get_sample_output(idx)
+            level.play()
 
     def use_astar(self, idx):
         level = self.get_sample_output(idx)
