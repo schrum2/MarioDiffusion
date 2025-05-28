@@ -5,4 +5,5 @@ python train_diffusion.py --augment --text_conditional --output_dir "SMB1-condit
 python run_diffusion.py --model_path SMB1-conditional-regular-combo --num_samples 100 --text_conditional --save_as_json --output_dir "SMB1-conditional-regular-unconditional-combo-samples"
 python evaluate_caption_adherence.py --model_path SMB1-conditional-regular-combo --save_as_json --json datasets\\SMB1_LevelsAndCaptions-regular.json --output_dir text-to-level-final
 python evaluate_caption_adherence.py --model_path SMB1-conditional-regular-combo --save_as_json --json datasets\\SMB1_LevelsAndCaptions-regular.json --compare_checkpoints 
-python evaluate_caption_adherence.py --model_path SMB1-conditional-regular-combo --save_as_json --json datasets\\SMB1_ValidationCaptions-regular.json --compare_checkpoints 
+python evaluate_caption_adherence.py --model_path SMB1-conditional-regular-combo --save_as_json --json datasets\\SMB1_LevelsAndCaptions-regular-test.json --compare_checkpoints 
+python evaluate_caption_adherence.py --model_path SMB1-conditional-regular-combo --save_as_json --json datasets\\SMB1_RandomTest-regular.json --compare_checkpoints 
