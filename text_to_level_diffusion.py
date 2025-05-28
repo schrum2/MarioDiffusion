@@ -72,8 +72,15 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         # Add level data to the list
         scene = sample_indices[0].tolist()
  
-        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        # Assign a caption to the sceneof whichever game is being played
+        if self.args.game == "Mario":
+            actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
 
+        elif self.args.game == "LR":
+            actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        else:
+            raise ValueError(f"Unknown game: {self.args.game}")
+        
         print(f"Describe resulting image: {actual_caption}")
         compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
         print(f"Comparison score: {compare_score}")
