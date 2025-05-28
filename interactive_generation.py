@@ -8,7 +8,7 @@ class InteractiveGeneration:
 
     def start(self):
         while True:
-            try:
+            #try:
                 param_values = dict()
                 for param, param_type in self.input_parameters.items():
                     default = self.default_parameters.get(param, "")
@@ -42,9 +42,9 @@ class InteractiveGeneration:
                         webbrowser.open("test.gif")
                     else:
                         image.show()
-            except Exception as e:
-                print(f"Error: {e}")
-                continue
+            #except Exception as e:
+            #    print(f"Error: {e}")
+            #    continue
 
     def get_extra_params(self, param_values): # Default nothing
         return dict()
