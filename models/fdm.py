@@ -1,29 +1,8 @@
 import torch
-from torch import nn, optim
-from torch.nn import functional as F
-from PIL import Image
-import numpy as np
-import matplotlib.pyplot as plt
+from torch import nn
 from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
 
 
-seed = 7499629
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#print(f"**--Using {device}--**")
-def main():
-    model = Gen("maps_gpt4_aug", embedding_dim=384, z_dim=5, kern_size=7, filter_count=128, num_res_blocks=3)
-    model.to(device)
-    print(model)
-    X = torch.rand(1, 384, device=device)
-    Z = torch.rand(1, 5, device=device)
-    logits = model(X, Z)
-    pred_probab = nn.Softmax(dim=1)(logits)
-    y_pred = pred_probab.argmax(1)
-    print(f"Predicted class: {y_pred}")
-    train(model, EPOCHS=10, path = "C:\\Users\kildayl\Documents\GitHub\MarioDiffusion\models\maps_gpt4_aug.npy")
 
 class imageDataSet(Dataset):
 
@@ -90,65 +69,3 @@ class Gen(nn.Module):
         x = self.padding(x)
         x = self.last_conv(x)
         return self.softmax(x)
-
-
-def load_data(path, scaling_factor=6, BATCH_SIZE=32):
-    data = np.load(path, allow_pickle=True).item()
-    images = np.array(data['images'])
-    labels = data['labels']
-
-    embeddings = data['embeddings']
-    if isinstance(embeddings, list):
-        embeddings = np.array(embeddings)
-    embeddings = embeddings * scaling_factor
-
-    images, images_test, labels, labels_test, embeddings, embeddings_test = train_test_split(
-    images, labels, embeddings, test_size=24, random_state=seed) #split into train and test sets
-
-    train_dataset = [embeddings, images]
-    test_dataset = [embeddings_test, images_test]
-
-    train_set = DataLoader(imageDataSet(train_dataset),
-                       batch_size=BATCH_SIZE,
-                       shuffle=True,
-                       num_workers= 8 if device == 'cuda' else 1,
-                       pin_memory=(device=="cuda")) # Makes transfer from the CPU to GPU faster
-
-    test_set = DataLoader(imageDataSet(test_dataset),
-                      batch_size=BATCH_SIZE,
-                      shuffle=True,
-                      num_workers= 8 if device == 'cuda' else 1,
-                      pin_memory=(device=="cuda")) # Makes transfer from the CPU to GPU faster
-
-    return train_set, test_set
-
-def train(model, EPOCHS, path = "maps_gpt4_aug.npy"):
-    train_set, test_set = load_data(path)
-    
-    loss_metric_train = torch.zeros(EPOCHS).to(device)
-    
-    model.to(device)
-    
-    optimizer = optim.Adam(model.parameters())
-    
-    for epoch in range(EPOCHS):
-        
-        for embeddings, ytrue in train_set:
-            optimizer.zero_grad()
-            outputs = model(embeddings.to(device), torch.rand(len(embeddings), 5).to(device))
-
-            loss = nn.NLLLoss()(torch.log(outputs), ytrue.argmax(dim=3).to(device))
-            #loss = torch.nn.functional.mse_loss(torch.log(outputs), ytrue.argmax(dim=1).to(device))
-
-            loss_metric_train[epoch] += loss
-
-            loss.backward()
-            optimizer.step()
-        print(f"Epoch {epoch+1}/{EPOCHS}, Loss: {loss_metric_train[epoch].item()}")
-
-
-
-
-
-if __name__ == "__main__":
-    main()
