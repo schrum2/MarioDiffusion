@@ -71,6 +71,9 @@ class InteractiveLevelGeneration(InteractiveGeneration):
 
         self.args = args
 
+        if self.args.game == "LR":
+            del self.input_parameters["width"]
+
     def generate_image(self, param_values, generator, **extra_params):
         images = self.pipe(
             generator=generator,
@@ -139,6 +142,12 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             del param_values["caption"]
 
         param_values["output_type"] = "tensor"
+
+        # Lode Runner
+        if self.args.game == "LR":
+            param_values["height"] = common_settings.LR_HEIGHT
+            param_values["width"] = common_settings.LR_WIDTH
+
         return dict()
 
 if __name__ == "__main__":
