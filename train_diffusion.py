@@ -525,6 +525,7 @@ def main():
     best_model_state = None
     # Track the epoch of the last improvement
     best_epoch = -1
+    epochs_since_improvement = 0
 
     for epoch in range(args.num_epochs):
         if early_stop:
