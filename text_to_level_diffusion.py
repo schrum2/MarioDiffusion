@@ -8,6 +8,13 @@ from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import argparse
 import util.common_settings as common_settings
+import sys
+import os
+
+# Add the parent directory to sys.path so sibling folders can be imported
+#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+#import LodeRunner as lr
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")    
