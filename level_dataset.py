@@ -244,7 +244,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
             #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = common_settings.MARIO_TILE_PIXEL_DIM
-        elif height == lr_common_settings.LR_HEIGHT and width == lr_common_settings.LR_WIDTH: # TODO: Define these constants in common_settings
+        elif height == lr_common_settings.LR_HEIGHT: #and width == lr_common_settings.LR_WIDTH: # TODO: Define these constants in common_settings
             #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
             tile_size = lr_common_settings.LR_TILE_PIXEL_DIM
