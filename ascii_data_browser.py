@@ -9,6 +9,9 @@ from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset 
 import util.common_settings as common_settings
+import random
+import colorsys
+
 
 class TileViewer(tk.Tk):
     def __init__(self, dataset_path=None, tileset_path=None):
@@ -366,7 +369,6 @@ class TileViewer(tk.Tk):
         # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
         from captions.caption_match import TOPIC_KEYWORDS
         from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
-        import colorsys
         # Generate a palette of distinct colors algorithmically
         # See if running Lode Runner
         if hasattr(self, "is_lode_runner") and self.is_lode_runner:
@@ -376,11 +378,18 @@ class TileViewer(tk.Tk):
             TOPIC_KEYWORDS = TOPIC_KEYWORDS
         num_topics = len(TOPIC_KEYWORDS)
         topic_colors = {}
-        for i, topic in enumerate(TOPIC_KEYWORDS):
-            hue = i / num_topics  # Distribute hues evenly across the color wheel
-            saturation = 0.7  # Keep saturation high for vivid colors
-            lightness = 0.5  # Keep lightness moderate for good visibility
-            r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
+
+        # Golden ratio conjugate for hue stepping
+        golden_ratio_conjugate = 0.618033988749895
+        h = random.random()  # Start at a random point
+
+        for topic in TOPIC_KEYWORDS:
+            # Step through the hue wheel using the golden ratio
+            h = (h + golden_ratio_conjugate) % 1
+            # Optionally, vary lightness and saturation a bit for more distinction
+            saturation = 0.7 + 0.2 * random.random()  # 0.7-0.9
+            lightness = 0.45 + 0.1 * random.random()  # 0.45-0.55
+            r, g, b = colorsys.hls_to_rgb(h, lightness, saturation)
             topic_colors[topic] = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
         # Map phrases in the sample to their corresponding topic colors
