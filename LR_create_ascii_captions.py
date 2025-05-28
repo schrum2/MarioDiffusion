@@ -4,8 +4,10 @@ import os
 from collections import Counter
 from captions.util import extract_tileset, describe_size, describe_quantity, get_tile_descriptors, analyze_floor, count_in_scene, count_caption_phrase, in_column, analyze_ceiling, flood_fill
 
+import util.LR_common_settings as LR_common_settings
+
 # height is 32 for Lode Runner
-HEIGHT = 32
+HEIGHT = LR_common_settings.LR_HEIGHT
 
 # The floor is the last row of the scene (0-indexed)
 FLOOR = HEIGHT - 1
@@ -13,7 +15,7 @@ CEILING = 1
 
 # This is used for describing locations, but it doesn't work well
 # standard width of Lode Runner scenes are 32
-STANDARD_WIDTH = 32
+STANDARD_WIDTH = LR_common_settings.LR_WIDTH
 
 LEFT = STANDARD_WIDTH // 3
 RIGHT = STANDARD_WIDTH - LEFT
