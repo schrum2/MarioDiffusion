@@ -11,7 +11,9 @@ from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
-from create_ascii_captions import assign_caption, extract_tileset
+from create_ascii_captions import assign_caption
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from captions.util import extract_tileset
 import util.common_settings as common_settings
 
 class CaptionBuilder(ParentBuilder):
