@@ -3,6 +3,7 @@ import torch
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from captions.caption_match import compare_captions, process_scene_segments
+from captions.LR_caption_match import compare_captions as lr_compare_captions, process_scene_segments as lr_process_scene_segments
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
@@ -90,22 +91,40 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         else:
             raise ValueError(f"Unknown game: {self.args.game}")
         
-        print(f"Describe resulting image: {actual_caption}")
-        compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
-        print(f"Comparison score: {compare_score}")
+        if args.game == "LR":
+            print(f"Describe resulting image: {actual_caption}")
+            lr_compare_score = lr_compare_captions(param_values.get("caption", ""), actual_caption)
+            print(f"Comparison score: {lr_compare_score}")
 
-        # Use the new function to process scene segments
-        average_score, segment_captions, segment_scores = process_scene_segments(
-            scene=scene,
-            segment_width=level_width,
-            prompt=param_values.get("caption", ""),
-            id_to_char=self.id_to_char,
-            char_to_id=self.char_to_id,
-            tile_descriptors=self.tile_descriptors,
-            describe_locations=False, #self.args.describe_locations,
-            describe_absence=self.args.describe_absence,
-            verbose=True
-        )
+            # Use the new function to process scene segments
+            average_score, segment_captions, segment_scores = lr_process_scene_segments(
+                scene=scene,
+                segment_width=level_width,
+                prompt=param_values.get("caption", ""),
+                id_to_char=self.id_to_char,
+                char_to_id=self.char_to_id,
+                tile_descriptors=self.tile_descriptors,
+                describe_locations=False, #self.args.describe_locations,
+                describe_absence=self.args.describe_absence,
+                verbose=True
+            )
+
+        elif args.game == "Mario":
+            compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
+            print(f"Comparison score: {compare_score}")
+
+            # Use the new function to process scene segments
+            average_score, segment_captions, segment_scores = process_scene_segments(
+                scene=scene,
+                segment_width=level_width,
+                prompt=param_values.get("caption", ""),
+                id_to_char=self.id_to_char,
+                char_to_id=self.char_to_id,
+                tile_descriptors=self.tile_descriptors,
+                describe_locations=False, #self.args.describe_locations,
+                describe_absence=self.args.describe_absence,
+                verbose=True
+            )
 
         return visualize_samples(images)
 
