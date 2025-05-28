@@ -8,6 +8,7 @@ from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import argparse
 import util.common_settings as common_settings
+import level_dataset as level_dataset
 import util.LR_common_settings as lr_common_settings
 import sys
 import os
@@ -24,6 +25,8 @@ def parse_args():
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument("--automatic_negative_captions", action="store_true", default=False, help="Automatically create negative captions for prompts so the user doesn't have to")
+
 
     parser.add_argument(
         "--game",
@@ -62,12 +65,22 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         self.pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(self.device)
         self.pipe.print_unet_architecture()
 
+        if args.automatic_negative_captions or not self.pipe.supports_negative_prompt:
+            self.input_parameters.pop('negative_prompt', None)
+            self.default_parameters.pop('negative_prompt', None)
+        
+        if args.automatic_negative_captions and not self.pipe.supports_negative_prompt:
+            raise ValueError("Automatic negative caption generation is not possible with a model that doesn't support it")
+
         if args.tileset:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(args.tileset)
 
         self.args = args
 
     def generate_image(self, param_values, generator, **extra_params):
+        if self.args.automatic_negative_captions:
+            pos, neg = level_dataset.positive_negative_caption_split(param_values["caption"], True)
+            param_values["negative_prompt"] = neg
         images = self.pipe(
             generator=generator,
             **param_values
@@ -110,7 +123,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         return visualize_samples(images)
 
     def get_extra_params(self, param_values): 
-        if param_values["negative_prompt"] == "":
+        if "negative_prompt" in param_values and param_values["negative_prompt"] == "":
             del param_values["negative_prompt"]
 
         if param_values["caption"] == "":

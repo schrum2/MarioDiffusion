@@ -20,11 +20,12 @@ class PipelineOutput(NamedTuple):
 
 # Create a custom pipeline for text-conditional generation
 class TextConditionalDDPMPipeline(DDPMPipeline):
-    def __init__(self, unet, scheduler, text_encoder=None, tokenizer=None):
+    def __init__(self, unet, scheduler, text_encoder=None, tokenizer=None, supports_pretrained_split=False):
         super().__init__(unet=unet, scheduler=scheduler)
         self.text_encoder = text_encoder
         self.tokenizer = tokenizer
         self.supports_negative_prompt = hasattr(unet, 'negative_prompt_support') and unet.negative_prompt_support
+        self.supports_pretrained_split = supports_pretrained_split
 
         if self.tokenizer is None and self.text_encoder is not None:
             # Use the tokenizer from the text encoder if not provided
@@ -61,10 +62,11 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             # Otherwise, we presume the tokenizer was saved by the text encoder.
             self.tokenizer.save_pretrained(os.path.join(save_directory, "text_encoder"))
             
-        # Save supports_negative_prompt flag
+        # Save supports_negative_prompt and supports_pretrained_split flags
         with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
             json.dump({
                 "supports_negative_prompt": self.supports_negative_prompt,
+                "supports_pretrained_split": self.supports_pretrained_split,
                 "text_encoder_type": type(self.text_encoder).__name__   
             }, f)
 
@@ -108,6 +110,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             with open(config_path, "r") as f:
                 config = json.load(f)
             pipeline.supports_negative_prompt = config.get("supports_negative_prompt", False)
+            pipeline.supports_pretrained_split = config.get("supports_pretrained_split", False)
         return pipeline
 
     # --- Handle batching for captions ---
@@ -258,12 +261,20 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                                                             neg_captions=negatives,
                                                             device=self.device)
             else: #Case for the pre-trained text encoder
-                text_embeddings = st_helper.get_embeddings(batch_size = batch_size,
+                if(self.supports_pretrained_split): #If we have a split flag incorporated
+                    text_embeddings = st_helper.get_embeddings_split(batch_size = batch_size,
                                                             tokenizer=self.tokenizer,
                                                             model=self.text_encoder,
                                                             captions=captions,
                                                             neg_captions=negatives,
                                                             device=self.device)
+                else:
+                    text_embeddings = st_helper.get_embeddings(batch_size = batch_size,
+                                                                tokenizer=self.tokenizer,
+                                                                model=self.text_encoder,
+                                                                captions=captions,
+                                                                neg_captions=negatives,
+                                                                device=self.device)
 
                             
             # --- Set up initial latent state ---

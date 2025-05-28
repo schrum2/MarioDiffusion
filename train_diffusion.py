@@ -81,6 +81,7 @@ def parse_args():
     parser.add_argument("--pretrained_language_model", type=str, default=None, help="Link to a pre-trained language model, everything after huggingface.co/. This will override the mlm_model_dir argument.")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--negative_prompt_training", action="store_true", help="Enable training with negative prompts")
+    parser.add_argument("--split_pretrained_sentences", action="store_true", default=False, help="Instead of encoding the whole prompt at once using the pretrained model, enable splitting the prompt into compoent sentences.")
     
     # Model args
     parser.add_argument("--model_dim", type=int, default=128, help="Base dimension of UNet model")
@@ -227,6 +228,9 @@ def main():
     
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
+    
+    if args.split_pretrained_sentences and not args.pretrained_language_model:
+        raise ValueError("Sentence splitting requires the use of a pretrained language model")
     
     """
     If sprite temperature scaling is enabled and the model is unconditional, 
@@ -569,7 +573,8 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None,
+                    supports_pretrained_split=args.split_pretrained_sentences
                 ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
@@ -679,7 +684,8 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None, 
+                    supports_pretrained_split=args.split_pretrained_sentences
                 ).to(accelerator.device)
                                 
                 # Use the raw negative captions instead of tokens
@@ -728,7 +734,8 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None,
+                    supports_pretrained_split=args.split_pretrained_sentences
                 ).to(accelerator.device)
                 # Save negative prompt support flag if enabled
                 if args.negative_prompt_training:
@@ -778,7 +785,8 @@ def main():
                 unet=accelerator.unwrap_model(model), 
                 scheduler=noise_scheduler,
                 text_encoder=text_encoder,
-                tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                tokenizer=tokenizer_hf if args.pretrained_language_model else None,
+                supports_pretrained_split=args.split_pretrained_sentences
             ).to(accelerator.device)
         else:
             pipeline = UnconditionalDDPMPipeline(
@@ -819,7 +827,14 @@ def update_args_from_config(args, config):
 def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=None):
     #Prepares the batch for training with text conditioning.
     with torch.no_grad():         
-        if args.pretrained_language_model:
+        if args.split_pretrained_sentences:
+            combined_embeddings = st_helper.get_embeddings_split(batch_size=len(captions),
+                                                       tokenizer=tokenizer_hf,
+                                                       model=text_encoder,
+                                                       captions=captions,
+                                                       neg_captions=negative_captions,
+                                                       device=device)
+        elif args.pretrained_language_model:
             combined_embeddings = st_helper.get_embeddings(batch_size=len(captions),
                                                        tokenizer=tokenizer_hf,
                                                        model=text_encoder,
