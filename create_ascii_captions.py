@@ -478,7 +478,7 @@ def generate_captions(dataset_path, tileset_path, output_path, describe_location
     save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence)
     print(f"Captioned dataset saved to {output_path}")
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True):
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=False):
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
@@ -488,6 +488,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     for scene in dataset:
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
+        # We only want to discard levels with broken pipes if we indicate that (describe_absence is True)
         if exclude_broken and "broken" in caption:
             print("Broken pipe in training data")
             print(caption)
