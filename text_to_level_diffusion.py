@@ -3,7 +3,9 @@ import torch
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from captions.caption_match import compare_captions, process_scene_segments
-from create_ascii_captions import assign_caption, extract_tileset
+from create_ascii_captions import assign_caption
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from captions.util import extract_tileset
 import argparse
 import util.common_settings as common_settings
 
@@ -14,6 +16,14 @@ def parse_args():
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
 
     return parser.parse_args()
 
@@ -30,7 +40,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 "guidance_scale": float
             },
             default_parameters={
-                "width": common_settings.MARIO_WIDTH,
+                "width":  width, #common_settings.MARIO_WIDTH,
                 "start_seed": 1,
                 "end_seed": 1,  # Will be set to start_seed if blank
                 "num_inference_steps": common_settings.NUM_INFERENCE_STEPS,
@@ -95,6 +105,20 @@ class InteractiveLevelGeneration(InteractiveGeneration):
 
 if __name__ == "__main__":
     args = parse_args()
+
+    if args.game == "Mario":
+        args.num_tiles = 15
+        height = 16,
+        width = 16,
+        args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+    elif args.game == "LR":
+        args.num_tiles = 10 
+        height = 32,
+        width = 32,
+        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' 
+    else:
+        raise ValueError(f"Unknown game: {args.game}")
+    
     ig = InteractiveLevelGeneration(args)
     ig.start()
 
