@@ -1,22 +1,14 @@
 from interactive_generation import InteractiveGeneration
 import torch
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
-from level_dataset import visualize_samples, convert_to_level_format
+from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
 from captions.caption_match import compare_captions, process_scene_segments
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import argparse
 import util.common_settings as common_settings
-import level_dataset as level_dataset
 import util.LR_common_settings as lr_common_settings
-import sys
-import os
-
-# Add the parent directory to sys.path so sibling folders can be imported
-#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-#import LodeRunner as lr
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")    
@@ -79,7 +71,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
 
     def generate_image(self, param_values, generator, **extra_params):
         if self.args.automatic_negative_captions:
-            pos, neg = level_dataset.positive_negative_caption_split(param_values["caption"], True)
+            pos, neg = positive_negative_caption_split(param_values["caption"], True)
             param_values["negative_prompt"] = neg
         images = self.pipe(
             generator=generator,
