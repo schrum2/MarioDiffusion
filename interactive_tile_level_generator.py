@@ -471,8 +471,26 @@ Average Segment Score: {avg_segment_score}"""
             return level
       
     def play_level(self, idx):
-        level = self.get_sample_output(idx)
-        level.play()
+        selected_game = self.game_var.get()
+        if selected_game == "Lode Runner":
+            import tempfile, json
+            scene = self.get_sample_output(idx).level  # list of strings
+            # Convert to Lode Runner JSON format
+            lr_json = [{
+                "scene": [[char for char in row] for row in scene],
+                "caption": ""
+            }]
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+                json.dump(lr_json, tmp)
+                tmp_path = tmp.name
+            if lr_main:
+                lr_main.play_level(tmp_path, 1)
+            else:
+                print("LodeRunner main module not found.")
+        else:
+            # Default: Mario play logic
+            level = self.get_sample_output(idx)
+            level.play()
 
     def use_astar(self, idx):
         level = self.get_sample_output(idx)
