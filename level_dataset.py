@@ -13,7 +13,6 @@ from PIL import Image
 from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEGATED_PLURAL
 import numpy as np
 import util.common_settings as common_settings
-import util.LR_common_settings as lr_common_settings
 
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
@@ -244,10 +243,10 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
             #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = common_settings.MARIO_TILE_PIXEL_DIM
-        elif height == lr_common_settings.LR_HEIGHT and width == lr_common_settings.LR_WIDTH: # TODO: Define these constants in common_settings
+        elif height == common_settings.LR_HEIGHT: #and width == lr_common_settings.LR_WIDTH: # TODO: Define these constants in common_settings
             #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
-            tile_size = lr_common_settings.LR_TILE_PIXEL_DIM
+            tile_size = common_settings.LR_TILE_PIXEL_DIM
         else:
             raise ValueError(f"Did not know what tile set to use with height = {height} and width = {width}")
 

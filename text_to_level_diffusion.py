@@ -3,12 +3,12 @@ import torch
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
 from captions.caption_match import compare_captions, process_scene_segments
+from captions.LR_caption_match import compare_captions as lr_compare_captions, process_scene_segments as lr_process_scene_segments
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import argparse
 import util.common_settings as common_settings
-import util.LR_common_settings as lr_common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")    
@@ -69,6 +69,9 @@ class InteractiveLevelGeneration(InteractiveGeneration):
 
         self.args = args
 
+        if self.args.game == "LR":
+            del self.input_parameters["width"]
+
     def generate_image(self, param_values, generator, **extra_params):
         if self.args.automatic_negative_captions:
             pos, neg = positive_negative_caption_split(param_values["caption"], True)
@@ -91,26 +94,44 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             level_width = common_settings.MARIO_WIDTH
         elif self.args.game == "LR":
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
-            level_width = lr_common_settings.LR_WIDTH
+            level_width = common_settings.LR_WIDTH
         else:
             raise ValueError(f"Unknown game: {self.args.game}")
         
-        print(f"Describe resulting image: {actual_caption}")
-        compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
-        print(f"Comparison score: {compare_score}")
+        if args.game == "LR":
+            print(f"Describe resulting image: {actual_caption}")
+            lr_compare_score = lr_compare_captions(param_values.get("caption", ""), actual_caption)
+            print(f"Comparison score: {lr_compare_score}")
 
-        # Use the new function to process scene segments
-        average_score, segment_captions, segment_scores = process_scene_segments(
-            scene=scene,
-            segment_width=level_width,
-            prompt=param_values.get("caption", ""),
-            id_to_char=self.id_to_char,
-            char_to_id=self.char_to_id,
-            tile_descriptors=self.tile_descriptors,
-            describe_locations=False, #self.args.describe_locations,
-            describe_absence=self.args.describe_absence,
-            verbose=True
-        )
+            # Use the new function to process scene segments
+            average_score, segment_captions, segment_scores = lr_process_scene_segments(
+                scene=scene,
+                segment_width=level_width,
+                prompt=param_values.get("caption", ""),
+                id_to_char=self.id_to_char,
+                char_to_id=self.char_to_id,
+                tile_descriptors=self.tile_descriptors,
+                describe_locations=False, #self.args.describe_locations,
+                describe_absence=self.args.describe_absence,
+                verbose=True
+            )
+
+        elif args.game == "Mario":
+            compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
+            print(f"Comparison score: {compare_score}")
+
+            # Use the new function to process scene segments
+            average_score, segment_captions, segment_scores = process_scene_segments(
+                scene=scene,
+                segment_width=level_width,
+                prompt=param_values.get("caption", ""),
+                id_to_char=self.id_to_char,
+                char_to_id=self.char_to_id,
+                tile_descriptors=self.tile_descriptors,
+                describe_locations=False, #self.args.describe_locations,
+                describe_absence=self.args.describe_absence,
+                verbose=True
+            )
 
         return visualize_samples(images)
 
@@ -122,6 +143,12 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             del param_values["caption"]
 
         param_values["output_type"] = "tensor"
+
+        # Lode Runner
+        if self.args.game == "LR":
+            param_values["height"] = common_settings.LR_HEIGHT
+            param_values["width"] = common_settings.LR_WIDTH
+
         return dict()
 
 if __name__ == "__main__":
@@ -134,10 +161,10 @@ if __name__ == "__main__":
         args.tile_size = common_settings.MARIO_TILE_PIXEL_DIM
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = lr_common_settings.LR_TILE_COUNT
-        height = lr_common_settings.LR_HEIGHT
-        width = lr_common_settings.LR_WIDTH
-        args.tile_size = lr_common_settings.LR_TILE_PIXEL_DIM
+        args.num_tiles = common_settings.LR_TILE_COUNT
+        height = common_settings.LR_HEIGHT
+        width = common_settings.LR_WIDTH
+        args.tile_size = common_settings.LR_TILE_PIXEL_DIM
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")

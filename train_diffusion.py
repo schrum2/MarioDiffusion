@@ -18,7 +18,7 @@ from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
-from create_ascii_captions import extract_tileset # TODO: Move this to a caption_util.py file
+from captions.util import extract_tileset # TODO: Move this to a caption_util.py file
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 from torch.distributions import Categorical
@@ -210,7 +210,7 @@ def main():
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = 10 # TODO
+        args.num_tiles = common_settings.LR_TILE_COUNT # TODO
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
     else:
         raise ValueError(f"Unknown game: {args.game}")
