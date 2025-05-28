@@ -126,11 +126,13 @@ if __name__ == "__main__":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         height = common_settings.MARIO_HEIGHT
         width = common_settings.MARIO_WIDTH
+        args.tile_size = common_settings.MARIO_TILE_PIXEL_DIM
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
         args.num_tiles = lr_common_settings.LR_TILE_COUNT
         height = lr_common_settings.LR_HEIGHT
         width = lr_common_settings.LR_WIDTH
+        args.tile_size = lr_common_settings.LR_TILE_PIXEL_DIM
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")
