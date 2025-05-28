@@ -519,14 +519,10 @@ def main():
 
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
-    patience = args.patience if hasattr(args, 'patience') else 30
     best_val_loss = float('inf')
     best_caption_score = float('-inf')
-    early_stop = False
     best_model_state = None
     # Track the epoch of the last improvement
-    best_epoch = 0
-    epochs_since_improvement = 0
     
     # Initialize variables to track the best model 
     best_val_loss = float('inf')
@@ -534,9 +530,6 @@ def main():
     best_model_state = None
 
     for epoch in range(args.num_epochs):
-        # if early_stop:
-        #     print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss or caption score for {patience} epochs.")
-        #     break
         model.train()
         train_loss = 0.0
         
@@ -576,8 +569,7 @@ def main():
         # Calculate validation loss if validation dataset exists and it's time to validate
         val_loss = None
         avg_caption_score = None
-        # val_loss_improved = False
-        # caption_score_improved = False
+        val_loss_improved = False
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
@@ -618,38 +610,58 @@ def main():
                 avg_caption_score = None
 
             model.train()
+            
+            # Update the best model based on the chosen criterion
+            if args.best_model_criterion == "val_loss" and val_loss is not None and val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'val_loss': val_loss,
+                    'caption_score': avg_caption_score,
+                }
+            elif args.best_model_criterion == "caption_score" and avg_caption_score is not None and avg_caption_score > best_caption_score:
+                best_caption_score = avg_caption_score
+                best_model_state = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'val_loss': val_loss,
+                    'caption_score': avg_caption_score,
+                }
 
-            # # Log caption match score
-            # if args.text_conditional and args.plot_validation_caption_score and accelerator.is_local_main_process and caption_score_log_file:
-            #     with open(caption_score_log_file, 'a') as f:
-            #         log_entry = {
-            #             "epoch": epoch,
-            #             "caption_score": avg_caption_score,                
-            #             "step": global_step,
-            #             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            #         }
-            #         f.write(json.dumps(log_entry) + '\n')
+            # Log caption match score
+            if args.text_conditional and args.plot_validation_caption_score and accelerator.is_local_main_process and caption_score_log_file:
+                with open(caption_score_log_file, 'a') as f:
+                    log_entry = {
+                        "epoch": epoch,
+                        "caption_score": avg_caption_score,                
+                        "step": global_step,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    f.write(json.dumps(log_entry) + '\n')
 
-            # # Early stopping logic: check if EITHER metric improved in the epoch
-            # val_loss_improved = val_loss is not None and val_loss < best_val_loss
-            # caption_score_improved = avg_caption_score is not None and avg_caption_score > best_caption_score
+            # Early stopping logic: check if EITHER metric improved in the epoch
+            val_loss_improved = val_loss is not None and val_loss < best_val_loss
+            caption_score_improved = avg_caption_score is not None and avg_caption_score > best_caption_score
 
-            # # Save best model if BOTH metrics improve, or if validation loss improves
-            # # CONSIDER: Save the model if either metric improves? Base improvement on the best of the two?
-            # if caption_score_improved:
-            #     best_caption_score = avg_caption_score
+            # Save best model if BOTH metrics improve, or if validation loss improves
+            # CONSIDER: Save the model if either metric improves? Base improvement on the best of the two?
+            if caption_score_improved:
+                best_caption_score = avg_caption_score
 
-            # if val_loss_improved: # consider caption_score_improved too?
-            #     best_val_loss = val_loss
-            #     best_epoch = epoch
+            if val_loss_improved: # consider caption_score_improved too?
+                best_val_loss = val_loss
+                best_epoch = epoch
 
-            #     best_model_state = {
-            #         'epoch': epoch,
-            #         'model_state_dict': model.state_dict(),
-            #         'optimizer_state_dict': optimizer.state_dict(),
-            #         'val_loss': val_loss,
-            #         'caption_score': avg_caption_score,
-            #     }
+                best_model_state = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'val_loss': val_loss,
+                    'caption_score': avg_caption_score,
+                }
 
             # # Early stopping logic: Conditional training end when both validation and caption metrics stop improving
             # # and unconditional training ends when validation loss stops improving
@@ -672,47 +684,18 @@ def main():
             #         if best_model_state is not None:
             #             model.load_state_dict(best_model_state['model_state_dict'])
             #         early_stop = True
-            
-        # Update the best model based on the chosen criterion
-        if args.best_model_criterion == "val_loss" and val_loss is not None and val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_model_state = {
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'val_loss': val_loss,
-                'caption_score': avg_caption_score,
-            }
-        elif args.best_model_criterion == "caption_score" and avg_caption_score is not None and avg_caption_score > best_caption_score:
-            best_caption_score = avg_caption_score
-            best_model_state = {
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'val_loss': val_loss,
-                'caption_score': avg_caption_score,
-            }
         
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
         
         # Print epoch summary (similar to train_mlm.py)
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
-            if args.text_conditional and args.plot_validation_caption_score:
-                print(
-                    f"Epoch {epoch+1}/{args.num_epochs}, "
-                    f"Loss: {avg_train_loss:.4f}, "
-                    f"Val Loss: {val_loss:.4f}, "
-                    f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}, "
-                    f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs."
-                )
-            else:
-                print(
-                    f"Epoch {epoch+1}/{args.num_epochs}, "
-                    f"Loss: {avg_train_loss:.4f}, "
-                    f"Val Loss: {val_loss:.4f}, "
-                    f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs."
-                )
+            print(
+                f"Epoch {epoch+1}/{args.num_epochs}, "
+                f"Loss: {avg_train_loss:.4f}, "
+                f"Val Loss: {val_loss:.4f if val_loss is not None else 'N/A'}, "
+                f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}"
+            )
         else:
             print(
                 f"Epoch {epoch+1}/{args.num_epochs}, "
@@ -769,6 +752,7 @@ def main():
                     ).images
 
             # Convert one-hot samples to tile indices and visualize
+            # TODO: Add prompt support
             prompts = sample_captions if args.text_conditional else None
             visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts)
             
@@ -796,6 +780,18 @@ def main():
             # Ensure all processes are synchronized
             accelerator.wait_for_everyone()
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
+            
+        # Save the best model at the end of training
+        if best_model_state is not None:
+            print(f"Saving the best model from epoch {best_model_state['epoch'] + 1}")
+            model.load_state_dict(best_model_state['model_state_dict'])
+            pipeline = TextConditionalDDPMPipeline(
+                unet=accelerator.unwrap_model(model), 
+                scheduler=noise_scheduler,
+                text_encoder=text_encoder,
+                tokenizer=tokenizer_hf if args.pretrained_language_model else None
+            ).to(accelerator.device)
+            pipeline.save_pretrained(os.path.join(args.output_dir, "best_model"))
     
     try:
         # Clean up plotting resources
