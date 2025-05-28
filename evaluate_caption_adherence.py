@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
-    parser.add_argument("--batch_size", type=int, default=4, help="Training batch size") 
+    parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") 
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps") # Large reduction from the 500 used during training
