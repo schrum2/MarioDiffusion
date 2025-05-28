@@ -64,6 +64,18 @@ python create_level_json_data.py --output "MM_Levels.json" --levels "..\\TheVGLC
 ```
 ## Can I also get Lode Runner Data? (TODO)
 
+This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username:
+```
+git clone https://github.com/<username>/LodeRunner.git
+```
+Next, enter the `LodeRunner` respository.
+```
+cd LodeRunner
+```
+Then install Lode Runner repository as a library so it can be used with the MarioDiffusion data:
+```
+pip install -e ./LodeRunner
+```
 Extract a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this (top 10 rows are filled with blank space):
 ```
 python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json" --target_height 32 --target_width 32 --extra_tile .
@@ -97,6 +109,11 @@ python run_diffusion.py --model_path LR-unconditional-regular --num_samples 100 
 First create a tokenizer for the caption data you want to train on. Most of these datasets have the same vocabulary, but there is a clear difference between datasets that describe the absence of entities and those that do not.
 ```
 python tokenizer.py save --json_file LR_LevelsAndCaptions-regular.json --pkl_file LR_Tokenizer-regular.pkl
+```
+
+If the user wanted to play the levels, use the following command line. The following line allows the user to play the first level. If the user wants to play a different level, change the 0 to the level they wish to play.
+```
+python main.py MarioDiffusion/LR_LevelsAndCaptions-regular.json 1
 ```
 ## Train text encoder
 

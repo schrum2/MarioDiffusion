@@ -395,7 +395,7 @@ class TileViewer(tk.Tk):
 
             one_hot_scene = torch.nn.functional.one_hot(
                 torch.tensor(sample['scene'], dtype=torch.long),
-                num_classes=15
+                num_classes=common_settings.MARIO_TILE_COUNT
             ).float().permute(2, 0, 1).unsqueeze(0)  # Add batch dimension
 
             

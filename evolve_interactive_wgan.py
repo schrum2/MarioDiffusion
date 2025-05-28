@@ -80,7 +80,7 @@ def parse_args():
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Tile width of generated level")
-    parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
+    parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     
 
     parser.add_argument("--num_samples", type=int, default=10, help="Number of samples to generate")

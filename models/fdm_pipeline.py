@@ -13,32 +13,10 @@ from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 from safetensors.torch import save_file, load_file
 from models.fdm import Gen
+import models.sentence_transformers_helper as st_helper
 
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
-
-#Helper methods for encoding text
-def mean_pooling(model_output, attention_mask):
-    token_embeddings = model_output.last_hidden_state
-    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-
-#Encode text
-def encode(texts, tokenizer, text_encoder, device):
-    # Tokenize sentences
-    encoded_input = tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
-    encoded_input = encoded_input.to(device)
-    # Compute token embeddings
-    with torch.no_grad():
-        model_output = text_encoder(**encoded_input, return_dict=True)
-
-    # Perform pooling
-    embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
-
-    # Normalize embeddings
-    embeddings = F.normalize(embeddings, p=2, dim=1)
-    
-    return embeddings
 
 
 
@@ -184,10 +162,10 @@ class FDMPipeline():
                     text_embeddings = self.text_encoder.get_embeddings(empty_ids)
             else: #Case for the pre-trained text encoder
                 if captions is not None:
-                    text_embeddings = encode(captions, self.tokenizer, self.text_encoder, self.device)
+                    text_embeddings = st_helper.encode(captions, self.tokenizer, self.text_encoder, self.device)
                 else:
                     # Unconditional generation: use unconditional embeddings only
-                    text_embeddings = encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)           
+                    text_embeddings = st_helper.encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)           
             
             
             if noise_vector is not None:
