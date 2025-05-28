@@ -19,7 +19,7 @@ from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel
 from models.fdm import Gen
 from models.fdm_pipeline import FDMPipeline
-
+import util.common_settings as common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -27,7 +27,7 @@ def parse_args():
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
-    parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
+    parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split') # TODO: Allow SMB1 data to be split into groups for training and testing
     parser.add_argument('--train_pct', type=float, default=0.9, help='Train split percentage (default 0.9)')

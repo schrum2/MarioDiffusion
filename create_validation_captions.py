@@ -3,6 +3,7 @@ from level_dataset import LevelDataset
 import json
 from captions.caption_generator import GrammarGenerator
 from captions.caption_match import compare_captions
+import util.common_settings as common_settings
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Create validation set of captions")
@@ -11,7 +12,7 @@ def parse_args():
 
     # Dataset args
     parser.add_argument("--json", type=str, default="Mario_LevelsAndCaptions.json", help="Path to dataset json file")
-    parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
+    parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     
     # Output args

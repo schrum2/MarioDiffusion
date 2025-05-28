@@ -85,7 +85,7 @@ def get_pil_image_from_plt(fig):
     return img
 
 def colors():
-    # Create custom colormap for integers 0-15
+    # Create custom colormap for integers 
     colorslist = [
         (0.2, 0.3, 0.7),    # 0 = darker blue: sky
         (0.0, 0.4, 0.0),    # 1 = dark green: left upper lip of pipe
@@ -222,9 +222,6 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
     if len(samples.shape) != 4:
         print(samples.shape)
         raise ValueError("Shape of input should be [samples, channels, height, width]")
-    #if samples.shape[1] != 15:
-        #print(samples.shape)
-        #raise ValueError("Hard coded for 15 channels (change code to generalize beyond Mario)")
 
     # Create directory for the samples
     if output_dir:
@@ -268,7 +265,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
                 return composite_image
 
     else:
-        # Create custom colormap for integers 0-15
+        # Create custom colormap for integers 
         colorslist = colors()
         custom_cmap = matplotlib.colors.ListedColormap(colorslist[:15])
 
@@ -326,7 +323,7 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=15, negative_captions=False, block_embeddings=None):
+    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diffusion", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None):
         """
             Args:
             json_path (str): Path to JSON file with captions.

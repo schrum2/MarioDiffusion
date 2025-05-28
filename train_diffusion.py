@@ -204,7 +204,7 @@ def main():
     print(f"Using loss function: {args.loss_type}")
 
     if args.game == "Mario":
-        args.num_tiles = 15
+        args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
         args.num_tiles = 10 # TODO

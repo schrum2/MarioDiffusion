@@ -10,13 +10,14 @@ from util.plotter import Plotter  # Import the Plotter class
 from patch_dataset import PatchDataset
 import torch.nn.functional as F
 from models.block2vec_model import Block2Vec
+import util.common_settings as common_settings
 
 # ====== Defaults, but overridden by params ======
 EMBEDDING_DIM = 16
 BATCH_SIZE = 32
 EPOCHS = 100
 LR = 1e-3
-VOCAB_SIZE = 15  # Mario, though there are technically just 13
+VOCAB_SIZE = common_settings.MARIO_TILE_COUNT 
 
 def print_nearest_neighbors(model, tile_id, k=5):
     emb = model.in_embed.weight

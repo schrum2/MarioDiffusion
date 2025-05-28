@@ -24,7 +24,7 @@ def parse_args():
     # Dataset args
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
-    parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
+    parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
             

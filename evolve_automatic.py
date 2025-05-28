@@ -139,7 +139,7 @@ if __name__ == "__main__":
     parser.add_argument("--generations", type=int, default=50, help="Number of generations to run")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Width of a generated scene")
     parser.add_argument("--height", type=int, default=common_settings.MARIO_HEIGHT, help="Height of a generated scene")
-    parser.add_argument("--num_tiles", type=int, default=15, help="Number of possible tiles/channels")
+    parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TIlE_COUNT, help="Number of possible tiles/channels")
 
     parser.add_argument("--model_path", type=str, required=True, help="Path to model whose latent space will be explored")
     parser.add_argument("--target_caption", type=str, required=True, help="Caption that scenes will be evolved to match")

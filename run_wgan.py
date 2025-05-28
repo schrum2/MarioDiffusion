@@ -15,7 +15,7 @@ def parse_args():
     # Model loading args
     parser.add_argument("--model_path", type=str, required=True, help="Path to saved generator model")
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
-    parser.add_argument("--num_tiles", type=int, default=15, help="Number of tile types")
+    parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     
     # Generation args
     parser.add_argument("--num_samples", type=int, default=10, help="Number of samples to generate")
