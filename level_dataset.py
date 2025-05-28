@@ -13,7 +13,6 @@ from PIL import Image
 from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEGATED_PLURAL
 import numpy as np
 import util.common_settings as common_settings
-import util.LR_common_settings as lr_common_settings
 
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
@@ -208,7 +207,7 @@ def lr_tiles():
 
     return LR_tile_images
 
-def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, block_embeddings=None):
+def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, block_embeddings=None, prompts=None):
     """
     Visualize generated samples and save as images.
 
@@ -244,10 +243,10 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
             #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = common_settings.MARIO_TILE_PIXEL_DIM
-        elif height == lr_common_settings.LR_HEIGHT and width == lr_common_settings.LR_WIDTH: # TODO: Define these constants in common_settings
+        elif height == common_settings.LR_HEIGHT: #and width == lr_common_settings.LR_WIDTH: # TODO: Define these constants in common_settings
             #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
-            tile_size = lr_common_settings.LR_TILE_PIXEL_DIM
+            tile_size = common_settings.LR_TILE_PIXEL_DIM
         else:
             raise ValueError(f"Did not know what tile set to use with height = {height} and width = {width}")
 
@@ -262,8 +261,15 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
                     tile_image = tile_images[tile_id]
                     composite_image.paste(tile_image, (col * tile_size, row * tile_size))
 
+            # Determine the file name based on the prompt
+            if prompts:
+                sanitized_prompt = prompts.replace(" ", "_").replace("/", "_")  # Sanitize the prompt for file names
+                file_name = f"sample_{i + start_index} - {sanitized_prompt}.png"
+            else:
+                file_name = f"sample_{i + start_index} - unconditional.png"
+
             if output_dir:
-                composite_image.save(os.path.join(output_dir, f"sample_{i + start_index}.png"))
+                composite_image.save(os.path.join(output_dir, file_name))
             else:
                 return composite_image
 

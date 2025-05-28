@@ -115,6 +115,12 @@ If the user wanted to play the levels, use the following command line. The follo
 ```
 python main.py MarioDiffusion/LR_LevelsAndCaptions-regular.json 1
 ```
+
+Batch file that fully runs conditional diffusion for Lode Runner (as long as the file do not exist):
+```
+BAT_LR-conditional-regular.bat
+```
+
 ## Train text encoder
 
 First create a tokenizer for the caption data you want to train on. Most of these datasets have the same vocabulary, but there is a clear difference between datasets that describe the absence of entities and those that do not. Also, SMB1 has no upside down pipes, but these are present in the other games. The `BAT_datasets.bat` already creates a tokenizer for each dataset, but if you make a tokenizer for all of the Mario data, you should be covered:
