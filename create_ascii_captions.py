@@ -478,7 +478,7 @@ def generate_captions(dataset_path, tileset_path, output_path, describe_location
     save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence)
     print(f"Captioned dataset saved to {output_path}")
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=False):
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True):
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
