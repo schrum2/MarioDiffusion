@@ -87,12 +87,12 @@ def main():
 
     else:
         # Just run on one model and get samples as well
-        avg_score, all_samples = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False)
+        avg_score, all_samples, all_prompts = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
         
-        visualize_samples(all_samples, args.output_dir)
+        visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
@@ -166,6 +166,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     score_sum = 0.0
     total_count = 0
     all_samples = []
+    all_prompts = []
     for batch_idx, batch in enumerate(dataloader):
         with torch.no_grad():  # Disable gradient computation to save memory            
             if dataloader.dataset.negative_captions:
@@ -206,6 +207,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     caption = positive_captions[i]
                 else:
                     caption = batch[i]
+                    
+                all_prompts.append(caption)
 
                 sample = samples[i].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample)
@@ -233,7 +236,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     # Reset mode to original
     dataloader.dataset.mode = original_mode
 
-    return (avg_score, all_samples)
+    return (avg_score, all_samples, all_prompts)
 
 if __name__ == "__main__":
     main()

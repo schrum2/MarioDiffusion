@@ -418,6 +418,7 @@ def main():
                 ).images
 
             # Convert one-hot samples to tile indices and visualize
+            # TODO: Add prompt support 
             visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
             
         # Save model every N epochs
