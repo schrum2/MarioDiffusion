@@ -521,9 +521,10 @@ def main():
     patience = args.patience if hasattr(args, 'patience') else 30
     best_val_loss = float('inf')
     best_caption_score = float('-inf')
-    epochs_no_improve = 0
     early_stop = False
     best_model_state = None
+    # Track the epoch of the last improvement
+    best_epoch = -1
 
     for epoch in range(args.num_epochs):
         if early_stop:
@@ -612,7 +613,7 @@ def main():
             model.train()
 
             # Log caption match score
-            if accelerator.is_local_main_process and caption_score_log_file:
+            if args.text_conditional and args.plot_validation_caption_score and accelerator.is_local_main_process and caption_score_log_file:
                 with open(caption_score_log_file, 'a') as f:
                     log_entry = {
                         "epoch": epoch,
@@ -633,6 +634,7 @@ def main():
 
             if val_loss_improved: # consider caption_score_improved too?
                 best_val_loss = val_loss
+                best_epoch = epoch
 
                 best_model_state = {
                     'epoch': epoch,
@@ -642,14 +644,24 @@ def main():
                     'caption_score': avg_caption_score,
                 }
 
-            # Reset patience if either metric improves
-            if val_loss_improved or caption_score_improved:
-                epochs_no_improve = 0
+            # Early stopping logic: Conditional training end when both validation and caption metrics stop improving
+            # and unconditional training ends when validation loss stops improving
+            if args.text_conditional and args.plot_validation_caption_score:
+                no_improvement = not val_loss_improved and not caption_score_improved
             else:
-                epochs_no_improve += 1
-                print(f"No improvement in val loss or caption score for {epochs_no_improve}/{patience} epochs.")
-                if epochs_no_improve >= patience:
-                    print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
+                no_improvement = not val_loss_improved
+
+            if no_improvement:
+                epochs_since_improvement = epoch - best_epoch
+                if args.text_conditional and args.plot_validation_caption_score:
+                    print(f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs.")
+                else:
+                    print(f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs.")
+                if epochs_since_improvement >= patience:
+                    if args.text_conditional and args.plot_validation_caption_score:
+                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
+                    else:
+                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}")
                     if best_model_state is not None:
                         model.load_state_dict(best_model_state['model_state_dict'])
                     early_stop = True
@@ -657,6 +669,29 @@ def main():
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
         
+        # Print epoch summary (similar to train_mlm.py)
+        if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
+            if args.text_conditional and args.plot_validation_caption_score:
+                print(
+                    f"Epoch {epoch+1}/{args.num_epochs}, "
+                    f"Loss: {avg_train_loss:.4f}, "
+                    f"Val Loss: {val_loss:.4f}, "
+                    f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}, "
+                    f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs."
+                )
+            else:
+                print(
+                    f"Epoch {epoch+1}/{args.num_epochs}, "
+                    f"Loss: {avg_train_loss:.4f}, "
+                    f"Val Loss: {val_loss:.4f}, "
+                    f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs."
+                )
+        else:
+            print(
+                f"Epoch {epoch+1}/{args.num_epochs}, "
+                f"Loss: {avg_train_loss:.4f}"
+            )
+
         # Generate and save sample levels every N epochs
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
             # Switch to eval mode
