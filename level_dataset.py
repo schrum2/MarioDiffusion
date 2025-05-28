@@ -261,7 +261,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
 
             # Determine the file name based on the prompt
             if prompts:
-                sanitized_prompt = prompts.replace(" ", "_").replace("/", "_")  # Sanitize the prompt for file names
+                sanitized_prompt = prompts[i].replace(".", "")[:50]
                 file_name = f"sample_{i + start_index} - {sanitized_prompt}.png"
             else:
                 file_name = f"sample_{i + start_index} - unconditional.png"
