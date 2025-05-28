@@ -9,7 +9,6 @@ from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import argparse
 import util.common_settings as common_settings
-import util.LR_common_settings as lr_common_settings
 import sys
 import os
 
@@ -87,7 +86,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             level_width = common_settings.MARIO_WIDTH
         elif self.args.game == "LR":
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
-            level_width = lr_common_settings.LR_WIDTH
+            level_width = common_settings.LR_WIDTH
         else:
             raise ValueError(f"Unknown game: {self.args.game}")
         
@@ -148,10 +147,10 @@ if __name__ == "__main__":
         args.tile_size = common_settings.MARIO_TILE_PIXEL_DIM
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = lr_common_settings.LR_TILE_COUNT
-        height = lr_common_settings.LR_HEIGHT
-        width = lr_common_settings.LR_WIDTH
-        args.tile_size = lr_common_settings.LR_TILE_PIXEL_DIM
+        args.num_tiles = common_settings.LR_TILE_COUNT
+        height = common_settings.LR_HEIGHT
+        width = common_settings.LR_WIDTH
+        args.tile_size = common_settings.LR_TILE_PIXEL_DIM
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")
