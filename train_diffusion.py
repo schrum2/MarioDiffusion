@@ -25,6 +25,7 @@ from torch.distributions import Categorical
 from models.block2vec_model import Block2Vec
 import models.sentence_transformers_helper as st_helper
 import models.text_model as text_model
+import glob
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -222,8 +223,19 @@ def main():
 
     # Check if output directory already exists
     if os.path.exists(args.output_dir):
-        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-        exit()
+        checkpoints = glob.glob(os.path.join(args.output_dir, "checkpoint-*"))
+        if checkpoints:
+            user_input = input(f"Output directory '{args.output_dir}' already exists and contains checkpoints. Resume training from last checkpoint? (y/n): ").strip().lower()
+            if user_input != 'y':
+                print("Exiting. Please remove the directory or choose a different output directory.")
+                exit()
+            resume_training = True
+        else:
+            print(f"Output directory '{args.output_dir}' already exists but contains no checkpoints. Please remove it or choose a different name.")
+            exit()
+    else:
+        os.makedirs(args.output_dir)
+        resume_training = False
     
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
@@ -426,12 +438,13 @@ def main():
         model, optimizer, train_dataloader, lr_scheduler
     )
     
-    # Create output directory
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-    else:
-        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-        exit()
+    # # Second occurance to create new directory. Delete?
+    # # Create output directory
+    # if not os.path.exists(args.output_dir):
+    #     os.makedirs(args.output_dir)
+    # else:
+    #     print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+    #     exit()
     
     # Training loop
     global_step = 0
