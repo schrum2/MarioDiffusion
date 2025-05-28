@@ -231,6 +231,13 @@ class TileViewer(tk.Tk):
             self.is_lode_runner = lr_flag
             with open(dataset_path, 'r') as f:
                 self.dataset = json.load(f)
+
+            # Is designed to typically expect both scenes and captions, but if there are only level scenes,
+            # convert the data format
+            if isinstance(self.dataset, list) and all(isinstance(item, list) for item in self.dataset):
+                # Convert to dict format with empty caption
+                self.dataset = [{'scene': item, 'caption': ''} for item in self.dataset]
+
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
             self.current_sample_idx = 0
             self.redraw()
@@ -402,9 +409,19 @@ class TileViewer(tk.Tk):
             image = visualize_samples(one_hot_scene)
             if isinstance(image, list):
                 image = image[0]  # Handle list case by taking the first element
+
+            # --- Resize image to fit canvas ---
+            canvas_width = int(self.canvas['width'])
+            canvas_height = int(self.canvas['height'])
+            img_width, img_height = image.size
+            scale = min(canvas_width / img_width, canvas_height / img_height, 1.0)
+            if scale < 1.0:
+                new_size = (int(img_width * scale), int(img_height * scale))
+                image = image.resize(new_size, PIL.Image.NEAREST)
+
             photo_image = PIL.ImageTk.PhotoImage(image)
             self.canvas.create_image(
-                self.window_size // 2, self.window_size // 2, image=photo_image, anchor="center"
+                canvas_width // 2, canvas_height // 2, image=photo_image, anchor="center"
             )
             self.photo_image = photo_image  # Keep a reference to avoid garbage collection
         else:
