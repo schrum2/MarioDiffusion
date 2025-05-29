@@ -221,6 +221,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_freq", type=int, default=20, help="Save checkpoint every N epochs (0 to disable)")
     parser.add_argument("--save_checkpoints", action="store_true", help="Enable periodic checkpoint saving")
     parser.add_argument("--patience", type=int, default=30, help="Number of epochs to wait for improvement in val loss before early stopping (default: 20)")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed")
     
     global args
     args = parser.parse_args()
@@ -231,7 +232,7 @@ if __name__ == "__main__":
         exit()
     
     # Set random seeds for reproducibility
-    seed = 42
+    seed = args.seed
     random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
