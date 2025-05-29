@@ -225,6 +225,7 @@ class TileViewer(tk.Tk):
         self.load_files_from_paths(dataset_path, tileset_path)
 
     def load_files_from_paths(self, dataset_path, tileset_path):
+        self.dataset_path = dataset_path
         try:
             # Set Lode Runner flag based on filename
             lr_flag = ("lr" in os.path.basename(dataset_path).lower() or
@@ -584,8 +585,14 @@ class TileViewer(tk.Tk):
             for row in scene:
                 char_row = "".join([self.id_to_char[num] for num in row])
                 char_grid.append(char_row)
-            level = SampleOutput(level=char_grid)
-            level.play(game="loderunner" if self.is_lode_runner else "mario")
+            if not hasattr(self, 'is_lode_runner'):
+                level = SampleOutput(level=char_grid)
+            else:
+                # If Lode Runner, use a different game type
+                level = SampleOutput(level=char_grid)
+            level.play(game="loderunner" if self.is_lode_runner else "mario", 
+                       level_idx=self.current_sample_idx + 1,
+                       dataset_path=self.dataset_path if hasattr(self, 'dataset_path') else None)
 
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
