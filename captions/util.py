@@ -35,8 +35,16 @@ def analyze_floor(scene, id_to_char, tile_descriptors, describe_absence):
     """Analyzes the last row of the 32x32 scene and generates a floor description."""
     WIDTH = len(scene[0])
     last_row = scene[-1]  # The FLOOR row of the scene
-    solid_count = sum(1 for tile in last_row if "solid" in tile_descriptors.get(id_to_char[tile], []))
-    passable_count = sum(1 for tile in last_row if "passable" in tile_descriptors.get(id_to_char[tile], []))
+    solid_count = sum(
+        1 for tile in last_row
+        if tile in id_to_char and (
+            "solid" in tile_descriptors.get(id_to_char[tile], []) or
+            "diggable" in tile_descriptors.get(id_to_char[tile], [])
+        )
+    )
+    passable_count = sum(
+        1 for tile in last_row if "passable" in tile_descriptors.get(id_to_char[tile], [])
+    )
 
     if solid_count == WIDTH:
         return "full floor"
