@@ -21,8 +21,7 @@ class PipelineOutput(NamedTuple):
 
 
 class FDMPipeline():
-    def __init__(
-            self, tokenizer, text_encoder, model, device):
+    def __init__(self, tokenizer, text_encoder, model, device):
         self.tokenizer = tokenizer
         self.text_encoder = text_encoder
         self.model = model
@@ -118,7 +117,7 @@ class FDMPipeline():
 
     def __call__(
             self,
-            caption: str,
+            caption: Optional[str | list[str]] = None,
             generator: Optional[torch.Generator] = None,
             batch_size: int = 1,
             show_progress_bar: bool = True,

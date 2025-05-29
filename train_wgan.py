@@ -219,7 +219,9 @@ def main():
     progress_bar.set_description("Steps")
     
     for epoch in range(args.num_epochs):
+        
         for batch_idx, batch in enumerate(train_dataloader):
+            
             # Get level scenes (ignore captions if returned)
             if isinstance(batch, list):
                 scenes, _ = batch  # Ignore captions
@@ -240,6 +242,7 @@ def main():
             n_critic_iters = 100 if gen_iterations < 25 or gen_iterations % 500 == 0 else args.n_critic
             
             for _ in range(n_critic_iters):
+                
                 netD.zero_grad()
                 
                 # Clamp parameters to a range
@@ -301,12 +304,10 @@ def main():
             }
             progress_bar.set_postfix(**logs)
             
-            # Log metrics
-            log_metrics(epoch, errD.item(), errG.item(), current_lr_d, current_lr_g, global_step)
-            
             global_step += 1
             
-            
+        # Log metrics
+        log_metrics(epoch, errD.item(), errG.item(), current_lr_d, current_lr_g, global_step)
         
         # Generate and save sample levels at the end of each epoch
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
@@ -330,7 +331,8 @@ def main():
             torch.save(netG.state_dict(), os.path.join(checkpoint_path, "generator.pth"))
             torch.save(netD.state_dict(), os.path.join(checkpoint_path, "discriminator.pth"))
             print(f"Saved models at epoch {epoch}")
-    
+        
+
     # Clean up plotting resources
     gen_train_help.kill_plotter(plotter, plot_thread)
     

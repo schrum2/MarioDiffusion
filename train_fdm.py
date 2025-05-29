@@ -32,9 +32,6 @@ def parse_args():
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split') # TODO: Allow SMB1 data to be split into groups for training and testing
-    parser.add_argument('--train_pct', type=float, default=0.9, help='Train split percentage (default 0.9)')
-    parser.add_argument('--val_pct', type=float, default=0.05, help='Validation split percentage (default 0.05)')
-    parser.add_argument('--test_pct', type=float, default=0.05, help='Test split percentage (default 0.05)')
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
@@ -51,8 +48,8 @@ def parse_args():
     # Training args
     parser.add_argument("--num_epochs", type=int, default=100, help="Number of epochs to train for")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
-    parser.add_argument("--save_image_epochs", type=int, default=20, help="Save generated levels every N epochs")
-    parser.add_argument("--save_model_epochs", type=int, default=20, help="Save model every N epochs")
+    parser.add_argument("--save_image_epochs", type=int, default=10, help="Save generated levels every N epochs")
+    parser.add_argument("--save_model_epochs", type=int, default=10, help="Save model every N epochs")
     parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help="Mixed precision type")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--validate_epochs", type=int, default=5, help="Calculate validation loss every N epochs")
@@ -192,7 +189,7 @@ def main():
     
     
 
-        # Training loop
+    # Training loop
     global_step = 0
     progress_bar = tqdm(total=args.num_epochs * len(train_dataloader), disable=not accelerator.is_local_main_process)
     progress_bar.set_description("Steps")
@@ -355,7 +352,7 @@ def main():
                 ).images
 
             # Convert one-hot samples to tile indices and visualize
-            prompts = sample_captions if args.text_conditional else None
+            prompts = sample_captions
             visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts)
             
         # Save model every N epochs
@@ -392,7 +389,7 @@ def main():
         tokenizer, text_encoder, model, accelerator.device
         ).to(accelerator.device)
             
-        pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
+        pipeline.save_pretrained(os.path.join(args.output_dir, f"final-model"))
 
             
 def process_fdm_batch(
