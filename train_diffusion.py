@@ -72,7 +72,7 @@ def parse_args():
     
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
-    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=13, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
@@ -220,8 +220,8 @@ def main():
 
     # Check if config file is provided before training loop begins
     if hasattr(args, 'config') and args.config:
-        config = load_config_from_json(args.config)
-        args = update_args_from_config(args, config)
+        config = gen_train_help.load_config_from_json(args.config)
+        args = gen_train_help.update_args_from_config(args, config)
         print("Training will use parameters from the config file.")
 
     # Check if output directory already exists
@@ -760,31 +760,6 @@ def main():
             
         pipeline.save_pretrained(args.output_dir)
 
-# Add function to load config from JSON
-def load_config_from_json(config_path):
-    """Load hyperparameters from a JSON config file."""
-    try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-            print(f"Configuration loaded from {config_path}")
-            
-            # Print the loaded config for verification
-            print("Loaded hyperparameters:")
-            for key, value in config.items():
-                print(f"  {key}: {value}")
-                
-            return config
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error loading config file: {e}")
-        raise e
-
-def update_args_from_config(args, config):
-    """Update argparse namespace with values from config."""
-    # Convert config dict to argparse namespace
-    for key, value in config.items():
-        if hasattr(args, key):
-            setattr(args, key, value)
-    return args
 
 def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=None):
     """

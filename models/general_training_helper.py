@@ -5,6 +5,7 @@ from util.plotter import Plotter
 from datetime import datetime
 import os
 import threading
+import json
 
 
 
@@ -109,5 +110,32 @@ def kill_plotter(plotter, plot_thread):
         plot_thread.join(timeout=5.0)
         if plot_thread.is_alive():
             print("Warning: Plot thread did not terminate properly")
+
+
+def load_config_from_json(config_path):
+    """Load hyperparameters from a JSON config file."""
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            print(f"Configuration loaded from {config_path}")
+            
+            # Print the loaded config for verification
+            print("Loaded hyperparameters:")
+            for key, value in config.items():
+                print(f"  {key}: {value}")
+                
+            return config
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Error loading config file: {e}")
+        raise e
+
+
+def update_args_from_config(args, config):
+    """Update argparse namespace with values from config."""
+    # Convert config dict to argparse namespace
+    for key, value in config.items():
+        if hasattr(args, key):
+            setattr(args, key, value)
+    return args
 
 

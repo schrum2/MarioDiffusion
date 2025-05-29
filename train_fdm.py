@@ -27,7 +27,7 @@ def parse_args():
     
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
-    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
@@ -68,6 +68,7 @@ def parse_args():
     # For block2vec embedding model
     parser.add_argument("--block_embedding_model_path", type=str, default=None, help="Path to trained block embedding model (.pt)")
 
+    parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
 
 
     return parser.parse_args()
@@ -90,6 +91,13 @@ class imageDataSet(Dataset):
 
 def main():
     args = parse_args()
+
+    # Check if config file is provided before training loop begins
+    if hasattr(args, 'config') and args.config:
+        config = gen_train_help.load_config_from_json(args.config)
+        args = gen_train_help.update_args_from_config(args, config)
+        print("Training will use parameters from the config file.")
+
 
     # Check if output directory already exists
     if not os.path.exists(args.output_dir):

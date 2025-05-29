@@ -22,7 +22,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train a WGAN for tile-based level generation")
     
     # Dataset args
-    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular.json", help="Path to dataset json file")
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
@@ -43,8 +43,8 @@ def parse_args():
     parser.add_argument("--beta1", type=float, default=0.5, help="Beta1 for Adam optimizer")
     parser.add_argument("--use_rmsprop", action="store_true", help="Use RMSprop optimizer instead of Adam")
     parser.add_argument("--num_epochs", type=int, default=1000, help="Number of training epochs")
-    parser.add_argument("--save_image_epochs", type=int, default=100, help="Save generated levels every N epochs")
-    parser.add_argument("--save_model_epochs", type=int, default=100, help="Save model every N epochs")
+    parser.add_argument("--save_image_epochs", type=int, default=50, help="Save generated levels every N epochs")
+    parser.add_argument("--save_model_epochs", type=int, default=50, help="Save model every N epochs")
     
     # Learning rate scheduling (optional)
     parser.add_argument("--use_lr_scheduler", action="store_true", help="Use learning rate scheduler")
@@ -73,47 +73,23 @@ def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
 
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
-def load_config_from_json(config_path):
-    """Load hyperparameters from a JSON config file."""
-    try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-            print(f"Configuration loaded from {config_path}")
-            
-            # Print the loaded config for verification
-            print("Loaded hyperparameters:")
-            for key, value in config.items():
-                print(f"  {key}: {value}")
-                
-            return config
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error loading config file: {e}")
-        raise e
 
-def update_args_from_config(args, config):
-    """Update argparse namespace with values from config."""
-    # Convert config dict to argparse namespace
-    for key, value in config.items():
-        if hasattr(args, key):
-            setattr(args, key, value)
-    return args
 
 def main():
     args = parse_args()
 
     # Check if config file is provided
     if args.config:
-        config = load_config_from_json(args.config)
-        args = update_args_from_config(args, config)
+        config = gen_train_help.load_config_from_json(args.config)
+        args = gen_train_help.update_args_from_config(args, config)
         print("Training will use parameters from the config file.")
 
     # Check if output directory exists
     if os.path.exists(args.output_dir):
         print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
         exit()
-
-    # Create output directory if it doesn't exist
-    os.makedirs(args.output_dir)    
+    else:
+        os.makedirs(args.output_dir)    
     
     # Set random seeds for reproducibility
     random.seed(args.seed)
@@ -321,8 +297,6 @@ def main():
             logs = {
                 "loss_d": errD.item(),
                 "loss_g": errG.item(),
-                "lr_d": current_lr_d,
-                "lr_g": current_lr_g,
                 "step": global_step
             }
             progress_bar.set_postfix(**logs)
@@ -332,11 +306,7 @@ def main():
             
             global_step += 1
             
-            # Generate and save sample levels periodically
-            if gen_iterations % 50 == 0:
-                print(f'[{epoch}/{args.num_epochs}][{batch_idx}/{len(train_dataloader)}] '
-                      f'Loss_D: {errD.item():.4f} Loss_G: {errG.item():.4f} '
-                      f'lr_d: {current_lr_d:.6f} lr_g: {current_lr_g:.6f}')
+            
         
         # Generate and save sample levels at the end of each epoch
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
