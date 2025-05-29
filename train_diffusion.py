@@ -512,17 +512,19 @@ def main():
 
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
+    patience = args.patience if hasattr(args, 'patience') else 30
     best_val_loss = float('inf')
     best_caption_score = float('-inf')
+    early_stop = False
     best_model_state = None
     # Track the epoch of the last improvement
-    
-    # Initialize variables to track the best model 
-    best_val_loss = float('inf')
-    best_caption_score = float('-inf')
-    best_model_state = None
+    best_epoch = 0
+    epochs_since_improvement = 0
 
     for epoch in range(args.num_epochs):
+        if early_stop:
+            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss or caption score for {patience} epochs.")
+            break
         model.train()
         train_loss = 0.0
         
@@ -563,6 +565,7 @@ def main():
         val_loss = None
         avg_caption_score = None
         val_loss_improved = False
+        caption_score_improved = False
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
@@ -593,7 +596,7 @@ def main():
                 inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
                 guidance_scale = common_settings.GUIDANCE_SCALE
-                avg_caption_score, _ = calculate_caption_score_and_samples(
+                avg_caption_score, _, _ = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width
@@ -604,26 +607,6 @@ def main():
                 avg_caption_score = None
 
             model.train()
-            
-            # Update the best model based on the chosen criterion
-            if args.best_model_criterion == "val_loss" and val_loss is not None and val_loss < best_val_loss:
-                best_val_loss = val_loss
-                best_model_state = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'val_loss': val_loss,
-                    'caption_score': avg_caption_score,
-                }
-            elif args.best_model_criterion == "caption_score" and avg_caption_score is not None and avg_caption_score > best_caption_score:
-                best_caption_score = avg_caption_score
-                best_model_state = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'val_loss': val_loss,
-                    'caption_score': avg_caption_score,
-                }
 
             # Log caption match score
             if args.text_conditional and args.plot_validation_caption_score and accelerator.is_local_main_process and caption_score_log_file:
@@ -657,27 +640,27 @@ def main():
                     'caption_score': avg_caption_score,
                 }
 
-            # # Early stopping logic: Conditional training end when both validation and caption metrics stop improving
-            # # and unconditional training ends when validation loss stops improving
-            # if args.text_conditional and args.plot_validation_caption_score:
-            #     no_improvement = not val_loss_improved and not caption_score_improved
-            # else:
-            #     no_improvement = not val_loss_improved
+            # Early stopping logic: Conditional training end when both validation and caption metrics stop improving
+            # and unconditional training ends when validation loss stops improving
+            if args.text_conditional and args.plot_validation_caption_score:
+                no_improvement = not val_loss_improved and not caption_score_improved
+            else:
+                no_improvement = not val_loss_improved
 
-            # if no_improvement:
-            #     epochs_since_improvement = epoch - best_epoch
-            #     if args.text_conditional and args.plot_validation_caption_score:
-            #         print(f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs.")
-            #     else:
-            #         print(f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs.")
-            #     if epochs_since_improvement >= patience:
-            #         if args.text_conditional and args.plot_validation_caption_score:
-            #             print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
-            #         else:
-            #             print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}")
-            #         if best_model_state is not None:
-            #             model.load_state_dict(best_model_state['model_state_dict'])
-            #         early_stop = True
+            if no_improvement:
+                epochs_since_improvement = epoch - best_epoch
+                if args.text_conditional and args.plot_validation_caption_score:
+                    print(f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs.")
+                else:
+                    print(f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs.")
+                if epochs_since_improvement >= patience:
+                    if args.text_conditional and args.plot_validation_caption_score:
+                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
+                    else:
+                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}")
+                    if best_model_state is not None:
+                        model.load_state_dict(best_model_state['model_state_dict'])
+                    early_stop = True
         
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
@@ -690,11 +673,13 @@ def main():
                 f"Loss: {avg_train_loss:.4f}, "
                 f"Val Loss: {val_result}, "
                 f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}"
+                f"No improvement in val loss or caption score for {epochs_since_improvement} of {patience} epochs."
             )
         else:
             print(
                 f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}"
+                f"No improvement in val loss for {epochs_since_improvement} of {patience} epochs."
             )
 
         # Generate and save sample levels every N epochs
@@ -777,18 +762,6 @@ def main():
             # Ensure all processes are synchronized
             accelerator.wait_for_everyone()
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
-            
-        # Save the best model at the end of training
-        if best_model_state is not None:
-            print(f"Saving the best model from epoch {best_model_state['epoch'] + 1}")
-            model.load_state_dict(best_model_state['model_state_dict'])
-            pipeline = TextConditionalDDPMPipeline(
-                unet=accelerator.unwrap_model(model), 
-                scheduler=noise_scheduler,
-                text_encoder=text_encoder,
-                tokenizer=tokenizer_hf if args.pretrained_language_model else None
-            ).to(accelerator.device)
-            pipeline.save_pretrained(os.path.join(args.output_dir, "best_model"))
     
     try:
         # Clean up plotting resources
@@ -863,9 +836,26 @@ def update_args_from_config(args, config):
     return args
 
 def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=None):
+    """
+    Prepares the batch for training with text conditioning.
+
+    Embedding shape expectations:
+    - If args.split_pretrained_sentences: 
+        combined_embeddings shape is [batch, num_phrases, embedding_dim]
+    - If args.pretrained_language_model (no split): 
+        combined_embeddings shape is [batch, 1, embedding_dim]
+    - Else (token embedding): 
+        combined_embeddings shape is [batch, num_tokens, embedding_dim]
+
+    Returns:
+        combined_embeddings: torch.Tensor
+        scenes_for_train: torch.Tensor
+        timesteps_for_train: torch.Tensor
+    """
     #Prepares the batch for training with text conditioning.
     with torch.no_grad():         
         if args.split_pretrained_sentences:
+            # Each caption is split into phrases; embedding shape: [batch, num_phrases, embedding_dim]
             combined_embeddings = st_helper.get_embeddings_split(batch_size=len(captions),
                                                        tokenizer=tokenizer_hf,
                                                        model=text_encoder,
@@ -873,6 +863,7 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
                                                        neg_captions=negative_captions,
                                                        device=device)
         elif args.pretrained_language_model:
+            # Each caption is embedded as a single vector; shape: [batch, 1, embedding_dim]
             combined_embeddings = st_helper.get_embeddings(batch_size=len(captions),
                                                        tokenizer=tokenizer_hf,
                                                        model=text_encoder,
@@ -881,12 +872,28 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
                                                        device=device)
             
         else:
+            # Token-level embedding; shape: [batch, num_tokens, embedding_dim]
             combined_embeddings = text_model.get_embeddings(batch_size=len(captions),
                                                        tokenizer=text_encoder.tokenizer,
                                                        text_encoder=text_encoder,
                                                        captions=captions,
                                                        neg_captions=negative_captions,
                                                        device=device)
+
+        repeat_factor = 3 if args.negative_prompt_training else 2
+        if args.split_pretrained_sentences:
+            # [batch, num_phrases, embedding_dim]
+            assert combined_embeddings.ndim == 3, "Expected [batch, num_phrases, embedding_dim] for split_pretrained_sentences"
+            assert combined_embeddings.shape[0] == len(captions)*repeat_factor, f"Batch size mismatch in split_pretrained_sentences: shape {combined_embeddings.shape} and captions {len(captions)}"
+        elif args.pretrained_language_model:
+            # [batch, 1, embedding_dim]
+            assert combined_embeddings.ndim == 3, "Expected [batch, 1, embedding_dim] for pretrained_language_model"
+            assert combined_embeddings.shape[0] == len(captions)*repeat_factor, f"Batch size mismatch in pretrained_language_model: shape {combined_embeddings.shape} and captions {len(captions)}"
+            assert combined_embeddings.shape[1] == 1, f"Expected singleton phrase dimension for pretrained_language_model: shape {combined_embeddings.shape}"
+        else:
+            # [batch, num_tokens, embedding_dim]
+            assert combined_embeddings.ndim == 3, "Expected [batch, num_tokens, embedding_dim] for token embedding"
+            assert combined_embeddings.shape[0] == len(captions)*repeat_factor, f"Batch size mismatch in token embedding: shape {combined_embeddings.shape} and captions {len(captions)}"
 
         if args.negative_prompt_training:
             scenes_for_train = torch.cat([scenes] * 3)  # Repeat scenes three times
@@ -941,4 +948,4 @@ def process_diffusion_batch(
     return batch_loss
 
 if __name__ == "__main__":
-    main()
+     main()
