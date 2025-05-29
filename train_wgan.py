@@ -13,6 +13,7 @@ from datetime import datetime
 from util.plotter import Plotter
 from models.wgan_model import WGAN_Generator, WGAN_Discriminator
 import util.common_settings as common_settings
+import models.general_training_helper as gen_train_help
 
 # For learning rate scheduler
 from torch.optim.lr_scheduler import LambdaLR
@@ -21,7 +22,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train a WGAN for tile-based level generation")
     
     # Dataset args
-    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular.json", help="Path to dataset json file")
+    parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
@@ -41,8 +43,8 @@ def parse_args():
     parser.add_argument("--beta1", type=float, default=0.5, help="Beta1 for Adam optimizer")
     parser.add_argument("--use_rmsprop", action="store_true", help="Use RMSprop optimizer instead of Adam")
     parser.add_argument("--num_epochs", type=int, default=1000, help="Number of training epochs")
-    parser.add_argument("--save_image_epochs", type=int, default=100, help="Save generated levels every N epochs")
-    parser.add_argument("--save_model_epochs", type=int, default=100, help="Save model every N epochs")
+    parser.add_argument("--save_image_epochs", type=int, default=50, help="Save generated levels every N epochs")
+    parser.add_argument("--save_model_epochs", type=int, default=50, help="Save model every N epochs")
     
     # Learning rate scheduling (optional)
     parser.add_argument("--use_lr_scheduler", action="store_true", help="Use learning rate scheduler")
@@ -71,47 +73,23 @@ def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
 
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
-def load_config_from_json(config_path):
-    """Load hyperparameters from a JSON config file."""
-    try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-            print(f"Configuration loaded from {config_path}")
-            
-            # Print the loaded config for verification
-            print("Loaded hyperparameters:")
-            for key, value in config.items():
-                print(f"  {key}: {value}")
-                
-            return config
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error loading config file: {e}")
-        raise e
 
-def update_args_from_config(args, config):
-    """Update argparse namespace with values from config."""
-    # Convert config dict to argparse namespace
-    for key, value in config.items():
-        if hasattr(args, key):
-            setattr(args, key, value)
-    return args
 
 def main():
     args = parse_args()
 
     # Check if config file is provided
     if args.config:
-        config = load_config_from_json(args.config)
-        args = update_args_from_config(args, config)
+        config = gen_train_help.load_config_from_json(args.config)
+        args = gen_train_help.update_args_from_config(args, config)
         print("Training will use parameters from the config file.")
 
     # Check if output directory exists
     if os.path.exists(args.output_dir):
         print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
         exit()
-
-    # Create output directory if it doesn't exist
-    os.makedirs(args.output_dir)    
+    else:
+        os.makedirs(args.output_dir)    
     
     # Set random seeds for reproducibility
     random.seed(args.seed)
@@ -127,25 +105,14 @@ def main():
     device = torch.device(args.device if torch.cuda.is_available() and args.device == "cuda" else "cpu")
     print(f"Using device: {device}")
     
-    # Initialize dataset
-    dataset = LevelDataset(
-        json_path=args.json,
-        tokenizer=None,
-        shuffle=True,
-        mode="diff_text",  # We need this for compatibility with your dataset class
-        augment=args.augment,
-        num_tiles=args.num_tiles
-    )
 
-    # Create dataloader
-    dataloader = DataLoader(
-        dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=4,
-        drop_last=True
-    )
+    train_dataloader, val_dataloader = gen_train_help.create_dataloaders(json_path=args.json,
+                                        val_json=args.val_json, tokenizer=None, data_mode="diff_text",
+                                        augment=args.augment, num_tiles=args.num_tiles,
+                                        negative_prompt_training=None,
+                                        block_embeddings=None, batch_size=args.batch_size)
     
+
     # Set input image size (assume square)
     isize = common_settings.MARIO_HEIGHT
     
@@ -190,7 +157,7 @@ def main():
     lr_schedulerD = None
     
     if args.use_lr_scheduler:
-        total_training_steps = len(dataloader) * args.num_epochs
+        total_training_steps = len(train_dataloader) * args.num_epochs
         warmup_steps = int(total_training_steps * args.lr_warmup_percentage)
         
         print(f"Using learning rate scheduler with warmup: {warmup_steps} steps out of {total_training_steps}")
@@ -234,27 +201,25 @@ def main():
             "loss_g": loss_g if isinstance(loss_g, float) else loss_g.item(),
             "lr_d": lr_d,
             "lr_g": lr_g,
-            "step": step if step is not None else epoch * len(dataloader),
+            "step": step if step is not None else epoch * len(train_dataloader),
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         with open(log_file, 'a') as f:
             f.write(json.dumps(log_entry) + '\n')
 
     # Initialize plotter
-    plotter = Plotter(log_file, update_interval=5.0, left_key="loss_d", right_key="loss_g", left_label="Discriminator Loss", right_label="Generator Loss")  # Update every 5 seconds
-    plot_thread = threading.Thread(target=plotter.start_plotting)
-    plot_thread.daemon = True
-    plot_thread.start()
-    print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, 'training_progress.png')}")
-
+    plotter, plot_thread = gen_train_help.start_plotter(log_file=log_file, output_dir=args.output_dir, 
+                                left_key='loss_d', right_key='loss_g', left_label='Discriminator Loss', 
+                                right_label='Generator Loss', png_name='training_progress')
+    
     # Training loop
     gen_iterations = 0
     global_step = 0
-    progress_bar = tqdm(total=args.num_epochs * len(dataloader))
+    progress_bar = tqdm(total=args.num_epochs * len(train_dataloader))
     progress_bar.set_description("Steps")
     
     for epoch in range(args.num_epochs):
-        for batch_idx, batch in enumerate(dataloader):
+        for batch_idx, batch in enumerate(train_dataloader):
             # Get level scenes (ignore captions if returned)
             if isinstance(batch, list):
                 scenes, _ = batch  # Ignore captions
@@ -332,8 +297,6 @@ def main():
             logs = {
                 "loss_d": errD.item(),
                 "loss_g": errG.item(),
-                "lr_d": current_lr_d,
-                "lr_g": current_lr_g,
                 "step": global_step
             }
             progress_bar.set_postfix(**logs)
@@ -343,11 +306,7 @@ def main():
             
             global_step += 1
             
-            # Generate and save sample levels periodically
-            if gen_iterations % 50 == 0:
-                print(f'[{epoch}/{args.num_epochs}][{batch_idx}/{len(dataloader)}] '
-                      f'Loss_D: {errD.item():.4f} Loss_G: {errG.item():.4f} '
-                      f'lr_d: {current_lr_d:.6f} lr_g: {current_lr_g:.6f}')
+            
         
         # Generate and save sample levels at the end of each epoch
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
@@ -373,10 +332,7 @@ def main():
             print(f"Saved models at epoch {epoch}")
     
     # Clean up plotting resources
-    if plotter:
-        plotter.stop_plotting()
-        if plot_thread and plot_thread.is_alive():
-            plot_thread.join(timeout=5.0)
+    gen_train_help.kill_plotter(plotter, plot_thread)
     
     # Close progress bar
     progress_bar.close()

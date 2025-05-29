@@ -20,13 +20,15 @@ from transformers import AutoTokenizer, AutoModel
 from models.fdm import Gen
 from models.fdm_pipeline import FDMPipeline
 import util.common_settings as common_settings
+import models.general_training_helper as gen_train_help
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
     
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
-    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
+    parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split') # TODO: Allow SMB1 data to be split into groups for training and testing
@@ -66,6 +68,7 @@ def parse_args():
     # For block2vec embedding model
     parser.add_argument("--block_embedding_model_path", type=str, default=None, help="Path to trained block embedding model (.pt)")
 
+    parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
 
 
     return parser.parse_args()
@@ -89,9 +92,18 @@ class imageDataSet(Dataset):
 def main():
     args = parse_args()
 
+    # Check if config file is provided before training loop begins
+    if hasattr(args, 'config') and args.config:
+        config = gen_train_help.load_config_from_json(args.config)
+        args = gen_train_help.update_args_from_config(args, config)
+        print("Training will use parameters from the config file.")
+
+
     # Check if output directory already exists
-    if os.path.exists(args.output_dir):
-        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    else:
+        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
         exit()
     
     # Set random seeds for reproducibility
@@ -146,83 +158,14 @@ def main():
     
 
      # Initialize dataset
-    if args.split:
-        train_json, val_json, test_json = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
-        train_dataset = LevelDataset(
-            json_path=train_json,
-            tokenizer=tokenizer,
-            shuffle=True,
-            mode=data_mode,
-            augment=args.augment,
-            num_tiles=args.num_tiles,
-            block_embeddings=block_embeddings
-        )
-        val_dataset = LevelDataset(
-            json_path=val_json,
-            tokenizer=tokenizer,
-            shuffle=False,
-            mode=data_mode,
-            augment=False,
-            num_tiles=args.num_tiles,
-            block_embeddings=block_embeddings
-        )
-    else:
-        train_dataset = LevelDataset(
-            json_path=args.json,
-            tokenizer=tokenizer,
-            shuffle=True,
-            mode=data_mode,
-            augment=args.augment,
-            num_tiles=args.num_tiles,
-            block_embeddings=block_embeddings
-        )
-        val_dataset = None
-
-    first_sample = train_dataset[0]
-    scene_height = first_sample[0].shape[1]
-    scene_width = first_sample[0].shape[2]
-
-    print(f"Scene height: {scene_height}")
-    print(f"Scene width: {scene_width}")
-
-    # Create dataloader
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=4,
-        drop_last=True
-    )
-    
-    val_dataloader = None
-    if val_dataset is not None:
-        val_dataloader = DataLoader(
-            val_dataset,
-            batch_size=args.batch_size,
-            shuffle=False,
-            num_workers=4,
-            drop_last=False
-        )
+    train_dataloader, val_dataloader = gen_train_help.create_dataloaders(json_path=args.json,
+                                        val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
+                                        augment=args.augment, num_tiles=args.num_tiles,
+                                        negative_prompt_training=False,
+                                        block_embeddings=block_embeddings, batch_size=args.batch_size)
 
 
-        # Sample four random captions from the dataset
-        sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
-        # Original code for positive-only captions
-        sample_embedding_vectors = [train_dataset[i][1] for i in sample_indices]
-        if not args.pretrained_language_model:
-            sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
-            pad_token = tokenizer.token_to_id["[PAD]"]
-            sample_captions = [
-                tokenizer.decode([token for token in caption if token != pad_token]) 
-                for caption in sample_embedding_vectors
-            ]
-        else:
-            sample_captions = [
-                v for v in sample_embedding_vectors
-            ]
-        print("Sample captions:")
-        for caption in sample_captions:
-            print(caption)
+    sample_captions, _ = gen_train_help.get_random_training_samples(train_dataloader, False, args.output_dir)
     
 
     #Create an instance of the model
@@ -247,11 +190,7 @@ def main():
     # else set channels to the embedding dimension of the model
     out_channels = in_channels
     
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-    else:
-        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-        exit()
+    
 
         # Training loop
     global_step = 0
@@ -274,30 +213,28 @@ def main():
 
 
     # Initialize plotter if we're on the main process
-    plotter = None
-    plot_thread = None
-    caption_score_plotter = None
-    caption_score_plot_thread = None
+    plotter, plot_thread = None, None
+
+    caption_score_plotter, caption_score_plot_thread = None, None
+    
     caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
+
     if accelerator.is_local_main_process:
-        plotter = Plotter(log_file, update_interval=5.0, left_key='loss', right_key='val_loss',
-                             left_label='Training Loss', right_label='Validation Loss', output_png=f'training_loss_{formatted_date}.png')
-        plot_thread = threading.Thread(target=plotter.start_plotting)
-        plot_thread.daemon = True
-        plot_thread.start()
-        print(f"Loss plotting enabled. Progress will be saved to {os.path.join(args.output_dir, f'training_loss_{formatted_date}.png')}")
+        plotter, plot_thread = gen_train_help.start_plotter(log_file=log_file, output_dir=args.output_dir,
+                                            left_key='loss', right_key='val_loss', left_label='Training Loss', 
+                                            right_label='Validation Loss', png_name='training_loss')
+        
         caption_score_plotter = None
         if args.plot_validation_caption_score:
             # Caption score plotter
-            caption_score_plotter = Plotter(caption_score_log_file, update_interval=5.0, left_key='caption_score', right_key=None,
-                                                left_label='Caption Match Score', right_label=None, output_png=f'caption_score_{formatted_date}.png')
-            caption_score_plot_thread = threading.Thread(target=caption_score_plotter.start_plotting)
-            caption_score_plot_thread.daemon = True
-            caption_score_plot_thread.start()
-            print(f"Caption match score plotting enabled. Progress will be saved to {os.path.join(args.output_dir, f'caption_score_{formatted_date}.png')}")
-
+            caption_score_plotter, caption_score_plot_thread = gen_train_help.start_plotter(
+                                            log_file=log_file, output_dir=args.output_dir,
+                                            left_key='caption_score', right_key=None, left_label='Caption Match Score', 
+                                            right_label=None, png_name='caption_score')
+            
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
     
+
 
     optimizer = torch.optim.Adam(model.parameters())
     
@@ -429,6 +366,33 @@ def main():
             ).to(accelerator.device)
                 
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
+        
+    try:
+        # Clean up plotting resources
+        if accelerator.is_local_main_process and plotter:
+            # Better thread cleanup
+            gen_train_help.kill_plotter(plotter=plotter, plot_thread=plot_thread)
+
+            gen_train_help.kill_plotter(plotter=caption_score_plotter, plot_thread=caption_score_plot_thread)
+
+        # Force CUDA cleanup
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+
+        # Ensure all processes are synchronized
+        accelerator.wait_for_everyone()
+
+    finally:
+        # Close progress bar and TensorBoard writer
+        progress_bar.close()
+
+        # Final model save
+        pipeline = FDMPipeline(
+        tokenizer, text_encoder, model, accelerator.device
+        ).to(accelerator.device)
+            
+        pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
 
             
 def process_fdm_batch(
@@ -509,38 +473,6 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
 
         noiseVec = torch.randn(text_embeddings.shape[0], args.z_dim, device=device)
         return text_embeddings, scenes_for_train, noiseVec
-    
-
-    
-
-
-
-def split_dataset(json_path, train_pct, val_pct, test_pct):
-    """Splits the dataset into train/val/test and saves them as new JSON files."""
-    with open(json_path, 'r') as f:
-        data = json.load(f)
-    n = len(data)
-    indices = list(range(n))
-    random.shuffle(indices)
-    train_end = int(train_pct * n)
-    val_end = train_end + int(val_pct * n)
-    train_indices = indices[:train_end]
-    val_indices = indices[train_end:val_end]
-    test_indices = indices[val_end:]
-    train_data = [data[i] for i in train_indices]
-    val_data = [data[i] for i in val_indices]
-    test_data = [data[i] for i in test_indices]
-    base, ext = os.path.splitext(json_path)
-    train_path = f"{base}-train{ext}"
-    val_path = f"{base}-validate{ext}"
-    test_path = f"{base}-test{ext}"
-    with open(train_path, 'w') as f:
-        json.dump(train_data, f, indent=2)
-    with open(val_path, 'w') as f:
-        json.dump(val_data, f, indent=2)
-    with open(test_path, 'w') as f:
-        json.dump(test_data, f, indent=2)
-    return train_path, val_path, test_path
 
 
 if __name__ == "__main__":
