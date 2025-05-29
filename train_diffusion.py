@@ -880,20 +880,20 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
                                                        neg_captions=negative_captions,
                                                        device=device)
 
-        # After obtaining combined_embeddings in prepare_conditioned_batch
+        repeat_factor = 3 if args.negative_prompt_training else 2
         if args.split_pretrained_sentences:
             # [batch, num_phrases, embedding_dim]
             assert combined_embeddings.ndim == 3, "Expected [batch, num_phrases, embedding_dim] for split_pretrained_sentences"
-            assert combined_embeddings.shape[0] == len(captions), "Batch size mismatch in split_pretrained_sentences"
+            assert combined_embeddings.shape[0] == len(captions)*repeat_factor, f"Batch size mismatch in split_pretrained_sentences: shape {combined_embeddings.shape} and captions {len(captions)}"
         elif args.pretrained_language_model:
             # [batch, 1, embedding_dim]
             assert combined_embeddings.ndim == 3, "Expected [batch, 1, embedding_dim] for pretrained_language_model"
-            assert combined_embeddings.shape[0] == len(captions), "Batch size mismatch in pretrained_language_model"
-            assert combined_embeddings.shape[1] == 1, "Expected singleton phrase dimension for pretrained_language_model"
+            assert combined_embeddings.shape[0] == len(captions)*repeat_factor, f"Batch size mismatch in pretrained_language_model: shape {combined_embeddings.shape} and captions {len(captions)}"
+            assert combined_embeddings.shape[1] == 1, f"Expected singleton phrase dimension for pretrained_language_model: shape {combined_embeddings.shape}"
         else:
             # [batch, num_tokens, embedding_dim]
             assert combined_embeddings.ndim == 3, "Expected [batch, num_tokens, embedding_dim] for token embedding"
-            assert combined_embeddings.shape[0] == len(captions), "Batch size mismatch in token embedding"
+            assert combined_embeddings.shape[0] == len(captions)*repeat_factor, f"Batch size mismatch in token embedding: shape {combined_embeddings.shape} and captions {len(captions)}"
 
         if args.negative_prompt_training:
             scenes_for_train = torch.cat([scenes] * 3)  # Repeat scenes three times
