@@ -116,10 +116,29 @@ class SampleOutput:
         level = load_level(filename)
         return SampleOutput(level=level)
 
-    def play(self):
-        #simulator = MMNEATSimulator(level=self.level)
-        simulator = Simulator(level=self.level)
-        simulator.interactive()
+    def play(self, game="mario"):
+        """
+        Play the level using the specified game engine.
+        game: "mario" (default) or "loderunner"
+        """
+        if game == "loderunner":
+            import tempfile, json
+            # Convert self.level (list of strings) to Lode Runner JSON format
+            scene = [[c for c in row] for row in self.level]
+            lr_json = [{
+                "scene": scene,
+                "caption": ""
+            }]
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+                json.dump(lr_json, tmp)
+                tmp_path = tmp.name
+            import sys, os
+            sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+            from LodeRunner import main as lr_main
+            lr_main.play_level(tmp_path, 1)
+        else:
+            simulator = Simulator(level=self.level)
+            simulator.interactive()
 
     def run_astar(self, render=True):
         simulator = MMNEATSimulator(level=self.level)

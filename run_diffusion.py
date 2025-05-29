@@ -128,10 +128,10 @@ if __name__ == "__main__":
         width=common_settings.MARIO_WIDTH,
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = 10 # TODO
-        height=32,
-        width=32,
-        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
+        args.num_tiles = common_settings.LR_TILE_COUNT
+        height=common_settings.LR_HEIGHT,
+        width=common_settings.LR_WIDTH,
+        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")
     generate_levels(args)
