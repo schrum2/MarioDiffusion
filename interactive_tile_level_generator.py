@@ -449,7 +449,8 @@ Average Segment Score: {avg_segment_score}"""
         scene = self.merge_selected_scenes()
         if scene:
             level = self.get_sample_output(scene)
-            level.run_astar()
+            console_output = level.run_astar()
+            print(console_output)
 
     def get_sample_output(self, idx_or_scene):
         if isinstance(idx_or_scene, int):

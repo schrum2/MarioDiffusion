@@ -207,7 +207,7 @@ def lr_tiles():
 
     return LR_tile_images
 
-def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, block_embeddings=None):
+def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, block_embeddings=None, prompts=None):
     """
     Visualize generated samples and save as images.
 
@@ -239,17 +239,16 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
         channels = samples.shape[1]
         height = samples.shape[2]
         width = samples.shape[3]
-        if height == common_settings.MARIO_HEIGHT: #and width == common_settings.MARIO_WIDTH:
-            #print("Using Mario tiles")
-            tile_images = mario_tiles()
-            tile_size = common_settings.MARIO_TILE_PIXEL_DIM
-        elif height == common_settings.LR_HEIGHT: #and width == lr_common_settings.LR_WIDTH: # TODO: Define these constants in common_settings
+        if height == common_settings.LR_HEIGHT: #and width == lr_common_settings.LR_WIDTH: # TODO: Define these constants in common_settings
             #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
             tile_size = common_settings.LR_TILE_PIXEL_DIM
-        else:
-            raise ValueError(f"Did not know what tile set to use with height = {height} and width = {width}")
-
+        #elif height == common_settings.MARIO_HEIGHT: #and width == common_settings.MARIO_WIDTH:
+        else: # Default to Mario
+            #print("Using Mario tiles")
+            tile_images = mario_tiles()
+            tile_size = common_settings.MARIO_TILE_PIXEL_DIM
+        
         for i, sample_index in enumerate(sample_indices):
             # Create a blank image to hold the tile-based visualization
             height, width = sample_index.shape
@@ -261,8 +260,15 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
                     tile_image = tile_images[tile_id]
                     composite_image.paste(tile_image, (col * tile_size, row * tile_size))
 
+            # Determine the file name based on the prompt
+            if prompts:
+                sanitized_prompt = prompts[i].replace(".", "")[:50]
+                file_name = f"sample_{i + start_index} - {sanitized_prompt}.png"
+            else:
+                file_name = f"sample_{i + start_index} - unconditional.png"
+
             if output_dir:
-                composite_image.save(os.path.join(output_dir, f"sample_{i + start_index}.png"))
+                composite_image.save(os.path.join(output_dir, file_name))
             else:
                 return composite_image
 

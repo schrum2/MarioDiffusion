@@ -25,6 +25,7 @@ from torch.distributions import Categorical
 from models.block2vec_model import Block2Vec
 import models.sentence_transformers_helper as st_helper
 import models.text_model as text_model
+import glob
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -109,6 +110,7 @@ def parse_args():
     
     # Output args
     parser.add_argument("--output_dir", type=str, default="level-diffusion-output", help="Output directory")
+    parser.add_argument("--best_model_criterion",type=str,default="val_loss",choices=["val_loss", "caption_score"],help="Criterion to determine the best model: 'val_loss' for lowest validation loss, 'caption_score' for highest caption score")
     
     # Diffusion scheduler args
     parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
@@ -131,7 +133,7 @@ def parse_args():
     parser.add_argument(
         "--loss_type",
         type=str,
-        default="MSE",
+        default="COMBO",
         choices=["MSE", "REC", "COMBO"],
         help="Loss function to use: 'MSE' for mean squared error (default), 'REC' for reconstuction loss, 'COMBO' for both (TODO: add weight parameter)",
     )
@@ -223,8 +225,19 @@ def main():
 
     # Check if output directory already exists
     if os.path.exists(args.output_dir):
-        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-        exit()
+        checkpoints = glob.glob(os.path.join(args.output_dir, "checkpoint-*"))
+        if checkpoints:
+            user_input = input(f"Output directory '{args.output_dir}' already exists and contains checkpoints. Resume training from last checkpoint? (y/n): ").strip().lower()
+            if user_input != 'y':
+                print("Exiting. Please remove the directory or choose a different output directory.")
+                exit()
+            resume_training = True
+        else:
+            print(f"Output directory '{args.output_dir}' already exists but contains no checkpoints. Please remove it or choose a different name.")
+            exit()
+    else:
+        os.makedirs(args.output_dir)
+        resume_training = False
     
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
@@ -240,6 +253,7 @@ def main():
     """
     sprite_scaling_factors = None
     if (not args.text_conditional) and (args.sprite_temperature_n is not None):
+        raise ValueError("temperature scaling not currently implemented")
         sprite_scaling_factors = compute_sprite_scaling_factors(
             args.json, args.num_tiles, args.sprite_temperature_n
         )
@@ -430,12 +444,13 @@ def main():
         model, optimizer, train_dataloader, lr_scheduler
     )
     
-    # Create output directory
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-    else:
-        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-        exit()
+    # # Second occurance to create new directory. Delete?
+    # # Create output directory
+    # if not os.path.exists(args.output_dir):
+    #     os.makedirs(args.output_dir)
+    # else:
+    #     print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+    #     exit()
     
     # Training loop
     global_step = 0
@@ -497,19 +512,17 @@ def main():
 
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
-    patience = args.patience if hasattr(args, 'patience') else 30
     best_val_loss = float('inf')
     best_caption_score = float('-inf')
-    early_stop = False
     best_model_state = None
     # Track the epoch of the last improvement
-    best_epoch = 0
-    epochs_since_improvement = 0
+    
+    # Initialize variables to track the best model 
+    best_val_loss = float('inf')
+    best_caption_score = float('-inf')
+    best_model_state = None
 
     for epoch in range(args.num_epochs):
-        if early_stop:
-            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss or caption score for {patience} epochs.")
-            break
         model.train()
         train_loss = 0.0
         
@@ -550,7 +563,6 @@ def main():
         val_loss = None
         avg_caption_score = None
         val_loss_improved = False
-        caption_score_improved = False
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
@@ -592,6 +604,26 @@ def main():
                 avg_caption_score = None
 
             model.train()
+            
+            # Update the best model based on the chosen criterion
+            if args.best_model_criterion == "val_loss" and val_loss is not None and val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'val_loss': val_loss,
+                    'caption_score': avg_caption_score,
+                }
+            elif args.best_model_criterion == "caption_score" and avg_caption_score is not None and avg_caption_score > best_caption_score:
+                best_caption_score = avg_caption_score
+                best_model_state = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'val_loss': val_loss,
+                    'caption_score': avg_caption_score,
+                }
 
             # Log caption match score
             if args.text_conditional and args.plot_validation_caption_score and accelerator.is_local_main_process and caption_score_log_file:
@@ -625,51 +657,43 @@ def main():
                     'caption_score': avg_caption_score,
                 }
 
-            # Early stopping logic: Conditional training end when both validation and caption metrics stop improving
-            # and unconditional training ends when validation loss stops improving
-            if args.text_conditional and args.plot_validation_caption_score:
-                no_improvement = not val_loss_improved and not caption_score_improved
-            else:
-                no_improvement = not val_loss_improved
+            # # Early stopping logic: Conditional training end when both validation and caption metrics stop improving
+            # # and unconditional training ends when validation loss stops improving
+            # if args.text_conditional and args.plot_validation_caption_score:
+            #     no_improvement = not val_loss_improved and not caption_score_improved
+            # else:
+            #     no_improvement = not val_loss_improved
 
-            if no_improvement:
-                epochs_since_improvement = epoch - best_epoch
-                if args.text_conditional and args.plot_validation_caption_score:
-                    print(f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs.")
-                else:
-                    print(f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs.")
-                if epochs_since_improvement >= patience:
-                    if args.text_conditional and args.plot_validation_caption_score:
-                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
-                    else:
-                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}")
-                    if best_model_state is not None:
-                        model.load_state_dict(best_model_state['model_state_dict'])
-                    early_stop = True
+            # if no_improvement:
+            #     epochs_since_improvement = epoch - best_epoch
+            #     if args.text_conditional and args.plot_validation_caption_score:
+            #         print(f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs.")
+            #     else:
+            #         print(f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs.")
+            #     if epochs_since_improvement >= patience:
+            #         if args.text_conditional and args.plot_validation_caption_score:
+            #             print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
+            #         else:
+            #             print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}")
+            #         if best_model_state is not None:
+            #             model.load_state_dict(best_model_state['model_state_dict'])
+            #         early_stop = True
         
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
         
         # Print epoch summary (similar to train_mlm.py)
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
-            if args.text_conditional and args.plot_validation_caption_score:
-                print(
-                    f"Epoch {epoch+1}/{args.num_epochs}, "
-                    f"Loss: {avg_train_loss:.4f}, "
-                    f"Val Loss: {val_loss:.4f}, "
-                    f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}, "
-                    f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs."
-                )
-            else:
-                print(
-                    f"Epoch {epoch+1}/{args.num_epochs}, "
-                    f"Loss: {avg_train_loss:.4f}, "
-                    f"Val Loss: {val_loss:.4f}, "
-                    f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs."
-                )
+            val_result = f"{val_loss:.4f}" if val_loss is not None else "N/A"
+            print(
+                f"Epoch {epoch+1} of {args.num_epochs}, "
+                f"Loss: {avg_train_loss:.4f}, "
+                f"Val Loss: {val_result}, "
+                f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}"
+            )
         else:
             print(
-                f"Epoch {epoch+1}/{args.num_epochs}, "
+                f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}"
             )
 
@@ -724,7 +748,9 @@ def main():
                     ).images
 
             # Convert one-hot samples to tile indices and visualize
-            visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
+            # TODO: Add prompt support
+            prompts = sample_captions if args.text_conditional else None
+            visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts)
             
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
@@ -751,6 +777,18 @@ def main():
             # Ensure all processes are synchronized
             accelerator.wait_for_everyone()
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
+            
+        # Save the best model at the end of training
+        if best_model_state is not None:
+            print(f"Saving the best model from epoch {best_model_state['epoch'] + 1}")
+            model.load_state_dict(best_model_state['model_state_dict'])
+            pipeline = TextConditionalDDPMPipeline(
+                unet=accelerator.unwrap_model(model), 
+                scheduler=noise_scheduler,
+                text_encoder=text_encoder,
+                tokenizer=tokenizer_hf if args.pretrained_language_model else None
+            ).to(accelerator.device)
+            pipeline.save_pretrained(os.path.join(args.output_dir, "best_model"))
     
     try:
         # Clean up plotting resources
@@ -890,7 +928,11 @@ def process_diffusion_batch(
     noise = torch.randn_like(scenes_for_train)
     noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
     
-    noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
+    if args.text_conditional:
+        noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
+    else: # unconditional model does not allow encoder_hidden_states parameter
+        noise_pred = model(noisy_scenes, timesteps_for_train).sample
+
     target_noise = noise
     batch_loss = loss_fn(
         noise_pred, target_noise, scenes_for_train, noisy_scenes,

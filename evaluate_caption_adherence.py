@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
-    parser.add_argument("--batch_size", type=int, default=4, help="Training batch size") 
+    parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") 
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps") # Large reduction from the 500 used during training
@@ -87,16 +87,16 @@ def main():
 
     else:
         # Just run on one model and get samples as well
-        avg_score, all_samples = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False)
+        avg_score, all_samples, all_prompts = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
         
-        visualize_samples(all_samples, args.output_dir)
+        visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
-            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
+            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
 
 
 from util.plotter import Plotter  # Add this import at the top
@@ -140,7 +140,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             print(f"Evaluating checkpoint: {checkpoint_dir}")
             pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
 
-            avg_score, _ = calculate_caption_score_and_samples(
+            avg_score, _, _ = calculate_caption_score_and_samples(
                 device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False
             )
 
@@ -166,6 +166,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     score_sum = 0.0
     total_count = 0
     all_samples = []
+    all_prompts = []
     for batch_idx, batch in enumerate(dataloader):
         with torch.no_grad():  # Disable gradient computation to save memory            
             if dataloader.dataset.negative_captions:
@@ -206,6 +207,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     caption = positive_captions[i]
                 else:
                     caption = batch[i]
+                    
+                all_prompts.append(caption)
 
                 sample = samples[i].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample)
@@ -233,7 +236,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     # Reset mode to original
     dataloader.dataset.mode = original_mode
 
-    return (avg_score, all_samples)
+    return (avg_score, all_samples, all_prompts)
 
 if __name__ == "__main__":
     main()

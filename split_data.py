@@ -11,17 +11,23 @@ def split_dataset(json_path, train_pct, val_pct, test_pct):
     """Splits the dataset into train/val/test and saves them as new JSON files."""
     with open(json_path, 'r') as f:
         data = json.load(f)
+        
     n = len(data)
-    indices = list(range(n))
-    random.shuffle(indices)
-    train_end = int(train_pct * n)
-    val_end = train_end + int(val_pct * n)
-    train_indices = indices[:train_end]
-    val_indices = indices[train_end:val_end]
-    test_indices = indices[val_end:]
-    train_data = [data[i] for i in train_indices]
-    val_data = [data[i] for i in val_indices]
-    test_data = [data[i] for i in test_indices]
+    train_data, val_data, test_data = [], [], []
+    
+    # Systematically sample for validation and test sets
+    val_interval = int(1 / val_pct)
+    test_interval = int(1 / test_pct)
+    
+    for i, entry in enumerate(data):
+        if i % val_interval == 0:
+            val_data.append(entry)
+        elif i % test_interval == 0:
+            test_data.append(entry)
+        else:
+            train_data.append(entry)
+        
+    # Save the splits
     base, ext = os.path.splitext(json_path)
     train_path = f"{base}-train{ext}"
     val_path = f"{base}-validate{ext}"
@@ -37,16 +43,53 @@ def split_dataset(json_path, train_pct, val_pct, test_pct):
     print(f"Test set saved to: {test_path} ({len(test_data)} samples)")
     return train_path, val_path, test_path
 
+def verify_coverage(dataset, set_name, required_structures):
+    """Verifies that the dataset contains the required structures.
+    Returns True if all required structures are present, False otherwise."""
+    structure_counts = {structure: 0 for structure in required_structures}
+    all_required = True
+
+    for entry in dataset:
+        caption = entry.get("caption", "").lower()
+        for structure in required_structures:
+            if structure in caption:
+                structure_counts[structure] += 1
+
+    print(f"\nCoverage in {set_name} set:")
+    for structure, count in structure_counts.items():
+        if count == 0:
+            print(f"  WARNING: No {structure} found in {set_name} set!")
+            all_required = False # if even one structure is missing, we set this to False
+        else:
+            print(f"  {structure}: {count} occurrences")
+    return all_required
+
+def upside_down_pipes(dataset):
+    """Checks for upside-down pipes in the dataset.
+    Returns True if any upside-down pipes are found, False otherwise."""
+    for entry in dataset:
+        caption = entry.get("caption", "").lower()
+        if "upside down pipe" in caption:
+            return True
+    return False
+
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
     parser.add_argument("--json", type=str, required=True, help="Path to dataset JSON file")
-    parser.add_argument("--train_pct", type=float, default=0.9, help="Train split percentage (default 0.9)")
-    parser.add_argument("--val_pct", type=float, default=0.05, help="Validation split percentage (default 0.05)")
-    parser.add_argument("--test_pct", type=float, default=0.05, help="Test split percentage (default 0.05)")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for shuffling")
+    parser.add_argument("--train_pct", type=float, default=0.8, help="Train split percentage")
+    parser.add_argument("--val_pct", type=float, default=0.1, help="Validation split percentage")
+    parser.add_argument("--test_pct", type=float, default=0.1, help="Test split percentage")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for shuffling")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
     random.seed(args.seed)
-    split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
+    test_split, train_split, val_split = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
+    
+    # Verify coverage of required structures
+    # Should I do this for each of the splits?
+    # Dictionary for each of the splits. As a required structure is found, it is removed from the dictionary
+    # from caption_match import TOPIC_KEYWORDS

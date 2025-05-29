@@ -1,7 +1,7 @@
 from interactive_generation import InteractiveGeneration
 import torch
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
-from level_dataset import visualize_samples, convert_to_level_format
+from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
 from captions.caption_match import compare_captions, process_scene_segments
 from captions.LR_caption_match import compare_captions as lr_compare_captions, process_scene_segments as lr_process_scene_segments
 from create_ascii_captions import assign_caption
@@ -9,13 +9,6 @@ from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import argparse
 import util.common_settings as common_settings
-import sys
-import os
-
-# Add the parent directory to sys.path so sibling folders can be imported
-#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-#import LodeRunner as lr
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")    
@@ -24,6 +17,8 @@ def parse_args():
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument("--automatic_negative_captions", action="store_true", default=False, help="Automatically create negative captions for prompts so the user doesn't have to")
+
 
     parser.add_argument(
         "--game",
@@ -62,9 +57,12 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         self.pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(self.device)
         self.pipe.print_unet_architecture()
 
-        if not self.pipe.supports_negative_prompt:
+        if args.automatic_negative_captions or not self.pipe.supports_negative_prompt:
             self.input_parameters.pop('negative_prompt', None)
             self.default_parameters.pop('negative_prompt', None)
+        
+        if args.automatic_negative_captions and not self.pipe.supports_negative_prompt:
+            raise ValueError("Automatic negative caption generation is not possible with a model that doesn't support it")
 
         if args.tileset:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(args.tileset)
@@ -75,6 +73,9 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             del self.input_parameters["width"]
 
     def generate_image(self, param_values, generator, **extra_params):
+        if self.args.automatic_negative_captions:
+            pos, neg = positive_negative_caption_split(param_values["caption"], True)
+            param_values["negative_prompt"] = neg
         images = self.pipe(
             generator=generator,
             **param_values
