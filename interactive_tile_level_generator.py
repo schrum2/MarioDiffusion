@@ -158,10 +158,19 @@ class CaptionBuilder(ParentBuilder):
 
     def get_patterns(self):
         # Different for LoRA and tile diffusion
-        patterns = ["floor", "ceiling", 
-                    "pipe", "coin", "platform", "tower", #"wall",
-                    "cannon", "staircase", "rectangular", "irregular",
-                    "question block", "loose block", "enem"]
+        patterns = [
+                    # Mario and Lode Runner patterns
+                    "floor", "ceiling", "platform", 
+                    "rectangular", "irregular", "enem",
+
+                    # Lode Runner patterns
+                    "ladder", "gold", "rope", 
+                    "chamber", "background area",
+
+                    # Mario patterns
+                    "pipe", "coin", "tower", #"wall",
+                    "cannon", "staircase", 
+                    "question block", "loose block"]
         return patterns
 
     def load_data(self, filepath = None):
