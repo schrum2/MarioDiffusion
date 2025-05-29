@@ -56,7 +56,7 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
     return train_dataloader, val_dataloader
 
 
-def get_random_training_samples(train_dataloader, negative_prompt_training):
+def get_random_training_samples(train_dataloader, negative_prompt_training, output_dir = None):
     train_dataset = train_dataloader.dataset
     # Sample four random captions from the dataset
     sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
@@ -72,6 +72,22 @@ def get_random_training_samples(train_dataloader, negative_prompt_training):
         print("Sample negative captions:")
         for caption in sample_negative_captions:
             print(f"  NEG: {caption}")
+
+    #Write captions to a file
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        out_path = os.path.join(output_dir, "sample_captions.txt")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write("Sample captions:\n")
+            for caption in sample_captions:
+                f.write(str(caption) + "\n")
+            if negative_prompt_training:
+                f.write("\nSample negative captions:\n")
+                for caption in sample_negative_captions:
+                    f.write(str(caption) + "\n")
+        print(f"Sample captions written to {out_path}")
+
+
     return sample_captions, sample_negative_captions
 
 

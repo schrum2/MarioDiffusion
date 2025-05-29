@@ -329,7 +329,7 @@ def main():
     print(f"Scene width: {scene_width}")
 
     if args.text_conditional:
-        sample_captions, sample_negative_captions = gen_train_help.get_random_training_samples(train_dataloader, args.negative_prompt_training)
+        sample_captions, sample_negative_captions = gen_train_help.get_random_training_samples(train_dataloader, args.negative_prompt_training, args.output_dir)
 
     # if there is no block embedding model, set the channels to num_tiles
     in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
@@ -462,7 +462,7 @@ def main():
             
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
     
-    
+
     patience = args.patience if hasattr(args, 'patience') else 30
     best_val_loss = float('inf')
     best_caption_score = float('-inf')

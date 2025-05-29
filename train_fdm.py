@@ -92,8 +92,10 @@ def main():
     args = parse_args()
 
     # Check if output directory already exists
-    if os.path.exists(args.output_dir):
-        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    else:
+        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
         exit()
     
     # Set random seeds for reproducibility
@@ -155,7 +157,7 @@ def main():
                                         block_embeddings=block_embeddings, batch_size=args.batch_size)
 
 
-    sample_captions, _ = gen_train_help.get_random_training_samples(train_dataloader, False)
+    sample_captions, _ = gen_train_help.get_random_training_samples(train_dataloader, False, args.output_dir)
     
 
     #Create an instance of the model
@@ -180,11 +182,7 @@ def main():
     # else set channels to the embedding dimension of the model
     out_channels = in_channels
     
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-    else:
-        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-        exit()
+    
 
         # Training loop
     global_step = 0
@@ -366,7 +364,7 @@ def main():
         if accelerator.is_local_main_process and plotter:
             # Better thread cleanup
             gen_train_help.kill_plotter(plotter=plotter, plot_thread=plot_thread)
-            
+
             gen_train_help.kill_plotter(plotter=caption_score_plotter, plot_thread=caption_score_plot_thread)
 
         # Force CUDA cleanup
