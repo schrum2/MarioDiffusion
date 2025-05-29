@@ -78,10 +78,10 @@ def upside_down_pipes(dataset):
 def parse_args():
     parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
     parser.add_argument("--json", type=str, required=True, help="Path to dataset JSON file")
-    parser.add_argument("--train_pct", type=float, default=0.9, help="Train split percentage (default 0.9)")
-    parser.add_argument("--val_pct", type=float, default=0.05, help="Validation split percentage (default 0.05)")
-    parser.add_argument("--test_pct", type=float, default=0.05, help="Test split percentage (default 0.05)")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for shuffling")
+    parser.add_argument("--train_pct", type=float, default=0.8, help="Train split percentage")
+    parser.add_argument("--val_pct", type=float, default=0.1, help="Validation split percentage")
+    parser.add_argument("--test_pct", type=float, default=0.1, help="Test split percentage")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for shuffling")
     return parser.parse_args()
 
 if __name__ == "__main__":
