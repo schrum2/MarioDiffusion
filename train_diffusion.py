@@ -133,7 +133,7 @@ def parse_args():
     parser.add_argument(
         "--loss_type",
         type=str,
-        default="MSE",
+        default="COMBO",
         choices=["MSE", "REC", "COMBO"],
         help="Loss function to use: 'MSE' for mean squared error (default), 'REC' for reconstuction loss, 'COMBO' for both (TODO: add weight parameter)",
     )
