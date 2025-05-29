@@ -17,7 +17,8 @@ TOPIC_KEYWORDS = [
     "irregular", 
     "loose block",
     "diggable ground",
-    "ground",
+    "solid ground",
+    "background area",
     "enem"  # catch "enemy"/"enemies"
 ]
 
@@ -34,7 +35,8 @@ KEYWORD_TO_NEGATED_PLURAL = [
     ("irregular", "irregular block clusters"),
     ("gold line", "gold lines"),
     ("gold."),
-    ("loose block", "loose blocks")
+    ("loose block", "loose blocks"),
+    ("background area", "background areas")
 ]
 
 # Plural normalization map (irregulars)
