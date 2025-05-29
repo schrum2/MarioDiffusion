@@ -495,7 +495,7 @@ Average Segment Score: {avg_segment_score}"""
                 json.dump(lr_json, tmp)
                 tmp_path = tmp.name
             if lr_main:
-                lr_main.play_level(tmp_path, 1)
+                lr_main.play_lr_level(tmp_path, 1)
             else:
                 print("LodeRunner main module not found.")
         else:

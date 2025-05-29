@@ -135,7 +135,7 @@ class SampleOutput:
             import sys, os
             sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
             from LodeRunner import main as lr_main
-            lr_main.play_level(tmp_path, 1)
+            lr_main.play_lr_level(tmp_path, 1)
         else:
             simulator = Simulator(level=self.level)
             simulator.interactive()
