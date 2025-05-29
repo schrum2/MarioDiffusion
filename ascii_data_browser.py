@@ -568,7 +568,7 @@ class TileViewer(tk.Tk):
                 char_row = "".join([self.id_to_char[num] for num in row])
                 char_grid.append(char_row)
             level = SampleOutput(level=char_grid)
-            level.play()
+            level.play(game="loderunner" if self.is_lode_runner else "mario")
 
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
