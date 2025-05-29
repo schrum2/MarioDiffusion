@@ -10,13 +10,14 @@ def load_tileset(tileset_path):
     return tile_to_id
 
 def load_levels(levels_dir):
-    levels = []
+    levels = set()
     for file in sorted(Path(levels_dir).glob("*.txt")):
         with open(file, 'r') as f:
-            level = [line.strip() for line in f if line.strip()]
+            level = tuple(line.strip() for line in f if line.strip())
             if level:  # Only add non-empty levels
-                levels.append(level)
-    return levels
+                levels.add(level)
+    return [list(level) for level in levels]  # Convert back to list-of-lists for compatibility
+
 
 def pad_and_sample(level, tile_to_id, window_size):
     height = len(level)
@@ -40,13 +41,19 @@ def main(tileset_path, levels_dir, output_path, window_size):
     tile_to_id = load_tileset(tileset_path)
     levels = load_levels(levels_dir)
     
-    dataset = []
+    sample_set = set()
     for level in levels:
         samples = pad_and_sample(level, tile_to_id, window_size)
-        dataset.extend(samples)
+        for sample in samples:
+            sample_tuple = tuple(tuple(row) for row in sample)  # make hashable
+            sample_set.add(sample_tuple)
     
+    # Convert back to lists for JSON serialization
+    dataset = [ [list(row) for row in sample] for sample in sample_set ]
+
     with open(output_path, 'w') as f:
         json.dump(dataset, f, indent=2)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
