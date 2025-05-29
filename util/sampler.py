@@ -116,7 +116,7 @@ class SampleOutput:
         level = load_level(filename)
         return SampleOutput(level=level)
 
-    def play(self, game="mario", level_idx=None):
+    def play(self, game="mario", level_idx=None, dataset_path=None):
         """
         Play the level using the specified game engine.
         game: "mario" (default) or "loderunner"
@@ -135,7 +135,8 @@ class SampleOutput:
             import sys, os
             sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
             from LodeRunner import main
-            tmp_path = "C:\\Users\\williamsr\\Documents\\GitHub\\MarioDiffusion\\LR_LevelsAndCaptions-regular.json"
+            tmp_path = tmp_path if dataset_path is None else dataset_path
+            #tmp_path = "C:\\Users\\williamsr\\Documents\\GitHub\\MarioDiffusion\\LR_LevelsAndCaptions-regular.json"
             print(f"Playing Lode Runner level interactively -- {tmp_path}!")
             main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
         else:
