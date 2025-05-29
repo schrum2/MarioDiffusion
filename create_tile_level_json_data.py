@@ -103,8 +103,6 @@ def main(tileset_path, levels_dir, output_path, window_size):
     # Convert back to lists for JSON serialization
     dataset = [ [list(row) for row in sample] for sample in unique_set ]
 
-    print(f"Dataset elements: {len(dataset)}")
-
     with open(output_path, 'w') as f:
         json.dump(dataset, f, indent=2)
 
