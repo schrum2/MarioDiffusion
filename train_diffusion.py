@@ -668,11 +668,12 @@ def main():
         # Print epoch summary (similar to train_mlm.py)
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             val_result = f"{val_loss:.4f}" if val_loss is not None else "N/A"
+            caption_result = f"{avg_caption_score:.4f}" if avg_caption_score is not None else "N/A"
             print(
                 f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}, "
                 f"Val Loss: {val_result}, "
-                f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}"
+                f"Caption Score: {caption_result}, "
                 f"No improvement in val loss or caption score for {epochs_since_improvement} of {patience} epochs."
             )
         else:
