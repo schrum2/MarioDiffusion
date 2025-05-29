@@ -20,6 +20,7 @@ from transformers import AutoTokenizer, AutoModel
 from models.fdm import Gen
 from models.fdm_pipeline import FDMPipeline
 import util.common_settings as common_settings
+import models.general_training_helper as gen_train_help
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -27,6 +28,7 @@ def parse_args():
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split') # TODO: Allow SMB1 data to be split into groups for training and testing
@@ -146,83 +148,14 @@ def main():
     
 
      # Initialize dataset
-    if args.split:
-        train_json, val_json, test_json = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
-        train_dataset = LevelDataset(
-            json_path=train_json,
-            tokenizer=tokenizer,
-            shuffle=True,
-            mode=data_mode,
-            augment=args.augment,
-            num_tiles=args.num_tiles,
-            block_embeddings=block_embeddings
-        )
-        val_dataset = LevelDataset(
-            json_path=val_json,
-            tokenizer=tokenizer,
-            shuffle=False,
-            mode=data_mode,
-            augment=False,
-            num_tiles=args.num_tiles,
-            block_embeddings=block_embeddings
-        )
-    else:
-        train_dataset = LevelDataset(
-            json_path=args.json,
-            tokenizer=tokenizer,
-            shuffle=True,
-            mode=data_mode,
-            augment=args.augment,
-            num_tiles=args.num_tiles,
-            block_embeddings=block_embeddings
-        )
-        val_dataset = None
-
-    first_sample = train_dataset[0]
-    scene_height = first_sample[0].shape[1]
-    scene_width = first_sample[0].shape[2]
-
-    print(f"Scene height: {scene_height}")
-    print(f"Scene width: {scene_width}")
-
-    # Create dataloader
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=4,
-        drop_last=True
-    )
-    
-    val_dataloader = None
-    if val_dataset is not None:
-        val_dataloader = DataLoader(
-            val_dataset,
-            batch_size=args.batch_size,
-            shuffle=False,
-            num_workers=4,
-            drop_last=False
-        )
+    train_dataloader, val_dataloader = gen_train_help.create_dataloaders(json_path=args.json,
+                                        val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
+                                        augment=args.augment, num_tiles=args.num_tiles,
+                                        negative_prompt_training=False,
+                                        block_embeddings=block_embeddings, batch_size=args.batch_size)
 
 
-        # Sample four random captions from the dataset
-        sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
-        # Original code for positive-only captions
-        sample_embedding_vectors = [train_dataset[i][1] for i in sample_indices]
-        if not args.pretrained_language_model:
-            sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
-            pad_token = tokenizer.token_to_id["[PAD]"]
-            sample_captions = [
-                tokenizer.decode([token for token in caption if token != pad_token]) 
-                for caption in sample_embedding_vectors
-            ]
-        else:
-            sample_captions = [
-                v for v in sample_embedding_vectors
-            ]
-        print("Sample captions:")
-        for caption in sample_captions:
-            print(caption)
+    sample_captions, _ = gen_train_help.get_random_training_samples(train_dataloader, False)
     
 
     #Create an instance of the model
@@ -509,38 +442,6 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
 
         noiseVec = torch.randn(text_embeddings.shape[0], args.z_dim, device=device)
         return text_embeddings, scenes_for_train, noiseVec
-    
-
-    
-
-
-
-def split_dataset(json_path, train_pct, val_pct, test_pct):
-    """Splits the dataset into train/val/test and saves them as new JSON files."""
-    with open(json_path, 'r') as f:
-        data = json.load(f)
-    n = len(data)
-    indices = list(range(n))
-    random.shuffle(indices)
-    train_end = int(train_pct * n)
-    val_end = train_end + int(val_pct * n)
-    train_indices = indices[:train_end]
-    val_indices = indices[train_end:val_end]
-    test_indices = indices[val_end:]
-    train_data = [data[i] for i in train_indices]
-    val_data = [data[i] for i in val_indices]
-    test_data = [data[i] for i in test_indices]
-    base, ext = os.path.splitext(json_path)
-    train_path = f"{base}-train{ext}"
-    val_path = f"{base}-validate{ext}"
-    test_path = f"{base}-test{ext}"
-    with open(train_path, 'w') as f:
-        json.dump(train_data, f, indent=2)
-    with open(val_path, 'w') as f:
-        json.dump(val_data, f, indent=2)
-    with open(test_path, 'w') as f:
-        json.dump(test_data, f, indent=2)
-    return train_path, val_path, test_path
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ from models.block2vec_model import Block2Vec
 import models.sentence_transformers_helper as st_helper
 import models.text_model as text_model
 import glob
+import models.general_training_helper as gen_train_help
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -312,70 +313,23 @@ def main():
     else:
         print("No block embedding model specified. One-hot encoding enabled.")
 
-    # Initialize dataset
-    train_dataset = LevelDataset(
-        json_path=args.json,
-        tokenizer=tokenizer,
-        shuffle=True,
-        mode=data_mode,
-        augment=args.augment,
-        num_tiles=args.num_tiles,
-        negative_captions=args.negative_prompt_training,
-        block_embeddings=block_embeddings
-    )
-    val_dataset = None
-    if args.val_json is not None:
-        val_dataset = LevelDataset(
-            json_path=args.val_json,
-            tokenizer=tokenizer,
-            shuffle=False,
-            mode=data_mode,
-            augment=False,
-            num_tiles=args.num_tiles,
-            negative_captions=args.negative_prompt_training,
-            block_embeddings=block_embeddings
-        )
+    train_dataloader, val_dataloader = gen_train_help.create_dataloaders(json_path=args.json,
+                                        val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
+                                        augment=args.augment, num_tiles=args.num_tiles,
+                                        negative_prompt_training=args.negative_prompt_training,
+                                        block_embeddings=block_embeddings, batch_size=args.batch_size)
 
-    first_sample = train_dataset[0]
+    train_dataset = train_dataloader.dataset
+
+    first_sample = train_dataloader.dataset[0]
     scene_height = first_sample[0].shape[1]
     scene_width = first_sample[0].shape[2]
 
     print(f"Scene height: {scene_height}")
     print(f"Scene width: {scene_width}")
 
-    # Create dataloader
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=4,
-        drop_last=True
-    )
-    
-    val_dataloader = None
-    if val_dataset is not None:
-        val_dataloader = DataLoader(
-            val_dataset,
-            batch_size=args.batch_size,
-            shuffle=False,
-            num_workers=4,
-            drop_last=False
-        )
-
     if args.text_conditional:
-        # Sample four random captions from the dataset
-        sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
-
-        sample_captions = [train_dataset[i][1] for i in sample_indices]
-        print("Sample captions:")
-        for caption in sample_captions:
-            print(caption)
-
-        if args.negative_prompt_training:
-            sample_negative_captions = [train_dataset[i][2] for i in sample_indices]
-            print("Sample negative captions:")
-            for caption in sample_negative_captions:
-                print(f"  NEG: {caption}")
+        sample_captions, sample_negative_captions = gen_train_help.get_random_training_samples(train_dataloader, args.negative_prompt_training)
 
     # if there is no block embedding model, set the channels to num_tiles
     in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
