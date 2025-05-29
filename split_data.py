@@ -2,6 +2,7 @@ import argparse
 import os
 import json
 import random
+from captions.caption_match import TOPIC_KEYWORDS
 
 """
 COMMAND LINE: python split_data.py --json SMB1_LevelsAndCaptions-regular-test.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05
@@ -44,6 +45,14 @@ def split_dataset(json_path, train_pct, val_pct, test_pct):
     return train_path, val_path, test_path
 
 def verify_coverage(dataset, set_name, required_structures):
+    # need to replace the logic to use a dictionary to track whether a required structure is present or not
+    # function should first call split_dataset to get the train, val, and test sets
+    # then, it should check each set for the required structures
+    # if a set is missing a required structure, it should swap a required structure from another set with it's flag set to True for that structure
+    
+    # maybe the loop runs as long as there is a False somewhere in the dictionary
+    
+    
     """Verifies that the dataset contains the required structures.
     Returns True if all required structures are present, False otherwise."""
     structure_counts = {structure: 0 for structure in required_structures}
@@ -73,7 +82,23 @@ def upside_down_pipes(dataset):
             return True
     return False
 
-
+def verify_dataset(dataset, set_name):
+    """Verifies the dataset for required structures and upside-down pipes."""
+    required_structures = TOPIC_KEYWORDS
+    all_required = verify_coverage(dataset, set_name, required_structures)
+    
+    if not all_required:
+        print(f"WARNING: {set_name} set does not cover all required structures!")
+        # add functionality to shuffle a required structure from another set into this set
+        # there are three total sets, but if this is called, that means there are two other sets that could have the required structure
+        # first try to shuffle from the train set, then 
+    
+    if upside_down_pipes(dataset):
+        print(f"WARNING: {set_name} set contains upside-down pipes!")
+    else:
+        print(f"{set_name} set does not contain upside-down pipes.")
+    
+    return all_required
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
@@ -92,4 +117,3 @@ if __name__ == "__main__":
     # Verify coverage of required structures
     # Should I do this for each of the splits?
     # Dictionary for each of the splits. As a required structure is found, it is removed from the dictionary
-    # from caption_match import TOPIC_KEYWORDS

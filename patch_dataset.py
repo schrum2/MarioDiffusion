@@ -5,17 +5,22 @@ from torch.utils.data import Dataset
 from collections import Counter
 import matplotlib.pyplot as plt
 import math
+import os
 
 class PatchDataset(Dataset):
-    def __init__(self, json_path, patch_size, ignore_tile_id=-1, subsample_threshold=0.01):
+    def __init__(self, json_path, subsampling=False, subsample_threshold=0.01, output_dir="."): # removed ignore_tile_id=-1
         with open(json_path, 'r') as f:
             self.patches = json.load(f)
+            
+        patch_size = len(self.patches[0])  # Get dimensions from first patch
 
         if isinstance(patch_size, list):
             patch_size = len(patch_size)
         self.patch_size = int(patch_size)
-        self.ignore_tile_id = ignore_tile_id
+        #self.ignore_tile_id = ignore_tile_id
         self.subsample_threshold = subsample_threshold
+        self.subsampling = subsampling
+        self.output_dir = output_dir
 
         total_tiles = self.patch_size * self.patch_size
         self.center_idx = total_tiles // 2
@@ -26,11 +31,12 @@ class PatchDataset(Dataset):
             raise ValueError(f"All patches must be {patch_size}x{patch_size}")
 
         self.center_counts = self._count_center_frequencies()
-        self.sampling_probs = self._compute_subsampling_probs()
+        if subsampling:
+            self.sampling_probs = self._compute_subsampling_probs()
         self.samples = self._filter_patches()
 
         # Useful for diagnostics, but not strictly required each time
-        self.plot_center_distribution("center_tile_distribution.png")
+        self.plot_center_distribution(os.path.join(output_dir, "center_tile_distribution.png"))
 
         print(f"Loaded {len(self.samples)} valid {patch_size}x{patch_size} patches")
 
@@ -53,8 +59,8 @@ class PatchDataset(Dataset):
         for patch in self.patches:
             flat = [tile for row in patch for tile in row]
             center = flat[self.center_idx]
-            if center != self.ignore_tile_id:
-                counts[center] += 1
+            #if center != self.ignore_tile_id:
+            counts[center] += 1
         return counts
 
     def _compute_subsampling_probs(self):
@@ -74,16 +80,15 @@ class PatchDataset(Dataset):
             center = flat[self.center_idx]
             context = flat[:self.center_idx] + flat[self.center_idx + 1:]
 
-            if center == self.ignore_tile_id:
-                continue
-            filtered_context = [t for t in context if t != self.ignore_tile_id]
+            filtered_context = [t for t in context]
             if not filtered_context:
                 continue
 
-            # Subsampling based on frequency
-            keep_prob = self.sampling_probs.get(center, 1.0)
-            if random.random() > keep_prob:
-                continue
+            if self.subsampling:
+                # Subsampling based on frequency
+                keep_prob = self.sampling_probs.get(center, 1.0)
+                if random.random() > keep_prob:
+                    continue
 
             valid.append((center, filtered_context))
         return valid
