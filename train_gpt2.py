@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoTokenizer, GPT2Config, GPT2LMHeadModel
 from mario_gpt import MarioDataset, MarioLM
-from MarioGPT_train_helper import TrainingConfig, MarioGPTTrainer
+from train_gpt2_helper import TrainingConfig, MarioGPTTrainer
 
 print("Initializing MarioGPT model...")
 BASE = "distilgpt2"
