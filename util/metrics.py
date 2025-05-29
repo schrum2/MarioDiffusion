@@ -15,7 +15,7 @@ import traceback
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'captions'))
 
-from caption_match import TOPIC_KEYWORDS
+from captions.caption_match import TOPIC_KEYWORDS
 
 from create_ascii_captions import assign_caption, extract_tileset
 import numpy as np
