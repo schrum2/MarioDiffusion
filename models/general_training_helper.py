@@ -1,6 +1,11 @@
 from torch.utils.data import DataLoader
 from level_dataset import LevelDataset
 import random
+from util.plotter import Plotter
+from datetime import datetime
+import os
+import threading
+
 
 
 def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles, 
@@ -68,5 +73,25 @@ def get_random_training_samples(train_dataloader, negative_prompt_training):
         for caption in sample_negative_captions:
             print(f"  NEG: {caption}")
     return sample_captions, sample_negative_captions
+
+
+def start_plotter(log_file, output_dir, left_key, right_key, left_label, right_label, png_name):
+    formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
+
+    plotter = Plotter(log_file, update_interval=5.0, left_key=left_key, right_key=right_key,
+                            left_label=left_label, right_label=right_label, output_png=f'{png_name}_{formatted_date}.png')
+    plot_thread = threading.Thread(target=plotter.start_plotting)
+    plot_thread.daemon = True
+    plot_thread.start()
+    print(f"Loss plotting enabled. Progress will be saved to {os.path.join(output_dir, f'{png_name}_{formatted_date}.png')}")
+    return plotter, plot_thread
+
+
+def kill_plotter(plotter, plot_thread):
+    if plot_thread and plot_thread.is_alive():
+        plotter.stop_plotting()
+        plot_thread.join(timeout=5.0)
+        if plot_thread.is_alive():
+            print("Warning: Plot thread did not terminate properly")
 
 
