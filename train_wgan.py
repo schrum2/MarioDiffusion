@@ -11,7 +11,6 @@ import json
 import threading
 from datetime import datetime
 from util.plotter import Plotter
-from tokenizer import Tokenizer
 from models.wgan_model import WGAN_Generator, WGAN_Discriminator
 import util.common_settings as common_settings
 
@@ -22,7 +21,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train a WGAN for tile-based level generation")
     
     # Dataset args
-    parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
@@ -129,16 +127,12 @@ def main():
     device = torch.device(args.device if torch.cuda.is_available() and args.device == "cuda" else "cpu")
     print(f"Using device: {device}")
     
-    # Initialize tokenizer
-    tokenizer = Tokenizer()
-    tokenizer.load(args.pkl)
-
     # Initialize dataset
     dataset = LevelDataset(
         json_path=args.json,
-        tokenizer=tokenizer,
+        tokenizer=None,
         shuffle=True,
-        mode="diffusion",  # We need this for compatibility with your dataset class
+        mode="diff_text",  # We need this for compatibility with your dataset class
         augment=args.augment,
         num_tiles=args.num_tiles
     )

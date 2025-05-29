@@ -140,7 +140,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             print(f"Evaluating checkpoint: {checkpoint_dir}")
             pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
 
-            avg_score, _ = calculate_caption_score_and_samples(
+            avg_score, _, _ = calculate_caption_score_and_samples(
                 device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False
             )
 

@@ -23,6 +23,9 @@ class Tokenizer:
 
     def pad_sequence(self, tokens, length):
         """Pads tokenized sequences to length with a padding token (assumed to be '[PAD]')."""
+        if len(tokens) > length:
+            raise ValueError(f"Token sequence length {len(tokens)} exceeds specified length {length}.")
+        
         pad_token = self.token_to_id["[PAD]"]
         return tokens + [pad_token] * (length - len(tokens))
 

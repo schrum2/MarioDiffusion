@@ -10,42 +10,22 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
+import models.sentence_transformers_helper as st_helper
+import models.text_model as text_model
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
-
-#Helper methods for encoding text
-def mean_pooling(model_output, attention_mask):
-    token_embeddings = model_output.last_hidden_state
-    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-
-#Encode text
-def encode(texts, tokenizer, text_encoder, device):
-    # Tokenize sentences
-    encoded_input = tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
-    encoded_input = encoded_input.to(device)
-    # Compute token embeddings
-    with torch.no_grad():
-        model_output = text_encoder(**encoded_input, return_dict=True)
-
-    # Perform pooling
-    embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
-
-    # Normalize embeddings
-    embeddings = F.normalize(embeddings, p=2, dim=1)
-    
-    return embeddings
     
 
 
 # Create a custom pipeline for text-conditional generation
 class TextConditionalDDPMPipeline(DDPMPipeline):
-    def __init__(self, unet, scheduler, text_encoder=None, tokenizer=None):
+    def __init__(self, unet, scheduler, text_encoder=None, tokenizer=None, supports_pretrained_split=False):
         super().__init__(unet=unet, scheduler=scheduler)
         self.text_encoder = text_encoder
         self.tokenizer = tokenizer
         self.supports_negative_prompt = hasattr(unet, 'negative_prompt_support') and unet.negative_prompt_support
+        self.supports_pretrained_split = supports_pretrained_split
 
         if self.tokenizer is None and self.text_encoder is not None:
             # Use the tokenizer from the text encoder if not provided
@@ -82,10 +62,11 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             # Otherwise, we presume the tokenizer was saved by the text encoder.
             self.tokenizer.save_pretrained(os.path.join(save_directory, "text_encoder"))
             
-        # Save supports_negative_prompt flag
+        # Save supports_negative_prompt and supports_pretrained_split flags
         with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
             json.dump({
                 "supports_negative_prompt": self.supports_negative_prompt,
+                "supports_pretrained_split": self.supports_pretrained_split,
                 "text_encoder_type": type(self.text_encoder).__name__   
             }, f)
 
@@ -129,6 +110,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             with open(config_path, "r") as f:
                 config = json.load(f)
             pipeline.supports_negative_prompt = config.get("supports_negative_prompt", False)
+            pipeline.supports_pretrained_split = config.get("supports_pretrained_split", False)
         return pipeline
 
     # --- Handle batching for captions ---
@@ -183,24 +165,6 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             sample = torch.randn(sample_shape, generator=generator, device=self.device)
 
         return sample
-
-    def _encode_token_captions(self, captions, max_length):
-        """
-        Helper method to encode and pad captions to fixed length.
-        This approach specifically applies to a text encoder that
-        creates token embeddings, like my TransformerModel
-        """
-        caption_ids = []
-        for cap in captions:
-            ids = self.tokenizer.encode(cap)
-            ids = torch.tensor(ids, device=self.device)
-            if ids.shape[0] > max_length:
-                raise ValueError(f"Caption length {ids.shape[0]} exceeds max sequence length of {max_length}")
-            elif ids.shape[0] < max_length:
-                padding = torch.zeros(max_length - ids.shape[0], dtype=ids.dtype, device=self.device)
-                ids = torch.cat([ids, padding], dim=0)
-            caption_ids.append(ids.unsqueeze(0))
-        return torch.cat(caption_ids, dim=0)
 
     def __call__(
         self,
@@ -290,61 +254,29 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
             # --- Prepare text embeddings ---
             if(isinstance(self.text_encoder, TransformerModel)):
-                if captions is not None:
-                    max_length = self.text_encoder.max_seq_length
-    
-                    # Encode positive captions
-                    caption_ids = self._encode_token_captions(captions, max_length)
-                    caption_embedding = self.text_encoder.get_embeddings(caption_ids)
-
-                    # Handle negative prompt if provided
-                    if negatives is not None:
-                        if not self.supports_negative_prompt:
-                            raise ValueError("This model was not trained with negative prompt support")
-        
-                        # Encode negative captions
-                        negative_ids = self._encode_token_captions(negatives, max_length)
-                        negative_embedding = self.text_encoder.get_embeddings(negative_ids)
-
-                        # Get unconditional (empty) embedding
-                        empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                        empty_embedding = self.text_encoder.get_embeddings(empty_ids)
-
-                        # Concatenate [negative, unconditional, conditional] along batch
-                        text_embeddings = torch.cat([negative_embedding, empty_embedding, caption_embedding], dim=0)
-                    else:
-                        # Standard classifier-free guidance with just [unconditional, conditional]
-                        empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                        empty_embedding = self.text_encoder.get_embeddings(empty_ids)
-                        text_embeddings = torch.cat([empty_embedding, caption_embedding], dim=0)
-                else:
-                    # For unconditional generation, use empty embeddings matching max_seq_length
-                    max_length = self.text_encoder.max_seq_length
-                    empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                    text_embeddings = self.text_encoder.get_embeddings(empty_ids)
+                text_embeddings = text_model.get_embeddings(batch_size=batch_size,
+                                                            tokenizer=self.text_encoder.tokenizer,
+                                                            text_encoder=self.text_encoder,
+                                                            captions=captions,
+                                                            neg_captions=negatives,
+                                                            device=self.device)
             else: #Case for the pre-trained text encoder
-
-                if captions is not None:
-
-                    text_embeddings = encode(captions, self.tokenizer, self.text_encoder, self.device)
-                    uncond_embeddings = encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)
-
-                    if negatives is not None:
-                        # Negative prompt embeddings
-                        neg_tokens = self.tokenizer(negatives, return_tensors="pt", padding=True, truncation=True).to(self.device)
-                        neg_embeddings = self.text_encoder(**neg_tokens).last_hidden_state  # [batch, seq_len, hidden_size]
-                        # Concatenate [neg, uncond, cond]
-                        text_embeddings = torch.cat([neg_embeddings, uncond_embeddings, text_embeddings], dim=0)
-                    else:
-                        # Concatenate [uncond, cond]
-                        
-                        text_embeddings = torch.cat([uncond_embeddings, text_embeddings], dim=0)
-
+                if(self.supports_pretrained_split): #If we have a split flag incorporated
+                    text_embeddings = st_helper.get_embeddings_split(batch_size = batch_size,
+                                                            tokenizer=self.tokenizer,
+                                                            model=self.text_encoder,
+                                                            captions=captions,
+                                                            neg_captions=negatives,
+                                                            device=self.device)
                 else:
-                    # Unconditional generation: use unconditional embeddings only
-                    text_embeddings = encode([""] * batch_size)
-                text_embeddings = text_embeddings.unsqueeze(1)  # (batch_size, 1, hidden_size)
-            
+                    text_embeddings = st_helper.get_embeddings(batch_size = batch_size,
+                                                                tokenizer=self.tokenizer,
+                                                                model=self.text_encoder,
+                                                                captions=captions,
+                                                                neg_captions=negatives,
+                                                                device=self.device)
+
+                            
             # --- Set up initial latent state ---
             sample = self._prepare_initial_sample(raw_latent_sample, input_scene, 
                                                  batch_size, height, width, generator)

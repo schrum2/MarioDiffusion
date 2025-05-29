@@ -6,6 +6,39 @@ import json
 from safetensors.torch import save_file, load_file
 from tokenizer import Tokenizer
 
+def get_embeddings(batch_size, tokenizer, text_encoder, captions=None, neg_captions=None, device='cpu'):
+    max_length = text_encoder.max_seq_length
+    empty_ids = encode_token_captions([""] * batch_size, tokenizer, max_length, device=device)
+    embeddings = text_encoder.get_embeddings(empty_ids)
+
+    if(captions is not None):
+        caption_ids = encode_token_captions(captions, tokenizer, max_length, device=device)
+        caption_embeddings = text_encoder.get_embeddings(caption_ids)
+        embeddings = torch.cat((embeddings, caption_embeddings), dim=0)
+    
+    if(neg_captions is not None):
+        neg_ids = encode_token_captions(neg_captions, tokenizer, max_length, device=device)
+        neg_embeddings = text_encoder.get_embeddings(neg_ids)
+        embeddings = torch.cat((neg_embeddings, embeddings), dim=0)
+    
+    return embeddings.to(device)
+
+def encode_token_captions(captions, tokenizer, max_length, device='cpu'):
+    caption_ids = []
+    for caption in captions:
+        tokens = tokenizer.encode(caption)
+        caption_tokens = tokenizer.pad_sequence(tokens, max_length)
+        caption_ids.append(torch.tensor(caption_tokens, dtype=torch.long).unsqueeze(0))
+    return torch.cat(caption_ids, dim=0).to(device)
+
+
+
+
+
+
+
+
+
 # Transformer model for MLM training
 
 class TransformerModel(nn.Module):

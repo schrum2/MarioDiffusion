@@ -18,11 +18,14 @@ from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
-from create_ascii_captions import extract_tileset # TODO: Move this to a caption_util.py file
+from captions.util import extract_tileset # TODO: Move this to a caption_util.py file
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 from torch.distributions import Categorical
 from models.block2vec_model import Block2Vec
+import models.sentence_transformers_helper as st_helper
+import models.text_model as text_model
+import glob
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -79,6 +82,7 @@ def parse_args():
     parser.add_argument("--pretrained_language_model", type=str, default=None, help="Link to a pre-trained language model, everything after huggingface.co/. This will override the mlm_model_dir argument.")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--negative_prompt_training", action="store_true", help="Enable training with negative prompts")
+    parser.add_argument("--split_pretrained_sentences", action="store_true", default=False, help="Instead of encoding the whole prompt at once using the pretrained model, enable splitting the prompt into compoent sentences.")
     
     # Model args
     parser.add_argument("--model_dim", type=int, default=128, help="Base dimension of UNet model")
@@ -129,7 +133,7 @@ def parse_args():
     parser.add_argument(
         "--loss_type",
         type=str,
-        default="MSE",
+        default="COMBO",
         choices=["MSE", "REC", "COMBO"],
         help="Loss function to use: 'MSE' for mean squared error (default), 'REC' for reconstuction loss, 'COMBO' for both (TODO: add weight parameter)",
     )
@@ -208,7 +212,7 @@ def main():
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = 10 # TODO
+        args.num_tiles = common_settings.LR_TILE_COUNT # TODO
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
     else:
         raise ValueError(f"Unknown game: {args.game}")
@@ -221,11 +225,25 @@ def main():
 
     # Check if output directory already exists
     if os.path.exists(args.output_dir):
-        print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-        exit()
+        checkpoints = glob.glob(os.path.join(args.output_dir, "checkpoint-*"))
+        if checkpoints:
+            user_input = input(f"Output directory '{args.output_dir}' already exists and contains checkpoints. Resume training from last checkpoint? (y/n): ").strip().lower()
+            if user_input != 'y':
+                print("Exiting. Please remove the directory or choose a different output directory.")
+                exit()
+            resume_training = True
+        else:
+            print(f"Output directory '{args.output_dir}' already exists but contains no checkpoints. Please remove it or choose a different name.")
+            exit()
+    else:
+        os.makedirs(args.output_dir)
+        resume_training = False
     
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
+    
+    if args.split_pretrained_sentences and not args.pretrained_language_model:
+        raise ValueError("Sentence splitting requires the use of a pretrained language model")
     
     """
     If sprite temperature scaling is enabled and the model is unconditional, 
@@ -235,6 +253,7 @@ def main():
     """
     sprite_scaling_factors = None
     if (not args.text_conditional) and (args.sprite_temperature_n is not None):
+        raise ValueError("temperature scaling not currently implemented")
         sprite_scaling_factors = compute_sprite_scaling_factors(
             args.json, args.num_tiles, args.sprite_temperature_n
         )
@@ -275,7 +294,7 @@ def main():
         model_embedding_dim = text_encoder.embedding_dim #Done to allow for cross-functionality with the huggingface model
         print(f"Loaded text encoder from {args.mlm_model_dir}")
     
-    data_mode = ("diffusion" if not args.pretrained_language_model else "diff_text") if args.text_conditional else "diff_text"
+    data_mode = "diff_text"
 
     # Load block embedding model if specified
     block_embeddings = None
@@ -346,44 +365,17 @@ def main():
     if args.text_conditional:
         # Sample four random captions from the dataset
         sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
-        if args.negative_prompt_training: #TODO: Copy the pos prompt code for the negative prompt implementation of the pretrained model
-            sample_data = [train_dataset[i] for i in sample_indices]
-            pos_vectors = [data[1] for data in sample_data]
-            neg_vectors = [data[2] for data in sample_data]
-            pos_vectors = [v.tolist() for v in pos_vectors]
-            neg_vectors = [v.tolist() for v in neg_vectors]
-            pad_token = tokenizer.token_to_id["[PAD]"]
-            sample_captions = [
-                tokenizer.decode([token for token in caption if token != pad_token]) 
-                for caption in pos_vectors
-            ]
-            sample_negative_captions = [
-                tokenizer.decode([token for token in caption if token != pad_token]) 
-                for caption in neg_vectors
-            ]
-            print("Sample positive captions:")
-            for caption in sample_captions:
-                print(f"  POS: {caption}")
+
+        sample_captions = [train_dataset[i][1] for i in sample_indices]
+        print("Sample captions:")
+        for caption in sample_captions:
+            print(caption)
+
+        if args.negative_prompt_training:
+            sample_negative_captions = [train_dataset[i][2] for i in sample_indices]
             print("Sample negative captions:")
             for caption in sample_negative_captions:
                 print(f"  NEG: {caption}")
-        else:
-            # Original code for positive-only captions
-            sample_embedding_vectors = [train_dataset[i][1] for i in sample_indices]
-            if not args.pretrained_language_model:
-                sample_embedding_vectors = [v.tolist() for v in sample_embedding_vectors]
-                pad_token = tokenizer.token_to_id["[PAD]"]
-                sample_captions = [
-                    tokenizer.decode([token for token in caption if token != pad_token]) 
-                    for caption in sample_embedding_vectors
-                ]
-            else:
-                sample_captions = [
-                    v for v in sample_embedding_vectors
-                ]
-            print("Sample captions:")
-            for caption in sample_captions:
-                print(caption)
 
     # if there is no block embedding model, set the channels to num_tiles
     in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
@@ -452,12 +444,13 @@ def main():
         model, optimizer, train_dataloader, lr_scheduler
     )
     
-    # Create output directory
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-    else:
-        print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-        exit()
+    # # Second occurance to create new directory. Delete?
+    # # Create output directory
+    # if not os.path.exists(args.output_dir):
+    #     os.makedirs(args.output_dir)
+    # else:
+    #     print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
+    #     exit()
     
     # Training loop
     global_step = 0
@@ -595,7 +588,8 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None,
+                    supports_pretrained_split=args.split_pretrained_sentences
                 ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
@@ -673,25 +667,19 @@ def main():
         
         # Print epoch summary (similar to train_mlm.py)
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
-            if args.text_conditional and args.plot_validation_caption_score:
-                print(
-                    f"Epoch {epoch+1}/{args.num_epochs}, "
-                    f"Loss: {avg_train_loss:.4f}, "
-                    f"Val Loss: {val_loss:.4f}, "
-                    f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}, "
-                    f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs."
-                )
-            else:
-                print(
-                    f"Epoch {epoch+1}/{args.num_epochs}, "
-                    f"Loss: {avg_train_loss:.4f}, "
-                    f"Val Loss: {val_loss:.4f}, "
-                    f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs."
-                )
+            val_result = f"{val_loss:.4f}" if val_loss is not None else "N/A"
+            print(
+                f"Epoch {epoch+1} of {args.num_epochs}, "
+                f"Loss: {avg_train_loss:.4f}, "
+                f"Val Loss: {val_result}, "
+                f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}"
+                f"No improvement in val loss or caption score for {epochs_since_improvement} of {patience} epochs."
+            )
         else:
             print(
-                f"Epoch {epoch+1}/{args.num_epochs}, "
+                f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}"
+                f"No improvement in val loss for {epochs_since_improvement} of {patience} epochs."
             )
 
         # Generate and save sample levels every N epochs
@@ -705,7 +693,8 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None, 
+                    supports_pretrained_split=args.split_pretrained_sentences
                 ).to(accelerator.device)
                                 
                 # Use the raw negative captions instead of tokens
@@ -756,7 +745,8 @@ def main():
                     unet=accelerator.unwrap_model(model), 
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                    tokenizer=tokenizer_hf if args.pretrained_language_model else None,
+                    supports_pretrained_split=args.split_pretrained_sentences
                 ).to(accelerator.device)
                 # Save negative prompt support flag if enabled
                 if args.negative_prompt_training:
@@ -806,7 +796,8 @@ def main():
                 unet=accelerator.unwrap_model(model), 
                 scheduler=noise_scheduler,
                 text_encoder=text_encoder,
-                tokenizer=tokenizer_hf if args.pretrained_language_model else None
+                tokenizer=tokenizer_hf if args.pretrained_language_model else None,
+                supports_pretrained_split=args.split_pretrained_sentences
             ).to(accelerator.device)
         else:
             pipeline = UnconditionalDDPMPipeline(
@@ -847,25 +838,34 @@ def update_args_from_config(args, config):
 def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=None):
     #Prepares the batch for training with text conditioning.
     with torch.no_grad():         
-        if args.pretrained_language_model:
-            tokens = tokenizer_hf(captions, return_tensors="pt", padding=True, truncation=True).to(device)
-            text_embeddings = text_encoder(**tokens).last_hidden_state
-            uncond_embeddings = torch.zeros_like(text_embeddings)
+        if args.split_pretrained_sentences:
+            combined_embeddings = st_helper.get_embeddings_split(batch_size=len(captions),
+                                                       tokenizer=tokenizer_hf,
+                                                       model=text_encoder,
+                                                       captions=captions,
+                                                       neg_captions=negative_captions,
+                                                       device=device)
+        elif args.pretrained_language_model:
+            combined_embeddings = st_helper.get_embeddings(batch_size=len(captions),
+                                                       tokenizer=tokenizer_hf,
+                                                       model=text_encoder,
+                                                       captions=captions,
+                                                       neg_captions=negative_captions,
+                                                       device=device)
+            
         else:
-            text_embeddings = text_encoder.get_embeddings(captions)
-            uncond_tokens = torch.zeros_like(captions)
-            uncond_embeddings = text_encoder.get_embeddings(uncond_tokens)
+            combined_embeddings = text_model.get_embeddings(batch_size=len(captions),
+                                                       tokenizer=text_encoder.tokenizer,
+                                                       text_encoder=text_encoder,
+                                                       captions=captions,
+                                                       neg_captions=negative_captions,
+                                                       device=device)
 
         if args.negative_prompt_training:
-            negative_embeddings = text_encoder.get_embeddings(negative_captions) #TODO: Add support for huggingface model
-            # For negative prompt training, we use three sets of embeddings:
-            # [negative_embeddings, uncond_embeddings, text_embeddings]
-            combined_embeddings = torch.cat([negative_embeddings, uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 3)  # Repeat scenes three times
             timesteps_for_train = torch.cat([timesteps] * 3)  # Repeat timesteps three times
         else:
             # Original classifier-free guidance with just uncond and cond
-            combined_embeddings = torch.cat([uncond_embeddings, text_embeddings])
             scenes_for_train = torch.cat([scenes] * 2)  # Repeat scenes twice
             timesteps_for_train = torch.cat([timesteps] * 2)  # Repeat timesteps twice
 
@@ -876,58 +876,42 @@ def process_diffusion_batch(
 ):
     """
     Handles a single batch for training or validation.
-    """
-    if args.text_conditional:
-        if args.negative_prompt_training:
-            scenes, captions, negative_captions = batch
-        else:
-            scenes, captions = batch
-            negative_captions = None
+    """ 
+    if args.negative_prompt_training:
+        scenes, captions, negative_captions = batch
+    else:
+        scenes, captions = batch
+        negative_captions = None
 
-        scenes = scenes.to(accelerator.device)
-        if not args.pretrained_language_model:
-            captions = captions.to(accelerator.device)
-        if negative_captions is not None:
-            negative_captions = negative_captions.to(accelerator.device)
+    scenes = scenes.to(accelerator.device)
 
-        timesteps = torch.randint(
-            0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
-        ).long()
+    timesteps = torch.randint(
+        0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
+    ).long()
+    
 
+    if args.text_conditional: #Here's the big difference between the two training modes
+        #If we're using text conditioning, we need to prepare the embeddings
         combined_embeddings, scenes_for_train, timesteps_for_train = prepare_conditioned_batch(
             args, tokenizer_hf, text_encoder, scenes, captions, timesteps, accelerator.device, negative_captions=negative_captions
         )
+    else: #Otherwise they can be set as is
+        combined_embeddings, scenes_for_train, timesteps_for_train = None, scenes, timesteps
 
-        noise = torch.randn_like(scenes_for_train)
-        noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
-
+    noise = torch.randn_like(scenes_for_train)
+    noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
+    
+    if args.text_conditional:
         noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
-        target_noise = noise
-        batch_loss = loss_fn(
-            noise_pred, target_noise, scenes_for_train, noisy_scenes,
-            timesteps=timesteps_for_train, scheduler=noise_scheduler
-        )
-        return batch_loss
+    else: # unconditional model does not allow encoder_hidden_states parameter
+        noise_pred = model(noisy_scenes, timesteps_for_train).sample
 
-    else:
-        # Unconditional
-        if isinstance(batch, list):
-            scenes, _ = batch
-        else:
-            scenes = batch
-        scenes = scenes.to(accelerator.device)
-
-        timesteps = torch.randint(
-            0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
-        ).long()
-        noise = torch.randn_like(scenes)
-        noisy_scenes = noise_scheduler.add_noise(scenes, noise, timesteps)
-        noise_pred = model(noisy_scenes, timesteps).sample
-        batch_loss = loss_fn(
-            noise_pred, noise, scenes, noisy_scenes,
-            timesteps=timesteps, scheduler=noise_scheduler
-        )
-        return batch_loss
+    target_noise = noise
+    batch_loss = loss_fn(
+        noise_pred, target_noise, scenes_for_train, noisy_scenes,
+        timesteps=timesteps_for_train, scheduler=noise_scheduler
+    )
+    return batch_loss
 
 if __name__ == "__main__":
      main()

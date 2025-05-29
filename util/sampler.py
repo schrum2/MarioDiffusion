@@ -122,9 +122,9 @@ class SampleOutput:
         simulator.interactive()
 
     def run_astar(self, render=True):
-        #simulator = MMNEATSimulator(level=self.level)
-        simulator = Simulator(level=self.level)
-        simulator.astar(render)
+        simulator = MMNEATSimulator(level=self.level)
+        #simulator = Simulator(level=self.level)
+        return simulator.astar(render)
 
 
 class MMNEATSimulator:
@@ -162,12 +162,16 @@ class MMNEATSimulator:
         save_level(self.level, t.name)
         print(f"Running Astar agent on level! -- {t.name}")
         render_str = "human" if render else "norender"
-        _ = subprocess.run(
+        result = subprocess.run(
             ["java", "-jar", self.jar_path, "astar", t.name, render_str],
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         t.close()
         os.unlink(t.name)
+        # Combine stdout and stderr, decode to string, and return
+        output = result.stdout.decode("utf-8") + result.stderr.decode("utf-8")
+        return output
 
 def save_level(level: List[str], filename: str):
     concatenated = "\n".join(level)

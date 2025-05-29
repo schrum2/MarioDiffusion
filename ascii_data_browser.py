@@ -9,6 +9,9 @@ from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset 
 import util.common_settings as common_settings
+import random
+import colorsys
+
 
 class TileViewer(tk.Tk):
     def __init__(self, dataset_path=None, tileset_path=None):
@@ -231,6 +234,13 @@ class TileViewer(tk.Tk):
             self.is_lode_runner = lr_flag
             with open(dataset_path, 'r') as f:
                 self.dataset = json.load(f)
+
+            # Is designed to typically expect both scenes and captions, but if there are only level scenes,
+            # convert the data format
+            if isinstance(self.dataset, list) and all(isinstance(item, list) for item in self.dataset):
+                # Convert to dict format with empty caption
+                self.dataset = [{'scene': item, 'caption': ''} for item in self.dataset]
+
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
             self.current_sample_idx = 0
             self.redraw()
@@ -359,7 +369,6 @@ class TileViewer(tk.Tk):
         # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
         from captions.caption_match import TOPIC_KEYWORDS
         from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
-        import colorsys
         # Generate a palette of distinct colors algorithmically
         # See if running Lode Runner
         if hasattr(self, "is_lode_runner") and self.is_lode_runner:
@@ -369,11 +378,18 @@ class TileViewer(tk.Tk):
             TOPIC_KEYWORDS = TOPIC_KEYWORDS
         num_topics = len(TOPIC_KEYWORDS)
         topic_colors = {}
-        for i, topic in enumerate(TOPIC_KEYWORDS):
-            hue = i / num_topics  # Distribute hues evenly across the color wheel
-            saturation = 0.7  # Keep saturation high for vivid colors
-            lightness = 0.5  # Keep lightness moderate for good visibility
-            r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
+
+        # Golden ratio conjugate for hue stepping
+        golden_ratio_conjugate = 0.618033988749895
+        h = random.random()  # Start at a random point
+
+        for topic in TOPIC_KEYWORDS:
+            # Step through the hue wheel using the golden ratio
+            h = (h + golden_ratio_conjugate) % 1
+            # Optionally, vary lightness and saturation a bit for more distinction
+            saturation = 0.7 + 0.2 * random.random()  # 0.7-0.9
+            lightness = 0.45 + 0.1 * random.random()  # 0.45-0.55
+            r, g, b = colorsys.hls_to_rgb(h, lightness, saturation)
             topic_colors[topic] = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
         # Map phrases in the sample to their corresponding topic colors
@@ -402,9 +418,19 @@ class TileViewer(tk.Tk):
             image = visualize_samples(one_hot_scene)
             if isinstance(image, list):
                 image = image[0]  # Handle list case by taking the first element
+
+            # --- Resize image to fit canvas ---
+            canvas_width = int(self.canvas['width'])
+            canvas_height = int(self.canvas['height'])
+            img_width, img_height = image.size
+            scale = min(canvas_width / img_width, canvas_height / img_height, 1.0)
+            if scale < 1.0:
+                new_size = (int(img_width * scale), int(img_height * scale))
+                image = image.resize(new_size, PIL.Image.NEAREST)
+
             photo_image = PIL.ImageTk.PhotoImage(image)
             self.canvas.create_image(
-                self.window_size // 2, self.window_size // 2, image=photo_image, anchor="center"
+                canvas_width // 2, canvas_height // 2, image=photo_image, anchor="center"
             )
             self.photo_image = photo_image  # Keep a reference to avoid garbage collection
         else:

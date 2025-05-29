@@ -6,7 +6,7 @@ from captions.caption_match import compare_captions
 import util.common_settings as common_settings
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Create validation set of captions")
+    parser = argparse.ArgumentParser(description="Create random set of captions")
 
     parser.add_argument("--seed", type=int, default=512, help="Random seed for reproducibility")
 
@@ -16,8 +16,8 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     
     # Output args
-    parser.add_argument("--save_file", type=str, default="Mario_ValidationCaptions.json", help="Output file")
-    parser.add_argument("--validation_set_size", type=int, default=100, help="Number of captions for validating generation abilities of model")
+    parser.add_argument("--save_file", type=str, default="Mario_RandomCaptions.json", help="Output file")
+    parser.add_argument("--validation_set_size", type=int, default=100, help="Number of captions for testing generation abilities of model")
 
     # Remove upside down pipes from the caption generator
     parser.add_argument("--no_upside_down_pipes", action="store_true", default=False, help="Exclude captions mentioning upside down pipes")
@@ -33,7 +33,7 @@ def main():
         tokenizer=None,
         shuffle=True,
         mode="text", # Just captions
-        augment=False, # No augmenting just for validation
+        augment=False, # No augmenting just for testing
         num_tiles=args.num_tiles
     )
 

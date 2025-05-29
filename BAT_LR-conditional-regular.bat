@@ -1,5 +1,5 @@
 python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json" --target_height 32 --target_width 32 --extra_tile .
 python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-regular.json
 python train_mlm.py --epochs 300 --save_checkpoints --json LR_LevelsAndCaptions-regular.json --pkl LR_Tokenizer-regular.pkl --output_dir LR-MLM-regular --val_json LR_LevelsAndCaptions-regular-validate.json --test_json LR_LevelsAndCaptions-regular-test.json
-python train_diffusion.py --augment --text_conditional --output_dir "LR-conditional-regular" --num_epochs 500 --json LR_LevelsAndCaptions-regular.json --val_json LR_LevelsAndCaptions-regular-validate.json --pkl LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular --plot_validation_caption_score
+python train_diffusion.py --augment --text_conditional --output_dir "LR-conditional-regular" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --val_json LR_LevelsAndCaptions-regular-validate.json --pkl LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular --plot_validation_caption_score
 python run_diffusion.py --model_path LR-conditional-regular --num_samples 100 --text_conditional --save_as_json --output_dir "LR-conditional-regular-unconditional-samples"
