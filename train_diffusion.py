@@ -26,6 +26,8 @@ from models.block2vec_model import Block2Vec
 import models.sentence_transformers_helper as st_helper
 import models.text_model as text_model
 import glob
+import re
+import shutil
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -189,6 +191,66 @@ def compute_sprite_scaling_factors(json_path, num_tiles, n):
     min_scaling = min(scalings)
     scalings = [s / min_scaling for s in scalings]
     return torch.tensor(scalings, dtype=torch.float32)
+
+def find_latest_checkpoint(output_dir):
+    """Find the latest checkpoint directory and extract its epoch number."""
+    checkpoints = glob.glob(os.path.join(output_dir, "checkpoint-*"))
+    if not checkpoints:
+        return None, None
+    # Extract epoch numbers and find the max
+    pattern = re.compile(r"checkpoint-(\d+)")
+    epochs = [(int(pattern.search(os.path.basename(c)).group(1)), c) for c in checkpoints if pattern.search(os.path.basename(c))]
+    if not epochs:
+        return None, None
+    latest_epoch, latest_ckpt = max(epochs, key=lambda x: x[0])
+    return latest_ckpt, latest_epoch
+
+def save_training_state(output_dir, epoch, global_step, optimizer, lr_scheduler, best_val_loss, best_caption_score, best_epoch):
+    """Save optimizer, scheduler, and training state."""
+    state = {
+        "epoch": epoch,
+        "global_step": global_step,
+        "optimizer": optimizer.state_dict(),
+        "lr_scheduler": lr_scheduler.state_dict(),
+        "best_val_loss": best_val_loss,
+        "best_caption_score": best_caption_score,
+        "best_epoch": best_epoch,
+    }
+    torch.save(state, os.path.join(output_dir, f"training_state_{epoch}.pt"))
+
+def load_training_state(output_dir, epoch, optimizer, lr_scheduler):
+    """Load optimizer, scheduler, and training state."""
+    state_path = os.path.join(output_dir, f"training_state_{epoch}.pt")
+    if not os.path.exists(state_path):
+        print(f"Warning: Training state file {state_path} not found. Starting from scratch.")
+        return 0, 0, float('inf'), float('-inf'), 0
+    state = torch.load(state_path, map_location="cpu")
+    optimizer.load_state_dict(state["optimizer"])
+    lr_scheduler.load_state_dict(state["lr_scheduler"])
+    return state["epoch"] + 1, state["global_step"], state.get("best_val_loss", float('inf')), state.get("best_caption_score", float('-inf')), state.get("best_epoch", 0)
+
+def backup_and_truncate_log(log_file, resume_epoch):
+    """
+    Backup the log file and truncate it to only include entries up to resume_epoch.
+    """
+    if not os.path.exists(log_file):
+        return
+    # Backup the log file
+    backup_file = log_file + "-OLD"
+    shutil.copy2(log_file, backup_file)
+    print(f"Backed up log file to {backup_file}")
+
+    # Truncate the log file
+    import json
+    with open(backup_file, 'r') as fin, open(log_file, 'w') as fout:
+        for line in fin:
+            try:
+                entry = json.loads(line)
+                if entry.get("epoch", -1) <= resume_epoch:
+                    fout.write(line)
+            except Exception:
+                continue
+    print(f"Truncated log file {log_file} to only include entries up to epoch {resume_epoch}")
 
 def main():
     args = parse_args()
@@ -520,8 +582,35 @@ def main():
     # Track the epoch of the last improvement
     best_epoch = 0
     epochs_since_improvement = 0
+    # If resuming training, load the latest checkpoint
+    start_epoch = 0
+    global_step = 0
 
-    for epoch in range(args.num_epochs):
+    if resume_training:
+        latest_ckpt, latest_epoch = find_latest_checkpoint(args.output_dir)
+        # Truncate log file(s) before resuming
+        backup_and_truncate_log(log_file, latest_epoch)
+        if args.text_conditional and args.plot_validation_caption_score and caption_score_log_file:
+            backup_and_truncate_log(caption_score_log_file, latest_epoch)
+        if latest_ckpt is not None:
+            # Load model weights
+            if args.text_conditional:
+                pipeline = TextConditionalDDPMPipeline.from_pretrained(latest_ckpt)
+                model.load_state_dict(pipeline.unet.state_dict())
+                if hasattr(pipeline, "text_encoder") and text_encoder is not None:
+                    text_encoder.load_state_dict(pipeline.text_encoder.state_dict())
+            else:
+                pipeline = UnconditionalDDPMPipeline.from_pretrained(latest_ckpt)
+                model.load_state_dict(pipeline.unet.state_dict())
+            # Load optimizer, scheduler, and training state
+            start_epoch, global_step, best_val_loss, best_caption_score, best_epoch = load_training_state(args.output_dir, latest_epoch, optimizer, lr_scheduler)
+            print(f"Resumed training from epoch {start_epoch}, global_step {global_step}")
+        else:
+            # This should never happen if I got the rest of the logic right
+            print("Exiting from resumed training. No checkpoint found.") 
+            exit()
+            
+    for epoch in range(start_epoch, args.num_epochs):
         if early_stop:
             print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss or caption score for {patience} epochs.")
             break
@@ -762,6 +851,22 @@ def main():
             # Ensure all processes are synchronized
             accelerator.wait_for_everyone()
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
+            
+            # Saves training_state_{epoch}.pt files for resuming after interruptions
+            save_training_state(
+                args.output_dir, epoch, global_step, optimizer, lr_scheduler,
+                best_val_loss, best_caption_score, best_epoch
+            )
+
+            # Delete the previous training state file if it exists
+            if epoch > 0:
+                prev_state_path = os.path.join(args.output_dir, f"training_state_{epoch-args.save_model_epochs}.pt")
+                if os.path.exists(prev_state_path):
+                    try:
+                        os.remove(prev_state_path)
+                        print(f"Deleted old training state: {prev_state_path}")
+                    except Exception as e:
+                        print(f"Warning: Could not delete old training state {prev_state_path}: {e}")
     
     try:
         # Clean up plotting resources
