@@ -45,20 +45,20 @@ def main():
     args = parser.parse_args()
 
     # Load first patch from JSON to determine patch size
-    try:
-        with open(args.json_file, 'r') as f:
-            data = json.load(f)
-            if not data:
-                raise ValueError("Empty dataset")
-            first_patch = data[0]
-            patch_size = len(first_patch)  # Get dimensions from first patch
-            print(len(first_patch))
-            if not all(len(row) == patch_size for row in first_patch):
-                raise ValueError("Patches must be square")
-            print(f"Detected patch size: {patch_size}x{patch_size}")
-    except Exception as e:
-        print(f"Error determining patch size from dataset: {e}")
-        raise
+    # try:
+    #     with open(args.json_file, 'r') as f:
+    #         data = json.load(f)
+    #         if not data:
+    #             raise ValueError("Empty dataset")
+    #         first_patch = data[0]
+    #         patch_size = len(first_patch)  # Get dimensions from first patch
+    #         print(f"{len(data)} samples of size {len(first_patch)} x {len(first_patch[0])} found in dataset")
+    #         if not all(len(row) == patch_size for row in first_patch):
+    #             raise ValueError("Patches must be square")
+    #         print(f"Detected patch size: {patch_size}x{patch_size}")
+    # except Exception as e:
+    #     print(f"Error determining patch size from dataset: {e}")
+    #     raise
 
     # Check if the output directory exists
     if os.path.exists(args.output_dir):
@@ -70,7 +70,7 @@ def main():
         os.makedirs(args.output_dir)
 
     # Load dataset
-    dataset = PatchDataset(json_path=args.json_file, patch_size=first_patch)
+    dataset = PatchDataset(json_path=args.json_file)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     # Determine vocab size from the dataset
