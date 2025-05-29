@@ -684,15 +684,16 @@ def main():
         
         # Print epoch summary (similar to train_mlm.py)
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
+            val_result = f"{val_loss:.4f}" if val_loss is not None else "N/A"
             print(
-                f"Epoch {epoch+1}/{args.num_epochs}, "
+                f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}, "
-                f"Val Loss: {val_loss:.4f if val_loss is not None else 'N/A'}, "
+                f"Val Loss: {val_result}, "
                 f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}"
             )
         else:
             print(
-                f"Epoch {epoch+1}/{args.num_epochs}, "
+                f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}"
             )
 
@@ -927,7 +928,10 @@ def process_diffusion_batch(
     noise = torch.randn_like(scenes_for_train)
     noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
     
-    noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
+    if args.text_conditional:
+        noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
+    else: # unconditional model does not allow encoder_hidden_states parameter
+        noise_pred = model(noisy_scenes, timesteps_for_train).sample
 
     target_noise = noise
     batch_loss = loss_fn(
