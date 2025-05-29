@@ -863,9 +863,26 @@ def update_args_from_config(args, config):
     return args
 
 def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=None):
+    """
+    Prepares the batch for training with text conditioning.
+
+    Embedding shape expectations:
+    - If args.split_pretrained_sentences: 
+        combined_embeddings shape is [batch, num_phrases, embedding_dim]
+    - If args.pretrained_language_model (no split): 
+        combined_embeddings shape is [batch, 1, embedding_dim]
+    - Else (token embedding): 
+        combined_embeddings shape is [batch, num_tokens, embedding_dim]
+
+    Returns:
+        combined_embeddings: torch.Tensor
+        scenes_for_train: torch.Tensor
+        timesteps_for_train: torch.Tensor
+    """
     #Prepares the batch for training with text conditioning.
     with torch.no_grad():         
         if args.split_pretrained_sentences:
+            # Each caption is split into phrases; embedding shape: [batch, num_phrases, embedding_dim]
             combined_embeddings = st_helper.get_embeddings_split(batch_size=len(captions),
                                                        tokenizer=tokenizer_hf,
                                                        model=text_encoder,
@@ -873,6 +890,7 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
                                                        neg_captions=negative_captions,
                                                        device=device)
         elif args.pretrained_language_model:
+            # Each caption is embedded as a single vector; shape: [batch, 1, embedding_dim]
             combined_embeddings = st_helper.get_embeddings(batch_size=len(captions),
                                                        tokenizer=tokenizer_hf,
                                                        model=text_encoder,
@@ -881,12 +899,28 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
                                                        device=device)
             
         else:
+            # Token-level embedding; shape: [batch, num_tokens, embedding_dim]
             combined_embeddings = text_model.get_embeddings(batch_size=len(captions),
                                                        tokenizer=text_encoder.tokenizer,
                                                        text_encoder=text_encoder,
                                                        captions=captions,
                                                        neg_captions=negative_captions,
                                                        device=device)
+
+        # After obtaining combined_embeddings in prepare_conditioned_batch
+        if args.split_pretrained_sentences:
+            # [batch, num_phrases, embedding_dim]
+            assert combined_embeddings.ndim == 3, "Expected [batch, num_phrases, embedding_dim] for split_pretrained_sentences"
+            assert combined_embeddings.shape[0] == len(captions), "Batch size mismatch in split_pretrained_sentences"
+        elif args.pretrained_language_model:
+            # [batch, 1, embedding_dim]
+            assert combined_embeddings.ndim == 3, "Expected [batch, 1, embedding_dim] for pretrained_language_model"
+            assert combined_embeddings.shape[0] == len(captions), "Batch size mismatch in pretrained_language_model"
+            assert combined_embeddings.shape[1] == 1, "Expected singleton phrase dimension for pretrained_language_model"
+        else:
+            # [batch, num_tokens, embedding_dim]
+            assert combined_embeddings.ndim == 3, "Expected [batch, num_tokens, embedding_dim] for token embedding"
+            assert combined_embeddings.shape[0] == len(captions), "Batch size mismatch in token embedding"
 
         if args.negative_prompt_training:
             scenes_for_train = torch.cat([scenes] * 3)  # Repeat scenes three times
