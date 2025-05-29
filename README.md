@@ -117,6 +117,11 @@ Must be in a directory that contains both of the other two directory before usin
 python LodeRunner\main.py MarioDiffusion/LR_LevelsAndCaptions-regular.json 1
 ```
 
+Batch file that fully runs unconditional diffusion for Lode Runner (as long as the file do not exist):
+```
+BAT_LR-unconditional-regular.bat
+```
+
 Batch file that fully runs conditional diffusion for Lode Runner (as long as the file do not exist):
 ```
 BAT_LR-conditional-regular.bat
