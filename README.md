@@ -91,7 +91,7 @@ You can also make the captions explicitly mention things that are absent from ea
 python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-absence.json --describe_absence
 ```
 
-Browse LR data with ascii browser
+Browse LR data with ascii browser and be able to play some of the Lode Runner levels
 ```
 python ascii_data_browser.py LR_LevelsAndCaptions-regular.json "..\\TheVGLC\\Lode Runner\\Loderunner.json"
 ```
