@@ -164,8 +164,9 @@ class CaptionBuilder(ParentBuilder):
                     "rectangular", "irregular", "enem",
 
                     # Lode Runner patterns
-                    "ladder", "gold", "rope", 
+                    "ladder", "gold", "rope",
                     "chamber", "background area",
+                    "diggable ground", "solid ground",
 
                     # Mario patterns
                     "pipe", "coin", "tower", #"wall",
