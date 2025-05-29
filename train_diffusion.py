@@ -253,6 +253,7 @@ def main():
     """
     sprite_scaling_factors = None
     if (not args.text_conditional) and (args.sprite_temperature_n is not None):
+        raise ValueError("temperature scaling not currently implemented")
         sprite_scaling_factors = compute_sprite_scaling_factors(
             args.json, args.num_tiles, args.sprite_temperature_n
         )
@@ -927,6 +928,7 @@ def process_diffusion_batch(
     noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
     
     noise_pred = model(noisy_scenes, timesteps_for_train, encoder_hidden_states=combined_embeddings).sample
+
     target_noise = noise
     batch_loss = loss_fn(
         noise_pred, target_noise, scenes_for_train, noisy_scenes,
