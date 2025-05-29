@@ -584,8 +584,12 @@ class TileViewer(tk.Tk):
             for row in scene:
                 char_row = "".join([self.id_to_char[num] for num in row])
                 char_grid.append(char_row)
-            level = SampleOutput(level=char_grid)
-            level.play(game="loderunner" if self.is_lode_runner else "mario")
+            if not hasattr(self, 'is_lode_runner'):
+                level = SampleOutput(level=char_grid)
+            else:
+                # If Lode Runner, use a different game type
+                level = SampleOutput(level=char_grid)
+            level.play(game="loderunner" if self.is_lode_runner else "mario", level_idx=self.current_sample_idx + 1)
 
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
