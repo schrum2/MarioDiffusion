@@ -1,14 +1,14 @@
 REM @echo off
-REM Usage: SMB1-conditional-gteLarge.bat <type> <seed>
+REM Usage: SMB1-conditional-gteLarge.bat <seed> <type> 
 REM <type> should be "regular" or "absence"
 REM <seed> is optional, defaults to 0
 cd ..
 
-set TYPE=%1
-if "%TYPE%"=="" set TYPE=regular
-
-set SEED=%2
+set SEED=%1
 if "%SEED%"=="" set SEED=0
+
+set TYPE=%2
+if "%TYPE%"=="" set TYPE=regular
 
 set DIFF_OUTPUT=SMB1-conditional-%TYPE%-gteLarge%SEED%
 set UNCOND_OUTPUT=%DIFF_OUTPUT%-unconditional-samples

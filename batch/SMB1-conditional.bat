@@ -1,14 +1,14 @@
 REM @echo off
-REM Usage: SMB1-conditional.bat <type> <seed>
-REM <type> should be "regular", "absence", or "negative"
+REM Usage: SMB1-conditional.bat <seed> <type> 
 REM <seed> is optional, defaults to 0
+REM <type> should be "regular", "absence", or "negative"
 cd ..
 
-set TYPE=%1
-if "%TYPE%"=="" set TYPE=regular
-
-set SEED=%2
+set SEED=%1
 if "%SEED%"=="" set SEED=0
+
+set TYPE=%2
+if "%TYPE%"=="" set TYPE=regular
 
 REM Set up variables for all cases
 set MLM_OUTPUT=SMB1-MLM-%TYPE%%SEED%
