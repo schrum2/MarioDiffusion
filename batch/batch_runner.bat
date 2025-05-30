@@ -1,4 +1,4 @@
-@echo off
+REM @echo off
 REM Usage: batch_runner.bat <seed_start> <seed_end> <job_batch_file>
 REM Example: batch_runner.bat 0 9 SMB1-conditional-regular-job.bat
 

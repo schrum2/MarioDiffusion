@@ -1,4 +1,4 @@
-@echo off
+REM @echo off
 REM Usage: evaluate_caption_adherence_multi.bat <model_path> <type>
 REM <type> should be "regular" or "absence"
 REM This script runs all standard evaluate_caption_adherence.py calls for a given model and type.
