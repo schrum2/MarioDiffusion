@@ -140,6 +140,7 @@ def average_min_edit_distance(level_collection: List[List[List[int]]]) -> float:
         
     return total_min_distance / len(level_collection)
 
+# DELETE
 def test_edit_distances():
     """Test the edit distance functions on SMB1 levels"""
     
@@ -497,7 +498,7 @@ if __name__ == "__main__":
     
     try:
         # Load dataset
-        dataset_path = os.path.join(base_dir, "SMB1_LevelsAndCaptions-regular.json")
+        dataset_path = os.path.join(base_dir, "datasets\\SMB1_LevelsAndCaptions-regular.json")
         with open(dataset_path, 'r') as f:
             data = json.load(f)
             # Create pairs from data
