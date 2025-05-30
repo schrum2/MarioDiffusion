@@ -1,16 +1,12 @@
 import argparse
 import os
 import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 import random
 import numpy as np
-from level_dataset import LevelDataset, visualize_samples
+from level_dataset import visualize_samples
 import json
-import threading
 from datetime import datetime
-from util.plotter import Plotter
 from models.wgan_model import WGAN_Generator, WGAN_Discriminator
 import util.common_settings as common_settings
 import models.general_training_helper as gen_train_help

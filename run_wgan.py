@@ -3,7 +3,6 @@ import os
 import torch
 import numpy as np
 from models.wgan_model import WGAN_Generator
-from tokenizer import Tokenizer
 from level_dataset import visualize_samples, samples_to_scenes
 import random
 from create_ascii_captions import save_level_data
@@ -14,7 +13,6 @@ def parse_args():
     
     # Model loading args
     parser.add_argument("--model_path", type=str, required=True, help="Path to saved generator model")
-    parser.add_argument("--pkl", type=str, default="datasets\\SMB1_Tokenizer-regular.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     
     # Generation args
@@ -54,11 +52,7 @@ def main():
     # Get device
     device = torch.device(args.device if torch.cuda.is_available() and args.device == "cuda" else "cpu")
     print(f"Using device: {device}")
-    
-    # Initialize tokenizer (needed for visualization)
-    tokenizer = Tokenizer()
-    tokenizer.load(args.pkl)
-    
+        
     # Set input image size (assumes square)
     isize = common_settings.MARIO_HEIGHT
     
