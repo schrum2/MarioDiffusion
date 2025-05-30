@@ -2,11 +2,21 @@ import argparse
 import os
 import json
 import random
-from captions.caption_match import TOPIC_KEYWORDS
+from captions.caption_match import TOPIC_KEYWORDS as MARIO_TOPIC_KEYWORDS
+from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
 
 """
 COMMAND LINE: python split_data.py --json SMB1_LevelsAndCaptions-regular-test.json --train_pct 0.8 --val_pct 0.1 --test_pct 0.1
 """
+def parse_args():
+    parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
+    parser.add_argument("--json", type=str, required=True, help="Path to dataset JSON file")
+    parser.add_argument("--game", type=str, required=True, choices=["mario", "loderunner"], help="Game name")
+    parser.add_argument("--train_pct", type=float, default=0.8, help="Train split percentage")
+    parser.add_argument("--val_pct", type=float, default=0.1, help="Validation split percentage")
+    parser.add_argument("--test_pct", type=float, default=0.1, help="Test split percentage")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for shuffling")
+    return parser.parse_args()
 
 def split_dataset(json_path, train_pct, val_pct, test_pct):
     """Splits the dataset into train/val/test and saves them as new JSON files."""
@@ -125,28 +135,25 @@ def upside_down_pipes(dataset):
             return True
     return False
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
-    parser.add_argument("--json", type=str, required=True, help="Path to dataset JSON file")
-    parser.add_argument("--train_pct", type=float, default=0.8, help="Train split percentage")
-    parser.add_argument("--val_pct", type=float, default=0.1, help="Validation split percentage")
-    parser.add_argument("--test_pct", type=float, default=0.1, help="Test split percentage")
-    parser.add_argument("--seed", type=int, default=0, help="Random seed for shuffling")
-    return parser.parse_args()
-
 if __name__ == "__main__":
     args = parse_args()
     random.seed(args.seed)
-   
-    required_structures = TOPIC_KEYWORDS  # Use the predefined topic keywords as required structures
-    required_structures = [kw for kw in required_structures if "broken" not in kw] # Exclude "broken" structures by default
-    
-    with open(args.json, 'r') as f:
-        full_dataset = json.load(f)
 
-    if not upside_down_pipes(full_dataset):
-        # If no upside-down pipes are found, remove them from the required structures
-        required_structures = [kw for kw in required_structures if "upside down pipe" not in kw] # Exclude "upside down pipe" structures if the data has none
-    
-    # verify_coverage will create the splits internally, so we don't need to pass the dataset
-    train_split, val_split, test_split = verify_coverage(required_structures=required_structures)
+    # Choose the correct topic keywords based on the game
+    if args.game.lower() == "mario":
+        required_structures = MARIO_TOPIC_KEYWORDS
+        required_structures = [kw for kw in required_structures if "broken" not in kw]
+
+        with open(args.json, 'r') as f:
+            full_dataset = json.load(f)
+
+        if not upside_down_pipes(full_dataset):
+            required_structures = [kw for kw in required_structures if "upside down pipe" not in kw]
+    elif args.game.lower() == "loderunner":
+        required_structures = LR_TOPIC_KEYWORDS
+        required_structures = [kw for kw in required_structures if "loose block" not in kw]
+        required_structures = [kw for kw in required_structures if "ceiling" not in kw]
+    else:
+        raise ValueError("Unsupported game specified")
+
+    train_split, val_split, test_split = verify_coverage(required_structures)
