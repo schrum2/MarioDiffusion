@@ -100,7 +100,7 @@ def start_plotter(log_file, output_dir, left_key, right_key, left_label, right_l
     plot_thread = threading.Thread(target=plotter.start_plotting)
     plot_thread.daemon = True
     plot_thread.start()
-    print(f"Loss plotting enabled. Progress will be saved to {os.path.join(output_dir, f'{png_name}_{formatted_date}.png')}")
+    print(f"{png_name} plotting enabled. Progress will be saved to {os.path.join(output_dir, f'{png_name}_{formatted_date}.png')}")
     return plotter, plot_thread
 
 
