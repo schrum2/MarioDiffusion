@@ -12,7 +12,8 @@ if "%MODEL_PATH%"=="" (
 )
 if "%TYPE%"=="" set TYPE=regular
 
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\SMB1_LevelsAndCaptions-%TYPE%.json --output_dir text-to-level-final
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\SMB1_LevelsAndCaptions-%TYPE%.json --output_dir samples-from-real-captions
 python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\SMB1_LevelsAndCaptions-%TYPE%.json --compare_checkpoints 
 python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\SMB1_LevelsAndCaptions-%TYPE%-test.json --compare_checkpoints 
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\SMB1_RandomTest-%TYPE%.json --output_dir samples-from-random-captions
 python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\SMB1_RandomTest-%TYPE%.json --compare_checkpoints

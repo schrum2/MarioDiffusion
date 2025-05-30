@@ -630,7 +630,7 @@ def main():
         else:
             print(
                 f"Epoch {epoch+1} of {args.num_epochs}, "
-                f"Loss: {avg_train_loss:.4f}"
+                f"Loss: {avg_train_loss:.4f}, "
                 f"No improvement in val loss for {epochs_since_improvement} of {patience} epochs."
             )
 
