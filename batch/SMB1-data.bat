@@ -9,8 +9,8 @@ set default_out=datasets\SMB1_LevelsAndCaptions
 python create_level_json_data.py --output "datasets\\SMB1_Levels.json" --levels "..\\TheVGLC\\Super Mario Bros\\Processed"
 
 :: Generate captions for SMB1
-python create_ascii_captions.py --dataset datasets\\SMB1_Levels.json --output %default_out%-regular.json
-python create_ascii_captions.py --dataset datasets\\SMB1_Levels.json --output %default_out%-absence.json --describe_absence
+python create_ascii_captions.py --dataset datasets\\SMB1_Levels.json --output %default_out%-regular.json --exclude_upside_down_pipes
+python create_ascii_captions.py --dataset datasets\\SMB1_Levels.json --output %default_out%-absence.json --exclude_upside_down_pipes --describe_absence
 
 :: Tokenize SMB1 data
 python tokenizer.py save --json_file %default_out%-regular.json --pkl_file datasets\\SMB1_Tokenizer-regular.pkl

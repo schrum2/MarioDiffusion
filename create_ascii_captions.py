@@ -373,7 +373,7 @@ def valid_upside_down_pipe(bottom_row, left_column, scene, char_to_id):
 
     return False
 
-def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None):
+def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None, exclude_upside_down_pipes=False):
     """
         scene and char_to_id are needed when pipes is True so that the specific tiles can be checked.
         Returns a list of tuples (phrase, coordinates) where coordinates is a set of (row, col) positions
@@ -398,6 +398,8 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
             if valid_pipe(min_row, min_col, scene, char_to_id):
                 desc = "pipe"
             elif valid_upside_down_pipe(max_row, min_col, scene, char_to_id):
+                if exclude_upside_down_pipes:
+                    raise ValueError("Don't exclude_upside_down_pipes if valid upside down pipes are in the data")
                 desc = "upside down pipe"
             else:
                 desc = "broken pipe"
@@ -462,7 +464,8 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         
         for absent_type in absent_types:
             if absent_type not in described_types:
-                result.append((f" no {absent_type}s.", set()))
+                if not (absent_type == "upside down pipe" and exclude_upside_down_pipes):
+                    result.append((f" no {absent_type}s.", set()))
 
     return result if result else []
 
@@ -470,15 +473,15 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
 #    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
 #    return words[n - 1] if 1 <= n <= 10 else str(n)
 
-def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence):
+def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence, exclude_upside_down_pipes=False):
     """Processes the dataset and generates captions for each level scene."""
     # Load dataset
     with open(dataset_path, "r") as f:
         dataset = json.load(f)
-    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence)
+    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_upside_down_pipes=exclude_upside_down_pipes)
     print(f"Captioned dataset saved to {output_path}")
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True):
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True, exclude_upside_down_pipes=False):
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
@@ -486,7 +489,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     # Generate captions
     captioned_dataset = []
     for scene in dataset:
-        caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
+        caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, exclude_upside_down_pipes=exclude_upside_down_pipes)
 
         # We only want to discard levels with broken pipes if we indicate that (describe_absence is True)
         if exclude_broken and "broken" in caption:
@@ -510,7 +513,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
 
-def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, debug=False, return_details=False):
+def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, debug=False, return_details=False, exclude_upside_down_pipes=False):
     """Assigns a caption to a level scene based on its contents."""
     already_accounted = set()
     details = {} if return_details else None
@@ -663,7 +666,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     #print(already_accounted)
     pipe_set = set() # pipes can double count with floor, but there should be no other conflicts
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, pipe_set, pipes=True)
-    pipe_phrase = describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id)
+    pipe_phrase = describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id, exclude_upside_down_pipes=exclude_upside_down_pipes)
     for phrase, coords in pipe_phrase:
         add_to_caption(phrase, coords)
     
@@ -694,6 +697,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True, help="Output JSON file path")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument("--exclude_upside_down_pipes", action="store_true", default=False, help="Whether any mention of upside down pipes should be in captions")
     global args
     args = parser.parse_args()
 
@@ -705,4 +709,4 @@ if __name__ == "__main__":
         print("Error: One or more input files do not exist.")
         sys.exit(1)
 
-    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence)
+    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence, args.exclude_upside_down_pipes)
