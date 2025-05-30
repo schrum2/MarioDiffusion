@@ -11,7 +11,7 @@ COMMAND LINE: python split_data.py --json SMB1_LevelsAndCaptions-regular-test.js
 def parse_args():
     parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
     parser.add_argument("--json", type=str, required=True, help="Path to dataset JSON file")
-    parser.add_argument("--game", type=str, required=True, choices=["mario", "lode runner"], help="Game name")
+    parser.add_argument("--game", type=str, required=True, choices=["mario", "loderunner"], help="Game name")
     parser.add_argument("--train_pct", type=float, default=0.8, help="Train split percentage")
     parser.add_argument("--val_pct", type=float, default=0.1, help="Validation split percentage")
     parser.add_argument("--test_pct", type=float, default=0.1, help="Test split percentage")
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     # Choose the correct topic keywords based on the game
     if args.game.lower() == "mario":
         topic_keywords = MARIO_TOPIC_KEYWORDS
-    elif args.game.lower() == "lode runner":
+    elif args.game.lower() == "loderunner":
         topic_keywords = LR_TOPIC_KEYWORDS
     else:
         raise ValueError("Unsupported game specified")
