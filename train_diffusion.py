@@ -487,14 +487,6 @@ def main():
         model, optimizer, train_dataloader, lr_scheduler
     )
     
-    # # Second occurance to create new directory. Delete?
-    # # Create output directory
-    # if not os.path.exists(args.output_dir):
-    #     os.makedirs(args.output_dir)
-    # else:
-    #     print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-    #     exit()
-    
     # Training loop
     global_step = 0
     progress_bar = tqdm(total=args.num_epochs * len(train_dataloader), disable=not accelerator.is_local_main_process)
@@ -589,6 +581,16 @@ def main():
                 weight_decay=0.01,
                 betas=(0.9, 0.999)
             )
+
+            # Load optimizer state if it exists
+            optimizer_path = os.path.join(latest_ckpt, "optimizer.pt")
+            if os.path.exists(optimizer_path):
+                optimizer.load_state_dict(torch.load(optimizer_path, map_location="cpu"))
+
+            # Load the learning rate scheduler state if it exists
+            lr_scheduler_path = os.path.join(latest_ckpt, "lr_scheduler.pt")
+            if os.path.exists(lr_scheduler_path):
+                lr_scheduler.load_state_dict(torch.load(lr_scheduler_path, map_location="cpu"))
 
             # rewrap with accelerator
             model, optimizer = accelerator.prepare(model, optimizer)
@@ -822,7 +824,8 @@ def main():
             
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
-            # Save the model
+            checkpoint_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}")
+            # save the model
             if args.text_conditional:
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
@@ -841,11 +844,16 @@ def main():
                 )
                 if sprite_scaling_factors is not None:
                     pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
-                
-            # Ensure all processes are synchronized
+            # Wait for all processes to synchronize before saving
             accelerator.wait_for_everyone()
-            pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
-            # TODO: Also save optimizer state, so it can be reloaded later
+            pipeline.save_pretrained(checkpoint_dir)
+            # Save optimizer state
+            optimizer_path = os.path.join(checkpoint_dir, "optimizer.pt")
+            # Save the optimizer state dictionary
+            torch.save(optimizer.state_dict(), optimizer_path)
+            # Save LR scheduler state
+            lr_scheduler_path = os.path.join(checkpoint_dir, "lr_scheduler.pt")
+            torch.save(lr_scheduler.state_dict(), lr_scheduler_path)
             
     try:
         # Clean up plotting resources
@@ -892,6 +900,11 @@ def main():
                 pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
             
         pipeline.save_pretrained(args.output_dir)
+        # # Save the final optimizer and learing rate scheduler states??
+        # optimizer_path = os.path.join(args.output_dir, "optimizer.pt")
+        # torch.save(optimizer.state_dict(), optimizer_path)
+        # lr_scheduler_path = os.path.join(args.output_dir, "lr_scheduler.pt")
+        # torch.save(lr_scheduler.state_dict(), lr_scheduler_path)
 
 # Add function to load config from JSON
 def load_config_from_json(config_path):
