@@ -1,6 +1,6 @@
 
 REM @echo off
-REM Usage: SMB1-conditional.bat <type> <seed>
+REM Usage: LR-conditional.bat <type> <seed>
 REM <type> should be "regular" or "absence"
 REM <seed> is optional, defaults to 0
 cd ..
