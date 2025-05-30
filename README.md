@@ -119,12 +119,12 @@ python LodeRunner\main.py MarioDiffusion/LR_LevelsAndCaptions-regular.json 1
 
 Batch file that fully runs unconditional diffusion for Lode Runner (as long as the file do not exist):
 ```
-BAT_LR-unconditional-regular.bat
+BAT_LR-unconditional.bat
 ```
 
 Batch file that fully runs conditional diffusion for Lode Runner (as long as the file do not exist):
 ```
-BAT_LR-conditional-regular.bat
+BAT_LR-conditional.bat
 ```
 
 ## Train text encoder
