@@ -635,6 +635,10 @@ class TileViewer(tk.Tk):
         print("Level validation passed.")
         return True
 
+    def on_close(self):
+        self.destroy()
+        sys.exit(0)
+
 if __name__ == "__main__":
     # Command-line argument parsing
     dataset_path = None
@@ -650,4 +654,5 @@ if __name__ == "__main__":
     #print("dataset_path", dataset_path)
     #print("tileset_path", tileset_path)
     app = TileViewer(dataset_path, tileset_path)
+    app.protocol("WM_DELETE_WINDOW", app.on_close)
     app.mainloop()
