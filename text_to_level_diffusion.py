@@ -72,6 +72,8 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         if self.args.game == "LR":
             del self.input_parameters["width"]
 
+        print(f"Tileset in use: {self.args.tileset}")
+
     def generate_image(self, param_values, generator, **extra_params):
         if self.args.automatic_negative_captions:
             pos, neg = positive_negative_caption_split(param_values["caption"], True)

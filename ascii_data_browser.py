@@ -585,13 +585,12 @@ class TileViewer(tk.Tk):
             for row in scene:
                 char_row = "".join([self.id_to_char[num] for num in row])
                 char_grid.append(char_row)
-            if not hasattr(self, 'is_lode_runner'):
-                level = SampleOutput(level=char_grid)
-            else:
-                # If Lode Runner, use a different game type
-                level = SampleOutput(level=char_grid)
+            level = SampleOutput(level=char_grid)
+            if hasattr(self, 'is_lode_runner') and self.is_lode_runner and not self.validate_lode_runner_level(scene):
+                print("Invalid Lode Runner level. Cannot play.")
+                return  # Stop playing if level is invalid
             level.play(game="loderunner" if self.is_lode_runner else "mario", 
-                       level_idx=self.current_sample_idx + 1,
+                       level_idx=(self.added_sample_indexes[0] + 1) if self.added_sample_indexes else 1,
                        dataset_path=self.dataset_path if hasattr(self, 'dataset_path') else None)
 
     def astar_composed_level(self):
@@ -604,6 +603,41 @@ class TileViewer(tk.Tk):
                 char_grid.append(char_row)
             level = SampleOutput(level=char_grid)
             level.run_astar()
+
+    def validate_lode_runner_level(self, scene):
+        # Check rectangularity
+        width = len(scene[0])
+        for row in scene:
+            if len(row) != width:
+                print("Level is not rectangular!")
+                return False
+
+        # Check size (e.g., 32x32)
+        if len(scene) != 32 or width != 32:
+            print(f"Level is not 32x32! Got {len(scene)}x{width}")
+            return False
+
+        # Check for player spawn
+        player_found = any(self.id_to_char[tile] == 'M' for row in scene for tile in row)
+        if not player_found:
+            print("No player spawn found!")
+            return False
+
+        # Check for at least one gold (if required)
+        gold_found = any(self.id_to_char[tile] == 'G' for row in scene for tile in row)
+        if not gold_found:
+            print("No gold found!")
+            # return False  # Uncomment if gold is required
+
+        # Check for at least one valid move for the player
+        # (You can expand this to check for actual valid moves if needed)
+
+        print("Level validation passed.")
+        return True
+
+    def on_close(self):
+        self.destroy()
+        sys.exit(0)
 
 if __name__ == "__main__":
     # Command-line argument parsing
@@ -620,4 +654,5 @@ if __name__ == "__main__":
     #print("dataset_path", dataset_path)
     #print("tileset_path", tileset_path)
     app = TileViewer(dataset_path, tileset_path)
+    app.protocol("WM_DELETE_WINDOW", app.on_close)
     app.mainloop()

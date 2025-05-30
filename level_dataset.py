@@ -239,7 +239,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
         channels = samples.shape[1]
         height = samples.shape[2]
         width = samples.shape[3]
-        if height == common_settings.LR_HEIGHT: #and width == lr_common_settings.LR_WIDTH: # TODO: Define these constants in common_settings
+        if height == common_settings.LR_HEIGHT: #and width == lr_common_settings.LR_WIDTH:
             #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
             tile_size = common_settings.LR_TILE_PIXEL_DIM
