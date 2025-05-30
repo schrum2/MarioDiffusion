@@ -593,20 +593,24 @@ def main():
         if args.text_conditional and args.plot_validation_caption_score and caption_score_log_file:
             backup_and_truncate_log(caption_score_log_file, latest_epoch)
         if latest_ckpt is not None:
-            # Load model weights
+            # Use pipeline's from_pretrained to load everything from the checkpoint directory
             if args.text_conditional:
                 pipeline = TextConditionalDDPMPipeline.from_pretrained(latest_ckpt)
                 model.load_state_dict(pipeline.unet.state_dict())
-                if hasattr(pipeline, "text_encoder") and text_encoder is not None:
-                    text_encoder.load_state_dict(pipeline.text_encoder.state_dict())
+                # Only load text_encoder weights if you are NOT freezing it (usually not needed)
+                # if hasattr(pipeline, "text_encoder") and text_encoder is not None:
+                #     text_encoder.load_state_dict(pipeline.text_encoder.state_dict())
+                noise_scheduler = pipeline.scheduler
             else:
                 pipeline = UnconditionalDDPMPipeline.from_pretrained(latest_ckpt)
                 model.load_state_dict(pipeline.unet.state_dict())
-            # Load optimizer, scheduler, and training state
-            start_epoch, global_step, best_val_loss, best_caption_score, best_epoch = load_training_state(args.output_dir, latest_epoch, optimizer, lr_scheduler)
+                noise_scheduler = pipeline.scheduler
+            # Restore optimizer, scheduler, and training state
+            start_epoch, global_step, best_val_loss, best_caption_score, best_epoch = load_training_state(
+                args.output_dir, latest_epoch, optimizer, lr_scheduler
+            )
             print(f"Resumed training from epoch {start_epoch}, global_step {global_step}")
         else:
-            # This should never happen if I got the rest of the logic right
             print("Exiting from resumed training. No checkpoint found.") 
             exit()
             
