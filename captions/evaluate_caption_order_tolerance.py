@@ -3,6 +3,7 @@ import itertools
 import os
 import random
 from collections import defaultdict
+from util.common_settings import MARIO_TILE_COUNT, LR_TILE_COUNT  # adjust import if needed
 
 import numpy as np
 import torch
@@ -17,6 +18,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption order tolerance for a diffusion model.")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--caption", type=str, required=True, help="Caption to evaluate, phrases separated by periods")
+    parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
     parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
     parser.add_argument("--inference_steps", type=int, default=25)
     parser.add_argument("--guidance_scale", type=float, default=3.5)
@@ -87,6 +89,15 @@ def main():
     args = parse_args()
     device = setup_environment(args.seed)
 
+    if args.game == "Mario":
+        args.num_tiles = MARIO_TILE_COUNT
+        args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+    elif args.game == "LR":
+        args.num_tiles = LR_TILE_COUNT # TODO
+        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
+    else:
+        raise ValueError(f"Unknown game: {args.game}")
+    
     # Load pipeline
     pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
     pipe.eval()
