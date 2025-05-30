@@ -233,6 +233,25 @@ def copy_log_up_to_epoch(output_dir, log_file, resume_epoch):
                 exit()
     print(f"Truncated log file {log_file} to only include entries up to epoch {resume_epoch}")
 
+def infer_global_step_from_log(log_file):
+    """
+    Reads the last valid 'step' value from the log file.
+    Returns 0 if the log is empty or no step is found.
+    """
+    global_step = 0
+    try:
+        with open(log_file, 'r') as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                    if "step" in entry:
+                        global_step = entry["step"]
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return global_step
+
 def main():
     args = parse_args()
 
@@ -596,11 +615,22 @@ def main():
             model, optimizer = accelerator.prepare(model, optimizer)
 
             # After loading the pipeline and re-preparing with accelerator:
+            early_stop_path = os.path.join(latest_ckpt, "early_stop_state.json")
+            if os.path.exists(early_stop_path):
+                with open(early_stop_path, "r") as f:
+                    early_stop_state = json.load(f)
+                best_val_loss = early_stop_state.get("best_val_loss", float('inf'))
+                best_caption_score = early_stop_state.get("best_caption_score", float('-inf'))
+                best_epoch = early_stop_state.get("best_epoch", 0)
+                epochs_since_improvement = early_stop_state.get("epochs_since_improvement", 0)
+            else:
+                best_val_loss = float('inf')
+                best_caption_score = float('-inf')
+                best_epoch = 0
+                epochs_since_improvement = 0
+                
             start_epoch = latest_epoch + 1
-            global_step = 0
-            best_val_loss = float('inf')
-            best_caption_score = float('-inf')
-            best_epoch = 0
+            global_step = infer_global_step_from_log(log_file)
             print(f"Resumed training from epoch {start_epoch}, global_step {global_step}")
         else:
             print("Exiting from resumed training. No checkpoint found.") 
@@ -757,13 +787,13 @@ def main():
                 f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}, "
                 f"Val Loss: {val_result}, "
-                f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}"
+                f"Caption Score: {avg_caption_score if avg_caption_score is not None else 'N/A'}\n"
                 f"No improvement in val loss or caption score for {epochs_since_improvement} of {patience} epochs."
             )
         else:
             print(
                 f"Epoch {epoch+1} of {args.num_epochs}, "
-                f"Loss: {avg_train_loss:.4f}"
+                f"Loss: {avg_train_loss:.4f}\n"
                 f"No improvement in val loss for {epochs_since_improvement} of {patience} epochs."
             )
 
@@ -854,6 +884,17 @@ def main():
             # Save LR scheduler state
             lr_scheduler_path = os.path.join(checkpoint_dir, "lr_scheduler.pt")
             torch.save(lr_scheduler.state_dict(), lr_scheduler_path)
+
+            # Save early stopping state
+            early_stop_state = {
+                "best_val_loss": best_val_loss,
+                "best_caption_score": best_caption_score,
+                "best_epoch": best_epoch,
+                "epochs_since_improvement": epochs_since_improvement
+            }
+            early_stop_path = os.path.join(checkpoint_dir, "early_stop_state.json")
+            with open(early_stop_path, "w") as f:
+                json.dump(early_stop_state, f)
             
     try:
         # Clean up plotting resources

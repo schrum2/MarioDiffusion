@@ -418,6 +418,17 @@ def calculate_phrase_metrics(
         "total": total
     }
 
+# TODO: GitHub Issue #56 - A* Solvability
+def astar_metrics():
+    """
+     Takes a list of levels in the list of strings format used by MarioGPT. 
+     For each of the levels, run my astar code on it (repeat some number of times specified by a parameter). 
+     For each run, parse the returned string to extract information about performance. 
+     Average the performance of he A* agent across multiple runs.
+      Return a list of organized results indicating how A* performed on each level (a list of dictionaries).
+     """
+    pass  # Placeholder for future A* metrics implementation
+
 if __name__ == "__main__":
     # Base directory for datasets
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
