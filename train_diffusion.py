@@ -205,51 +205,32 @@ def find_latest_checkpoint(output_dir):
     latest_epoch, latest_ckpt = max(epochs, key=lambda x: x[0])
     return latest_ckpt, latest_epoch
 
-def save_training_state(output_dir, epoch, global_step, optimizer, lr_scheduler, best_val_loss, best_caption_score, best_epoch):
-    """Save optimizer, scheduler, and training state."""
-    state = {
-        "epoch": epoch,
-        "global_step": global_step,
-        "optimizer": optimizer.state_dict(),
-        "lr_scheduler": lr_scheduler.state_dict(),
-        "best_val_loss": best_val_loss,
-        "best_caption_score": best_caption_score,
-        "best_epoch": best_epoch,
-    }
-    torch.save(state, os.path.join(output_dir, f"training_state_{epoch}.pt"))
-
-def load_training_state(output_dir, epoch, optimizer, lr_scheduler):
-    """Load optimizer, scheduler, and training state."""
-    state_path = os.path.join(output_dir, f"training_state_{epoch}.pt")
-    if not os.path.exists(state_path):
-        print(f"Warning: Training state file {state_path} not found. Starting from scratch.")
-        return 0, 0, float('inf'), float('-inf'), 0
-    state = torch.load(state_path, map_location="cpu")
-    optimizer.load_state_dict(state["optimizer"])
-    lr_scheduler.load_state_dict(state["lr_scheduler"])
-    return state["epoch"] + 1, state["global_step"], state.get("best_val_loss", float('inf')), state.get("best_caption_score", float('-inf')), state.get("best_epoch", 0)
-
-def backup_and_truncate_log(log_file, resume_epoch):
+def copy_log_up_to_epoch(output_dir, log_file, resume_epoch):
     """
-    Backup the log file and truncate it to only include entries up to resume_epoch.
+    Find the most recent previous training log in output_dir (excluding log_file itself),
+    and copy entries up to resume_epoch into log_file.
     """
-    if not os.path.exists(log_file):
-        return
-    # Backup the log file
-    backup_file = log_file + "-OLD"
-    shutil.copy2(log_file, backup_file)
-    print(f"Backed up log file to {backup_file}")
+    # Find all previous log files except the new one
+    log_files = [
+        f for f in glob.glob(os.path.join(output_dir, "training_log_*.jsonl"))
+        if os.path.abspath(f) != os.path.abspath(log_file)
+    ]
+    if not log_files:
+        print("No previous log file found to copy from.")
+        exit()
+    # Pick the most recent one by modification time
+    prev_log_file = max(log_files, key=os.path.getmtime)
+    print(f"Copying log entries from {prev_log_file} up to epoch {resume_epoch} into {log_file}")
 
-    # Truncate the log file
-    import json
-    with open(backup_file, 'r') as fin, open(log_file, 'w') as fout:
+    with open(prev_log_file, 'r') as fin, open(log_file, 'w') as fout:
         for line in fin:
             try:
                 entry = json.loads(line)
                 if entry.get("epoch", -1) <= resume_epoch:
                     fout.write(line)
             except Exception:
-                continue
+                print(f"Warning: Skipping a malformed log line in {prev_log_file}.")
+                exit()
     print(f"Truncated log file {log_file} to only include entries up to epoch {resume_epoch}")
 
 def main():
@@ -588,27 +569,36 @@ def main():
 
     if resume_training:
         latest_ckpt, latest_epoch = find_latest_checkpoint(args.output_dir)
-        # Truncate log file(s) before resuming
-        backup_and_truncate_log(log_file, latest_epoch)
+        # Handles log file(s) before resuming
+        copy_log_up_to_epoch(args.output_dir, log_file, latest_epoch)
         if args.text_conditional and args.plot_validation_caption_score and caption_score_log_file:
-            backup_and_truncate_log(caption_score_log_file, latest_epoch)
+            copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch)
         if latest_ckpt is not None:
             # Use pipeline's from_pretrained to load everything from the checkpoint directory
             if args.text_conditional:
                 pipeline = TextConditionalDDPMPipeline.from_pretrained(latest_ckpt)
-                model.load_state_dict(pipeline.unet.state_dict())
-                # Only load text_encoder weights if you are NOT freezing it (usually not needed)
-                # if hasattr(pipeline, "text_encoder") and text_encoder is not None:
-                #     text_encoder.load_state_dict(pipeline.text_encoder.state_dict())
-                noise_scheduler = pipeline.scheduler
             else:
                 pipeline = UnconditionalDDPMPipeline.from_pretrained(latest_ckpt)
-                model.load_state_dict(pipeline.unet.state_dict())
-                noise_scheduler = pipeline.scheduler
-            # Restore optimizer, scheduler, and training state
-            start_epoch, global_step, best_val_loss, best_caption_score, best_epoch = load_training_state(
-                args.output_dir, latest_epoch, optimizer, lr_scheduler
+            model = pipeline.unet
+            noise_scheduler = pipeline.scheduler
+
+            # Re-create the optimizer for the new model parameters
+            optimizer = torch.optim.AdamW(
+                model.parameters(),
+                lr=args.learning_rate,
+                weight_decay=0.01,
+                betas=(0.9, 0.999)
             )
+
+            # rewrap with accelerator
+            model, optimizer = accelerator.prepare(model, optimizer)
+
+            # After loading the pipeline and re-preparing with accelerator:
+            start_epoch = latest_epoch + 1
+            global_step = 0
+            best_val_loss = float('inf')
+            best_caption_score = float('-inf')
+            best_epoch = 0
             print(f"Resumed training from epoch {start_epoch}, global_step {global_step}")
         else:
             print("Exiting from resumed training. No checkpoint found.") 
@@ -855,23 +845,8 @@ def main():
             # Ensure all processes are synchronized
             accelerator.wait_for_everyone()
             pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
+            # TODO: Also save optimizer state, so it can be reloaded later
             
-            # Saves training_state_{epoch}.pt files for resuming after interruptions
-            save_training_state(
-                args.output_dir, epoch, global_step, optimizer, lr_scheduler,
-                best_val_loss, best_caption_score, best_epoch
-            )
-
-            # Delete the previous training state file if it exists
-            if epoch > 0:
-                prev_state_path = os.path.join(args.output_dir, f"training_state_{epoch-args.save_model_epochs}.pt")
-                if os.path.exists(prev_state_path):
-                    try:
-                        os.remove(prev_state_path)
-                        print(f"Deleted old training state: {prev_state_path}")
-                    except Exception as e:
-                        print(f"Warning: Could not delete old training state {prev_state_path}: {e}")
-    
     try:
         # Clean up plotting resources
         if accelerator.is_local_main_process and plotter:
