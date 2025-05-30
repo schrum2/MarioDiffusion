@@ -138,29 +138,18 @@ def upside_down_pipes(dataset):
 if __name__ == "__main__":
     args = parse_args()
     random.seed(args.seed)
-
     # Choose the correct topic keywords based on the game
     if args.game.lower() == "mario":
-        topic_keywords = MARIO_TOPIC_KEYWORDS
-    elif args.game.lower() == "loderunner":
-        topic_keywords = LR_TOPIC_KEYWORDS
-    else:
-        raise ValueError("Unsupported game specified")
-
-    required_structures = topic_keywords
-
-    # Only Mario has broken and upside down pipes
-    if args.game.lower() == "mario":
+        required_structures = MARIO_TOPIC_KEYWORDS
         required_structures = [kw for kw in required_structures if "broken" not in kw]
-    elif args.game.lower() == "loderunner":
-        required_structures = [kw for kw in required_structures if "ceiling" not in kw and "loose block" not in kw]
-
         with open(args.json, 'r') as f:
             full_dataset = json.load(f)
-
-    if not upside_down_pipes(full_dataset):
-        # If no upside-down pipes are found, remove them from the required structures
-        required_structures = [kw for kw in required_structures if "upside down pipe" not in kw] # Exclude "upside down pipe" structures if the data has none
-    
-    # verify_coverage will create the splits internally, so we don't need to pass the dataset
-    train_split, val_split, test_split = verify_coverage(required_structures=required_structures)
+        if not upside_down_pipes(full_dataset):
+            required_structures = [kw for kw in required_structures if "upside down pipe" not in kw]
+    elif args.game.lower() == "loderunner":
+        required_structures = LR_TOPIC_KEYWORDS
+        required_structures = [kw for kw in required_structures if "loose block" not in kw]
+        required_structures = [kw for kw in required_structures if "ceiling" not in kw]
+    else:
+        raise ValueError("Unsupported game specified")
+    train_split, val_split, test_split = verify_coverage(required_structures)
