@@ -25,4 +25,5 @@ if "%TYPE%"=="" (
 
 for /L %%S in (%SEED_START%,1,%SEED_END%) do (
     call "%JOB_BATCH%" %TYPE% %%S
+	cd batch
 )
