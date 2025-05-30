@@ -456,7 +456,7 @@ def main():
         if args.plot_validation_caption_score:
             # Caption score plotter
             caption_score_plotter, caption_score_plot_thread = gen_train_help.start_plotter(
-                                            log_file=log_file, output_dir=args.output_dir,
+                                            log_file=caption_score_log_file, output_dir=args.output_dir,
                                             left_key='caption_score', right_key=None, left_label='Caption Match Score', 
                                             right_label=None, png_name='caption_score')
             
@@ -719,16 +719,9 @@ def main():
         # Clean up plotting resources
         if accelerator.is_local_main_process and plotter:
             # Better thread cleanup
-            if plot_thread and plot_thread.is_alive():
-                plotter.stop_plotting()
-                plot_thread.join(timeout=5.0)
-                if plot_thread.is_alive():
-                    print("Warning: Plot thread did not terminate properly")
-            if caption_score_plot_thread and caption_score_plot_thread.is_alive():
-                caption_score_plotter.stop_plotting()
-                caption_score_plot_thread.join(timeout=5.0)
-                if caption_score_plot_thread.is_alive():
-                    print("Warning: Caption score plot thread did not terminate properly")
+            gen_train_help.kill_plotter(plotter, plot_thread)
+
+            gen_train_help.kill_plotter(caption_score_plotter, caption_score_plot_thread)
 
         # Force CUDA cleanup
         if torch.cuda.is_available():

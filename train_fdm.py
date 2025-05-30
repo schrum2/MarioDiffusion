@@ -225,7 +225,7 @@ def main():
         if args.plot_validation_caption_score:
             # Caption score plotter
             caption_score_plotter, caption_score_plot_thread = gen_train_help.start_plotter(
-                                            log_file=log_file, output_dir=args.output_dir,
+                                            log_file=caption_score_log_file, output_dir=args.output_dir,
                                             left_key='caption_score', right_key=None, left_label='Caption Match Score', 
                                             right_label=None, png_name='caption_score')
             
