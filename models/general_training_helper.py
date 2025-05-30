@@ -41,7 +41,8 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
         batch_size=batch_size,
         shuffle=True,
         num_workers=4,
-        drop_last=True
+        drop_last=True,
+        persistent_workers=True
     )
     
     val_dataloader = None
@@ -51,7 +52,8 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
             batch_size=batch_size,
             shuffle=False,
             num_workers=4,
-            drop_last=False
+            drop_last=False,
+            persistent_workers=True
         )
     
     return train_dataloader, val_dataloader

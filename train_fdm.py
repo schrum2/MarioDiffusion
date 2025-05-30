@@ -309,8 +309,8 @@ def main():
                 # TODO: These should be argparse parameters
                 avg_caption_score, _, _ = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, None, None, args.seed,
-                    id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
-                    output=False
+                    id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, 
+                    describe_absence=args.describe_absence, output=False
                 )
             else:
                 # Is this how this should behave in the unconditional case?

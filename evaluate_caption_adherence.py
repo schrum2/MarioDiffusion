@@ -160,8 +160,23 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     return scores_by_epoch
 
 def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH):
+    
+    #With persistent_workers being set to true at creation, the dataset mode cannot be changed
+    #without creating a new dataset, because all of the workers present are working with the old
+    #version. This creates a new dataset to avoid this issue entierly
     original_mode = dataloader.dataset.mode
-    dataloader.dataset.mode = "text"  # Set mode to text for caption generation
+    if original_mode == "diff_text":
+        dataset = dataloader.dataset
+        dataset.mode = "text"
+        dataloader = DataLoader(
+            dataset,
+            batch_size=dataloader.batch_size,
+            shuffle=False,
+            num_workers=4,
+            drop_last=False,
+            persistent_workers=False
+        )
+        
 
     score_sum = 0.0
     total_count = 0
@@ -233,8 +248,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     # Concatenate all batches
     all_samples = torch.cat(all_samples, dim=0)[:total_count]
 
-    # Reset mode to original
-    dataloader.dataset.mode = original_mode
+    dataloader.dataset.mode=original_mode
 
     return (avg_score, all_samples, all_prompts)
 
