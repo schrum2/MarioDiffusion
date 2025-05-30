@@ -15,4 +15,4 @@ mario-gpt
 cmaes
 timm==0.9.12
 
--e git+https://github.com/williamsr03/Reid/LodeRunner.git@Reid#egg=loderunner
+git+https://github.com/williamsr03/LodeRunner@Reid#egg=LodeRunner
