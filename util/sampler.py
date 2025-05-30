@@ -134,10 +134,10 @@ class SampleOutput:
                 tmp_path = tmp.name
             import sys, os
             #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-            from src.loderunner import main
+            import LodeRunner
             tmp_path = tmp_path if dataset_path is None else dataset_path
             print(f"Playing Lode Runner level interactively -- {tmp_path}!")
-            main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
+            LodeRunner.main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
         else:
             simulator = Simulator(level=self.level)
             simulator.interactive()
