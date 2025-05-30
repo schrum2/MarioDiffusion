@@ -219,9 +219,7 @@ def main():
     progress_bar.set_description("Steps")
     
     for epoch in range(args.num_epochs):
-        
-        for batch_idx, batch in enumerate(train_dataloader):
-            
+        for batch in train_dataloader:
             # Get level scenes (ignore captions if returned)
             if isinstance(batch, list):
                 scenes, _ = batch  # Ignore captions
@@ -305,7 +303,6 @@ def main():
             progress_bar.set_postfix(**logs)
             
             global_step += 1
-            
         # Log metrics
         log_metrics(epoch, errD.item(), errG.item(), current_lr_d, current_lr_g, global_step)
         
