@@ -14,3 +14,5 @@ matplotlib
 mario-gpt
 cmaes
 timm==0.9.12
+
+git+https://github.com/williamsr03/LodeRunner.git@Reid#egg=LodeRunner
