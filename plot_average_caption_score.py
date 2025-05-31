@@ -69,7 +69,7 @@ def collect_run_data(prefix, run_ids, file_pattern="caption_score_log_*.jsonl"):
         
     return all_data
 
-def aggregate_data(all_data):
+def aggregate_data(all_data, key):
     """Aggregate data across runs by epoch."""
     if not all_data:
         return []
@@ -89,7 +89,7 @@ def aggregate_data(all_data):
             epoch_data = df[df['epoch'] == epoch]
             if not epoch_data.empty:
                 # If multiple entries for same epoch, take the last one
-                score = epoch_data.iloc[-1]['caption_score']
+                score = epoch_data.iloc[-1][key]
                 scores.append(score)
         
         if scores:  # Only include epochs that have data from at least one run
@@ -274,6 +274,8 @@ File patterns support wildcards:
                        help='Confidence level for CI (default: 0.95)')
     parser.add_argument('--output', '-o', type=str,
                        help='Output filename (default: show plot)')
+    parser.add_argument('--key', '-k', type=str, default="caption_score",
+                       help='Score key in the jsonl files')
     
     args = parser.parse_args()
     
@@ -297,7 +299,7 @@ File patterns support wildcards:
     experiment_data = {}
     for prefix, run_ids in experiment_configs.items():
         all_data = collect_run_data(prefix, run_ids, args.file_pattern)
-        aggregated = aggregate_data(all_data)
+        aggregated = aggregate_data(all_data, key=args.key)
         experiment_data[prefix] = aggregated
     
     # Check if we have any valid data
