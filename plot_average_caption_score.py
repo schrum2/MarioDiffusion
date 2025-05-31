@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to plot averaged caption scores across multiple runs.
+Script to plot averaged caption scores across multiple runs and experiment batches.
 Reads JSONL files from subdirectories and creates plots with optional error regions.
 """
 
@@ -14,6 +14,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
+import matplotlib.colors as mcolors
 
 def find_jsonl_file(directory):
     """Find the caption_score_log*.jsonl file in the given directory."""
@@ -40,7 +41,7 @@ def read_jsonl_data(filepath):
         return None
 
 def collect_run_data(prefix, run_ids):
-    """Collect data from all specified runs."""
+    """Collect data from all specified runs for a single experiment batch."""
     all_data = {}
     
     for run_id in run_ids:
@@ -59,17 +60,20 @@ def collect_run_data(prefix, run_ids):
             print(f"Warning: No data found in {jsonl_file}, skipping...")
             continue
             
-        print(f"Loaded {len(df)} records from {jsonl_file}")
         all_data[run_id] = df
     
-    if not all_data:
-        print("Error: No valid data found in any runs!")
-        sys.exit(1)
+    if all_data:
+        print(f"Loaded data from {len(all_data)} runs for prefix '{prefix}'")
+    else:
+        print(f"Warning: No valid data found for prefix '{prefix}'")
         
     return all_data
 
 def aggregate_data(all_data):
     """Aggregate data across runs by epoch."""
+    if not all_data:
+        return []
+    
     # Find all unique epochs across all runs
     all_epochs = set()
     for df in all_data.values():
@@ -109,70 +113,145 @@ def calculate_confidence_interval(scores, confidence=0.95):
     ci = stats.t.interval(confidence, len(scores)-1, loc=mean, scale=sem)
     return ci[0] - mean, ci[1] - mean  # return as offsets from mean
 
-def create_plot(aggregated_data, error_type=None, confidence=0.95):
-    """Create the matplotlib plot."""
-    epochs = [d['epoch'] for d in aggregated_data]
-    means = [d['mean'] for d in aggregated_data]
+def parse_experiment_spec(spec):
+    """Parse experiment specification in format 'prefix:run_ids'."""
+    if ':' not in spec:
+        raise ValueError(f"Invalid experiment spec '{spec}'. Format should be 'prefix:run_ids'")
     
-    plt.figure(figsize=(10, 6))
+    prefix, run_ids_str = spec.split(':', 1)
     
-    # Main line plot
-    plt.plot(epochs, means, 'b-', linewidth=2, label='Mean Caption Score')
+    # Parse run IDs
+    try:
+        if '-' in run_ids_str:
+            start, end = map(int, run_ids_str.split('-'))
+            run_ids = list(range(start, end + 1))
+        else:
+            run_ids = [int(x.strip()) for x in run_ids_str.split(',')]
+    except ValueError:
+        raise ValueError(f"Invalid run_ids format '{run_ids_str}'. Use 'start-end' or 'id1,id2,id3'")
     
-    # Add error regions if requested
-    if error_type == 'std':
-        stds = [d['std'] for d in aggregated_data]
-        plt.fill_between(epochs, 
-                        [m - s for m, s in zip(means, stds)],
-                        [m + s for m, s in zip(means, stds)],
-                        alpha=0.3, color='blue', label='± 1 Standard Deviation')
-    
-    elif error_type == 'ci':
-        ci_lower = []
-        ci_upper = []
-        for d in aggregated_data:
-            ci_low, ci_high = calculate_confidence_interval(d['scores'], confidence)
-            ci_lower.append(d['mean'] + ci_low)
-            ci_upper.append(d['mean'] + ci_high)
-        
-        plt.fill_between(epochs, ci_lower, ci_upper,
-                        alpha=0.3, color='blue', 
-                        label=f'{int(confidence*100)}% Confidence Interval')
-    
-    plt.xlabel('Epoch')
-    plt.ylabel('Caption Score')
-    plt.title('Caption Score vs Epoch (Averaged Across Runs)')
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    
-    # Add info about number of runs
-    num_runs = max(d['count'] for d in aggregated_data)
-    min_runs = min(d['count'] for d in aggregated_data)
-    if num_runs == min_runs:
-        plt.figtext(0.02, 0.02, f'Data from {num_runs} runs', fontsize=8)
+    return prefix, run_ids
+
+def get_color_palette(n):
+    """Get a color palette with n distinct colors."""
+    if n <= 10:
+        # Use tab10 colormap for up to 10 colors
+        return plt.cm.tab10(np.linspace(0, 1, n))
     else:
-        plt.figtext(0.02, 0.02, f'Data from {min_runs}-{num_runs} runs per epoch', fontsize=8)
+        # Use a combination of colormaps for more colors
+        colors1 = plt.cm.tab10(np.linspace(0, 1, 10))
+        colors2 = plt.cm.Set3(np.linspace(0, 1, n - 10))
+        return np.vstack([colors1, colors2])
+
+def create_plot(experiment_data, error_type=None, confidence=0.95):
+    """Create the matplotlib plot with multiple experiment batches."""
+    plt.figure(figsize=(12, 8))
+    
+    # Get colors for each experiment
+    colors = get_color_palette(len(experiment_data))
+    
+    # Track all data for consistent axis limits
+    all_epochs = []
+    all_scores = []
+    
+    # Plot each experiment batch
+    for i, (exp_name, aggregated_data) in enumerate(experiment_data.items()):
+        if not aggregated_data:
+            print(f"Warning: No data to plot for experiment '{exp_name}'")
+            continue
+            
+        epochs = [d['epoch'] for d in aggregated_data]
+        means = [d['mean'] for d in aggregated_data]
+        color = colors[i]
+        
+        all_epochs.extend(epochs)
+        all_scores.extend(means)
+        
+        # Main line plot
+        plt.plot(epochs, means, color=color, linewidth=2, label=exp_name, marker='o', markersize=4)
+        
+        # Add error regions if requested
+        if error_type == 'std':
+            stds = [d['std'] for d in aggregated_data]
+            plt.fill_between(epochs, 
+                            [m - s for m, s in zip(means, stds)],
+                            [m + s for m, s in zip(means, stds)],
+                            alpha=0.2, color=color)
+        
+        elif error_type == 'ci':
+            ci_lower = []
+            ci_upper = []
+            for d in aggregated_data:
+                ci_low, ci_high = calculate_confidence_interval(d['scores'], confidence)
+                ci_lower.append(d['mean'] + ci_low)
+                ci_upper.append(d['mean'] + ci_high)
+            
+            plt.fill_between(epochs, ci_lower, ci_upper,
+                            alpha=0.2, color=color)
+    
+    # Formatting
+    plt.xlabel('Epoch', fontsize=12)
+    plt.ylabel('Caption Score', fontsize=12)
+    plt.title('Caption Score vs Epoch (Averaged Across Runs)', fontsize=14)
+    plt.grid(True, alpha=0.3)
+    
+    # Legend
+    legend = plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    # Add error type to legend title if applicable
+    if error_type == 'std':
+        legend.set_title('Experiments (± 1 std)', prop={'size': 10})
+    elif error_type == 'ci':
+        legend.set_title(f'Experiments ({int(confidence*100)}% CI)', prop={'size': 10})
+    else:
+        legend.set_title('Experiments', prop={'size': 10})
+    
+    # Add info about runs at bottom
+    info_lines = []
+    for exp_name, aggregated_data in experiment_data.items():
+        if aggregated_data:
+            num_runs = max(d['count'] for d in aggregated_data)
+            min_runs = min(d['count'] for d in aggregated_data)
+            if num_runs == min_runs:
+                info_lines.append(f"{exp_name}: {num_runs} runs")
+            else:
+                info_lines.append(f"{exp_name}: {min_runs}-{num_runs} runs")
+    
+    if info_lines:
+        plt.figtext(0.02, 0.02, ' | '.join(info_lines), fontsize=8, wrap=True)
     
     plt.tight_layout()
     return plt.gcf()
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Plot averaged caption scores across multiple runs',
+        description='Plot averaged caption scores across multiple runs and experiment batches',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s SMB1-conditional-MiniLM-regular 0-4
-  %(prog)s run 0,1,2,3,4,5 --std
-  %(prog)s experiment 1-10 --ci --confidence 0.99
-  %(prog)s my_run 0,2,4,6,8 --ci --output results.png
+  # Single experiment batch
+  %(prog)s "SMB1-conditional-MiniLM-regular:0-4"
+  
+  # Multiple experiment batches
+  %(prog)s "experiment1:0-4" "experiment2:0-4" "baseline:0,2,4"
+  
+  # With error bars
+  %(prog)s "exp1:0-9" "exp2:0-9" --std
+  
+  # With confidence intervals
+  %(prog)s "batch1:0-4" "batch2:0-4" --ci --confidence 0.99
+  
+  # Save to file
+  %(prog)s "run1:0-4" "run2:0-4" --output comparison.png
+
+Format for experiment specification: "prefix:run_ids"
+  - prefix: Directory name prefix
+  - run_ids: "start-end" for range or "id1,id2,id3" for list
         """
     )
     
-    parser.add_argument('prefix', 
-                       help='Directory name prefix (e.g., "SMB1-conditional-MiniLM-regular")')
-    parser.add_argument('run_ids', 
-                       help='Run IDs to include. Format: "0-4" for range or "0,1,2,3" for list')
+    parser.add_argument('experiments', nargs='+',
+                       help='Experiment specifications in format "prefix:run_ids"')
     parser.add_argument('--std', action='store_true',
                        help='Show standard deviation as error region')
     parser.add_argument('--ci', action='store_true',
@@ -184,39 +263,43 @@ Examples:
     
     args = parser.parse_args()
     
-    # Parse run IDs
-    try:
-        if '-' in args.run_ids:
-            start, end = map(int, args.run_ids.split('-'))
-            run_ids = list(range(start, end + 1))
-        else:
-            run_ids = [int(x.strip()) for x in args.run_ids.split(',')]
-    except ValueError:
-        print(f"Error: Invalid run_ids format '{args.run_ids}'. Use 'start-end' or 'id1,id2,id3'")
-        sys.exit(1)
-    
-    print(f"Looking for runs: {run_ids}")
-    print(f"Directory prefix: {args.prefix}")
-    
-    # Collect data from all runs
-    all_data = collect_run_data(args.prefix, run_ids)
-    
-    # Aggregate data by epoch
-    aggregated = aggregate_data(all_data)
-    print(f"Aggregated data for {len(aggregated)} epochs")
-    
-    # Determine error type
-    error_type = None
+    # Validate error type arguments
     if args.std and args.ci:
         print("Error: Cannot use both --std and --ci. Choose one.")
         sys.exit(1)
-    elif args.std:
+    
+    # Parse experiment specifications
+    experiment_configs = {}
+    try:
+        for exp_spec in args.experiments:
+            prefix, run_ids = parse_experiment_spec(exp_spec)
+            experiment_configs[prefix] = run_ids
+            print(f"Experiment '{prefix}': runs {run_ids}")
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    
+    # Collect and aggregate data for each experiment batch
+    experiment_data = {}
+    for prefix, run_ids in experiment_configs.items():
+        all_data = collect_run_data(prefix, run_ids)
+        aggregated = aggregate_data(all_data)
+        experiment_data[prefix] = aggregated
+    
+    # Check if we have any valid data
+    if not any(experiment_data.values()):
+        print("Error: No valid data found for any experiments!")
+        sys.exit(1)
+    
+    # Determine error type
+    error_type = None
+    if args.std:
         error_type = 'std'
     elif args.ci:
         error_type = 'ci'
     
     # Create plot
-    fig = create_plot(aggregated, error_type, args.confidence)
+    fig = create_plot(experiment_data, error_type, args.confidence)
     
     # Save or show plot
     if args.output:
