@@ -69,7 +69,7 @@ def collect_run_data(prefix, run_ids, file_pattern="caption_score_log_*.jsonl"):
         
     return all_data
 
-def aggregate_data(all_data, key):
+def aggregate_data(all_data):
     """Aggregate data across runs by epoch."""
     if not all_data:
         return []
@@ -89,7 +89,7 @@ def aggregate_data(all_data, key):
             epoch_data = df[df['epoch'] == epoch]
             if not epoch_data.empty:
                 # If multiple entries for same epoch, take the last one
-                score = epoch_data.iloc[-1][key]
+                score = epoch_data.iloc[-1]['score']
                 scores.append(score)
         
         if scores:  # Only include epochs that have data from at least one run
@@ -113,12 +113,15 @@ def calculate_confidence_interval(scores, confidence=0.95):
     ci = stats.t.interval(confidence, len(scores)-1, loc=mean, scale=sem)
     return ci[0] - mean, ci[1] - mean  # return as offsets from mean
 
-def parse_experiment_spec(spec):
-    """Parse experiment specification in format 'prefix:run_ids'."""
-    if ':' not in spec:
-        raise ValueError(f"Invalid experiment spec '{spec}'. Format should be 'prefix:run_ids'")
+def parse_experiment_spec(spec, default_pattern="caption_score_log_*.jsonl"):
+    """Parse experiment specification in format 'prefix:run_ids' or 'prefix:run_ids:file_pattern'."""
+    parts = spec.split(':')
+    if len(parts) < 2:
+        raise ValueError(f"Invalid experiment spec '{spec}'. Format should be 'prefix:run_ids' or 'prefix:run_ids:file_pattern'")
     
-    prefix, run_ids_str = spec.split(':', 1)
+    prefix = parts[0]
+    run_ids_str = parts[1]
+    file_pattern = parts[2] if len(parts) > 2 else default_pattern
     
     # Parse run IDs
     try:
@@ -130,7 +133,7 @@ def parse_experiment_spec(spec):
     except ValueError:
         raise ValueError(f"Invalid run_ids format '{run_ids_str}'. Use 'start-end' or 'id1,id2,id3'")
     
-    return prefix, run_ids
+    return prefix, run_ids, file_pattern
 
 def get_color_palette(n):
     """Get a color palette with n distinct colors."""
@@ -235,24 +238,29 @@ Examples:
   # Multiple experiment batches with default pattern
   %(prog)s "experiment1:0-4" "experiment2:0-4" "baseline:0,2,4"
   
-  # Using specific file pattern for different file naming
-  %(prog)s "SMB1-regular:0-4" -f "*_scores_by_epoch.jsonl"
+  # Compare same experiments with different file patterns
+  %(prog)s "SMB1-regular:0-4:SMB1_LevelsAndCaptions-*_scores_by_epoch.jsonl" "SMB1-regular:0-4:SMB1_ValidationCaptions-*_scores_by_epoch.jsonl"
   
-  # Compare different file types
-  %(prog)s "SMB1-regular:0-4" -f "SMB1_LevelsAndCaptions-*_scores_by_epoch.jsonl"
+  # Mix of default and custom patterns
+  %(prog)s "SMB1-regular:0-4" "SMB1-regular:0-4:*ValidationCaptions*_scores_by_epoch.jsonl"
   
-  # With error bars
-  %(prog)s "exp1:0-9" "exp2:0-9" --std
+  # Using global file pattern (applies to all experiments without specific pattern)
+  %(prog)s "SMB1-regular:0-4" "experiment2:0-4" -f "*_scores_by_epoch.jsonl"
   
-  # With confidence intervals and custom pattern
-  %(prog)s "batch1:0-4" "batch2:0-4" --ci -f "*ValidationCaptions*_scores_by_epoch.jsonl"
+  # With error bars comparing training vs validation
+  %(prog)s "SMB1-regular:0-4:*LevelsAndCaptions*_scores_by_epoch.jsonl" "SMB1-regular:0-4:*ValidationCaptions*_scores_by_epoch.jsonl" --std
   
-  # Save to file
-  %(prog)s "run1:0-4" "run2:0-4" --output comparison.png
+  # Save comparison plot
+  %(prog)s "run1:0-4:pattern1.jsonl" "run1:0-4:pattern2.jsonl" --output comparison.png
 
-Format for experiment specification: "prefix:run_ids"
+Format for experiment specification: 
+  - "prefix:run_ids" (uses global --file-pattern)
+  - "prefix:run_ids:file_pattern" (uses specific pattern)
+  
+  Where:
   - prefix: Directory name prefix
   - run_ids: "start-end" for range or "id1,id2,id3" for list
+  - file_pattern: File pattern with wildcards (optional)
 
 File patterns support wildcards:
   - "caption_score_log_*.jsonl" (default)
@@ -265,7 +273,7 @@ File patterns support wildcards:
     parser.add_argument('experiments', nargs='+',
                        help='Experiment specifications in format "prefix:run_ids"')
     parser.add_argument('--file-pattern', '-f', type=str, default="caption_score_log_*.jsonl",
-                       help='File pattern to search for in each directory (default: "caption_score_log_*.jsonl")')
+                       help='Default file pattern for experiments without specific pattern (default: "caption_score_log_*.jsonl")')
     parser.add_argument('--std', action='store_true',
                        help='Show standard deviation as error region')
     parser.add_argument('--ci', action='store_true',
@@ -274,8 +282,6 @@ File patterns support wildcards:
                        help='Confidence level for CI (default: 0.95)')
     parser.add_argument('--output', '-o', type=str,
                        help='Output filename (default: show plot)')
-    parser.add_argument('--key', '-k', type=str, default="caption_score",
-                       help='Score key in the jsonl files')
     
     args = parser.parse_args()
     
@@ -292,14 +298,14 @@ File patterns support wildcards:
             experiment_configs[prefix] = run_ids
             print(f"Experiment '{prefix}': runs {run_ids}")
     except ValueError as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+       print(f"Error: {e}")
+       sys.exit(1)
     
     # Collect and aggregate data for each experiment batch
     experiment_data = {}
     for prefix, run_ids in experiment_configs.items():
         all_data = collect_run_data(prefix, run_ids, args.file_pattern)
-        aggregated = aggregate_data(all_data, key=args.key)
+        aggregated = aggregate_data(all_data)
         experiment_data[prefix] = aggregated
     
     # Check if we have any valid data
