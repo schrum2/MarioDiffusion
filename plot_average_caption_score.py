@@ -125,14 +125,15 @@ def calculate_confidence_interval(scores, confidence=0.95):
     return ci[0] - mean, ci[1] - mean  # return as offsets from mean
 
 def parse_experiment_spec(spec, default_pattern="caption_score_log_*.jsonl"):
-    """Parse experiment specification in format 'prefix:run_ids' or 'prefix:run_ids:file_pattern'."""
+    """Parse experiment specification in format 'prefix:run_ids' or 'prefix:run_ids:file_pattern' or 'prefix:run_ids:file_pattern:label'."""
     parts = spec.split(':')
     if len(parts) < 2:
-        raise ValueError(f"Invalid experiment spec '{spec}'. Format should be 'prefix:run_ids' or 'prefix:run_ids:file_pattern'")
+        raise ValueError(f"Invalid experiment spec '{spec}'. Format should be 'prefix:run_ids' or 'prefix:run_ids:file_pattern' or 'prefix:run_ids:file_pattern:label'")
     
     prefix = parts[0]
     run_ids_str = parts[1]
     file_pattern = parts[2] if len(parts) > 2 else default_pattern
+    label = parts[3] if len(parts) > 3 else None
     
     # Parse run IDs
     try:
@@ -144,7 +145,7 @@ def parse_experiment_spec(spec, default_pattern="caption_score_log_*.jsonl"):
     except ValueError:
         raise ValueError(f"Invalid run_ids format '{run_ids_str}'. Use 'start-end' or 'id1,id2,id3'")
     
-    return prefix, run_ids, file_pattern
+    return prefix, run_ids, file_pattern, label
 
 def get_color_palette(n):
     """Get a color palette with n distinct colors."""
@@ -157,12 +158,26 @@ def get_color_palette(n):
         colors2 = plt.cm.Set3(np.linspace(0, 1, n - 10))
         return np.vstack([colors1, colors2])
 
-def create_plot(experiment_data, error_type=None, confidence=0.95):
+def get_line_styles(n):
+    """Get distinct line styles and markers for n different lines (black-and-white friendly)."""
+    line_styles = ['-', '--', '-.', ':', '-', '--', '-.', ':']
+    markers = ['o', 's', '^', 'D', 'v', '<', '>', 'p', '*', 'h', 'H', '+', 'x']
+    
+    styles = []
+    for i in range(n):
+        line_style = line_styles[i % len(line_styles)]
+        marker = markers[i % len(markers)]
+        styles.append((line_style, marker))
+    
+    return styles
+
+def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, legend_loc='lower right'):
     """Create the matplotlib plot with multiple experiment batches."""
     plt.figure(figsize=(12, 8))
     
-    # Get colors for each experiment
+    # Get colors and line styles for each experiment
     colors = get_color_palette(len(experiment_data))
+    line_styles = get_line_styles(len(experiment_data))
     
     # Track all data for consistent axis limits
     all_epochs = []
@@ -177,12 +192,14 @@ def create_plot(experiment_data, error_type=None, confidence=0.95):
         epochs = [d['epoch'] for d in aggregated_data]
         means = [d['mean'] for d in aggregated_data]
         color = colors[i]
+        line_style, marker = line_styles[i]
         
         all_epochs.extend(epochs)
         all_scores.extend(means)
         
-        # Main line plot
-        plt.plot(epochs, means, color=color, linewidth=2, label=exp_name, marker='o', markersize=4)
+        # Main line plot with distinct styles for black-and-white compatibility
+        plt.plot(epochs, means, color=color, linewidth=2.5, label=exp_name, 
+                linestyle=line_style, marker=marker, markersize=6, markevery=1)
         
         # Add error regions if requested
         if error_type == 'std':
@@ -190,7 +207,7 @@ def create_plot(experiment_data, error_type=None, confidence=0.95):
             plt.fill_between(epochs, 
                             [m - s for m, s in zip(means, stds)],
                             [m + s for m, s in zip(means, stds)],
-                            alpha=0.2, color=color)
+                            alpha=0.15, color=color)
         
         elif error_type == 'ci':
             ci_lower = []
@@ -201,16 +218,26 @@ def create_plot(experiment_data, error_type=None, confidence=0.95):
                 ci_upper.append(d['mean'] + ci_high)
             
             plt.fill_between(epochs, ci_lower, ci_upper,
-                            alpha=0.2, color=color)
+                            alpha=0.15, color=color)
     
     # Formatting
     plt.xlabel('Epoch', fontsize=12)
     plt.ylabel('Caption Score', fontsize=12)
-    plt.title('Caption Score vs Epoch (Averaged Across Runs)', fontsize=14)
+    
+    # Set title if provided
+    if title is not None:
+        plt.title(title, fontsize=14)
+    else:
+        plt.title('Caption Score vs Epoch (Averaged Across Runs)', fontsize=14)
+    
     plt.grid(True, alpha=0.3)
     
-    # Legend
-    legend = plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    # Legend with specified location
+    if legend_loc.startswith('bbox_to_anchor'):
+        # Handle outside legend placement
+        legend = plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    else:
+        legend = plt.legend(loc=legend_loc)
     
     # Add error type to legend title if applicable
     if error_type == 'std':
@@ -258,6 +285,12 @@ Examples:
   # Using global file pattern (applies to all experiments without specific pattern)
   %(prog)s "SMB1-regular:0-4" "experiment2:0-4" -f "*_scores_by_epoch.jsonl"
   
+  # Custom labels and title
+  %(prog)s "exp1:0-3::Training Data" "exp1:0-3:validation_*.jsonl:Validation Data" --title "Training vs Validation Performance"
+  
+  # No title and custom legend location
+  %(prog)s "SMB1-regular:0-4" --title none --legend-loc "upper left"
+  
   # With error bars comparing training vs validation (only epochs in all runs)
   %(prog)s "SMB1-regular:0-4:*LevelsAndCaptions*_scores_by_epoch.jsonl" "SMB1-regular:0-4:*ValidationCaptions*_scores_by_epoch.jsonl" --std
   
@@ -270,11 +303,13 @@ Examples:
 Format for experiment specification: 
   - "prefix:run_ids" (uses global --file-pattern)
   - "prefix:run_ids:file_pattern" (uses specific pattern)
+  - "prefix:run_ids:file_pattern:label" (uses specific pattern and custom label)
   
   Where:
   - prefix: Directory name prefix
   - run_ids: "start-end" for range or "id1,id2,id3" for list
   - file_pattern: File pattern with wildcards (optional)
+  - label: Custom label for legend (optional)
 
 File patterns support wildcards:
   - "caption_score_log_*.jsonl" (default)
@@ -288,6 +323,10 @@ File patterns support wildcards:
                        help='Experiment specifications in format "prefix:run_ids"')
     parser.add_argument('--file-pattern', '-f', type=str, default="caption_score_log_*.jsonl",
                        help='Default file pattern for experiments without specific pattern (default: "caption_score_log_*.jsonl")')
+    parser.add_argument('--title', type=str, default='Caption Score vs Epoch (Averaged Across Runs)',
+                       help='Title for the plot (use "none" for no title)')
+    parser.add_argument('--legend-loc', type=str, default='lower right',
+                       help='Legend location (e.g., "lower right", "upper left", "center", "outside")')
     parser.add_argument('--allow-partial', action='store_true',
                        help='Include epochs that are not present in all runs (default: only plot epochs present in all runs)')
     parser.add_argument('--std', action='store_true',
@@ -310,10 +349,12 @@ File patterns support wildcards:
     experiment_configs = {}
     try:
         for i, exp_spec in enumerate(args.experiments):
-            prefix, run_ids, file_pattern = parse_experiment_spec(exp_spec, args.file_pattern)
+            prefix, run_ids, file_pattern, label = parse_experiment_spec(exp_spec, args.file_pattern)
             
-            # Create unique experiment name to handle cases where same prefix is used with different patterns
-            if file_pattern != args.file_pattern:
+            # Create experiment name - use custom label if provided
+            if label:
+                exp_name = label
+            elif file_pattern != args.file_pattern:
                 # Use a more descriptive name based on the file pattern
                 pattern_key = file_pattern.replace('*', '').replace('.jsonl', '').replace('_scores_by_epoch', '')
                 pattern_key = pattern_key.replace('SMB1_', '').replace('-regular', '')
@@ -356,8 +397,12 @@ File patterns support wildcards:
     elif args.ci:
         error_type = 'ci'
     
+    # Handle title and legend location
+    title = None if args.title.lower() == 'none' else args.title
+    legend_loc = 'bbox_to_anchor=(1.05, 1), loc=upper left' if args.legend_loc == 'outside' else args.legend_loc
+    
     # Create plot
-    fig = create_plot(experiment_data, error_type, args.confidence)
+    fig = create_plot(experiment_data, error_type, args.confidence, title, legend_loc)
     
     # Save or show plot
     if args.output:
