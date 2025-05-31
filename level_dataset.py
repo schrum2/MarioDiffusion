@@ -159,6 +159,10 @@ def mario_tiles():
     blank_tile = Image.new('RGB', (common_settings.MARIO_TILE_PIXEL_DIM, common_settings.MARIO_TILE_PIXEL_DIM), color=(128, 128, 128))  # Gray or any color
     tile_images.append(blank_tile)
 
+    # Save each tile image as tile_X.png for inspection
+    #for idx, tile_img in enumerate(tile_images):
+    #    tile_img.save(f"tile_{idx}.png")
+
     return tile_images
 
 def lr_tiles():
