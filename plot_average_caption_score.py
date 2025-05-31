@@ -309,20 +309,40 @@ File patterns support wildcards:
     # Parse experiment specifications
     experiment_configs = {}
     try:
-        for exp_spec in args.experiments:
+        for i, exp_spec in enumerate(args.experiments):
             prefix, run_ids, file_pattern = parse_experiment_spec(exp_spec, args.file_pattern)
-            experiment_configs[prefix] = (run_ids, file_pattern)
-            print(f"Experiment '{prefix}': runs {run_ids}, pattern '{file_pattern}'")
+            
+            # Create unique experiment name to handle cases where same prefix is used with different patterns
+            if file_pattern != args.file_pattern:
+                # Use a more descriptive name based on the file pattern
+                pattern_key = file_pattern.replace('*', '').replace('.jsonl', '').replace('_scores_by_epoch', '')
+                pattern_key = pattern_key.replace('SMB1_', '').replace('-regular', '')
+                if pattern_key:
+                    exp_name = f"{prefix}:{pattern_key}"
+                else:
+                    exp_name = f"{prefix}:exp{i+1}"
+            else:
+                exp_name = prefix
+            
+            # Handle duplicate experiment names by adding suffix
+            original_name = exp_name
+            counter = 1
+            while exp_name in experiment_configs:
+                exp_name = f"{original_name}_{counter}"
+                counter += 1
+            
+            experiment_configs[exp_name] = (prefix, run_ids, file_pattern)
+            print(f"Experiment '{exp_name}': prefix '{prefix}', runs {run_ids}, pattern '{file_pattern}'")
     except ValueError as e:
        print(f"Error: {e}")
        sys.exit(1)
     
     # Collect and aggregate data for each experiment batch
     experiment_data = {}
-    for prefix, (run_ids, file_pattern) in experiment_configs.items():
+    for exp_name, (prefix, run_ids, file_pattern) in experiment_configs.items():
         all_data = collect_run_data(prefix, run_ids, file_pattern)
         aggregated = aggregate_data(all_data, require_all_runs=not args.allow_partial)
-        experiment_data[prefix] = aggregated
+        experiment_data[exp_name] = aggregated
     
     # Check if we have any valid data
     if not any(experiment_data.values()):
