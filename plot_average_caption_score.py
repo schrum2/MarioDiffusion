@@ -69,10 +69,12 @@ def collect_run_data(prefix, run_ids, file_pattern="caption_score_log_*.jsonl"):
         
     return all_data
 
-def aggregate_data(all_data):
+def aggregate_data(all_data, require_all_runs=True):
     """Aggregate data across runs by epoch."""
     if not all_data:
         return []
+    
+    num_runs = len(all_data)
     
     # Find all unique epochs across all runs
     all_epochs = set()
@@ -92,7 +94,16 @@ def aggregate_data(all_data):
                 score = epoch_data.iloc[-1]['score']
                 scores.append(score)
         
-        if scores:  # Only include epochs that have data from at least one run
+        # Determine whether to include this epoch
+        include_epoch = False
+        if require_all_runs:
+            # Only include if present in ALL runs
+            include_epoch = len(scores) == num_runs
+        else:
+            # Include if present in at least one run
+            include_epoch = len(scores) > 0
+        
+        if include_epoch:
             aggregated.append({
                 'epoch': epoch,
                 'scores': scores,
@@ -247,8 +258,11 @@ Examples:
   # Using global file pattern (applies to all experiments without specific pattern)
   %(prog)s "SMB1-regular:0-4" "experiment2:0-4" -f "*_scores_by_epoch.jsonl"
   
-  # With error bars comparing training vs validation
+  # With error bars comparing training vs validation (only epochs in all runs)
   %(prog)s "SMB1-regular:0-4:*LevelsAndCaptions*_scores_by_epoch.jsonl" "SMB1-regular:0-4:*ValidationCaptions*_scores_by_epoch.jsonl" --std
+  
+  # Include partial epochs (epochs not present in all runs)
+  %(prog)s "SMB1-regular:0-4" --allow-partial
   
   # Save comparison plot
   %(prog)s "run1:0-4:pattern1.jsonl" "run1:0-4:pattern2.jsonl" --output comparison.png
@@ -274,6 +288,8 @@ File patterns support wildcards:
                        help='Experiment specifications in format "prefix:run_ids"')
     parser.add_argument('--file-pattern', '-f', type=str, default="caption_score_log_*.jsonl",
                        help='Default file pattern for experiments without specific pattern (default: "caption_score_log_*.jsonl")')
+    parser.add_argument('--allow-partial', action='store_true',
+                       help='Include epochs that are not present in all runs (default: only plot epochs present in all runs)')
     parser.add_argument('--std', action='store_true',
                        help='Show standard deviation as error region')
     parser.add_argument('--ci', action='store_true',
@@ -305,7 +321,7 @@ File patterns support wildcards:
     experiment_data = {}
     for prefix, (run_ids, file_pattern) in experiment_configs.items():
         all_data = collect_run_data(prefix, run_ids, file_pattern)
-        aggregated = aggregate_data(all_data)
+        aggregated = aggregate_data(all_data, require_all_runs=not args.allow_partial)
         experiment_data[prefix] = aggregated
     
     # Check if we have any valid data
