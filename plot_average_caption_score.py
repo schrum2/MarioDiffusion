@@ -241,11 +241,11 @@ def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, l
     
     # Add error type to legend title if applicable
     if error_type == 'std':
-        legend.set_title('Experiments (± 1 std)', prop={'size': 10})
+        legend.set_title('Experiments (± 1 std)', prop={'size': 20})
     elif error_type == 'ci':
-        legend.set_title(f'Experiments ({int(confidence*100)}% CI)', prop={'size': 10})
+        legend.set_title(f'Experiments ({int(confidence*100)}% CI)', prop={'size': 20})
     else:
-        legend.set_title('Experiments', prop={'size': 10})
+        legend.set_title('Experiments', prop={'size': 20})
     
     # Add info about runs at bottom
     info_lines = []
@@ -258,8 +258,8 @@ def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, l
             else:
                 info_lines.append(f"{exp_name}: {min_runs}-{num_runs} runs")
     
-    if info_lines:
-        plt.figtext(0.02, 0.02, ' | '.join(info_lines), fontsize=8, wrap=True)
+    #if info_lines:
+    #    plt.figtext(0.02, 0.02, ' | '.join(info_lines), fontsize=8, wrap=True)
     
     plt.tight_layout()
     return plt.gcf()
@@ -299,6 +299,9 @@ Examples:
   
   # Save comparison plot
   %(prog)s "run1:0-4:pattern1.jsonl" "run1:0-4:pattern2.jsonl" --output comparison.png
+
+  # Actual example
+  %(prog)s "SMB1-conditional-MiniLM-regular:0-3:SMB1_RandomTest-regular_scores_by_epoch.jsonl:Random Captions" "SMB1-conditional-MiniLM-regular:0-3:SMB1_LevelsAndCaptions-regular_scores_by_epoch.jsonl:Real Captions" --title "Caption Score Using MiniLM"
 
 Format for experiment specification: 
   - "prefix:run_ids" (uses global --file-pattern)
