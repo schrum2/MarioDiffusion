@@ -16,14 +16,14 @@ import numpy as np
 from scipy import stats
 import matplotlib.colors as mcolors
 
-def find_jsonl_file(directory):
-    """Find the caption_score_log*.jsonl file in the given directory."""
-    pattern = os.path.join(directory, "caption_score_log_*.jsonl")
+def find_jsonl_file(directory, file_pattern="caption_score_log_*.jsonl"):
+    """Find the JSONL file matching the pattern in the given directory."""
+    pattern = os.path.join(directory, file_pattern)
     files = glob.glob(pattern)
     if not files:
         return None
     if len(files) > 1:
-        print(f"Warning: Multiple JSONL files found in {directory}, using {files[0]}")
+        print(f"Warning: Multiple JSONL files found in {directory} matching '{file_pattern}', using {files[0]}")
     return files[0]
 
 def read_jsonl_data(filepath):
@@ -40,7 +40,7 @@ def read_jsonl_data(filepath):
         print(f"Error reading {filepath}: {e}")
         return None
 
-def collect_run_data(prefix, run_ids):
+def collect_run_data(prefix, run_ids, file_pattern="caption_score_log_*.jsonl"):
     """Collect data from all specified runs for a single experiment batch."""
     all_data = {}
     
@@ -50,9 +50,9 @@ def collect_run_data(prefix, run_ids):
             print(f"Warning: Directory {dir_name} not found, skipping...")
             continue
             
-        jsonl_file = find_jsonl_file(dir_name)
+        jsonl_file = find_jsonl_file(dir_name, file_pattern)
         if not jsonl_file:
-            print(f"Warning: No JSONL file found in {dir_name}, skipping...")
+            print(f"Warning: No JSONL file matching '{file_pattern}' found in {dir_name}, skipping...")
             continue
             
         df = read_jsonl_data(jsonl_file)
@@ -63,9 +63,9 @@ def collect_run_data(prefix, run_ids):
         all_data[run_id] = df
     
     if all_data:
-        print(f"Loaded data from {len(all_data)} runs for prefix '{prefix}'")
+        print(f"Loaded data from {len(all_data)} runs for prefix '{prefix}' (pattern: {file_pattern})")
     else:
-        print(f"Warning: No valid data found for prefix '{prefix}'")
+        print(f"Warning: No valid data found for prefix '{prefix}' with pattern '{file_pattern}'")
         
     return all_data
 
@@ -229,17 +229,23 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Single experiment batch
+  # Single experiment batch (default pattern)
   %(prog)s "SMB1-conditional-MiniLM-regular:0-4"
   
-  # Multiple experiment batches
+  # Multiple experiment batches with default pattern
   %(prog)s "experiment1:0-4" "experiment2:0-4" "baseline:0,2,4"
+  
+  # Using specific file pattern for different file naming
+  %(prog)s "SMB1-regular:0-4" -f "*_scores_by_epoch.jsonl"
+  
+  # Compare different file types
+  %(prog)s "SMB1-regular:0-4" -f "SMB1_LevelsAndCaptions-*_scores_by_epoch.jsonl"
   
   # With error bars
   %(prog)s "exp1:0-9" "exp2:0-9" --std
   
-  # With confidence intervals
-  %(prog)s "batch1:0-4" "batch2:0-4" --ci --confidence 0.99
+  # With confidence intervals and custom pattern
+  %(prog)s "batch1:0-4" "batch2:0-4" --ci -f "*ValidationCaptions*_scores_by_epoch.jsonl"
   
   # Save to file
   %(prog)s "run1:0-4" "run2:0-4" --output comparison.png
@@ -247,11 +253,19 @@ Examples:
 Format for experiment specification: "prefix:run_ids"
   - prefix: Directory name prefix
   - run_ids: "start-end" for range or "id1,id2,id3" for list
+
+File patterns support wildcards:
+  - "caption_score_log_*.jsonl" (default)
+  - "*_scores_by_epoch.jsonl"
+  - "SMB1_LevelsAndCaptions-*_scores_by_epoch.jsonl"
+  - "SMB1_ValidationCaptions-*_scores_by_epoch.jsonl"
         """
     )
     
     parser.add_argument('experiments', nargs='+',
                        help='Experiment specifications in format "prefix:run_ids"')
+    parser.add_argument('--file-pattern', '-f', type=str, default="caption_score_log_*.jsonl",
+                       help='File pattern to search for in each directory (default: "caption_score_log_*.jsonl")')
     parser.add_argument('--std', action='store_true',
                        help='Show standard deviation as error region')
     parser.add_argument('--ci', action='store_true',
@@ -282,7 +296,7 @@ Format for experiment specification: "prefix:run_ids"
     # Collect and aggregate data for each experiment batch
     experiment_data = {}
     for prefix, run_ids in experiment_configs.items():
-        all_data = collect_run_data(prefix, run_ids)
+        all_data = collect_run_data(prefix, run_ids, args.file_pattern)
         aggregated = aggregate_data(all_data)
         experiment_data[prefix] = aggregated
     
