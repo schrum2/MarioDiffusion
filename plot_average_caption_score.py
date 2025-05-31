@@ -294,17 +294,17 @@ File patterns support wildcards:
     experiment_configs = {}
     try:
         for exp_spec in args.experiments:
-            prefix, run_ids = parse_experiment_spec(exp_spec)
-            experiment_configs[prefix] = run_ids
-            print(f"Experiment '{prefix}': runs {run_ids}")
+            prefix, run_ids, file_pattern = parse_experiment_spec(exp_spec, args.file_pattern)
+            experiment_configs[prefix] = (run_ids, file_pattern)
+            print(f"Experiment '{prefix}': runs {run_ids}, pattern '{file_pattern}'")
     except ValueError as e:
        print(f"Error: {e}")
        sys.exit(1)
     
     # Collect and aggregate data for each experiment batch
     experiment_data = {}
-    for prefix, run_ids in experiment_configs.items():
-        all_data = collect_run_data(prefix, run_ids, args.file_pattern)
+    for prefix, (run_ids, file_pattern) in experiment_configs.items():
+        all_data = collect_run_data(prefix, run_ids, file_pattern)
         aggregated = aggregate_data(all_data)
         experiment_data[prefix] = aggregated
     
