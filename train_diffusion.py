@@ -513,15 +513,16 @@ def main():
             
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
     
+    if args.use_early_stopping:
+        patience = args.patience if hasattr(args, 'patience') else 30
+        early_stop = False
+        epochs_since_improvement = 0
 
-    patience = args.patience if hasattr(args, 'patience') else 30
     best_val_loss = float('inf')
     best_caption_score = float('-inf')
-    early_stop = False
     best_model_state = None
     # Track the epoch of the last improvement
     best_epoch = 0
-    epochs_since_improvement = 0
     # If resuming training, load the latest checkpoint
     start_epoch = 0
     global_step = 0
@@ -713,18 +714,18 @@ def main():
                 else:
                     no_improvement = not val_loss_improved
 
-            if no_improvement:
-                epochs_since_improvement = epoch - best_epoch
-                if args.text_conditional and args.plot_validation_caption_score:
-                    print(f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs.")
-                else:
-                    print(f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs.")
-                if epochs_since_improvement >= patience:
+                if no_improvement:
+                    epochs_since_improvement = epoch - best_epoch
                     if args.text_conditional and args.plot_validation_caption_score:
-                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
+                        print(f"No improvement in val loss or caption score for {epochs_since_improvement}/{patience} epochs.")
                     else:
-                        print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}")
-                    early_stop = True
+                        print(f"No improvement in val loss for {epochs_since_improvement}/{patience} epochs.")
+                    if epochs_since_improvement >= patience:
+                        if args.text_conditional and args.plot_validation_caption_score:
+                            print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
+                        else:
+                            print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}")
+                        early_stop = True
         
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
@@ -733,25 +734,22 @@ def main():
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             val_result = f"{val_loss:.4f}" if val_loss is not None else "N/A"
             caption_result = f"{avg_caption_score:.4f}" if avg_caption_score is not None else "N/A"
-            print(
+            status_message = (
                 f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}, "
                 f"Val Loss: {val_result}, "
                 f"Caption Score: {caption_result}"
             )
             if args.use_early_stopping:
-                print(
-                    f", No improvement in val loss or caption score for {epochs_since_improvement} of {patience} epochs."
-                )
+                status_message += f", No improvement for {epochs_since_improvement} of {patience} epochs."
         else:
-            print(
+            status_message = (
                 f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}"
             )
             if args.use_early_stopping:
-                print(
-                    f", No improvement in val loss for {epochs_since_improvement} of {patience} epochs."
-                )
+                status_message += f", No improvement in val loss for {epochs_since_improvement} of {patience} epochs."
+        print(status_message)
 
         # Generate and save sample levels every N epochs
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
@@ -875,6 +873,20 @@ def main():
         # Replace model with best ever encountered
         if best_model_state is not None:
             model.load_state_dict(best_model_state['model_state_dict'])
+            # Save best epoch info
+            best_model_info = {
+                "best_epoch": best_epoch,
+                "best_val_loss": best_val_loss,
+                "best_caption_score": best_caption_score if args.text_conditional else None
+            }
+            with open(os.path.join(args.output_dir, "best_model_info.json"), "w") as f:
+                json.dump(best_model_info, f)
+            
+            print(f"\nSaved best model from epoch {best_epoch}")
+            if args.text_conditional:
+                print(f"Best caption score: {best_caption_score:.4f}")
+            else:
+                print(f"Best validation loss: {best_val_loss:.4f}")
         
         # Final model save
         if args.text_conditional:
