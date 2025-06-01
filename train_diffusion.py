@@ -513,11 +513,11 @@ def main():
             
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
     
-    if args.use_early_stopping:
-        patience = args.patience if hasattr(args, 'patience') else 30
-        early_stop = False
-        epochs_since_improvement = 0
-
+    # Only used with early stopping
+    patience = args.patience if hasattr(args, 'patience') else 30
+    early_stop = False
+    epochs_since_improvement = 0
+    
     best_val_loss = float('inf')
     best_caption_score = float('-inf')
     best_model_state = None
