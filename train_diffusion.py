@@ -1,19 +1,16 @@
 import argparse
 import os
 import torch
-from torch.utils.data import DataLoader
 from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup 
 from tqdm.auto import tqdm
 import random
 import numpy as np
 from accelerate import Accelerator
-from level_dataset import LevelDataset, visualize_samples
+from level_dataset import visualize_samples
 from tokenizer import Tokenizer 
 import json
-import threading
 from datetime import datetime
-from util.plotter import Plotter
 from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
@@ -28,7 +25,6 @@ import models.text_model as text_model
 import glob
 import models.general_training_helper as gen_train_help
 import re
-import shutil
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
