@@ -24,7 +24,7 @@ print(f"Dataset loaded with {len(dataset)} samples.")
 
 print("Setting up training configuration and trainer...")
 # create training config and trainer
-train_config = TrainingConfig(save_iteration=10)
+train_config = TrainingConfig(save_iteration=10000)
 trainer = MarioGPTTrainer(mario_lm, dataset, config=train_config)
 print("Trainer ready.")
 
@@ -47,7 +47,6 @@ print("Trainer ready.")
 # generated_level.img.show()
 # print("Pretraining sample level generation complete.")
 
-print("Starting training for 100 iterations...")
-# train for 100 iterations!
-trainer.train(50000, batch_size=1)
+print("Starting training for 200,000 iterations...")
+trainer.train(200000, batch_size=1)
 print("Training complete!")

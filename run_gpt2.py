@@ -4,7 +4,7 @@ from mario_gpt import MarioLM, SampleOutput
 
 # Path to your trained model and tokenizer
 MODEL_DIR = "Mario-GPT2-TEST-MODEL"
-CHECKPOINT = os.path.join(MODEL_DIR, "model_100.pt")  # Use the latest checkpoint
+CHECKPOINT = os.path.join(MODEL_DIR, "model_20000.pt") #"model_200000.pt")  # Use the latest checkpoint
 
 # Initialize MarioLM and load tokenizer if available
 mario_lm = MarioLM()
@@ -50,17 +50,17 @@ generated_level.play()
 # Run Astar agent
 generated_level.run_astar()
 
-# Continue generation
-generated_level_continued = mario_lm.sample(
-    seed=generated_level,
-    prompts=prompts,
-    num_steps=1400,
-    temperature=2.0,
-    use_tqdm=True
-)
+# # Continue generation
+# generated_level_continued = mario_lm.sample(
+#     seed=generated_level,
+#     prompts=prompts,
+#     num_steps=1400,
+#     temperature=2.0,
+#     use_tqdm=True
+# )
 
-# Load from text file
-loaded_level = SampleOutput.load("generated_level.txt")
+# # Load from text file
+# loaded_level = SampleOutput.load("generated_level.txt")
 
-# Play from loaded (should be the same level that we generated)
-loaded_level.play()
+# # Play from loaded (should be the same level that we generated)
+# loaded_level.play()

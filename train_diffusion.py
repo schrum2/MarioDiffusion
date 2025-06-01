@@ -27,6 +27,8 @@ import models.sentence_transformers_helper as st_helper
 import models.text_model as text_model
 import glob
 import models.general_training_helper as gen_train_help
+import re
+import shutil
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -190,6 +192,66 @@ def compute_sprite_scaling_factors(json_path, num_tiles, n):
     min_scaling = min(scalings)
     scalings = [s / min_scaling for s in scalings]
     return torch.tensor(scalings, dtype=torch.float32)
+
+def find_latest_checkpoint(output_dir):
+    """Find the latest checkpoint directory and extract its epoch number."""
+    checkpoints = glob.glob(os.path.join(output_dir, "checkpoint-*"))
+    if not checkpoints:
+        return None, None
+    # Extract epoch numbers and find the max
+    pattern = re.compile(r"checkpoint-(\d+)")
+    epochs = [(int(pattern.search(os.path.basename(c)).group(1)), c) for c in checkpoints if pattern.search(os.path.basename(c))]
+    if not epochs:
+        return None, None
+    latest_epoch, latest_ckpt = max(epochs, key=lambda x: x[0])
+    return latest_ckpt, latest_epoch
+
+def copy_log_up_to_epoch(output_dir, log_file, resume_epoch):
+    """
+    Find the most recent previous training log in output_dir (excluding log_file itself),
+    and copy entries up to resume_epoch into log_file.
+    """
+    # Find all previous log files except the new one
+    log_files = [
+        f for f in glob.glob(os.path.join(output_dir, "training_log_*.jsonl"))
+        if os.path.abspath(f) != os.path.abspath(log_file)
+    ]
+    if not log_files:
+        print("No previous log file found to copy from.")
+        exit()
+    # Pick the most recent one by modification time
+    prev_log_file = max(log_files, key=os.path.getmtime)
+    print(f"Copying log entries from {prev_log_file} up to epoch {resume_epoch} into {log_file}")
+
+    with open(prev_log_file, 'r') as fin, open(log_file, 'w') as fout:
+        for line in fin:
+            try:
+                entry = json.loads(line)
+                if entry.get("epoch", -1) <= resume_epoch:
+                    fout.write(line)
+            except Exception:
+                print(f"Warning: Skipping a malformed log line in {prev_log_file}.")
+                exit()
+    print(f"Truncated log file {log_file} to only include entries up to epoch {resume_epoch}")
+
+def infer_global_step_from_log(log_file):
+    """
+    Reads the last valid 'step' value from the log file.
+    Returns 0 if the log is empty or no step is found.
+    """
+    global_step = 0
+    try:
+        with open(log_file, 'r') as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                    if "step" in entry:
+                        global_step = entry["step"]
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return global_step
 
 def main():
     args = parse_args()
@@ -398,14 +460,6 @@ def main():
         model, optimizer, train_dataloader, lr_scheduler
     )
     
-    # # Second occurance to create new directory. Delete?
-    # # Create output directory
-    # if not os.path.exists(args.output_dir):
-    #     os.makedirs(args.output_dir)
-    # else:
-    #     print(f"Output directory '{args.output_dir}' already exists. Please remove it or choose a different name.")
-    #     exit()
-    
     # Training loop
     global_step = 0
     progress_bar = tqdm(total=args.num_epochs * len(train_dataloader), disable=not accelerator.is_local_main_process)
@@ -471,8 +525,69 @@ def main():
     # Track the epoch of the last improvement
     best_epoch = 0
     epochs_since_improvement = 0
+    # If resuming training, load the latest checkpoint
+    start_epoch = 0
+    global_step = 0
 
-    for epoch in range(args.num_epochs):
+    if resume_training:
+        latest_ckpt, latest_epoch = find_latest_checkpoint(args.output_dir)
+        # Handles log file(s) before resuming
+        copy_log_up_to_epoch(args.output_dir, log_file, latest_epoch)
+        if args.text_conditional and args.plot_validation_caption_score and caption_score_log_file:
+            copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch)
+        if latest_ckpt is not None:
+            # Use pipeline's from_pretrained to load everything from the checkpoint directory
+            if args.text_conditional:
+                pipeline = TextConditionalDDPMPipeline.from_pretrained(latest_ckpt)
+            else:
+                pipeline = UnconditionalDDPMPipeline.from_pretrained(latest_ckpt)
+            model = pipeline.unet
+            noise_scheduler = pipeline.scheduler
+
+            # Re-create the optimizer for the new model parameters
+            optimizer = torch.optim.AdamW(
+                model.parameters(),
+                lr=args.learning_rate,
+                weight_decay=0.01,
+                betas=(0.9, 0.999)
+            )
+
+            # Load optimizer state if it exists
+            optimizer_path = os.path.join(latest_ckpt, "optimizer.pt")
+            if os.path.exists(optimizer_path):
+                optimizer.load_state_dict(torch.load(optimizer_path, map_location="cpu"))
+
+            # Load the learning rate scheduler state if it exists
+            lr_scheduler_path = os.path.join(latest_ckpt, "lr_scheduler.pt")
+            if os.path.exists(lr_scheduler_path):
+                lr_scheduler.load_state_dict(torch.load(lr_scheduler_path, map_location="cpu"))
+
+            # rewrap with accelerator
+            model, optimizer = accelerator.prepare(model, optimizer)
+
+            # After loading the pipeline and re-preparing with accelerator:
+            early_stop_path = os.path.join(latest_ckpt, "early_stop_state.json")
+            if os.path.exists(early_stop_path):
+                with open(early_stop_path, "r") as f:
+                    early_stop_state = json.load(f)
+                best_val_loss = early_stop_state.get("best_val_loss", float('inf'))
+                best_caption_score = early_stop_state.get("best_caption_score", float('-inf'))
+                best_epoch = early_stop_state.get("best_epoch", 0)
+                epochs_since_improvement = early_stop_state.get("epochs_since_improvement", 0)
+            else:
+                best_val_loss = float('inf')
+                best_caption_score = float('-inf')
+                best_epoch = 0
+                epochs_since_improvement = 0
+                
+            start_epoch = latest_epoch + 1
+            global_step = infer_global_step_from_log(log_file)
+            print(f"Resumed training from epoch {start_epoch}, global_step {global_step}")
+        else:
+            print("Exiting from resumed training. No checkpoint found.") 
+            exit()
+            
+    for epoch in range(start_epoch, args.num_epochs):
         if early_stop:
             print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss or caption score for {patience} epochs.")
             break
@@ -691,7 +806,8 @@ def main():
             
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
-            # Save the model
+            checkpoint_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}")
+            # save the model
             if args.text_conditional:
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
@@ -710,11 +826,28 @@ def main():
                 )
                 if sprite_scaling_factors is not None:
                     pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
-                
-            # Ensure all processes are synchronized
+            # Wait for all processes to synchronize before saving
             accelerator.wait_for_everyone()
-            pipeline.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{epoch}"))
-    
+            pipeline.save_pretrained(checkpoint_dir)
+            # Save optimizer state
+            optimizer_path = os.path.join(checkpoint_dir, "optimizer.pt")
+            # Save the optimizer state dictionary
+            torch.save(optimizer.state_dict(), optimizer_path)
+            # Save LR scheduler state
+            lr_scheduler_path = os.path.join(checkpoint_dir, "lr_scheduler.pt")
+            torch.save(lr_scheduler.state_dict(), lr_scheduler_path)
+
+            # Save early stopping state
+            early_stop_state = {
+                "best_val_loss": best_val_loss,
+                "best_caption_score": best_caption_score,
+                "best_epoch": best_epoch,
+                "epochs_since_improvement": epochs_since_improvement
+            }
+            early_stop_path = os.path.join(checkpoint_dir, "early_stop_state.json")
+            with open(early_stop_path, "w") as f:
+                json.dump(early_stop_state, f)
+            
     try:
         # Clean up plotting resources
         if accelerator.is_local_main_process and plotter:
@@ -753,7 +886,37 @@ def main():
                 pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
             
         pipeline.save_pretrained(args.output_dir)
+        # # Save the final optimizer and learing rate scheduler states??
+        # optimizer_path = os.path.join(args.output_dir, "optimizer.pt")
+        # torch.save(optimizer.state_dict(), optimizer_path)
+        # lr_scheduler_path = os.path.join(args.output_dir, "lr_scheduler.pt")
+        # torch.save(lr_scheduler.state_dict(), lr_scheduler_path)
+        
+# Add function to load config from JSON
+def load_config_from_json(config_path):
+    """Load hyperparameters from a JSON config file."""
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            print(f"Configuration loaded from {config_path}")
+            
+            # Print the loaded config for verification
+            print("Loaded hyperparameters:")
+            for key, value in config.items():
+                print(f"  {key}: {value}")
+                
+            return config
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Error loading config file: {e}")
+        raise e
 
+def update_args_from_config(args, config):
+    """Update argparse namespace with values from config."""
+    # Convert config dict to argparse namespace
+    for key, value in config.items():
+        if hasattr(args, key):
+            setattr(args, key, value)
+    return args
 
 def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, timesteps, device, negative_captions=None):
     """
