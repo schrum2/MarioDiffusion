@@ -152,6 +152,7 @@ def parse_args():
         help="If set, enables per-sprite temperature scaling with the specified n (e.g., 2, 4, 8) during inference."
     )
 
+    parser.add_argument("--use_early_stopping", action="store_true", help="Stop training if validation/caption performance stagnate")
     parser.add_argument(
         "--patience",
         type=int,
@@ -584,7 +585,7 @@ def main():
             exit()
             
     for epoch in range(start_epoch, args.num_epochs):
-        if early_stop:
+        if args.use_early_stopping and early_stop:
             print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss or caption score for {patience} epochs.")
             break
         model.train()
@@ -685,13 +686,14 @@ def main():
             val_loss_improved = val_loss is not None and val_loss < best_val_loss
             caption_score_improved = avg_caption_score is not None and avg_caption_score > best_caption_score
 
-            # Save best model if BOTH metrics improve, or if validation loss improves
-            # CONSIDER: Save the model if either metric improves? Base improvement on the best of the two?
             if caption_score_improved:
                 best_caption_score = avg_caption_score
 
             if val_loss_improved: # consider caption_score_improved too?
                 best_val_loss = val_loss
+
+            # Save best model if caption score improves for text_conditionalm or validation loss for unconditional
+            if (args.text_conditional and caption_score_improved) or (not args.text_conditional and val_loss_improved):
                 best_epoch = epoch
 
                 best_model_state = {
@@ -704,10 +706,12 @@ def main():
 
             # Early stopping logic: Conditional training end when both validation and caption metrics stop improving
             # and unconditional training ends when validation loss stops improving
-            if args.text_conditional and args.plot_validation_caption_score:
-                no_improvement = not val_loss_improved and not caption_score_improved
-            else:
-                no_improvement = not val_loss_improved
+            no_improvement = False
+            if args.use_early_stopping:
+                if args.text_conditional and args.plot_validation_caption_score:
+                    no_improvement = not val_loss_improved and not caption_score_improved
+                else:
+                    no_improvement = not val_loss_improved
 
             if no_improvement:
                 epochs_since_improvement = epoch - best_epoch
@@ -720,8 +724,6 @@ def main():
                         print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}, Best caption score: {best_caption_score:.4f}")
                     else:
                         print(f"\nEarly stopping triggered. Best val loss: {best_val_loss:.4f}")
-                    if best_model_state is not None:
-                        model.load_state_dict(best_model_state['model_state_dict'])
                     early_stop = True
         
         # Log metrics including validation loss
@@ -735,15 +737,21 @@ def main():
                 f"Epoch {epoch+1} of {args.num_epochs}, "
                 f"Loss: {avg_train_loss:.4f}, "
                 f"Val Loss: {val_result}, "
-                f"Caption Score: {caption_result}, "
-                f"No improvement in val loss or caption score for {epochs_since_improvement} of {patience} epochs."
+                f"Caption Score: {caption_result}"
             )
+            if args.use_early_stopping:
+                print(
+                    f", No improvement in val loss or caption score for {epochs_since_improvement} of {patience} epochs."
+                )
         else:
             print(
                 f"Epoch {epoch+1} of {args.num_epochs}, "
-                f"Loss: {avg_train_loss:.4f}, "
-                f"No improvement in val loss for {epochs_since_improvement} of {patience} epochs."
+                f"Loss: {avg_train_loss:.4f}"
             )
+            if args.use_early_stopping:
+                print(
+                    f", No improvement in val loss for {epochs_since_improvement} of {patience} epochs."
+                )
 
         # Generate and save sample levels every N epochs
         if epoch % args.save_image_epochs == 0 or epoch == args.num_epochs - 1:
@@ -863,6 +871,10 @@ def main():
     finally:
         # Close progress bar and TensorBoard writer
         progress_bar.close()
+
+        # Replace model with best ever encountered
+        if best_model_state is not None:
+            model.load_state_dict(best_model_state['model_state_dict'])
         
         # Final model save
         if args.text_conditional:
