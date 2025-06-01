@@ -13,6 +13,7 @@ from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
 from models.fdm_pipeline import FDMPipeline
+from util.plotter import Plotter  
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
@@ -98,8 +99,6 @@ def main():
             scenes = samples_to_scenes(all_samples)
             save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
 
-
-from util.plotter import Plotter  # Add this import at the top
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
 
