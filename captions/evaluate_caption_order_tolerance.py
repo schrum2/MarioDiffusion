@@ -61,12 +61,12 @@ def caption_score_with_assign_and_compare(
 
     # Generate sample
     dataset = LevelDataset(
-        json_path=args.json,
+        json_path=None,
         tokenizer=None,
         shuffle=False,
         mode="text",
         augment=False,
-        num_tiles=common_settings.MARIO_TILE_COUNT if args.game == "Mario" else common_settings.LR_TILE_COUNT,
+        num_tiles=common_settings.MARIO_TILE_COUNT #if args.game == "Mario" else common_settings.LR_TILE_COUNT,
     )
 
     # Create dataloader
