@@ -362,12 +362,13 @@ class LevelDataset(Dataset):
 
         # For embeddings
         self.block_embeddings = block_embeddings # Store block embeddings
-        
-
-        # Load data
-        print(f"Loading data from {json_path}...")
-        with open(json_path, 'r') as f:
-            self.data = json.load(f)
+        if json_path is None:
+            raise ValueError("json_path must be provided to load the dataset.")
+        else:
+            # Load data
+            print(f"Loading data from {json_path}...")
+            with open(json_path, 'r') as f:
+                self.data = json.load(f)
 
         if limit > -1:
             # Random selection of limited portion of data (if limit is less than actual size)
@@ -437,7 +438,7 @@ class LevelDataset(Dataset):
 
         return flipped_scene
 
-    
+
     def __len__(self):
         """Returns the number of samples in the dataset."""
         return len(self.data)
