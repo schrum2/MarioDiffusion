@@ -119,6 +119,15 @@ class CaptionBuilder(ParentBuilder):
         self.composed_frame = ttk.Frame(self.caption_frame)
         self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
 
+        # Checkboxe for SMB graphics
+        self.use_snes_graphics = tk.BooleanVar(value=False)
+        self.graphics_checkbox = ttk.Checkbutton(
+            self.caption_frame,
+            text="Use SNES Graphics",
+            variable=self.use_snes_graphics
+        )
+        self.graphics_checkbox.pack(pady=(10, 0))
+
         self.play_composed_button = ttk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
         self.play_composed_button.pack(side=tk.LEFT, padx=2)
         self.save_composed_button = ttk.Button(self.composed_frame, text="Save Composed Level", command=self.save_composed_level)
@@ -227,6 +236,10 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text.config(state=tk.DISABLED)
     
     def generate_image(self):
+        # cannot use multiple generations of levels in one composed level
+        self.clear_composed_level()
+        print("Clearing previously composed level for newly generated scenes.")
+
         # clear the previous images
         self.generated_images = []
         self.generated_scenes = []
@@ -430,7 +443,7 @@ Average Segment Score: {avg_segment_score}"""
     def play_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            level = self.get_sample_output(scene)
+            level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
 
     def save_composed_level(self):
@@ -458,11 +471,11 @@ Average Segment Score: {avg_segment_score}"""
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            level = self.get_sample_output(scene)
+            level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             console_output = level.run_astar()
             print(console_output)
 
-    def get_sample_output(self, idx_or_scene):
+    def get_sample_output(self, idx_or_scene, use_snes_graphics=False):
         if isinstance(idx_or_scene, int):
             tensor = torch.tensor(self.current_levels[idx_or_scene])
             tile_numbers = torch.argmax(tensor, dim=0).numpy()
@@ -470,7 +483,7 @@ Average Segment Score: {avg_segment_score}"""
             for row in tile_numbers:
                 char_row = "".join([self.id_to_char[num] for num in row])
                 char_grid.append(char_row)
-            level = SampleOutput(level=char_grid)
+            level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
             # Assume idx_or_scene is a scene (list of lists of tile indices)
@@ -478,7 +491,7 @@ Average Segment Score: {avg_segment_score}"""
             for row in idx_or_scene:
                 char_row = "".join([self.id_to_char[num] for num in row])
                 char_grid.append(char_row)
-            level = SampleOutput(level=char_grid)
+            level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
       
     def play_level(self, idx):
@@ -500,12 +513,13 @@ Average Segment Score: {avg_segment_score}"""
                 print("LodeRunner main module not found.")
         else:
             # Default: Mario play logic
-            level = self.get_sample_output(idx)
+            level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
 
     def use_astar(self, idx):
-        level = self.get_sample_output(idx)
-        level.run_astar()
+        level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
+        console_output = level.run_astar()
+        print(console_output)
   
 root = tk.Tk()
 app = CaptionBuilder(root)

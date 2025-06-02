@@ -34,6 +34,8 @@ class SampleOutput:
     sample_predictions_img: Optional[Image] = None
     level_tensor: Optional[torch.Tensor] = None
     sample_predictions_tensor: Optional[torch.Tensor] = None
+    # Uses MarioEval graphics for rendering levels when True
+    use_snes_graphics: bool = False
 
     @classmethod
     def create(
@@ -139,14 +141,18 @@ class SampleOutput:
             print(f"Playing Lode Runner level interactively -- {tmp_path}!")
             LodeRunner.main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
         else:
-            simulator = Simulator(level=self.level)
+            if self.use_snes_graphics:
+                simulator = MMNEATSimulator(level=self.level)
+            else:
+                simulator = Simulator(level=self.level)
             simulator.interactive()
 
     def run_astar(self, render=True):
-        simulator = MMNEATSimulator(level=self.level)
-        #simulator = Simulator(level=self.level)
+        if self.use_snes_graphics:
+            simulator = MMNEATSimulator(level=self.level)
+        else:
+            simulator = Simulator(level=self.level)
         return simulator.astar(render)
-
 
 class MMNEATSimulator:
     """
@@ -172,8 +178,9 @@ class MMNEATSimulator:
         save_level(self.level, t.name)
         print(f"Playing level interactively -- {t.name}!")
         _ = subprocess.run(
-            ["java", "-jar", self.jar_path, "human", t.name],
+            ["java", "-jar", self.jar_path, "human", t.name, "human"],
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         t.close()
         os.unlink(t.name)
