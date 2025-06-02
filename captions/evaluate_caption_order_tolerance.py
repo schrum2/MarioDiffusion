@@ -238,6 +238,7 @@ def main():
     # Use your tokenizer as needed
 
     print("\n--- Summary ---")
+    print(permutation_scores)
     for perm_caption, scores in permutation_scores.items():
         print(f"Permutation: {perm_caption}\n  Average Score: {np.mean(scores):.4f}")
 
