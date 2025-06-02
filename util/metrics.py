@@ -10,6 +10,7 @@ from typing import List, Dict, Sequence, TypeVar, Union
 import sys
 import os
 import traceback
+from interactive_tile_level_generator import compare_captions
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -356,7 +357,55 @@ def analyze_phrase_targeting(
     
     return (true_positives, false_positives, true_negatives, false_negatives)
 
-# TODO: implement strict and non-strict phrase targeting metrics
+def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> float:
+    """
+    Calculate the percentage of perfect matches between prompts and captions.
+    
+    Args:
+        prompt_caption_pairs: List of (input_prompt, generated_caption) pairs
+    
+    Returns:
+        Percentage of perfect matches
+    """
+    if not prompt_caption_pairs:
+        raise ValueError("The list of prompt-caption pairs cannot be empty")
+    
+    total_pairs = len(prompt_caption_pairs)
+    perfect_match_count = 0
+    partial_match_count = 0
+    no_match_count = 0
+    
+    for prompt, caption in prompt_caption_pairs:
+        if not isinstance(prompt, str) or not isinstance(caption, str):
+            raise ValueError("Both prompt and caption must be strings")
+        compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(
+            prompt, caption, return_matches=True
+        )
+        
+        # Check for perfect match (all phrases match exactly)
+        if compare_score == 1.0 and not excess_phrases:
+            perfect_match_count += 1
+        elif exact_matches > 0:
+            # Check for at least one matching phrase
+            partial_match_count += 1
+        else:
+            # No matches at all
+            no_match_count += 1
+            
+    # Calculate percentages
+    perfect_match_percentage = (perfect_match_count / total_pairs) * 100
+    partial_match_percentage = (partial_match_count / total_pairs) * 100
+    no_match_percentage = (no_match_count / total_pairs) * 100
+    
+    return {
+        "perfect_match_percentage": perfect_match_percentage,
+        "perfect_match_count": perfect_match_count,
+        "partial_match_percentage": partial_match_percentage,
+        "partial_match_count": partial_match_count,
+        "no_match_percentage": no_match_percentage,
+        "no_match_count": no_match_count
+    }
+
 def calculate_phrase_metrics(
     prompt_caption_pairs: List[tuple[str, str]],
     target_phrase: str,
@@ -398,6 +447,8 @@ def calculate_phrase_metrics(
         "f1_score": f1,
         "total": total
     }
+    
+
 
 # TODO: GitHub Issue #56 - A* Solvability
 def astar_metrics():
@@ -433,7 +484,7 @@ if __name__ == "__main__":
     All Mario Games:
     - Average Edit Distance: ~11.6
     """
-# Paths to the JSON files
+    # Paths to the JSON files
     generated_file_path = "c:\\Users\\salas2\\Documents\\GitHub\\MarioDiffusion\\TESTING_Broken_Features.json"
     game_levels_file_path = "c:\\Users\\salas2\\Documents\\GitHub\\MarioDiffusion\\datasets\\SMB1_LevelsAndCaptions-regular.json"
 
