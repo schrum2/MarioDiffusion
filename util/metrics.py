@@ -32,8 +32,7 @@ tileset_path = os.path.join(
     'smb.json'
 )
 
-print(f"Looking for tileset at: {os.path.abspath(tileset_path)}")  # Debug print
-
+# Ensure the tileset path exists
 try:
     title_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 except FileNotFoundError:
@@ -434,3 +433,30 @@ if __name__ == "__main__":
     All Mario Games:
     - Average Edit Distance: ~11.6
     """
+# Paths to the JSON files
+    generated_file_path = "c:\\Users\\salas2\\Documents\\GitHub\\MarioDiffusion\\TESTING_Broken_Features.json"
+    game_levels_file_path = "c:\\Users\\salas2\\Documents\\GitHub\\MarioDiffusion\\datasets\\SMB1_LevelsAndCaptions-regular.json"
+
+    try:
+        # Load the generated dataset
+        with open(generated_file_path, "r") as generated_file:
+            generated_data = json.load(generated_file)
+            generated_levels = [entry["scene"] for entry in generated_data if "scene" in entry]
+
+        # Load the actual game levels dataset
+        with open(game_levels_file_path, "r") as game_levels_file:
+            game_data = json.load(game_levels_file)
+            game_levels = [entry["scene"] for entry in game_data if "scene" in entry]
+
+        # Test average_generated_edit_distance
+        print(f"Loaded {len(generated_levels)} generated levels and {len(game_levels)} game levels.")
+        print(f"Calculating average min edit distance between generated levels and game levels...")
+        avg_edit_distance = average_generated_edit_distance(generated_levels, game_levels)
+        print(f"Average Generated Edit Distance: {avg_edit_distance:.2f}")
+
+    except FileNotFoundError as e:
+        print(f"Error: File not found - {e.filename}")
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON format - {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
