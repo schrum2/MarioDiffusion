@@ -437,30 +437,7 @@ class LevelDataset(Dataset):
 
         return flipped_scene
 
-    def _swap_caption_tokens(self, caption_tensor):
-        """swapping directional tokens for consistency with flipped scenes"""
-
-        # If locations are not in captions, then left/right will not exist
-        left_id = self.tokenizer.token_to_id["left"] if "left" in self.tokenizer.token_to_id else -1
-        right_id = self.tokenizer.token_to_id["right"] if "right" in self.tokenizer.token_to_id else -1
-        ascending_id = self.tokenizer.token_to_id["ascending"]
-        descending_id = self.tokenizer.token_to_id["descending"]
-        
-        swapped_caption = []
-        for token in caption_tensor:
-            if token == left_id:
-                swapped_caption.append(right_id)
-            elif token == right_id:
-                swapped_caption.append(left_id)
-            elif token == ascending_id:
-                swapped_caption.append(descending_id)
-            elif token == descending_id:
-                swapped_caption.append(ascending_id)
-            else:
-                swapped_caption.append(token)
-        
-        return swapped_caption
-
+    
     def __len__(self):
         """Returns the number of samples in the dataset."""
         return len(self.data)
