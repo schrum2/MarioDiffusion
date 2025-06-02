@@ -140,6 +140,33 @@ def average_min_edit_distance(level_collection: List[List[List[int]]]) -> float:
         
     return total_min_distance / len(level_collection)
 
+def average_generated_edit_distance(
+    generated_levels: List[List[List[int]]],
+    game_levels: List[List[List[int]]]
+) -> float:
+    """
+    Calculate the average minimum edit distance between generated levels and game levels
+
+    Args:
+        generated_levels (List[List[List[int]]]): Generated level dataset
+        game_levels (List[List[List[int]]]): Game level dataset
+
+    Returns:
+        float: the average minimum edit distance between generated levels and game levels
+    """
+    if not generated_levels or not game_levels:
+        print("Warning: One or both level lists are empty. Returning 0.0")
+        return 0.0
+    
+    average_distance = 0.0
+    
+    for level in generated_levels:
+        average_distance += min_edit_distance(level, game_levels) # Calculate the min edit distance for each generated level
+        
+    average_distance /= len(generated_levels)  # Average over all generated levels
+    return average_distance
+    
+
 def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
     """
     Remove captions that only describe the absence of features.
@@ -407,4 +434,3 @@ if __name__ == "__main__":
     All Mario Games:
     - Average Edit Distance: ~11.6
     """
-    
