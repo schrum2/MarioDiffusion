@@ -3,7 +3,9 @@ import itertools
 import os
 import random
 from collections import defaultdict
-from util.common_settings import MARIO_TILE_COUNT, LR_TILE_COUNT  # adjust import if needed
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import util.common_settings as common_settings  # adjust import if needed
 
 import numpy as np
 import torch
@@ -11,7 +13,7 @@ from tqdm import tqdm
 
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from create_ascii_captions import assign_caption
-from caption_match import compare_captions  # adjust import if needed
+from captions.caption_match import compare_captions  # adjust import if needed
 from captions.util import extract_tileset
 
 def parse_args():
@@ -23,6 +25,7 @@ def parse_args():
     parser.add_argument("--inference_steps", type=int, default=25)
     parser.add_argument("--guidance_scale", type=float, default=3.5)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--game", type=str, choices=["Mario", "LR"], default="Mario", help="Game to evaluate (Mario or Lode Runner)")
     return parser.parse_args()
 
 
@@ -90,10 +93,10 @@ def main():
     device = setup_environment(args.seed)
 
     if args.game == "Mario":
-        args.num_tiles = MARIO_TILE_COUNT
+        args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = LR_TILE_COUNT # TODO
+        args.num_tiles = common_settings.LR_TILE_COUNT # TODO
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
     else:
         raise ValueError(f"Unknown game: {args.game}")
