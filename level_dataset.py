@@ -335,7 +335,7 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None):
+    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -362,8 +362,11 @@ class LevelDataset(Dataset):
 
         # For embeddings
         self.block_embeddings = block_embeddings # Store block embeddings
-        if json_path is None:
-            raise ValueError("json_path must be provided to load the dataset.")
+        if json_path is None and data_as_list:
+            print(f"Data given as list")
+            self.data = data_as_list  
+        elif not os.path.exists(json_path):
+            raise ValueError(f"JSON file does not exist: {json_path}")
         else:
             # Load data
             print(f"Loading data from {json_path}...")
