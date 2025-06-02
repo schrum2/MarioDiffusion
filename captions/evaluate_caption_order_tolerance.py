@@ -141,7 +141,7 @@ def main():
 
     all_scores = []
 
-    print(permutations)
+    #print(permutations)
 
     perm_captions = []
     for perm in permutations:
@@ -165,7 +165,7 @@ def main():
     # Create dataloader
     dataloader = DataLoader(
         dataset,
-        batch_size=len(perm_captions),
+        batch_size=12,
         shuffle=False,
         num_workers=4,
         drop_last=False,
@@ -200,21 +200,40 @@ def main():
     all_scores = []
     permutation_scores = defaultdict(list)
     for prompt, sample in zip(all_prompts, all_samples):
-    # Convert sample to scene (assuming sample is a tensor)
-        scene = sample.squeeze().detach().cpu().numpy()
-        print(f"\nScene shape: {scene.shape}")
-        scene = np.rint(scene).astype(int).tolist()
-        generated_caption = assign_caption(
-            scene,
-            id_to_char=id_to_char,
-            char_to_id=char_to_id,
-            tile_descriptors=tile_descriptors,
-            describe_locations=False,
-            describe_absence=args.describe_absence
-        )
-        score = compare_captions(prompt, generated_caption)
-        permutation_scores[prompt].append(score)
-        all_scores.append(score)
+        # If sample is a batch (e.g., shape (13, 16, 16)), loop over each scene in the batch
+        if isinstance(sample, torch.Tensor):
+            sample = sample.detach().cpu().numpy()
+        if sample.ndim == 3:
+            # Loop over each scene in the batch
+            for scene_np in sample:
+                scene = np.rint(scene_np).astype(int).tolist()
+                #print(f"Scene rows: {len(scene)}, columns: {len(scene[0]) if len(scene) > 0 else 0}")
+                generated_caption = assign_caption(
+                    scene,
+                    id_to_char=id_to_char,
+                    char_to_id=char_to_id,
+                    tile_descriptors=tile_descriptors,
+                    describe_locations=False,
+                    describe_absence=args.describe_absence
+                )
+                score = compare_captions(prompt, generated_caption)
+                permutation_scores[prompt].append(score)
+                all_scores.append(score)
+        else:
+            # Already a single scene
+            scene = np.rint(sample).astype(int).tolist()
+            #print(f"Scene rows: {len(scene)}, columns: {len(scene[0]) if len(scene) > 0 else 0}")
+            generated_caption = assign_caption(
+                scene,
+                id_to_char=id_to_char,
+                char_to_id=char_to_id,
+                tile_descriptors=tile_descriptors,
+                describe_locations=False,
+                describe_absence=args.describe_absence
+            )
+            score = compare_captions(prompt, generated_caption)
+            permutation_scores[prompt].append(score)
+            all_scores.append(score)
 
     # Use your tokenizer as needed
 
