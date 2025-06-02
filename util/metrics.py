@@ -35,7 +35,7 @@ tileset_path = os.path.join(
 print(f"Looking for tileset at: {os.path.abspath(tileset_path)}")  # Debug print
 
 try:
-    title_chars, id_to_char, char_to_id, title_descriptors = extract_tileset(tileset_path)
+    title_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 except FileNotFoundError:
     print("\nError: Could not find tileset file!")
     print("\nExpected directory structure:")
@@ -150,46 +150,12 @@ def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
     Returns:
         List of captions excluding absence descriptions like "no broken pipes"
     """
-    # Clean captions by removing "no broken" phrases
+    # Clean captions by removing "no broken" phrases. Does not remove the caption, rather changes it
     cleaned_captions = [
         caption.replace(f"no broken {feature}s", "").replace(f"no broken {feature}", "")
         for caption in captions
     ]
     return cleaned_captions
-
-    """Test the edit distance functions on SMB1 levels"""
-    
-    # Load some test levels
-    with open("SMB1_LevelsAndCaptions-regular.json", 'r') as f:
-        data = json.load(f)
-        levels = [entry['scene'] for entry in data if 'scene' in entry][:20]  # Take first 5 levels
-        
-    print("\nTesting edit_distance:")
-    print("-" * 30)
-    # Test edit_distance between first two levels
-    try:
-        dist = edit_distance(levels[0], levels[16])
-        print(f"Edit distance between level 0 and 1: {dist}")
-    except Exception as e:
-        print(f"Error computing edit_distance: {e}")
-        
-    print("\nTesting min_edit_distance:")
-    print("-" * 30)
-    # Test min_edit_distance for first level against others
-    try:
-        min_dist = min_edit_distance(levels[0], levels[1:])
-        print(f"Min edit distance for level 0: {min_dist}")
-    except Exception as e:
-        print(f"Error computing min_edit_distance: {e}")
-        
-    print("\nTesting average_min_edit_distance:")
-    print("-" * 30)
-    # Test average minimum edit distance across all levels
-    try:
-        avg_dist = average_min_edit_distance(levels)
-        print(f"Average minimum edit distance: {avg_dist}")
-    except Exception as e:
-        print(f"Error computing average_min_edit_distance: {e}")
 
 def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
     """
@@ -202,7 +168,7 @@ def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
     Returns:
         Percentage of captions mentioning broken feature
     """
-
+    # Remove absence captions first
     cleaned_captions = remove_absence_captions(captions, feature)
     if not cleaned_captions:
         print(f"Warning: No captions found after cleaning for feature '{feature}'")
@@ -214,6 +180,7 @@ def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
         for caption in cleaned_captions
     )
     
+    # Returns percent of broken feature mentions over
     return (broken_count / len(cleaned_captions)) * 100 
 
 def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
@@ -250,7 +217,8 @@ def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: 
         assign_caption(
             scene,
             id_to_char,
-            title_descriptors,
+            char_to_id,
+            tile_descriptors,
             describe_locations=False,
             describe_absence=False
         ) 
@@ -308,46 +276,6 @@ def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int
     else:
         return analyze_broken_features_from_scenes(data, "cannon")
     
-def analyze_scene_captions_from_json(json_path: str, feature: str) -> float:
-    """
-    Analyze broken features in scenes from a JSON file containing scene/caption pairs
-    
-    Args:
-        json_path: Path to JSON file containing list of scene/caption dictionaries
-        feature: Feature to check ("pipe" or "cannon")
-    
-    Returns:
-        Percentage of scenes with broken feature
-        
-    Raises:
-        FileNotFoundError: If JSON file doesn't exist
-        KeyError: If JSON entries don't contain 'caption' field
-    """
-    try:
-        with open(json_path, 'r') as f:
-            data = json.load(f)
-            
-        if not isinstance(data, list):
-            raise ValueError("JSON file must contain a list of scene/caption dictionaries")
-            
-        # Extract captions, skipping entries without captions
-        captions = [entry['caption'] for entry in data if 'caption' in entry]
-        
-        if not captions:
-            print(f"Warning: No captions found in {json_path}")
-            return 0.0
-            
-        return count_broken_feature_mentions(captions, feature)
-        
-    except FileNotFoundError:
-        print(f"Error: File {json_path} not found")
-        raise
-    except json.JSONDecodeError:
-        print(f"Error: File {json_path} is not valid JSON")
-        raise
-    except KeyError as e:
-        print(f"Error: Invalid data format - missing caption field")
-        raise
     
 def analyze_phrase_targeting(
     prompt_caption_pairs: List[tuple[str, str]],
@@ -460,121 +388,23 @@ if __name__ == "__main__":
     # Base directory for datasets
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-#     # List of all datasets to analyze
-#     datasets = [
-#         ("SMB1", "SMB1_LevelsAndCaptions-regular.json"),
-#         ("SMB2", "SMB2_LevelsAndCaptions-regular.json"),
-#         ("SML", "SML_LevelsAndCaptions-regular.json"),
-#         ("SMB1AND2", "SMB1AND2_LevelsAndCaptions-regular.json"),
-#         ("Mario-All", "Mario_LevelsAndCaptions-regular.json")
-#     ]
-#     #TESTING FOR EDIT DISTANCE #61
-#     print("Analyzing Edit Distances Across Datasets")
-#     print("=" * 50)
-    
-#     """
-#     Expected Results (based on previous runs):
-    
-#     Super Mario Bros 1:
-#     - Average Edit Distance: ~10.1
-    
-#     Super Mario Bros 2:
-#     - Average Edit Distance: ~11.3
-    
-#     Super Mario Land:
-#     - Average Edit Distance: ~14.6
 
-#     Combined SMB1+2:
-#     - Average Edit Distance: ~10.6
+    """
+    Expected Results (based on previous runs):
     
-#     All Mario Games:
-#     - Average Edit Distance: ~11.6
-#     """
+    Super Mario Bros 1:
+    - Average Edit Distance: ~10.1
     
-#     for game_name, dataset_file in datasets:
-#         dataset_path = os.path.join(base_dir, dataset_file)
-#         try:
-#             print(f"\nAnalyzing {game_name} levels:")
-#             print("-" * 30)
-
-#             # Load dataset
-#             with open(dataset_path, 'r') as f:
-#                 data = json.load(f)
-#                 levels = [entry['scene'] for entry in data if 'scene' in entry]
-
-#             print(f"Loaded {len(levels)} levels")
-
-#             # Continue with existing analysis
-#             # dist = edit_distance(levels[0], levels[1])
-#             # print(f"Edit distance (Level 0 to 1): {dist}")
-
-#             # min_dist = min_edit_distance(levels[0], levels[1:])
-#             # print(f"Min edit distance (Level 0): {min_dist}")
-
-#             avg_dist = average_min_edit_distance(levels)
-#             print(f"Average minimum edit distance: {avg_dist:.1f}")
-
-#         except FileNotFoundError:
-#             print(f"Dataset file not found: {dataset_file}")
-#         except Exception as e:
-#             print(f"Error processing {game_name}: {str(e)}\n")
-#             print("Stack trace:")
-#             import traceback
-#             traceback.print_exc()
-            
-            
-    # Test phrase targeting analysis
-    test_phrases = [
-        "full floor",
-        "several enemies",
-        "one cannon",
-        "one pipe",
-        "coin",
-        "tower"
-    ]
+    Super Mario Bros 2:
+    - Average Edit Distance: ~11.3
     
-    try:
-        # Load dataset
-        dataset_path = os.path.join(base_dir, "datasets\\SMB1_LevelsAndCaptions-regular.json")
-        with open(dataset_path, 'r') as f:
-            data = json.load(f)
-            # Create pairs from data
-            pairs = [(entry['caption'], entry['caption']) 
-                    for entry in data 
-                    if 'caption' in entry]
-        
-        print(f"\nAnalyzing {len(pairs)} prompt-caption pairs")
-        
-        for phrase in test_phrases:
-            print(f"\n{'-' * 30}")
-            print(f"Analyzing phrase: '{phrase}' (Strict Mode)")
-            
-            # Strict mode
-            metrics_strict = calculate_phrase_metrics(pairs, phrase, strict=True)
-            print(f"Strict Mode Results:")
-            print(f"Total samples analyzed: {metrics_strict['total']}")
-            print(f"True Positives:  {metrics_strict['true_positives']} ({metrics_strict['true_positives']/metrics_strict['total']*100:.1f}%)")
-            print(f"False Positives: {metrics_strict['false_positives']} ({metrics_strict['false_positives']/metrics_strict['total']*100:.1f}%)")
-            print(f"True Negatives:  {metrics_strict['true_negatives']} ({metrics_strict['true_negatives']/metrics_strict['total']*100:.1f}%)")
-            print(f"False Negatives: {metrics_strict['false_negatives']} ({metrics_strict['false_negatives']/metrics_strict['total']*100:.1f}%)")
-            print(f"Precision: {metrics_strict['precision']:.3f}")
-            print(f"Recall:    {metrics_strict['recall']:.3f}")
-            print(f"F1 Score:  {metrics_strict['f1_score']:.3f}")
-            
-            print(f"\nAnalyzing phrase: '{phrase}' (Non-Strict Mode)")
-            
-            # Non-strict mode
-            metrics_non_strict = calculate_phrase_metrics(pairs, phrase, strict=False)
-            print(f"Non-Strict Mode Results:")
-            print(f"Total samples analyzed: {metrics_non_strict['total']}")
-            print(f"True Positives:  {metrics_non_strict['true_positives']} ({metrics_non_strict['true_positives']/metrics_non_strict['total']*100:.1f}%)")
-            print(f"False Positives: {metrics_non_strict['false_positives']} ({metrics_non_strict['false_positives']/metrics_non_strict['total']*100:.1f}%)")
-            print(f"True Negatives:  {metrics_non_strict['true_negatives']} ({metrics_non_strict['true_negatives']/metrics_non_strict['total']*100:.1f}%)")
-            print(f"False Negatives: {metrics_non_strict['false_negatives']} ({metrics_non_strict['false_negatives']/metrics_non_strict['total']*100:.1f}%)")
-            print(f"Precision: {metrics_non_strict['precision']:.3f}")
-            print(f"Recall:    {metrics_non_strict['recall']:.3f}")
-            print(f"F1 Score:  {metrics_non_strict['f1_score']:.3f}")
-            
-    except Exception as e:
-        print(f"Error in phrase targeting analysis: {str(e)}")
-        traceback.print_exc()
+    Super Mario Land:
+    - Average Edit Distance: ~14.6
+
+    Combined SMB1+2:
+    - Average Edit Distance: ~10.6
+    
+    All Mario Games:
+    - Average Edit Distance: ~11.6
+    """
+    
