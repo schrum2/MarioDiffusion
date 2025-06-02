@@ -3,6 +3,8 @@ import itertools
 import os
 import random
 from collections import defaultdict
+from level_dataset import LevelDataset
+from torch.utils.data import DataLoader
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import util.common_settings as common_settings  # adjust import if needed
@@ -58,11 +60,22 @@ def caption_score_with_assign_and_compare(
     np.random.seed(seed)
 
     # Generate sample
-    tokenized = pipe.tokenizer(prompt, return_tensors="pt").to(device)
-    sample = pipe.generate(
-        **tokenized,
-        num_inference_steps=steps,
-        guidance_scale=guidance_scale
+    dataset = LevelDataset(
+        json_path=args.json,
+        tokenizer=pipe.tokenizer,
+        shuffle=False,
+        mode="text",
+        augment=False,
+        num_tiles=args.num_tiles
+    )
+
+    # Create dataloader
+    dataloader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=4,
+        drop_last=False
     )
 
     scene = sample.squeeze().detach().cpu().numpy().tolist()
@@ -103,7 +116,6 @@ def main():
     
     # Load pipeline
     pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
-    pipe.eval()
 
     # Load tile metadata
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
