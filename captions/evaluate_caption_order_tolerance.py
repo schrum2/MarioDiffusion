@@ -165,7 +165,7 @@ def main():
     # Create dataloader
     dataloader = DataLoader(
         dataset,
-        batch_size=12,
+        batch_size=len(perm_captions),
         shuffle=False,
         num_workers=4,
         drop_last=False,
