@@ -10,6 +10,7 @@ from typing import List, Dict, Sequence, TypeVar, Union
 import sys
 import os
 import traceback
+from util.sampler import MMNEATSimulator
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -419,16 +420,110 @@ def calculate_phrase_metrics(
         "total": total
     }
 
-# TODO: GitHub Issue #56 - A* Solvability
-def astar_metrics():
+def astar_metrics(
+    levels: list[list[str]],
+    num_runs: int = 3,
+    simulator_kwargs: dict = None
+) -> list[dict]:
     """
-     Takes a list of levels in the list of strings format used by MarioGPT. 
-     For each of the levels, run my astar code on it (repeat some number of times specified by a parameter). 
-     For each run, parse the returned string to extract information about performance. 
-     Average the performance of he A* agent across multiple runs.
-      Return a list of organized results indicating how A* performed on each level (a list of dictionaries).
-     """
-    pass  # Placeholder for future A* metrics implementation
+    This function runs the SNES A* algorithm on each level multiple times 
+    to return averaged performance metrics.
+    
+    Args:
+        levels: A list of levels in the list of strings format used by MarioGPT
+        num_runs: Run SNES A* code for each level num_runs times
+        simulator_kwargs: Additional keyword arguments to pass to the MMNEATSimulator constructor
+    
+    Returns:
+        A list of dictionaries of organized results indicating how A* performed on each level
+    """
+
+    simulator_kwargs = simulator_kwargs or {}
+    results = []
+
+    for idx, level in enumerate(levels):
+        run_metrics = []
+        for run in range(num_runs):
+            try:
+                sim = MMNEATSimulator(level, **simulator_kwargs)
+                output = sim.astar(render=False)
+            except Exception as e:
+                print(f"Error running A* on level {idx}, run {run}: {e}")
+                continue
+
+            # Parse output string (key:value per line)
+            metrics = {}
+
+            for line in output.strip().splitlines():
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    # Try to convert to float/int/bool if possible
+                    if value.lower() in ("true", "false"):
+                        value = value.lower() == "true"
+                    else:
+                        try:
+                            if '.' in value:
+                                value = float(value)
+                            else:
+                                value = int(value)
+                        except Exception:
+                            pass
+                    metrics[key] = value
+
+            # # for debugging
+            # print(f"Run {run + 1} metrics for level {idx + 1}")
+            # print("computeDistancePassed: {:.1f}".format(metrics.get("computeDistancePassed", 0)))
+            # print("jumpActionsPerformed: {}".format(metrics.get("jumpActionsPerformed", 0)))
+            # print("killsTotal: {}".format(metrics.get("killsTotal", 0)))
+            # print("lengthOfLevelPassedCells: {}".format(metrics.get("lengthOfLevelPassedCells", 0)))
+            # print("lengthOfLevelPassedPhys: {:.1f}".format(metrics.get("lengthOfLevelPassedPhys", 0)))
+            # print("totalLengthOfLevelCells: {}".format(metrics.get("totalLengthOfLevelCells", 0)))
+            # print("totalLengthOfLevelPhys: {:.1f}".format(metrics.get("totalLengthOfLevelPhys", 0)))
+            # print("numberOfGainedCoins: {}".format(metrics.get("numberOfGainedCoins", 0)))
+            # print("timeSpentOnLevel: {}".format(metrics.get("timeSpentOnLevel", 0)))
+            # print("computeBasicFitness: {:.4f}".format(metrics.get("computeBasicFitness", 0)))
+            # print("computeJumpFraction: {:.4f}".format(metrics.get("computeJumpFraction", 0)))
+            # print("beaten: {}\n".format(metrics.get("beaten", False)))
+
+            run_metrics.append(metrics)
+
+        # Aggregate/average metrics across runs
+        if not run_metrics:
+            results.append({"level_index": idx + 1, "error": "No successful runs"})
+            continue
+
+        # Find all metric keys
+        keys = set().union(*run_metrics)
+        avg_metrics = {"level_index": idx + 1}
+        for key in keys:
+            values = [m[key] for m in run_metrics if key in m]
+            if all(isinstance(v, (int, float)) for v in values):
+                avg_metrics[key] = sum(values) / len(values)
+            elif all(isinstance(v, bool) for v in values):
+                avg_metrics[key] = sum(v for v in values) / len(values)  # percent True
+            else:
+                avg_metrics[key] = values  # fallback: list of values
+
+        # # for debugging
+        # print(f"Average metrics for level {idx + 1}\n")
+        # print("computeDistancePassed: {:.1f}".format(avg_metrics.get("computeDistancePassed", 0)))
+        # print("jumpActionsPerformed: {}".format(avg_metrics.get("jumpActionsPerformed", 0)))
+        # print("killsTotal: {}".format(avg_metrics.get("killsTotal", 0)))
+        # print("lengthOfLevelPassedCells: {}".format(avg_metrics.get("lengthOfLevelPassedCells", 0)))
+        # print("lengthOfLevelPassedPhys: {:.1f}".format(avg_metrics.get("lengthOfLevelPassedPhys", 0)))
+        # print("totalLengthOfLevelCells: {}".format(avg_metrics.get("totalLengthOfLevelCells", 0)))
+        # print("totalLengthOfLevelPhys: {:.1f}".format(avg_metrics.get("totalLengthOfLevelPhys", 0)))
+        # print("numberOfGainedCoins: {}".format(avg_metrics.get("numberOfGainedCoins", 0)))
+        # print("timeSpentOnLevel: {}".format(avg_metrics.get("timeSpentOnLevel", 0)))
+        # print("computeBasicFitness: {:.4f}".format(avg_metrics.get("computeBasicFitness", 0)))
+        # print("computeJumpFraction: {:.4f}".format(avg_metrics.get("computeJumpFraction", 0)))
+        # print("beaten: {}\n".format(avg_metrics.get("beaten", False)))
+
+        results.append(avg_metrics)
+
+    return results
 
 if __name__ == "__main__":
     # Base directory for datasets
