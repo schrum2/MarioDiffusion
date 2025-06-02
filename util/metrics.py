@@ -140,8 +140,23 @@ def average_min_edit_distance(level_collection: List[List[List[int]]]) -> float:
         
     return total_min_distance / len(level_collection)
 
-# DELETE
-def test_edit_distances():
+def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
+    """
+    Remove captions that only describe the absence of features.
+    
+    Args:
+        captions: List of caption strings
+        feature: Feature to check for absence caption(e.g. "pipe" or "cannon")
+    Returns:
+        List of captions excluding absence descriptions like "no broken pipes"
+    """
+    # Clean captions by removing "no broken" phrases
+    cleaned_captions = [
+        caption.replace(f"no broken {feature}s", "").replace(f"no broken {feature}", "")
+        for caption in captions
+    ]
+    return cleaned_captions
+
     """Test the edit distance functions on SMB1 levels"""
     
     # Load some test levels
@@ -187,11 +202,11 @@ def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
     Returns:
         Percentage of captions mentioning broken feature
     """
-    # Clean captions by removing "no broken" phrases
-    cleaned_captions = [
-        caption.replace(f"no broken {feature}s", "").replace(f"no broken {feature}", "")
-        for caption in captions
-    ]
+
+    cleaned_captions = remove_absence_captions(captions, feature)
+    if not cleaned_captions:
+        print(f"Warning: No captions found after cleaning for feature '{feature}'")
+        return 0.0
     
     # Count mentions of broken feature
     broken_count = sum(
@@ -199,7 +214,7 @@ def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
         for caption in cleaned_captions
     )
     
-    return (broken_count / len(captions)) * 100 if captions else 0.0
+    return (broken_count / len(cleaned_captions)) * 100 
 
 def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
     """
@@ -212,7 +227,12 @@ def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
     Returns:
         Percentage of scenes with broken feature
     """
-    captions = [entry['caption'] for entry in data if 'caption' in entry]
+    captions = [entry['caption'] for entry in data if 'caption' in entry] # isolate captions
+    
+    if not captions: # Exception handling for no captions
+        print(f"Warning: No captions found in data for feature '{feature}'")
+        return 0.0
+    
     return count_broken_feature_mentions(captions, feature)
 
 def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: str) -> float:
@@ -226,7 +246,7 @@ def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: 
     Returns:
         Percentage of scenes with broken feature
     """
-    captions = [
+    captions = [ # Generate captions for each scene
         assign_caption(
             scene,
             id_to_char,
@@ -236,6 +256,12 @@ def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: 
         ) 
         for scene in scenes
     ]
+    
+    if not captions: # Exception handling for no captions
+        print(f"Warning: No captions generated for scenes with feature '{feature}'")
+        return 0.0
+    
+    # Use the generated captions to cound broken feature mentions
     return count_broken_feature_mentions(captions, feature)
 
 # Convenience functions for pipes specifically
