@@ -1,7 +1,8 @@
 REM @echo off
-REM Usage: SMB1-conditional-MiniLM.bat <seed> <type> [split]
+REM Usage: SMB1-conditional-MiniLM.bat <seed> <type> <model> [split]
 REM <seed> is optional, defaults to 0
 REM <type> should be "regular", "absence", or "negative"
+REM <model> should be "MiniLM" or "GTE"
 REM [split] is optional - if "split" is specified, uses split pretrained sentences
 cd ..
 
@@ -15,19 +16,19 @@ REM Add --describe_absence flag if TYPE is absence
 set DESCRIBE_ABSENCE_FLAG=
 if /I "%TYPE%"=="absence" set DESCRIBE_ABSENCE_FLAG=--describe_absence
 
-set SPLIT=%3
-
 REM New: Accept model type as final argument (MiniLM or GTE)
-set MODEL=%4
+set MODEL=%3
 if /I "%MODEL%"=="" set MODEL=MiniLM
 if /I "%MODEL%"=="MiniLM" set MODEL_NAME=sentence-transformers/multi-qa-MiniLM-L6-cos-v1
 if /I "%MODEL%"=="GTE" set MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
 
+set SPLIT=%4
+
 if /I "%SPLIT%"=="split" (
-    set DIFF_OUTPUT=SMB1-conditional-MiniLMsplit-%TYPE%%SEED%
+    set DIFF_OUTPUT=SMB1-conditional-%MODEL%split-%TYPE%%SEED%
     set SPLIT_FLAG=--split_pretrained_sentences
 ) else (
-    set DIFF_OUTPUT=SMB1-conditional-MiniLM-%TYPE%%SEED%
+    set DIFF_OUTPUT=SMB1-conditional-%MODEL%-%TYPE%%SEED%
     set SPLIT_FLAG=
 )
 
