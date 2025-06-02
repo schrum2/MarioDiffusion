@@ -212,6 +212,17 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
     if best_model_state:
         print(f"\nTraining complete. Restoring best model from epoch {best_model_state['epoch']} with validation loss {best_val_loss:.4f}")
         model.load_state_dict(best_model_state['model_state_dict'])
+
+        best_epoch = best_model_state['epoch'] + 1  # Add 1 to match displayed epoch numbers
+        # Save best model info
+        best_model_info = {
+            "best_epoch": best_epoch,
+            "total_epochs": epochs,
+            "best_val_loss": best_val_loss,
+            "final_epoch_val_loss": val_loss if val_loss is not None else None
+        }
+        with open(os.path.join(args.output_dir, "best_model_info.json"), "w") as f:
+            json.dump(best_model_info, f, indent=4)
     
     evaluate_model(model, tokenizer, train_loader, device, console_output = False)
     
