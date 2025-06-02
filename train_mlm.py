@@ -114,7 +114,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             epoch_loss += loss.item()
             progress_bar.set_postfix({
                 'loss': loss.item(),
-                'no_improve': f'{epochs_no_improve}/{patience}'
+                **(({'no_improve': f'{epochs_no_improve}/{patience}'} if args.use_early_stopping else {}))
             })
         
         avg_loss = epoch_loss / len(train_loader)
@@ -136,7 +136,13 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
                     val_progress.set_postfix(loss=loss.item())
             val_loss = val_loss_total / len(val_loader)
             model.train()
-            print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}, No Improvement: {epochs_no_improve}/{patience}")
+
+            
+            status_msg = f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}"
+            if args.use_early_stopping:
+                status_msg += f", No Improvement: {epochs_no_improve}/{patience}"
+            print(status_msg)
+            
             # Early stopping logic
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -148,12 +154,10 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
                     'optimizer_state_dict': optimizer.state_dict(),
                     'val_loss': val_loss,
                 }
-            else:
+            elif args.use_early_stopping:
                 epochs_no_improve += 1
                 if epochs_no_improve >= patience:
                     print(f"\nEarly stopping triggered. Best validation loss: {best_val_loss:.4f}")
-                    # Restore best model state
-                    model.load_state_dict(best_model_state['model_state_dict'])
                     early_stop = True
                     break
         else:
@@ -196,12 +200,19 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
             model.save_pretrained(checkpoint_dir)  # Save model config separately
             print(f"Saved checkpoint to {checkpoint_dir} (Train Acc: {train_accuracy:.2f}%, Val Acc: {val_accuracy:.2f}%)")
         
-        if early_stop:
+        if args.use_early_stopping and early_stop:
             print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
             break
 
     loss_plotter.stop_plotting()
     accuracy_plotter.stop_plotting()
+
+    # Restore best model state
+    # At end of training, always restore best model if one was saved
+    if best_model_state:
+        print(f"\nTraining complete. Restoring best model from epoch {best_model_state['epoch']} with validation loss {best_val_loss:.4f}")
+        model.load_state_dict(best_model_state['model_state_dict'])
+    
     evaluate_model(model, tokenizer, train_loader, device, console_output = False)
     
 if __name__ == "__main__":
@@ -217,11 +228,12 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=16, help="Training samples per batch")
     parser.add_argument("--data_limit", type=int, default=-1, help="If not negative, only train with this many examples")
     parser.add_argument("--output_dir", type=str, default="mlm", help="Directory for training logs and model")
-    parser.add_argument('--no-augment', action='store_false', dest='augment', help='Disable data augmentation (default: True)')
+    parser.add_argument('--no_augment', action='store_false', dest='augment', help='Disable data augmentation (default: True)')
     parser.add_argument("--checkpoint_freq", type=int, default=20, help="Save checkpoint every N epochs (0 to disable)")
     parser.add_argument("--save_checkpoints", action="store_true", help="Enable periodic checkpoint saving")
     parser.add_argument("--patience", type=int, default=30, help="Number of epochs to wait for improvement in val loss before early stopping (default: 20)")
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
+    parser.add_argument("--use_early_stopping", action="store_true", help="Stop training if validation/caption performance stagnate")
     
     global args
     args = parser.parse_args()
