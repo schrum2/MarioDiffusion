@@ -7,7 +7,6 @@ set default_out=datasets\Mario_LevelsAndCaptions
 python combine_data.py datasets\\Mario_Levels.json datasets\\SMB1_Levels.json datasets\\SMB2_Levels.json datasets\\SML_Levels.json
 
 :: Generate captions for Mario
-default_out=datasets\\Mario_LevelsAndCaptions
 python create_ascii_captions.py --dataset datasets\\Mario_Levels.json --output %default_out%-regular.json
 python create_ascii_captions.py --dataset datasets\\Mario_Levels.json --output %default_out%-absence.json --describe_absence
 
