@@ -224,7 +224,7 @@ def count_broken_feature_mentions(captions: List[str], feature: str, as_percenta
     # Returns percent of broken feature mentions over total captions
     return (broken_count / len(cleaned_captions)) * 100 
 
-def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
+def analyze_broken_features_from_data(data: List[Dict], feature: str, as_instance_of_feature: bool) -> float:
     """
     Analyze broken features from list of scene/caption dictionaries
     
@@ -241,9 +241,9 @@ def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
         print(f"Warning: No captions found in data for feature '{feature}'")
         return 0.0
     
-    return count_broken_feature_mentions(captions, feature)
+    return count_broken_feature_mentions(captions, feature, as_instance_of_feature)
 
-def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: str) -> float:
+def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: str, as_instance_of_feature: bool) -> float:
     """
     Analyze broken features from raw scene data by generating captions
     
@@ -271,10 +271,10 @@ def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: 
         return 0.0
     
     # Use the generated captions to cound broken feature mentions
-    return count_broken_feature_mentions(captions, feature)
+    return count_broken_feature_mentions(captions, feature, as_instance_of_feature)
 
 # Convenience functions for pipes specifically
-def analyze_broken_pipes(data: Union[List[str], List[Dict], List[List[List[int]]]]) -> float:
+def analyze_broken_pipes(data: Union[List[str], List[Dict], List[List[List[int]]]], as_instance_of_feature: bool) -> float:
     """
     Analyze broken pipes in data, handling different input formats
     
@@ -289,14 +289,14 @@ def analyze_broken_pipes(data: Union[List[str], List[Dict], List[List[List[int]]
         
     # Determine data type and call appropriate function
     if isinstance(data[0], str):
-        return count_broken_feature_mentions(data, "pipe")
+        return count_broken_feature_mentions(data, "pipe", as_instance_of_feature)
     elif isinstance(data[0], dict):
-        return analyze_broken_features_from_data(data, "pipe")
+        return analyze_broken_features_from_data(data, "pipe", as_instance_of_feature)
     else:
-        return analyze_broken_features_from_scenes(data, "pipe")
+        return analyze_broken_features_from_scenes(data, "pipe", as_instance_of_feature)
 
 # Convenience functions for cannons specifically
-def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int]]]]) -> float:
+def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int]]]], as_instance_of_feature: bool) -> float:
     """
     Analyze broken cannons in data, handling different input formats
     
@@ -311,11 +311,11 @@ def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int
         
     # Determine data type and call appropriate function
     if isinstance(data[0], str):
-        return count_broken_feature_mentions(data, "cannon")
+        return count_broken_feature_mentions(data, "cannon", as_instance_of_feature)
     elif isinstance(data[0], dict):
-        return analyze_broken_features_from_data(data, "cannon")
+        return analyze_broken_features_from_data(data, "cannon", as_instance_of_feature)
     else:
-        return analyze_broken_features_from_scenes(data, "cannon")
+        return analyze_broken_features_from_scenes(data, "cannon", as_instance_of_feature)
     
     
 def analyze_phrase_targeting(
@@ -339,11 +339,14 @@ def analyze_phrase_targeting(
     """
     true_positives = 0
     false_positives = 0
-    false_negatives = 0
     true_negatives = 0
+    false_negatives = 0
     
     # Normalize the target phrase for comparison
     target_phrase = target_phrase.lower().strip()
+    
+    # Extract relevant keywords from the target phrase
+    relevant_keywords = [kw for kw in TOPIC_KEYWORDS if kw in target_phrase]
         
     for prompt, caption in prompt_caption_pairs:
         # Normalize prompt and caption
@@ -355,9 +358,9 @@ def analyze_phrase_targeting(
             in_prompt = target_phrase in prompt
             in_caption = target_phrase in caption
         else:
-            # Non-strict: Check if the target phrase's topic is present
-            in_prompt = any(topic in prompt for topic in TOPIC_KEYWORDS if topic in target_phrase)
-            in_caption = any(topic in caption for topic in TOPIC_KEYWORDS if topic in target_phrase)
+            # Look for any relevant keyword from the target phrase
+            in_prompt = any(kw in prompt for kw in relevant_keywords)
+            in_caption = any(kw in caption for kw in relevant_keywords)
         
         # Update counts based on presence
         if in_prompt and in_caption:
@@ -370,55 +373,6 @@ def analyze_phrase_targeting(
             false_negatives += 1
     
     return (true_positives, false_positives, true_negatives, false_negatives)
-
-def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> float:
-    """
-    Calculate the percentage of perfect matches between prompts and captions.
-    
-    Args:
-        prompt_caption_pairs: List of (input_prompt, generated_caption) pairs
-    
-    Returns:
-        Percentage of perfect matches
-    """
-    if not prompt_caption_pairs:
-        raise ValueError("The list of prompt-caption pairs cannot be empty")
-    
-    total_pairs = len(prompt_caption_pairs)
-    perfect_match_count = 0
-    partial_match_count = 0
-    no_match_count = 0
-    
-    for prompt, caption in prompt_caption_pairs:
-        if not isinstance(prompt, str) or not isinstance(caption, str):
-            raise ValueError("Both prompt and caption must be strings")
-        compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(
-            prompt, caption, return_matches=True
-        )
-        
-        # Check for perfect match (all phrases match exactly)
-        if compare_score == 1.0 and not excess_phrases:
-            perfect_match_count += 1
-        elif exact_matches > 0:
-            # Check for at least one matching phrase
-            partial_match_count += 1
-        else:
-            # No matches at all
-            no_match_count += 1
-            
-    # Calculate percentages
-    perfect_match_percentage = (perfect_match_count / total_pairs) * 100
-    partial_match_percentage = (partial_match_count / total_pairs) * 100
-    no_match_percentage = (no_match_count / total_pairs) * 100
-    
-    return {
-        "perfect_match_percentage": perfect_match_percentage,
-        "perfect_match_count": perfect_match_count,
-        "partial_match_percentage": partial_match_percentage,
-        "partial_match_count": partial_match_count,
-        "no_match_percentage": no_match_percentage,
-        "no_match_count": no_match_count
-    }
 
 def calculate_phrase_metrics(
     prompt_caption_pairs: List[tuple[str, str]],
@@ -462,7 +416,54 @@ def calculate_phrase_metrics(
         "total": total
     }
     
+def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> Dict[str, Union[int, float]]:
+    """
+    Calculate the percentage of perfect matches between prompts and captions.
+    
+    Args:
+        prompt_caption_pairs: List of (input_prompt, generated_caption) pairs
+    
+    Returns:
+        Percentage of perfect matches
+    """
+    if not prompt_caption_pairs:
+        raise ValueError("The list of prompt-caption pairs cannot be empty")
+    
+    total_pairs = len(prompt_caption_pairs)
+    perfect_match_count = 0
+    partial_match_count = 0
+    no_match_count = 0
+    
+    for prompt, caption in prompt_caption_pairs:
+        if not isinstance(prompt, str) or not isinstance(caption, str):
+            raise ValueError("Both prompt and caption must be strings")
+        compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(
+            prompt, caption, return_matches=True
+        )
 
+        # Check for perfect match (all phrases match exactly)
+        if compare_score == 1.0 and not excess_phrases:
+            perfect_match_count += 1
+        elif len(exact_matches) > 0:
+            # Check for at least one matching phrase
+            partial_match_count += 1
+        else:
+            # No matches at all
+            no_match_count += 1
+            
+    # Calculate percentages
+    perfect_match_percentage = (perfect_match_count / total_pairs) * 100
+    partial_match_percentage = (partial_match_count / total_pairs) * 100
+    no_match_percentage = (no_match_count / total_pairs) * 100
+    
+    return {
+        "perfect_match_percentage": perfect_match_percentage,
+        "perfect_match_count": perfect_match_count,
+        "partial_match_percentage": partial_match_percentage,
+        "partial_match_count": partial_match_count,
+        "no_match_percentage": no_match_percentage,
+        "no_match_count": no_match_count
+    }
 
 # TODO: GitHub Issue #56 - A* Solvability
 def astar_metrics():
