@@ -17,7 +17,7 @@ from models.text_model import TransformerModel
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel
-from models.fdm import Gen
+from fdm import Gen
 from models.fdm_pipeline import FDMPipeline
 import util.common_settings as common_settings
 import models.general_training_helper as gen_train_help
@@ -81,7 +81,7 @@ class imageDataSet(Dataset):
         return len(self.data[0])
 
     def __getitem__(self,idx):
-        return self.data[0][idx], self.data[1][idx]
+        return self.data[0][idx], self.data[1][idx], self.data[2][idx]
 
 
 
@@ -472,5 +472,143 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
         return text_embeddings, scenes_for_train, noiseVec
 
 
+
+
+
+
+
+
+
+
+#NEW CODE FOR TESTING!!!!!!
+def main2():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model=Gen(
+        model_name="test-load-data",
+    )
+    data_path="datasets\SMB1_LevelsAndCaptions-regular.json"
+    train(model, 100, device, data_path)
+
+
+def do_renders(model, ep, test_set, device):
+    epoch_dir = os.path.join(model.sample_path, 'epoch_' + str(ep))
+    os.makedirs(epoch_dir, exist_ok=True)
+    test_set_gen(ep, model, epoch_dir, test_set, device)
+
+
+def train(model, EPOCHS, device, data_path):
+    train_set, test_set = load_data(model, data_path)
+
+    loss_metric_train = torch.zeros(EPOCHS).to(device)
+
+    model.to(device)
+
+    optimizer = torch.optim.Adam(model.parameters())
+    
+    for epoch in range(EPOCHS):
+        for embeddings, ytrue, _ in train_set:
+            optimizer.zero_grad()
+            outputs = model(embeddings.to(device), torch.rand(len(embeddings), 5).to(device))
+            loss = torch.nn.NLLLoss()(torch.log(outputs), ytrue.argmax(dim=3).to(device))
+
+            loss_metric_train[epoch] += loss
+
+            loss.backward()
+            optimizer.step()
+        print(f"Epoch {epoch}: Loss = {loss_metric_train[epoch]}")
+        if epoch%10==0:
+            do_renders(model, epoch, test_set, device)
+    
+    do_renders(model, epoch, test_set, device)
+
+
+def test_set_gen(ep, model, epoch_dir, test_set, device):
+    title = model.model_name + ' Test set samples, epoch' + str(ep)
+    file_name = os.path.join(epoch_dir, 'test_set_samples.png')
+
+
+    for idx, batch in enumerate(test_set):
+        embeddings = batch[0]
+        labels = batch[2]
+        correct_images = batch[1]
+        
+        predictions = model(embeddings.to(device), torch.rand(len(embeddings), 5).to(device))
+        
+        #I think this is converting out of one-hot, which we do later anyways
+        #argmaxed_gens = predictions.argmax(dim=1)
+        
+        visualize_samples(predictions, file_name, prompts=labels)
+
+from sklearn.model_selection import train_test_split
+import models.sentence_transformers_helper as st_helper
+
+def load_data(model, data_path, num_tiles=13, scaling_factor=6, batch_size=256):
+
+        tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/multi-qa-MiniLM-L6-cos-v1")
+        model = AutoModel.from_pretrained("sentence-transformers/multi-qa-MiniLM-L6-cos-v1")
+
+
+        json_path = data_path
+        print(f"Loading data from {json_path}...")
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+        
+        one_hot_scenes = []
+        captions = []
+        
+
+        for sample in data:
+            scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
+            one_hot_scene = torch.nn.functional.one_hot(scene_tensor, num_classes=num_tiles).float()
+
+            augmented_caption = augment_caption(sample["caption"])
+
+            one_hot_scenes.append(np.array(one_hot_scene))
+            captions.append(augmented_caption)
+        
+        encoded_captions = st_helper.encode(captions, tokenizer=tokenizer, model=model)
+
+
+        images=np.array(one_hot_scenes)
+        labels=np.array(captions)
+        embeddings=np.array(encoded_captions)
+
+        
+        embeddings = embeddings * scaling_factor
+        
+
+        images, images_test, labels, labels_test, embeddings, embeddings_test = train_test_split(
+        images, labels, embeddings, test_size=24, random_state=400)
+
+        train_dataset = [embeddings, images, labels]
+        test_dataset = [embeddings_test, images_test, labels_test]
+
+        train_set = DataLoader(imageDataSet(train_dataset),
+                        batch_size=batch_size,
+                        shuffle=True,
+                        num_workers= 4,
+                        persistent_workers=True) 
+
+        test_set = DataLoader(imageDataSet(test_dataset),
+                        batch_size=batch_size,
+                        shuffle=True,
+                        num_workers= 4,
+                        persistent_workers=True) 
+        return train_set, test_set
+
+def augment_caption(caption):
+    """Shuffles period-separated phrases in the caption."""
+    phrases = caption[:-1].split(". ") # [:-1] removes the last period
+    random.shuffle(phrases)  # Shuffle phrases
+    return ". ".join(phrases) + "."
+
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
-    main()
+    main2()
