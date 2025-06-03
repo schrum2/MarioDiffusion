@@ -25,7 +25,7 @@ from captions.util import extract_tileset
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption order tolerance for a diffusion model.")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
-    parser.add_argument("--caption", type=str, required=True, help="Caption to evaluate, phrases separated by periods")
+    parser.add_argument("--caption", type=str, required=False, default=None, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
     parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
     parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
@@ -103,7 +103,6 @@ def permutation_caption_score(
 
     return avg_score
 
-
 def permutation_caption_scores_for_data(
     pipe,
     captions,
@@ -158,11 +157,11 @@ def creation_of_parameters():
     device = setup_environment(args.seed)
 
     if args.game == "Mario":
-        args.num_tiles = common_settings.MARIO_TILE_COUNT
-        args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+        num_tiles = common_settings.MARIO_TILE_COUNT
+        tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = common_settings.LR_TILE_COUNT # TODO
-        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
+        num_tiles = common_settings.LR_TILE_COUNT # TODO
+        tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
     else:
         raise ValueError(f"Unknown game: {args.game}")
 
@@ -170,7 +169,7 @@ def creation_of_parameters():
     pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
 
     # Load tile metadata
-    tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+    tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset)
 
      # Parse caption into phrase permutations
     phrases = [p.strip() for p in args.caption.split('.') if p.strip()]
@@ -196,7 +195,7 @@ def creation_of_parameters():
         shuffle=False,
         mode="text",
         augment=False,
-        num_tiles=args.num_tiles,
+        num_tiles=common_settings.MARIO_TILE_COUNT,
         negative_captions=False,
         block_embeddings=None
     )
@@ -211,8 +210,59 @@ def creation_of_parameters():
         persistent_workers=True
     )
 
-    return pipe, device, id_to_char, char_to_id, tile_descriptors, args.num_tiles, dataloader
+    if args.caption is None or args.caption == "":
+        # Load captions from JSON file if no caption is provided
+        caption = load_captions_from_json(args.json)
+        if not caption:
+            print("No captions found in the provided JSON file.")
+            return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, None
+    else:
+        # If a caption is provided, split it into phrases and generate permutations
+        caption = args.caption
 
+    return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader
+
+def statsistics_of_captions(captions, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
+    """
+    Calculate statistics of the captions.
+    Returns average, standard deviation, minimum, maximum, and median of caption scores.
+    """
+    args = parse_args()
+    if not captions:
+        print("No captions found in the provided JSON file.")
+        return
+    print(f"\nLoaded {len(captions)} captions from {args.json}")
+
+    scores = permutation_caption_scores_for_data(
+        pipe,
+        captions,
+        device,
+        num_tiles,
+        id_to_char,
+        char_to_id,
+        tile_descriptors,
+        inference_steps=args.inference_steps,
+        guidance_scale=args.guidance_scale,
+        seed=args.seed,
+        describe_absence=args.describe_absence,
+        height=common_settings.MARIO_HEIGHT,
+        width=common_settings.MARIO_WIDTH,
+        trials=args.trials
+    )
+    avg_score = np.mean(scores)
+    std_dev_score = np.std(scores)
+    min_score = np.min(scores)
+    max_score = np.max(scores)
+    median_score = np.median(scores)
+    
+    print("\n-----Scores for each caption permutation-----")
+    for i, score in enumerate(scores):
+        print(f"Scores for caption {i + 1}:", score)
+    print(f"Average score: {avg_score:.4f}")
+    print(f"Standard deviation: {std_dev_score:.4f}")
+    print(f"Minimum score: {min_score:.4f}")
+    print(f"Maximum score: {max_score:.4f}")
+    print(f"Median score: {median_score:.4f}")
 
 def main():
     pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader = creation_of_parameters()
@@ -229,7 +279,7 @@ def main():
         pipe,
         args.caption,
         device,
-        args.num_tiles,
+        num_tiles,
         id_to_char,
         char_to_id,
         tile_descriptors,
@@ -244,32 +294,9 @@ def main():
 
     print("\nPermutation average:", permutation_average)
 
-    captions = load_captions_from_json(args.json)
-    if not captions:
-        print("No captions found in the provided JSON file.")
-        return
-    print(f"\nLoaded {len(captions)} captions from {args.json}")
-
-    scores = permutation_caption_scores_for_data(
-        pipe,
-        captions,
-        device,
-        args.num_tiles,
-        id_to_char,
-        char_to_id,
-        tile_descriptors,
-        inference_steps=args.inference_steps,
-        guidance_scale=args.guidance_scale,
-        seed=args.seed,
-        describe_absence=args.describe_absence,
-        height=common_settings.MARIO_HEIGHT,
-        width=common_settings.MARIO_WIDTH,
-        trials=args.trials
-    )
-
-    print("\n-----Scores for each caption permutation-----")
-    for i, score in enumerate(scores):
-        print(f"Scores for caption {i + 1}:", score)
+    if args.caption is None or args.caption == "":
+        captions = load_captions_from_json(args.json)
+        statsistics_of_captions(captions, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
 
     visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
     caption_folder = args.caption.replace(" ", "_").replace(".", "_")
