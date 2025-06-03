@@ -10,6 +10,7 @@ from typing import List, Dict, Sequence, TypeVar, Union
 import sys
 import os
 import traceback
+from interactive_tile_level_generator import compare_captions
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,10 +33,9 @@ tileset_path = os.path.join(
     'smb.json'
 )
 
-print(f"Looking for tileset at: {os.path.abspath(tileset_path)}")  # Debug print
-
+# Ensure the tileset path exists
 try:
-    title_chars, id_to_char, char_to_id, title_descriptors = extract_tileset(tileset_path)
+    title_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 except FileNotFoundError:
     print("\nError: Could not find tileset file!")
     print("\nExpected directory structure:")
@@ -140,41 +140,49 @@ def average_min_edit_distance(level_collection: List[List[List[int]]]) -> float:
         
     return total_min_distance / len(level_collection)
 
-# DELETE
-def test_edit_distances():
-    """Test the edit distance functions on SMB1 levels"""
+def average_generated_edit_distance(
+    generated_levels: List[List[List[int]]],
+    game_levels: List[List[List[int]]]
+) -> float:
+    """
+    Calculate the average minimum edit distance between generated levels and game levels
+
+    Args:
+        generated_levels (List[List[List[int]]]): Generated level dataset
+        game_levels (List[List[List[int]]]): Game level dataset
+
+    Returns:
+        float: the average minimum edit distance between generated levels and game levels
+    """
+    if not generated_levels or not game_levels:
+        print("Warning: One or both level lists are empty. Returning 0.0")
+        return 0.0
     
-    # Load some test levels
-    with open("SMB1_LevelsAndCaptions-regular.json", 'r') as f:
-        data = json.load(f)
-        levels = [entry['scene'] for entry in data if 'scene' in entry][:20]  # Take first 5 levels
+    average_distance = 0.0
+    
+    for level in generated_levels:
+        average_distance += min_edit_distance(level, game_levels) # Calculate the min edit distance for each generated level
         
-    print("\nTesting edit_distance:")
-    print("-" * 30)
-    # Test edit_distance between first two levels
-    try:
-        dist = edit_distance(levels[0], levels[16])
-        print(f"Edit distance between level 0 and 1: {dist}")
-    except Exception as e:
-        print(f"Error computing edit_distance: {e}")
-        
-    print("\nTesting min_edit_distance:")
-    print("-" * 30)
-    # Test min_edit_distance for first level against others
-    try:
-        min_dist = min_edit_distance(levels[0], levels[1:])
-        print(f"Min edit distance for level 0: {min_dist}")
-    except Exception as e:
-        print(f"Error computing min_edit_distance: {e}")
-        
-    print("\nTesting average_min_edit_distance:")
-    print("-" * 30)
-    # Test average minimum edit distance across all levels
-    try:
-        avg_dist = average_min_edit_distance(levels)
-        print(f"Average minimum edit distance: {avg_dist}")
-    except Exception as e:
-        print(f"Error computing average_min_edit_distance: {e}")
+    average_distance /= len(generated_levels)  # Average over all generated levels
+    return average_distance
+    
+
+def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
+    """
+    Remove captions that only describe the absence of features.
+    
+    Args:
+        captions: List of caption strings
+        feature: Feature to check for absence caption(e.g. "pipe" or "cannon")
+    Returns:
+        List of captions excluding absence descriptions like "no broken pipes"
+    """
+    # Clean captions by removing "no broken" phrases. Does not remove the caption, rather changes it
+    cleaned_captions = [
+        caption.replace(f"no broken {feature}s", "").replace(f"no broken {feature}", "")
+        for caption in captions
+    ]
+    return cleaned_captions
 
 def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
     """
@@ -187,11 +195,11 @@ def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
     Returns:
         Percentage of captions mentioning broken feature
     """
-    # Clean captions by removing "no broken" phrases
-    cleaned_captions = [
-        caption.replace(f"no broken {feature}s", "").replace(f"no broken {feature}", "")
-        for caption in captions
-    ]
+    # Remove absence captions first
+    cleaned_captions = remove_absence_captions(captions, feature)
+    if not cleaned_captions:
+        print(f"Warning: No captions found after cleaning for feature '{feature}'")
+        return 0.0
     
     # Count mentions of broken feature
     broken_count = sum(
@@ -199,7 +207,8 @@ def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
         for caption in cleaned_captions
     )
     
-    return (broken_count / len(captions)) * 100 if captions else 0.0
+    # Returns percent of broken feature mentions over
+    return (broken_count / len(cleaned_captions)) * 100 
 
 def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
     """
@@ -212,7 +221,12 @@ def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
     Returns:
         Percentage of scenes with broken feature
     """
-    captions = [entry['caption'] for entry in data if 'caption' in entry]
+    captions = [entry['caption'] for entry in data if 'caption' in entry] # isolate captions
+    
+    if not captions: # Exception handling for no captions
+        print(f"Warning: No captions found in data for feature '{feature}'")
+        return 0.0
+    
     return count_broken_feature_mentions(captions, feature)
 
 def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: str) -> float:
@@ -226,16 +240,23 @@ def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: 
     Returns:
         Percentage of scenes with broken feature
     """
-    captions = [
+    captions = [ # Generate captions for each scene
         assign_caption(
             scene,
             id_to_char,
-            title_descriptors,
+            char_to_id,
+            tile_descriptors,
             describe_locations=False,
             describe_absence=False
         ) 
         for scene in scenes
     ]
+    
+    if not captions: # Exception handling for no captions
+        print(f"Warning: No captions generated for scenes with feature '{feature}'")
+        return 0.0
+    
+    # Use the generated captions to cound broken feature mentions
     return count_broken_feature_mentions(captions, feature)
 
 # Convenience functions for pipes specifically
@@ -282,46 +303,6 @@ def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int
     else:
         return analyze_broken_features_from_scenes(data, "cannon")
     
-def analyze_scene_captions_from_json(json_path: str, feature: str) -> float:
-    """
-    Analyze broken features in scenes from a JSON file containing scene/caption pairs
-    
-    Args:
-        json_path: Path to JSON file containing list of scene/caption dictionaries
-        feature: Feature to check ("pipe" or "cannon")
-    
-    Returns:
-        Percentage of scenes with broken feature
-        
-    Raises:
-        FileNotFoundError: If JSON file doesn't exist
-        KeyError: If JSON entries don't contain 'caption' field
-    """
-    try:
-        with open(json_path, 'r') as f:
-            data = json.load(f)
-            
-        if not isinstance(data, list):
-            raise ValueError("JSON file must contain a list of scene/caption dictionaries")
-            
-        # Extract captions, skipping entries without captions
-        captions = [entry['caption'] for entry in data if 'caption' in entry]
-        
-        if not captions:
-            print(f"Warning: No captions found in {json_path}")
-            return 0.0
-            
-        return count_broken_feature_mentions(captions, feature)
-        
-    except FileNotFoundError:
-        print(f"Error: File {json_path} not found")
-        raise
-    except json.JSONDecodeError:
-        print(f"Error: File {json_path} is not valid JSON")
-        raise
-    except KeyError as e:
-        print(f"Error: Invalid data format - missing caption field")
-        raise
     
 def analyze_phrase_targeting(
     prompt_caption_pairs: List[tuple[str, str]],
@@ -376,7 +357,55 @@ def analyze_phrase_targeting(
     
     return (true_positives, false_positives, true_negatives, false_negatives)
 
-# TODO: implement strict and non-strict phrase targeting metrics
+def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> float:
+    """
+    Calculate the percentage of perfect matches between prompts and captions.
+    
+    Args:
+        prompt_caption_pairs: List of (input_prompt, generated_caption) pairs
+    
+    Returns:
+        Percentage of perfect matches
+    """
+    if not prompt_caption_pairs:
+        raise ValueError("The list of prompt-caption pairs cannot be empty")
+    
+    total_pairs = len(prompt_caption_pairs)
+    perfect_match_count = 0
+    partial_match_count = 0
+    no_match_count = 0
+    
+    for prompt, caption in prompt_caption_pairs:
+        if not isinstance(prompt, str) or not isinstance(caption, str):
+            raise ValueError("Both prompt and caption must be strings")
+        compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(
+            prompt, caption, return_matches=True
+        )
+        
+        # Check for perfect match (all phrases match exactly)
+        if compare_score == 1.0 and not excess_phrases:
+            perfect_match_count += 1
+        elif exact_matches > 0:
+            # Check for at least one matching phrase
+            partial_match_count += 1
+        else:
+            # No matches at all
+            no_match_count += 1
+            
+    # Calculate percentages
+    perfect_match_percentage = (perfect_match_count / total_pairs) * 100
+    partial_match_percentage = (partial_match_count / total_pairs) * 100
+    no_match_percentage = (no_match_count / total_pairs) * 100
+    
+    return {
+        "perfect_match_percentage": perfect_match_percentage,
+        "perfect_match_count": perfect_match_count,
+        "partial_match_percentage": partial_match_percentage,
+        "partial_match_count": partial_match_count,
+        "no_match_percentage": no_match_percentage,
+        "no_match_count": no_match_count
+    }
+
 def calculate_phrase_metrics(
     prompt_caption_pairs: List[tuple[str, str]],
     target_phrase: str,
@@ -418,6 +447,8 @@ def calculate_phrase_metrics(
         "f1_score": f1,
         "total": total
     }
+    
+
 
 # TODO: GitHub Issue #56 - A* Solvability
 def astar_metrics():
@@ -434,121 +465,49 @@ if __name__ == "__main__":
     # Base directory for datasets
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-#     # List of all datasets to analyze
-#     datasets = [
-#         ("SMB1", "SMB1_LevelsAndCaptions-regular.json"),
-#         ("SMB2", "SMB2_LevelsAndCaptions-regular.json"),
-#         ("SML", "SML_LevelsAndCaptions-regular.json"),
-#         ("SMB1AND2", "SMB1AND2_LevelsAndCaptions-regular.json"),
-#         ("Mario-All", "Mario_LevelsAndCaptions-regular.json")
-#     ]
-#     #TESTING FOR EDIT DISTANCE #61
-#     print("Analyzing Edit Distances Across Datasets")
-#     print("=" * 50)
-    
-#     """
-#     Expected Results (based on previous runs):
-    
-#     Super Mario Bros 1:
-#     - Average Edit Distance: ~10.1
-    
-#     Super Mario Bros 2:
-#     - Average Edit Distance: ~11.3
-    
-#     Super Mario Land:
-#     - Average Edit Distance: ~14.6
 
-#     Combined SMB1+2:
-#     - Average Edit Distance: ~10.6
+    """
+    Expected Results (based on previous runs):
     
-#     All Mario Games:
-#     - Average Edit Distance: ~11.6
-#     """
+    Super Mario Bros 1:
+    - Average Edit Distance: ~10.1
     
-#     for game_name, dataset_file in datasets:
-#         dataset_path = os.path.join(base_dir, dataset_file)
-#         try:
-#             print(f"\nAnalyzing {game_name} levels:")
-#             print("-" * 30)
-
-#             # Load dataset
-#             with open(dataset_path, 'r') as f:
-#                 data = json.load(f)
-#                 levels = [entry['scene'] for entry in data if 'scene' in entry]
-
-#             print(f"Loaded {len(levels)} levels")
-
-#             # Continue with existing analysis
-#             # dist = edit_distance(levels[0], levels[1])
-#             # print(f"Edit distance (Level 0 to 1): {dist}")
-
-#             # min_dist = min_edit_distance(levels[0], levels[1:])
-#             # print(f"Min edit distance (Level 0): {min_dist}")
-
-#             avg_dist = average_min_edit_distance(levels)
-#             print(f"Average minimum edit distance: {avg_dist:.1f}")
-
-#         except FileNotFoundError:
-#             print(f"Dataset file not found: {dataset_file}")
-#         except Exception as e:
-#             print(f"Error processing {game_name}: {str(e)}\n")
-#             print("Stack trace:")
-#             import traceback
-#             traceback.print_exc()
-            
-            
-    # Test phrase targeting analysis
-    test_phrases = [
-        "full floor",
-        "several enemies",
-        "one cannon",
-        "one pipe",
-        "coin",
-        "tower"
-    ]
+    Super Mario Bros 2:
+    - Average Edit Distance: ~11.3
     
+    Super Mario Land:
+    - Average Edit Distance: ~14.6
+
+    Combined SMB1+2:
+    - Average Edit Distance: ~10.6
+    
+    All Mario Games:
+    - Average Edit Distance: ~11.6
+    """
+    # Paths to the JSON files
+    generated_file_path = "c:\\Users\\salas2\\Documents\\GitHub\\MarioDiffusion\\TESTING_Broken_Features.json"
+    game_levels_file_path = "c:\\Users\\salas2\\Documents\\GitHub\\MarioDiffusion\\datasets\\SMB1_LevelsAndCaptions-regular.json"
+
     try:
-        # Load dataset
-        dataset_path = os.path.join(base_dir, "datasets\\SMB1_LevelsAndCaptions-regular.json")
-        with open(dataset_path, 'r') as f:
-            data = json.load(f)
-            # Create pairs from data
-            pairs = [(entry['caption'], entry['caption']) 
-                    for entry in data 
-                    if 'caption' in entry]
-        
-        print(f"\nAnalyzing {len(pairs)} prompt-caption pairs")
-        
-        for phrase in test_phrases:
-            print(f"\n{'-' * 30}")
-            print(f"Analyzing phrase: '{phrase}' (Strict Mode)")
-            
-            # Strict mode
-            metrics_strict = calculate_phrase_metrics(pairs, phrase, strict=True)
-            print(f"Strict Mode Results:")
-            print(f"Total samples analyzed: {metrics_strict['total']}")
-            print(f"True Positives:  {metrics_strict['true_positives']} ({metrics_strict['true_positives']/metrics_strict['total']*100:.1f}%)")
-            print(f"False Positives: {metrics_strict['false_positives']} ({metrics_strict['false_positives']/metrics_strict['total']*100:.1f}%)")
-            print(f"True Negatives:  {metrics_strict['true_negatives']} ({metrics_strict['true_negatives']/metrics_strict['total']*100:.1f}%)")
-            print(f"False Negatives: {metrics_strict['false_negatives']} ({metrics_strict['false_negatives']/metrics_strict['total']*100:.1f}%)")
-            print(f"Precision: {metrics_strict['precision']:.3f}")
-            print(f"Recall:    {metrics_strict['recall']:.3f}")
-            print(f"F1 Score:  {metrics_strict['f1_score']:.3f}")
-            
-            print(f"\nAnalyzing phrase: '{phrase}' (Non-Strict Mode)")
-            
-            # Non-strict mode
-            metrics_non_strict = calculate_phrase_metrics(pairs, phrase, strict=False)
-            print(f"Non-Strict Mode Results:")
-            print(f"Total samples analyzed: {metrics_non_strict['total']}")
-            print(f"True Positives:  {metrics_non_strict['true_positives']} ({metrics_non_strict['true_positives']/metrics_non_strict['total']*100:.1f}%)")
-            print(f"False Positives: {metrics_non_strict['false_positives']} ({metrics_non_strict['false_positives']/metrics_non_strict['total']*100:.1f}%)")
-            print(f"True Negatives:  {metrics_non_strict['true_negatives']} ({metrics_non_strict['true_negatives']/metrics_non_strict['total']*100:.1f}%)")
-            print(f"False Negatives: {metrics_non_strict['false_negatives']} ({metrics_non_strict['false_negatives']/metrics_non_strict['total']*100:.1f}%)")
-            print(f"Precision: {metrics_non_strict['precision']:.3f}")
-            print(f"Recall:    {metrics_non_strict['recall']:.3f}")
-            print(f"F1 Score:  {metrics_non_strict['f1_score']:.3f}")
-            
+        # Load the generated dataset
+        with open(generated_file_path, "r") as generated_file:
+            generated_data = json.load(generated_file)
+            generated_levels = [entry["scene"] for entry in generated_data if "scene" in entry]
+
+        # Load the actual game levels dataset
+        with open(game_levels_file_path, "r") as game_levels_file:
+            game_data = json.load(game_levels_file)
+            game_levels = [entry["scene"] for entry in game_data if "scene" in entry]
+
+        # Test average_generated_edit_distance
+        print(f"Loaded {len(generated_levels)} generated levels and {len(game_levels)} game levels.")
+        print(f"Calculating average min edit distance between generated levels and game levels...")
+        avg_edit_distance = average_generated_edit_distance(generated_levels, game_levels)
+        print(f"Average Generated Edit Distance: {avg_edit_distance:.2f}")
+
+    except FileNotFoundError as e:
+        print(f"Error: File not found - {e.filename}")
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON format - {e}")
     except Exception as e:
-        print(f"Error in phrase targeting analysis: {str(e)}")
-        traceback.print_exc()
+        print(f"An unexpected error occurred: {e}")
