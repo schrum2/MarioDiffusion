@@ -11,7 +11,7 @@ import sys
 import os
 import traceback
 from util.sampler import MMNEATSimulator
-from interactive_tile_level_generator import compare_captions
+from captions.caption_match import compare_captions
 from util.sampler import scene_to_ascii
 
 # Add the parent directory to the system path to import the extract_tileset function
