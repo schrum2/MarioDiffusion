@@ -12,6 +12,7 @@ import os
 import traceback
 from util.sampler import MMNEATSimulator
 from interactive_tile_level_generator import compare_captions
+from util.sampler import scene_to_ascii
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -450,7 +451,7 @@ def calculate_phrase_metrics(
     }
 
 def astar_metrics(
-    levels: list[list[str]],
+    levels: list[list[int]],
     num_runs: int = 3,
     simulator_kwargs: dict = None
 ) -> list[dict]:
@@ -459,13 +460,15 @@ def astar_metrics(
     to return averaged performance metrics.
     
     Args:
-        levels: A list of levels in the list of strings format used by MarioGPT
+        levels: A list of levels in the list of integers format (JSON formatted level data)
         num_runs: Run SNES A* code for each level num_runs times
         simulator_kwargs: Additional keyword arguments to pass to the MMNEATSimulator constructor
     
     Returns:
         A list of dictionaries of organized results indicating how A* performed on each level
     """
+    # Convert levels into a list of lists of strings using scene_to_ascii(scene, self.id_to_char)
+    levels = [scene_to_ascii(level, id_to_char) for level in levels]
 
     simulator_kwargs = simulator_kwargs or {}
     results = []
@@ -475,7 +478,10 @@ def astar_metrics(
         for run in range(num_runs):
             try:
                 sim = MMNEATSimulator(level, **simulator_kwargs)
-                output = sim.astar(render=False)
+                # # Run A* without rendering
+                # output = sim.astar(render=False)
+                # Run A* with rendering (commented out for performance)
+                output = sim.astar()
             except Exception as e:
                 print(f"Error running A* on level {idx}, run {run}: {e}")
                 continue
@@ -501,20 +507,20 @@ def astar_metrics(
                             pass
                     metrics[key] = value
 
-            # # for debugging
-            # print(f"Run {run + 1} metrics for level {idx + 1}")
-            # print("computeDistancePassed: {:.1f}".format(metrics.get("computeDistancePassed", 0)))
-            # print("jumpActionsPerformed: {}".format(metrics.get("jumpActionsPerformed", 0)))
-            # print("killsTotal: {}".format(metrics.get("killsTotal", 0)))
-            # print("lengthOfLevelPassedCells: {}".format(metrics.get("lengthOfLevelPassedCells", 0)))
-            # print("lengthOfLevelPassedPhys: {:.1f}".format(metrics.get("lengthOfLevelPassedPhys", 0)))
-            # print("totalLengthOfLevelCells: {}".format(metrics.get("totalLengthOfLevelCells", 0)))
-            # print("totalLengthOfLevelPhys: {:.1f}".format(metrics.get("totalLengthOfLevelPhys", 0)))
-            # print("numberOfGainedCoins: {}".format(metrics.get("numberOfGainedCoins", 0)))
-            # print("timeSpentOnLevel: {}".format(metrics.get("timeSpentOnLevel", 0)))
-            # print("computeBasicFitness: {:.4f}".format(metrics.get("computeBasicFitness", 0)))
-            # print("computeJumpFraction: {:.4f}".format(metrics.get("computeJumpFraction", 0)))
-            # print("beaten: {}\n".format(metrics.get("beaten", False)))
+            # for debugging
+            print(f"Run {run + 1} metrics for level {idx + 1}")
+            print("computeDistancePassed: {:.1f}".format(metrics.get("computeDistancePassed", 0)))
+            print("jumpActionsPerformed: {}".format(metrics.get("jumpActionsPerformed", 0)))
+            print("killsTotal: {}".format(metrics.get("killsTotal", 0)))
+            print("lengthOfLevelPassedCells: {}".format(metrics.get("lengthOfLevelPassedCells", 0)))
+            print("lengthOfLevelPassedPhys: {:.1f}".format(metrics.get("lengthOfLevelPassedPhys", 0)))
+            print("totalLengthOfLevelCells: {}".format(metrics.get("totalLengthOfLevelCells", 0)))
+            print("totalLengthOfLevelPhys: {:.1f}".format(metrics.get("totalLengthOfLevelPhys", 0)))
+            print("numberOfGainedCoins: {}".format(metrics.get("numberOfGainedCoins", 0)))
+            print("timeSpentOnLevel: {}".format(metrics.get("timeSpentOnLevel", 0)))
+            print("computeBasicFitness: {:.4f}".format(metrics.get("computeBasicFitness", 0)))
+            print("computeJumpFraction: {:.4f}".format(metrics.get("computeJumpFraction", 0)))
+            print("beaten: {}\n".format(metrics.get("beaten", False)))
 
             run_metrics.append(metrics)
 
@@ -535,20 +541,20 @@ def astar_metrics(
             else:
                 avg_metrics[key] = values  # fallback: list of values
 
-        # # for debugging
-        # print(f"Average metrics for level {idx + 1}\n")
-        # print("computeDistancePassed: {:.1f}".format(avg_metrics.get("computeDistancePassed", 0)))
-        # print("jumpActionsPerformed: {}".format(avg_metrics.get("jumpActionsPerformed", 0)))
-        # print("killsTotal: {}".format(avg_metrics.get("killsTotal", 0)))
-        # print("lengthOfLevelPassedCells: {}".format(avg_metrics.get("lengthOfLevelPassedCells", 0)))
-        # print("lengthOfLevelPassedPhys: {:.1f}".format(avg_metrics.get("lengthOfLevelPassedPhys", 0)))
-        # print("totalLengthOfLevelCells: {}".format(avg_metrics.get("totalLengthOfLevelCells", 0)))
-        # print("totalLengthOfLevelPhys: {:.1f}".format(avg_metrics.get("totalLengthOfLevelPhys", 0)))
-        # print("numberOfGainedCoins: {}".format(avg_metrics.get("numberOfGainedCoins", 0)))
-        # print("timeSpentOnLevel: {}".format(avg_metrics.get("timeSpentOnLevel", 0)))
-        # print("computeBasicFitness: {:.4f}".format(avg_metrics.get("computeBasicFitness", 0)))
-        # print("computeJumpFraction: {:.4f}".format(avg_metrics.get("computeJumpFraction", 0)))
-        # print("beaten: {}\n".format(avg_metrics.get("beaten", False)))
+        # for debugging
+        print(f"Average metrics for level {idx + 1}\n")
+        print("computeDistancePassed: {:.1f}".format(avg_metrics.get("computeDistancePassed", 0)))
+        print("jumpActionsPerformed: {}".format(avg_metrics.get("jumpActionsPerformed", 0)))
+        print("killsTotal: {}".format(avg_metrics.get("killsTotal", 0)))
+        print("lengthOfLevelPassedCells: {}".format(avg_metrics.get("lengthOfLevelPassedCells", 0)))
+        print("lengthOfLevelPassedPhys: {:.1f}".format(avg_metrics.get("lengthOfLevelPassedPhys", 0)))
+        print("totalLengthOfLevelCells: {}".format(avg_metrics.get("totalLengthOfLevelCells", 0)))
+        print("totalLengthOfLevelPhys: {:.1f}".format(avg_metrics.get("totalLengthOfLevelPhys", 0)))
+        print("numberOfGainedCoins: {}".format(avg_metrics.get("numberOfGainedCoins", 0)))
+        print("timeSpentOnLevel: {}".format(avg_metrics.get("timeSpentOnLevel", 0)))
+        print("computeBasicFitness: {:.4f}".format(avg_metrics.get("computeBasicFitness", 0)))
+        print("computeJumpFraction: {:.4f}".format(avg_metrics.get("computeJumpFraction", 0)))
+        print("beaten: {}\n".format(avg_metrics.get("beaten", False)))
 
         results.append(avg_metrics)
 
