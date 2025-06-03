@@ -191,6 +191,48 @@ def permutation_caption_score(
     return avg_score
 
 
+def permutation_caption_scores_for_data(
+    pipe,
+    captions,
+    device,
+    num_tiles,
+    id_to_char,
+    char_to_id,
+    tile_descriptors,
+    inference_steps=25,
+    guidance_scale=3.5,
+    seed=42,
+    describe_absence=False,
+    height=None,
+    width=None,
+    trials=1
+):
+    """
+    Compute permutation_caption_score for each caption in captions.
+    Returns a list of average scores, one per caption.
+    """
+    scores = []
+    for caption in captions:
+        avg_score = permutation_caption_score(
+            pipe=pipe,
+            caption=caption,
+            device=device,
+            num_tiles=num_tiles,
+            id_to_char=id_to_char,
+            char_to_id=char_to_id,
+            tile_descriptors=tile_descriptors,
+            inference_steps=inference_steps,
+            guidance_scale=guidance_scale,
+            seed=seed,
+            describe_absence=describe_absence,
+            height=height,
+            width=width,
+            trials=trials
+        )
+        scores.append(avg_score)
+    return scores
+
+
 def main():
     args = parse_args()
     device = setup_environment(args.seed)
@@ -257,7 +299,6 @@ def main():
         persistent_workers=True
     )
 
-
     (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
     print(f"\nAverage score across all captions: {avg_score:.4f}")
@@ -278,8 +319,26 @@ def main():
         trials=args.trials
     )
     print("\nPermutation average:", permutation_average)
-    print("\nAll samples shape:", all_samples.shape)
-    print("\nAll prompts:", all_prompts)
+    captions = [args.caption, "full floor. one cannon. one question block.",]
+    scores = permutation_caption_scores_for_data(
+        pipe,
+        captions,
+        device,
+        args.num_tiles,
+        id_to_char,
+        char_to_id,
+        tile_descriptors,
+        inference_steps=args.inference_steps,
+        guidance_scale=args.guidance_scale,
+        seed=args.seed,
+        describe_absence=args.describe_absence,
+        height=common_settings.MARIO_HEIGHT,
+        width=common_settings.MARIO_WIDTH,
+        trials=args.trials
+    )
+    print("\n-----Scores for each caption-----")
+    for i, score in enumerate(scores):
+        print(f"Scores for caption {i + 1}:", score)
 
     visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
     caption_folder = args.caption.replace(" ", "_").replace(".", "_")
@@ -290,6 +349,9 @@ def main():
         output_dir=output_dir,
         prompts=all_prompts[0] if all_prompts else "No prompts available"
     )
+
+    print("\nAll samples shape:", all_samples.shape)
+    print("\nAll prompts:", all_prompts)
     print(f"\nVisualizations saved to: {output_dir}")
 
 if __name__ == "__main__":
