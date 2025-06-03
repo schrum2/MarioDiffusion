@@ -18,8 +18,6 @@ import torch
 from tqdm import tqdm
 
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
-from create_ascii_captions import assign_caption
-from captions.caption_match import compare_captions  # adjust import if needed
 from captions.util import extract_tileset
 
 def parse_args():
@@ -62,7 +60,8 @@ def permutation_caption_score(
     height=None,
     width=None,
     output=False,
-    trials=1
+    trials=1,
+    max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
 ):
     if isinstance(caption, list):
         # captions is a list of caption strings
@@ -70,14 +69,13 @@ def permutation_caption_score(
             [p.strip() for p in cap.split('.') if p.strip()]
             for cap in caption
         ]
-        permutations = [
-            list(itertools.permutations(phrases)) for phrases in phrases_per_caption
-        ]
-
-        # TODO: Have parameter saying max number of permutations to pick (default 10).
-        # If num permutations is greater than this, randomly sample a subset.
-        # Using random.sample or random.choice 
-
+        permutations = []
+        for phrases in phrases_per_caption:
+            perms = list(itertools.permutations(phrases))
+            if len(perms) > max_permutations:
+                perms = random.sample(perms, max_permutations)
+            permutations.append(perms)
+        perm_captions = ['.'.join(perm) + '.' for perms in permutations for perm in perms]
     elif isinstance(caption, str):
         # Split caption into phrases and get all permutations
         phrases = [p.strip() for p in caption.split('.') if p.strip()]
@@ -116,7 +114,8 @@ def permutation_caption_scores_for_data(
     describe_absence=False,
     height=None,
     width=None,
-    trials=1
+    trials=1,
+    max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
 ):
     """
     Compute permutation_caption_score for each caption in captions.
@@ -141,6 +140,7 @@ def permutation_caption_scores_for_data(
             height=height,
             width=width,
             trials=trials,
+            max_permutations=max_permutations
         )
         scores.append(avg_score)
     return scores
@@ -152,7 +152,7 @@ def load_captions_from_json(json_path):
     captions = [entry["caption"] for entry in data if "caption" in entry]
     return captions
 
-def creation_of_parameters(caption):
+def creation_of_parameters(caption, max_permutations=10):
     args = parse_args()
     device = setup_environment(args.seed)
 
@@ -178,13 +178,13 @@ def creation_of_parameters(caption):
             [p.strip() for p in cap.split('.') if p.strip()]
             for cap in caption
         ]
-        permutations = [
-            list(itertools.permutations(phrases)) for phrases in phrases_per_caption
-        ]
-
-        for perms in permutations:           # for each caption's permutations
-            for perm in perms:               # for each permutation of that caption
-                perm_captions.append('.'.join(perm) + '.')
+        permutations = []
+        for phrases in phrases_per_caption:
+            perms = list(itertools.permutations(phrases))
+            if len(perms) > max_permutations:
+                perms = random.sample(perms, max_permutations)
+            permutations.append(perms)
+        perm_captions = ['.'.join(perm) + '.' for perms in permutations for perm in perms]
     elif isinstance(caption, str):
         # Split caption into phrases and get all permutations
         phrases = [p.strip() for p in caption.split('.') if p.strip()]
@@ -219,15 +219,6 @@ def creation_of_parameters(caption):
         persistent_workers=True
     )
 
-    if args.caption is None or args.caption == "":
-        # Load captions from JSON file if no caption is provided
-        caption = load_captions_from_json(args.json)
-        if not caption:
-            print("No captions found in the provided JSON file.")
-            return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, None
-    else:
-        # If a caption is provided, split it into phrases and generate permutations
-        caption = args.caption
 
     return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader
 
@@ -257,7 +248,8 @@ def statsistics_of_captions(captions, dataloader, pipe=None, device=None, id_to_
         describe_absence=args.describe_absence,
         height=common_settings.MARIO_HEIGHT,
         width=common_settings.MARIO_WIDTH,
-        trials=args.trials
+        trials=args.trials,
+        max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
     )
     avg_score = np.mean(scores)
     std_dev_score = np.std(scores)
@@ -268,6 +260,8 @@ def statsistics_of_captions(captions, dataloader, pipe=None, device=None, id_to_
     print("\n-----Scores for each caption permutation-----")
     for i, score in enumerate(scores):
         print(f"Scores for caption {i + 1}:", score)
+
+    print("\n-----Statistics of captions-----")
     print(f"Average score: {avg_score:.4f}")
     print(f"Standard deviation: {std_dev_score:.4f}")
     print(f"Minimum score: {min_score:.4f}")
@@ -280,7 +274,8 @@ def main():
         caption = load_captions_from_json(args.json)
     else:
         caption = args.caption
-    pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader = creation_of_parameters(caption)
+
+    pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader = creation_of_parameters(caption, max_permutations=10)
     if not pipe:
         print("Failed to create pipeline.")
         return
@@ -290,7 +285,7 @@ def main():
     print(f"\nAverage score across all captions: {avg_score:.4f}")
 
     if args.caption is None or args.caption == "":
-        caption = load_captions_from_json(args.json)
+        #caption = load_captions_from_json(args.json)
         statsistics_of_captions(caption, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
         (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
@@ -311,7 +306,8 @@ def main():
         describe_absence=args.describe_absence,
         height=common_settings.MARIO_HEIGHT,
         width=common_settings.MARIO_WIDTH,
-        trials=args.trials
+        trials=args.trials,
+        max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
     )
 
     print("\nPermutation average:", permutation_average)
