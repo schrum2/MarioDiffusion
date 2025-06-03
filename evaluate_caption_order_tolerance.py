@@ -126,6 +126,7 @@ def permutation_caption_scores_for_data(
     """
     scores = []
     for caption in captions:
+        print(f"Evaluating caption: {caption}")
         avg_score = permutation_caption_score(
             pipe=pipe,
             caption=caption,
@@ -145,6 +146,12 @@ def permutation_caption_scores_for_data(
         scores.append(avg_score)
     return scores
 
+def load_captions_from_json(json_path):
+    with open(json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    # If the JSON is a list of dicts with a "caption" key
+    captions = [entry["caption"] for entry in data if "caption" in entry]
+    return captions
 
 def main():
     args = parse_args()
@@ -205,7 +212,7 @@ def main():
     # Create dataloader
     dataloader = DataLoader(
         dataset,
-        batch_size=len(perm_captions),
+        batch_size=min(16, len(perm_captions)),
         shuffle=False,
         num_workers=4,
         drop_last=False,
@@ -234,7 +241,11 @@ def main():
 
     print("\nPermutation average:", permutation_average)
 
-    captions = [args.caption, "full floor. one cannon. one question block.",]
+    captions = load_captions_from_json(args.json)
+    if not captions:
+        print("No captions found in the provided JSON file.")
+        return
+    print(f"\nLoaded {len(captions)} captions from {args.json}")
     scores = permutation_caption_scores_for_data(
         pipe,
         captions,
