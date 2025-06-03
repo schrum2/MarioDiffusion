@@ -529,8 +529,9 @@ tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
 if len(sys.argv) > 3:
     tileset_path = sys.argv[3]
 
-if len(sys.argv) > 1:
-    app.load_data(sys.argv[1])
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        app.load_data(sys.argv[1])
 
 if len(sys.argv) > 2:
     app.load_model(sys.argv[2])

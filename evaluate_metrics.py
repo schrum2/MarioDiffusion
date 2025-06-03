@@ -1,85 +1,105 @@
 import os
-import sys
 import json
-
-from metrics import (
+import argparse
+from util.metrics import (
     average_min_edit_distance,
+    average_generated_edit_distance,
     count_broken_feature_mentions,
-    analyze_phrase_targeting
+    analyze_phrase_targeting,
+    percent_perfect_match,
 )
 from captions.caption_match import TOPIC_KEYWORDS
 
-def evaluate_metrics(json_dir, output_file):
-    """
-    Evaluate metrics for JSON level files in a directory and save results to a file.
 
-    Args:
-        json_dir (str): Path to the directory containing JSON level files.
-        output_file (str): Path to save the evaluation results.
-    """
-    results = []
+def evaluate_all_levels(json_file_path, output_file):
+    try:
+        with open(json_file_path, "r") as f:
+            data = json.load(f)
+        print(f"Successfully loaded data from {json_file_path}")
 
-    # Iterate through all JSON files in the directory
-    for file_name in os.listdir(json_dir):
-        if file_name.endswith(".json"):
-            file_path = os.path.join(json_dir, file_name)
-            print(f"Processing {file_path}...")
+        levels = [entry["scene"] for entry in data if "scene" in entry]
+        captions = [entry["caption"] for entry in data if "caption" in entry]
 
-            with open(file_path, "r") as f:
-                data = json.load(f)
+        print(f"Found {len(levels)} levels and {len(captions)} captions.")
 
-            # Extract levels and captions
-            levels = [entry["scene"] for entry in data if "scene" in entry]
-            captions = [entry["caption"] for entry in data if "caption" in entry]
+        metrics = {
+            "file_name": os.path.basename(json_file_path),
+            "average_min_edit_distance": average_min_edit_distance(levels),
+            "broken_pipes_percentage": count_broken_feature_mentions(captions, "pipe"),
+            "broken_cannons_percentage": count_broken_feature_mentions(captions, "cannon"),
+        }
+        
+        print("Calculating phrase metrics...")
 
-            # Calculate metrics
-            metrics = {
-                "file_name": file_name,
-                "average_min_edit_distance": average_min_edit_distance(levels),
-                "broken_pipes_percentage": count_broken_feature_mentions(captions, "pipe"),
-                "broken_cannons_percentage": count_broken_feature_mentions(captions, "cannon"),
+        phrase_metrics = {}
+        for keyword in TOPIC_KEYWORDS:
+            tp, fp, tn, fn = analyze_phrase_targeting(
+                [(caption, caption) for caption in captions], keyword, strict=False
+            )
+            phrase_metrics[keyword] = {
+                "true_positives": tp,
+                "false_positives": fp,
+                "true_negatives": tn,
+                "false_negatives": fn,
             }
+        metrics["phrase_targeting"] = phrase_metrics
 
-            # Analyze phrase targeting for all TOPIC_KEYWORDS
-            phrase_metrics = {}
-            for keyword in TOPIC_KEYWORDS:
-                tp, fp, tn, fn = analyze_phrase_targeting(
-                    [(caption, caption) for caption in captions], keyword, strict=False
-                )
-                phrase_metrics[keyword] = {
-                    "true_positives": tp,
-                    "false_positives": fp,
-                    "true_negatives": tn,
-                    "false_negatives": fn,
-                }
-            metrics["phrase_targeting"] = phrase_metrics
+        match_metrics = percent_perfect_match([(caption, caption) for caption in captions])
+        metrics["perfect_match_metrics"] = match_metrics
 
-            # Append metrics to results
-            results.append(metrics)
+        with open(output_file, "w") as f:
+            json.dump(metrics, f, indent=2)
 
-    # Save results to the output file
-    with open(output_file, "w") as f:
-        json.dump(results, f, indent=2)
+        print(f"Metrics saved to {output_file}")
 
-    print(f"Metrics saved to {output_file}")
-    
-    
-if __name__ == "__main__":
-    if len(sys.argv) < 3: # If fewer than 3 arguments are passed then exit
-        print("Usage: python evaluate_metrics.py <model_path> <type>")
-        sys.exit(1)
-    
-    model_path = sys.argv[1]
-    eval_type = sys.argv[2]  # "regular" or "absence"
+    except FileNotFoundError:
+        print(f"Error: File not found - {json_file_path}")
+    except json.JSONDecodeError:
+        print(f"Error: Invalid JSON format in {json_file_path}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+
+def evaluate_metrics(model_path):
+    if not os.path.exists(model_path):
+        print(f"Error: Path does not exist - {model_path}")
+        return
 
     real_dir = os.path.join(model_path, "samples-from-real-captions")
     random_dir = os.path.join(model_path, "samples-from-random-captions")
 
-    # Build paths for real and random captions
-    real_output = os.path.join(model_path, f"evaluation_metrics-{eval_type}-real.json")
-    random_output = os.path.join(model_path, f"evaluation_metrics-{eval_type}-random.json")
+    if os.path.isdir(real_dir) and os.path.isdir(random_dir):
+        print("Detected Case 1: Subdirectories with `samples-from-real-captions` and `samples-from-random-captions`.")
 
-    
-    # Evaluate metrics for both real and random captions
-    evaluate_metrics(real_dir, real_output)
-    evaluate_metrics(random_dir, random_output)
+        real_json_path = os.path.join(real_dir, "all_levels.json")
+        real_output_path = os.path.join(real_dir, "evaluation_metrics.json")
+        evaluate_all_levels(real_json_path, real_output_path)
+
+        random_json_path = os.path.join(random_dir, "all_levels.json")
+        random_output_path = os.path.join(random_dir, "evaluation_metrics.json")
+        evaluate_all_levels(random_json_path, random_output_path)
+
+    elif os.path.isfile(os.path.join(model_path, "all_levels.json")):
+        print("Detected Case 2: Directory directly containing `all_levels.json`.")
+
+        json_file_path = os.path.join(model_path, "all_levels.json")
+        output_file_path = os.path.join(model_path, "evaluation_metrics.json")
+        evaluate_all_levels(json_file_path, output_file_path)
+
+    else:
+        print(f"Error: Could not find `all_levels.json` in the expected structure under {model_path}.")
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Evaluate generated levels and captions.")
+    parser.add_argument("--model_path", type=str, help="Path to the model output directory containing all_levels.json or its subdirectories.")
+    # Add more arguments here in the future, for example:
+    # parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    # parser.add_argument("--output", type=str, help="Custom output file path")
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    evaluate_metrics(args.model_path)
