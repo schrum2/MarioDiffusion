@@ -1,11 +1,12 @@
 @echo off
 cd ..
 
+set default_out=datasets\Mar1and2_LevelsAndCaptions
+
 :: Merge SMB1 and SMB2 JSON datasets (assume SMB1 and SMB2 have already been processed)
 python combine_data.py datasets\\Mar1and2_Levels.json datasets\\SMB1_Levels.json datasets\\SMB2_Levels.json
 
 :: Generate captions for Mar1and2
-default_out=datasets\\Mar1and2_LevelsAndCaptions
 python create_ascii_captions.py --dataset datasets\\Mar1and2_Levels.json --output %default_out%-regular.json
 python create_ascii_captions.py --dataset datasets\\Mar1and2_Levels.json --output %default_out%-absence.json --describe_absence
 
