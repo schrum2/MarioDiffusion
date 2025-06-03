@@ -10,7 +10,7 @@ from typing import List, Dict, Sequence, TypeVar, Union
 import sys
 import os
 import traceback
-from interactive_tile_level_generator import compare_captions
+from captions.caption_match import compare_captions
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
