@@ -6,9 +6,11 @@ from collections import defaultdict
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import util.common_settings as common_settings  # adjust import if needed
-from level_dataset import LevelDataset
+from level_dataset import LevelDataset, visualize_samples, colors, mario_tiles  # adjust import if needed
 from torch.utils.data import DataLoader
 from evaluate_caption_adherence import calculate_caption_score_and_samples  # adjust import if needed
+import matplotlib.pyplot as plt
+import matplotlib
 
 import numpy as np
 import torch
@@ -135,7 +137,7 @@ def main():
     # After parsing permutations:
     all_captions = []
     for perm in permutations:
-        perm_caption = '. '.join(perm) + '.'
+        perm_caption = '. '.join(perm) + '. '
         for trial in range(args.trials):
             all_captions.append(perm_caption)
 
@@ -145,7 +147,7 @@ def main():
 
     perm_captions = []
     for perm in permutations:
-        perm_captions.append('. '.join(perm) + '.')
+        perm_captions.append('.'.join(perm) + '.')
 
 
     # Create a list of dicts as expected by LevelDataset
@@ -175,6 +177,12 @@ def main():
 
     (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
+    print(f"\nAverage score across all captions: {avg_score:.4f}")
+    print("\nAll samples shape:", all_samples.shape)
+    print("\nAll prompts:", all_prompts)
+
+    quit()
+
 
 #    for perm in permutations:
 #        perm_caption = '. '.join(perm) + '.'
@@ -197,9 +205,27 @@ def main():
 #            all_scores.append(score)
 #            print(f"  Trial {trial + 1}: Score = {score:.4f}")
 
+    print("\nall_samples shape:", all_samples.shape)
+    colorslist = colors()
+    custom_cmap = matplotlib.colors.ListedColormap(colorslist[:15])
+    
+    visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
+    caption_folder = args.caption.replace(" ", "_").replace(".", "_")
+    output_dir = os.path.join(visualizations_dir, caption_folder)
+
+    visualize_samples(
+        all_samples,
+        output_dir=output_dir,
+        prompts=all_prompts[0] if all_prompts else "No prompts available"
+    )
+    #print("\nall samples:", all_samples)
+    print("\nall_prompts length:", len(all_prompts))
+    print("\nall_prompts:", all_prompts)
+
     all_scores = []
     permutation_scores = defaultdict(list)
     for prompt, sample in zip(all_prompts, all_samples):
+        print(f"Prompt: {prompt}, sample shape: {sample}")
         # If sample is a batch (e.g., shape (13, 16, 16)), loop over each scene in the batch
         if isinstance(sample, torch.Tensor):
             sample = sample.detach().cpu().numpy()
@@ -238,9 +264,9 @@ def main():
     # Use your tokenizer as needed
 
     print("\n--- Summary ---")
-    print(permutation_scores)
+    #print(permutation_scores)
     for perm_caption, scores in permutation_scores.items():
-        print(f"Permutation: {perm_caption}\n  Average Score: {np.mean(scores):.4f}")
+        print(f"Permutation: {perm_caption}\n {scores} Average Score: {np.mean(scores):.4f}")
 
     print(f"\nOverall Average Across All Permutations and Trials: {np.mean(all_scores):.4f}")
 
