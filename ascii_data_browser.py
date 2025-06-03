@@ -11,6 +11,8 @@ from captions.util import extract_tileset
 import util.common_settings as common_settings
 import random
 import colorsys
+from util.sampler import scene_to_ascii
+from util.sampler import SampleOutput
 
 
 class TileViewer(tk.Tk):
@@ -196,10 +198,7 @@ class TileViewer(tk.Tk):
             )
             if file_path:
                 # Convert scene to character grid
-                char_grid = []
-                for row in scene:
-                    char_row = "".join([self.id_to_char[num] for num in row])
-                    char_grid.append(char_row)
+                char_grid = scene_to_ascii(scene, self.id_to_char)
                 # Write to file
                 try:
                     with open(file_path, "w") as f:
@@ -580,11 +579,7 @@ class TileViewer(tk.Tk):
     def play_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            from util.sampler import SampleOutput
-            char_grid = []
-            for row in scene:
-                char_row = "".join([self.id_to_char[num] for num in row])
-                char_grid.append(char_row)
+            char_grid = scene_to_ascii(scene, self.id_to_char)
             level = SampleOutput(level=char_grid)
             if hasattr(self, 'is_lode_runner') and self.is_lode_runner and not self.validate_lode_runner_level(scene):
                 print("Invalid Lode Runner level. Cannot play.")
@@ -596,11 +591,7 @@ class TileViewer(tk.Tk):
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            from util.sampler import SampleOutput
-            char_grid = []
-            for row in scene:
-                char_row = "".join([self.id_to_char[num] for num in row])
-                char_grid.append(char_row)
+            char_grid = scene_to_ascii(scene, self.id_to_char)
             level = SampleOutput(level=char_grid)
             level.run_astar()
 

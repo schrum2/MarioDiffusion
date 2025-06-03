@@ -15,6 +15,7 @@ from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import util.common_settings as common_settings
+from util.sampler import scene_to_ascii
 
 # Add the parent directory to sys.path so sibling folders can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -479,18 +480,12 @@ Average Segment Score: {avg_segment_score}"""
         if isinstance(idx_or_scene, int):
             tensor = torch.tensor(self.current_levels[idx_or_scene])
             tile_numbers = torch.argmax(tensor, dim=0).numpy()
-            char_grid = []
-            for row in tile_numbers:
-                char_row = "".join([self.id_to_char[num] for num in row])
-                char_grid.append(char_row)
+            char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
             # Assume idx_or_scene is a scene (list of lists of tile indices)
-            char_grid = []
-            for row in idx_or_scene:
-                char_row = "".join([self.id_to_char[num] for num in row])
-                char_grid.append(char_row)
+            char_grid = scene_to_ascii(idx_or_scene, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
       
