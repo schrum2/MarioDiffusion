@@ -17,10 +17,11 @@ from models.text_model import TransformerModel
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel
-from fdm import Gen
+from models.fdm import Gen
 from models.fdm_pipeline import FDMPipeline
 import util.common_settings as common_settings
 import models.general_training_helper as gen_train_help
+import models.sentence_transformers_helper as st_helper
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -34,8 +35,7 @@ def parse_args():
     parser.add_argument('--split', action='store_true', help='Enable train/val/test split') # TODO: Allow SMB1 data to be split into groups for training and testing
     
     # New text conditioning args
-    parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
-    parser.add_argument("--pretrained_language_model", type=str, default=None, help="Link to a pre-trained language model, everything after huggingface.co/. This will override the mlm_model_dir argument.")
+    parser.add_argument("--pretrained_language_model", type=str, default=None, help="Link to a pre-trained language model, everything after huggingface.co/.")
     
     # Model args
     parser.add_argument("--embedding_dim", type=int, default=384, help="Base size of the embedded tokens into the model")#TODO: not sure if this can be changed
@@ -128,13 +128,9 @@ def main():
         model_embedding_dim = text_encoder.config.hidden_size#TODO: not sure if this can be changed
         tokenizer = AutoTokenizer.from_pretrained(args.pretrained_language_model)
         print(f"Loaded text encoder from {args.pretrained_language_model}")
-    elif args.mlm_model_dir:
-        text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(accelerator.device)
-        text_encoder.eval()  # Set to evaluation mode
-        model_embedding_dim = text_encoder.embedding_dim#TODO: not sure if this can be changed
-        print(f"Loaded text encoder from {args.mlm_model_dir}")
+    else:
+        raise ValueError("You must provice a pretrained text embedding model!")
     
-    data_mode = "diff_text"
 
     # Load block embedding model if specified
     block_embeddings = None
@@ -154,7 +150,8 @@ def main():
             raise
     
 
-     # Initialize dataset
+    # Initialize dataset
+    data_mode = "diff_text"
     train_dataloader, val_dataloader = gen_train_help.create_dataloaders(json_path=args.json,
                                         val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
                                         augment=args.augment, num_tiles=args.num_tiles,
@@ -173,19 +170,9 @@ def main():
         kern_size=args.kern_size,
         filter_count=args.filter_count,
         num_res_blocks=args.num_res_blocks,
-        out_channels=args.num_tiles
+        out_channels=embedding_dim if args.block_embedding_model_path else args.num_tiles
     )
-
-    
-
-    
-
     model.to(accelerator.device)
-
-    # if there is no block embedding model, set the channels to num_tiles
-    in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
-    # else set channels to the embedding dimension of the model
-    out_channels = in_channels
     
     
 
@@ -266,12 +253,15 @@ def main():
 
         for batch in train_dataloader:
             with accelerator.accumulate(model):
-                #TODO: Calc loss
-                loss = process_fdm_batch(
-                    args, model, batch, tokenizer, text_encoder, accelerator)
-                accelerator.backward(loss)
-                optimizer.step()
+                
                 optimizer.zero_grad()
+
+                loss = process_fdm_batch(
+                    args, model, batch, tokenizer, text_encoder, accelerator.device)
+                
+                accelerator.backward(loss)                
+                optimizer.step()
+                
             
             train_loss += loss.detach().item()
             # Update progress bar
@@ -294,7 +284,7 @@ def main():
             with torch.no_grad():
                 for val_batch in val_dataloader:
                     val_batch_loss = process_fdm_batch(
-                        args, model, val_batch, tokenizer, text_encoder, accelerator
+                        args, model, val_batch, tokenizer, text_encoder, accelerator.device
                     )
                     val_loss += val_batch_loss.item()
             val_loss /= len(val_dataloader)
@@ -391,224 +381,34 @@ def main():
             
         pipeline.save_pretrained(os.path.join(args.output_dir, f"final-model"))
 
-            
-def process_fdm_batch(
-        args, model, batch, tokenizer_hf, text_encoder, accelerator
-        ):
-    """
-    Handles a single batch for training or validation.
-    """
 
+
+def process_fdm_batch(args, model, batch, tokenizer, text_encoder, device):
+    #Gets and returns the loss of the model for a given batch
     scenes, captions = batch
-    text_embeddings, scenes_for_train, noisy_data = prepare_conditioned_batch(
-        args, tokenizer_hf, text_encoder, scenes, captions, accelerator.device)
 
+    encoded_captions = prepare_conditioned_batch(tokenizer, text_encoder, captions, device) #get text embeds
 
-    text_embeddings = text_embeddings.to(accelerator.device)
-    scenes_for_train = scenes_for_train.to(accelerator.device)
-    noisy_data = noisy_data.to(accelerator.device)
+    #encoded_captions.shape[0] to get the same number of noise vectors as encoded captions to match the batches
+    noise = torch.randn(encoded_captions.shape[0], args.z_dim, device=device)
 
+    predicted = model(encoded_captions, noise) #Model output
 
-    outputs = model(text_embeddings, noisy_data)
+    loss = torch.nn.NLLLoss()(torch.log(predicted), scenes.argmax(dim=1).to(device)) #Get the loss here
 
-    loss = torch.nn.NLLLoss()(torch.log(outputs), scenes_for_train.argmax(dim=1))
-    
     return loss
-    #Required steps:
-    #Setup model, new Gen object
-    #Setup dataset
-        #Split dataset into train/val/test
-            #Generally follow fdm.py
-    #Setup tokenizer
-        #Get encoding of a word (length of embedding_dim)
-        #Get noise vector (length of z_dim)
-        #Concat
-    #Setup training loop
-        #follow the train method
 
 
-
-
-
-
-def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions, device):
-    #Prepares the batch for training with text conditioning.
-
-    #get text embeddings
-    #get scenes for text embeddings
-    #get noise vector
+def prepare_conditioned_batch(tokenizer_hf, text_encoder, captions, device):
+    #Returns the text embeddings for a given caption
     with torch.no_grad():         
-        if args.pretrained_language_model:
-            #Mean Pooling - Take average of all tokens
-            def mean_pooling(model_output, attention_mask):
-                token_embeddings = model_output.last_hidden_state
-                input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-                return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-            #Encode text
-            def encode(texts):
-                # Tokenize sentences
-                encoded_input = tokenizer_hf(texts, padding=True, truncation=True, return_tensors='pt')
-                # Move to GPU
-                encoded_input.to(device)
-
-                # Compute token embeddings
-                with torch.no_grad():
-                    model_output = text_encoder(**encoded_input, return_dict=True)
-
-                # Perform pooling
-                embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
-
-                # Normalize embeddings
-                embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
-                
-                return embeddings
-            text_embeddings = encode(captions)
-        else:
-            text_embeddings = text_encoder.get_embeddings(captions)
-        
-        scenes_for_train = scenes  # Repeat scenes twice
-
-        noiseVec = torch.randn(text_embeddings.shape[0], args.z_dim, device=device)
-        return text_embeddings, scenes_for_train, noiseVec
-
-
-
-
-
-
-
-
-
-
-#NEW CODE FOR TESTING!!!!!!
-def main2():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model=Gen(
-        model_name="test-load-data",
-    )
-    data_path="datasets\SMB1_LevelsAndCaptions-regular.json"
-    train(model, 100, device, data_path)
-
-
-def do_renders(model, ep, test_set, device):
-    epoch_dir = os.path.join(model.sample_path, 'epoch_' + str(ep))
-    os.makedirs(epoch_dir, exist_ok=True)
-    test_set_gen(ep, model, epoch_dir, test_set, device)
-
-
-def train(model, EPOCHS, device, data_path):
-    train_set, test_set = load_data(model, data_path)
-
-    loss_metric_train = torch.zeros(EPOCHS).to(device)
-
-    model.to(device)
-
-    optimizer = torch.optim.Adam(model.parameters())
-    
-    for epoch in range(EPOCHS):
-        for embeddings, ytrue, _ in train_set:
-            optimizer.zero_grad()
-            outputs = model(embeddings.to(device), torch.rand(len(embeddings), 5).to(device))
-            loss = torch.nn.NLLLoss()(torch.log(outputs), ytrue.argmax(dim=3).to(device))
-
-            loss_metric_train[epoch] += loss
-
-            loss.backward()
-            optimizer.step()
-        print(f"Epoch {epoch}: Loss = {loss_metric_train[epoch]}")
-        if epoch%10==0:
-            do_renders(model, epoch, test_set, device)
-    
-    do_renders(model, epoch, test_set, device)
-
-
-def test_set_gen(ep, model, epoch_dir, test_set, device):
-    title = model.model_name + ' Test set samples, epoch' + str(ep)
-    file_name = os.path.join(epoch_dir, 'test_set_samples.png')
-
-
-    for idx, batch in enumerate(test_set):
-        embeddings = batch[0]
-        labels = batch[2]
-        correct_images = batch[1]
-        
-        predictions = model(embeddings.to(device), torch.rand(len(embeddings), 5).to(device))
-        
-        #I think this is converting out of one-hot, which we do later anyways
-        #argmaxed_gens = predictions.argmax(dim=1)
-        
-        visualize_samples(predictions, file_name, prompts=labels)
-
-from sklearn.model_selection import train_test_split
-import models.sentence_transformers_helper as st_helper
-
-def load_data(model, data_path, num_tiles=13, scaling_factor=6, batch_size=256):
-
-        tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/multi-qa-MiniLM-L6-cos-v1")
-        model = AutoModel.from_pretrained("sentence-transformers/multi-qa-MiniLM-L6-cos-v1")
-
-
-        json_path = data_path
-        print(f"Loading data from {json_path}...")
-        with open(json_path, 'r') as f:
-            data = json.load(f)
-        
-        one_hot_scenes = []
-        captions = []
-        
-
-        for sample in data:
-            scene_tensor = torch.tensor(sample["scene"], dtype=torch.long)  # Convert scene to tensor
-            one_hot_scene = torch.nn.functional.one_hot(scene_tensor, num_classes=num_tiles).float()
-
-            augmented_caption = augment_caption(sample["caption"])
-
-            one_hot_scenes.append(np.array(one_hot_scene))
-            captions.append(augmented_caption)
-        
-        encoded_captions = st_helper.encode(captions, tokenizer=tokenizer, model=model)
-
-
-        images=np.array(one_hot_scenes)
-        labels=np.array(captions)
-        embeddings=np.array(encoded_captions)
-
-        
-        embeddings = embeddings * scaling_factor
-        
-
-        images, images_test, labels, labels_test, embeddings, embeddings_test = train_test_split(
-        images, labels, embeddings, test_size=24, random_state=400)
-
-        train_dataset = [embeddings, images, labels]
-        test_dataset = [embeddings_test, images_test, labels_test]
-
-        train_set = DataLoader(imageDataSet(train_dataset),
-                        batch_size=batch_size,
-                        shuffle=True,
-                        num_workers= 4,
-                        persistent_workers=True) 
-
-        test_set = DataLoader(imageDataSet(test_dataset),
-                        batch_size=batch_size,
-                        shuffle=True,
-                        num_workers= 4,
-                        persistent_workers=True) 
-        return train_set, test_set
-
-def augment_caption(caption):
-    """Shuffles period-separated phrases in the caption."""
-    phrases = caption[:-1].split(". ") # [:-1] removes the last period
-    random.shuffle(phrases)  # Shuffle phrases
-    return ". ".join(phrases) + "."
-
-
-
-
-
+        combined_embeddings = st_helper.encode(texts=captions, tokenizer=tokenizer_hf,
+                                                model=text_encoder, device=device)
+        combined_embeddings = combined_embeddings*6 #Multiply by a scaling factor, this helps prevent errors later
+    return combined_embeddings
 
 
 
 
 if __name__ == "__main__":
-    main2()
+    main()

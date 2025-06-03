@@ -1,4 +1,4 @@
-#Save, Load, init, call (produce output ferom input)
+#Save, Load, init, call (produce output from input)
 
 import torch
 import torch.nn.functional as F
@@ -33,6 +33,7 @@ class FDMPipeline():
         self.num_res_blocks = model.num_res_blocks
         self.out_channels = model.out_channels
         self.device = device
+
 
     def to(self, device):
         self.text_encoder.to(device)
@@ -146,26 +147,12 @@ class FDMPipeline():
         with torch.no_grad():
             captions = self._prepare_text_batch(caption, batch_size, "caption")
            # --- Prepare text embeddings ---
-            if(isinstance(self.text_encoder, TransformerModel)):
-                if captions is not None:
-                    max_length = self.text_encoder.max_seq_length
-    
-                    # Encode positive captions
-                    caption_ids = self._encode_token_captions(captions, max_length)
-                    text_embeddings = self.text_encoder.get_embeddings(caption_ids)
-
-                else:
-                    # For unconditional generation, use empty embeddings matching max_seq_length
-                    max_length = self.text_encoder.max_seq_length
-                    empty_ids = torch.zeros((batch_size, max_length), dtype=torch.long, device=self.device)
-                    text_embeddings = self.text_encoder.get_embeddings(empty_ids)
-            else: #Case for the pre-trained text encoder
-                if captions is not None:
-                    text_embeddings = st_helper.encode(captions, self.tokenizer, self.text_encoder, self.device)
-                else:
-                    # Unconditional generation: use unconditional embeddings only
-                    text_embeddings = st_helper.encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)           
-            
+            if captions is not None:
+                text_embeddings = st_helper.encode(captions, self.tokenizer, self.text_encoder, self.device)
+            else:
+                # Unconditional generation: use unconditional embeddings only
+                text_embeddings = st_helper.encode([""] * batch_size, self.tokenizer, self.text_encoder, self.device)           
+            text_embeddings = text_embeddings*6 #Multiply by a scaling factor, this helps prevent errors later
             
             if noise_vector is not None:
                 outputs = self.model(text_embeddings, noise_vector)
