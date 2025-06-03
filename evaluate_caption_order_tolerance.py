@@ -213,6 +213,7 @@ def creation_of_parameters():
 
     return pipe, device, id_to_char, char_to_id, tile_descriptors, args.num_tiles, dataloader
 
+
 def main():
     pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader = creation_of_parameters()
     args = parse_args()
@@ -223,6 +224,7 @@ def main():
     (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
     print(f"\nAverage score across all captions: {avg_score:.4f}")
+
     permutation_average = permutation_caption_score(
         pipe,
         args.caption,
@@ -247,6 +249,7 @@ def main():
         print("No captions found in the provided JSON file.")
         return
     print(f"\nLoaded {len(captions)} captions from {args.json}")
+
     scores = permutation_caption_scores_for_data(
         pipe,
         captions,
