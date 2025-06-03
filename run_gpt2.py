@@ -4,7 +4,7 @@ from mario_gpt import MarioLM, SampleOutput
 
 # Path to your trained model and tokenizer
 MODEL_DIR = "Mario-GPT2-TEST-MODEL"
-CHECKPOINT = os.path.join(MODEL_DIR, "model_20000.pt") #"model_200000.pt")  # Use the latest checkpoint
+CHECKPOINT = os.path.join(MODEL_DIR, "model_200000.pt") #"model_200000.pt")  # Use the latest checkpoint
 
 # Initialize MarioLM and load tokenizer if available
 mario_lm = MarioLM()
