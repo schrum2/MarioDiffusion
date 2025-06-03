@@ -54,7 +54,10 @@ def describe_broken_cannons(scene, char_to_id):
     for r in range(len(scene)):
         for c in range(len(scene[r])):
             if scene[r][c] == char_to_id['b']:
-                if r == 0 or scene[r-1][c] != char_to_id['B']:
+                # Although it looks weird, it is ok for either B or b to be above a b tile.
+                # The repeated use of b looks weird in visuzalization, but is perfectly valid
+                # and looks good in the real game.
+                if r == 0 or (scene[r-1][c] != char_to_id['B'] and scene[r-1][c] != char_to_id['b']):
                     count += 1
 
     if count > 0:
@@ -493,11 +496,28 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
 
         # We only want to discard levels with broken pipes if we indicate that (describe_absence is True)
         if exclude_broken and "broken" in caption:
-            print("Broken pipe in training data")
+            if "broken pipe" in caption:
+                print("Broken pipe in training data")
+            if "broken cannon" in caption:
+                print("Broken cannon in training data")
             print(caption)
             current = len(captioned_dataset)
             print(f"Excluding training sample: {current}")
             num_excluded += 1
+
+            #import torch
+            #import torch.nn.functional as F
+            #scene_tensor = torch.tensor(scene, dtype=torch.long)
+            #one_hot_scene = F.one_hot(scene_tensor, num_classes=13).float() 
+            #one_hot_scene = one_hot_scene.permute(2, 0, 1)
+            #scene = one_hot_scene.unsqueeze(0)
+            #from level_dataset import visualize_samples
+            #image = visualize_samples(scene)
+            #image.show()
+            #if input("Press Enter to continue or type 'q' to quit: ") == 'q':
+            #    print("Exiting caption generation.")
+            #    sys.exit(0)
+
             continue
 
         captioned_dataset.append({
@@ -507,7 +527,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
 
     # Probably need to fix the VGLC data manually.
     # Should I make the script repair the data or make my own fork of VGLC with good data?
-    print(f"{num_excluded} samples excluded due to broken pipes")
+    print(f"{num_excluded} samples excluded due to broken pipes/cannons.")
 
     # Save new dataset with captions
     with open(output_path, "w") as f:
