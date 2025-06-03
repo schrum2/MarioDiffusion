@@ -73,6 +73,11 @@ def permutation_caption_score(
         permutations = [
             list(itertools.permutations(phrases)) for phrases in phrases_per_caption
         ]
+
+        # TODO: Have parameter saying max number of permutations to pick (default 10).
+        # If num permutations is greater than this, randomly sample a subset.
+        # Using random.sample or random.choice 
+
     elif isinstance(caption, str):
         # Split caption into phrases and get all permutations
         phrases = [p.strip() for p in caption.split('.') if p.strip()]
