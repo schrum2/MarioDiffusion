@@ -77,6 +77,10 @@ def generate_levels(args):
             scene_height = scene_width = pipeline.unet.config.sample_size
     else:
         raise ValueError("Model config does not have sample_size attribute.")
+    if args.level_width is not None:
+        scene_width = args.level_width
+        print(f"Overriding model width to {scene_width} tiles")
+        
     print(f"Model scene size: {scene_height}x{scene_width}")
 
     # Generate in batches
