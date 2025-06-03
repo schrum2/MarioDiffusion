@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from evaluate_caption_adherence import calculate_caption_score_and_samples  # adjust import if needed
 import matplotlib.pyplot as plt
 import matplotlib
+import json
 
 import numpy as np
 import torch
@@ -44,94 +45,6 @@ def setup_environment(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     return device
-
-
-def caption_score_with_assign_and_compare(
-    device,
-    pipe,
-    prompt,
-    steps=25,
-    guidance_scale=3.5,
-    seed=42,
-    id_to_char=None,
-    char_to_id=None,
-    tile_descriptors=None,
-    describe_absence=False,
-    output=True
-):
-    # Load pipeline
-    pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
-
-    # Load tile metadata
-    tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
-
-    # TODO: This currently only handles a single caption. Needs to be abel to handle all captions in a dataset.
-    #  Separate code below into function, call once per caption in given --json dataset
-
-    # Parse caption into phrase permutations
-    phrases = [p.strip() for p in args.caption.split('.') if p.strip()]
-    permutations = list(itertools.permutations(phrases))
-
-    # After parsing permutations:
-    all_captions = []
-    for perm in permutations:
-        perm_caption = '. '.join(perm) + '. '
-        for trial in range(args.trials):
-            all_captions.append(perm_caption)
-
-    all_scores = []
-
-    #print(permutations)
-
-    perm_captions = []
-    for perm in permutations:
-        perm_captions.append('.'.join(perm) + '.')
-
-
-    # Create a list of dicts as expected by LevelDataset
-    caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
-
-    # Initialize dataset
-    dataset = LevelDataset(
-        data_as_list=caption_data,
-        shuffle=False,
-        mode="text",
-        augment=False,
-        num_tiles=args.num_tiles,
-        negative_captions=False,
-        block_embeddings=None
-    )
-
-    # Create dataloader
-    dataloader = DataLoader(
-        dataset,
-        batch_size=len(perm_captions),
-        shuffle=False,
-        num_workers=4,
-        drop_last=False,
-        persistent_workers=True
-    )
-
-
-    (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
-
-    print(f"\nAverage score across all captions: {avg_score:.4f}")
-    print("\nAll samples shape:", all_samples.shape)
-    print("\nAll prompts:", all_prompts)
-
-    visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
-    caption_folder = args.caption.replace(" ", "_").replace(".", "_")
-    output_dir = os.path.join(visualizations_dir, caption_folder)
-
-    visualize_samples(
-        all_samples,
-        output_dir=output_dir,
-        prompts=all_prompts[0] if all_prompts else "No prompts available"
-    )
-    print(f"\nVisualizations saved to: {output_dir}")
-
-    return score, dataset
-
 
 def permutation_caption_score(
     pipe,
@@ -318,7 +231,9 @@ def main():
         width=common_settings.MARIO_WIDTH,
         trials=args.trials
     )
+
     print("\nPermutation average:", permutation_average)
+
     captions = [args.caption, "full floor. one cannon. one question block.",]
     scores = permutation_caption_scores_for_data(
         pipe,
@@ -336,7 +251,8 @@ def main():
         width=common_settings.MARIO_WIDTH,
         trials=args.trials
     )
-    print("\n-----Scores for each caption-----")
+
+    print("\n-----Scores for each caption permutation-----")
     for i, score in enumerate(scores):
         print(f"Scores for caption {i + 1}:", score)
 
