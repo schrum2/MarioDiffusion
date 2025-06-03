@@ -451,50 +451,46 @@ def calculate_phrase_metrics(
     }
 
 def astar_metrics(
-    levels: list[list[int]],
+    levels: list[dict],  # Each dict should have "scene" and "caption"
     num_runs: int = 3,
-    simulator_kwargs: dict = None
+    simulator_kwargs: dict = None,
+    save_name: str = "astar_metrics_results.json"
 ) -> list[dict]:
     """
-    This function runs the SNES A* algorithm on each level multiple times 
-    to return averaged performance metrics.
-    
+    Runs the SNES A* algorithm on each level multiple times and saves results in the requested format.
     Args:
-        levels: A list of levels in the list of integers format (JSON formatted level data)
-        num_runs: Run SNES A* code for each level num_runs times
-        simulator_kwargs: Additional keyword arguments to pass to the MMNEATSimulator constructor
-    
+        levels: List of dicts, each with "scene" (2D int list) and "caption" (str)
+        num_runs: Number of runs per level
+        simulator_kwargs: kwargs for MMNEATSimulator
+        save_name: Filename for output JSON (saved to root directory)
     Returns:
-        A list of dictionaries of organized results indicating how A* performed on each level
+        List of dicts as described in the prompt
     """
-    # Convert levels into a list of lists of strings using scene_to_ascii(scene, self.id_to_char)
-    levels = [scene_to_ascii(level, id_to_char) for level in levels]
-
     simulator_kwargs = simulator_kwargs or {}
     results = []
 
-    for idx, level in enumerate(levels):
+    for idx, entry in enumerate(levels):
+        scene = entry.get("scene")
+        caption = entry.get("caption", None)
+        if scene is None:
+            continue  # skip if no scene
+
+        ascii_level = scene_to_ascii(scene, id_to_char, True)
         run_metrics = []
         for run in range(num_runs):
             try:
-                sim = MMNEATSimulator(level, **simulator_kwargs)
-                # # Run A* without rendering
-                # output = sim.astar(render=False)
-                # Run A* with rendering (commented out for performance)
-                output = sim.astar()
+                sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
+                output = sim.astar(render=False)
             except Exception as e:
                 print(f"Error running A* on level {idx}, run {run}: {e}")
                 continue
 
-            # Parse output string (key:value per line)
             metrics = {}
-
             for line in output.strip().splitlines():
                 if ':' in line:
                     key, value = line.split(':', 1)
                     key = key.strip()
                     value = value.strip()
-                    # Try to convert to float/int/bool if possible
                     if value.lower() in ("true", "false"):
                         value = value.lower() == "true"
                     else:
@@ -506,57 +502,34 @@ def astar_metrics(
                         except Exception:
                             pass
                     metrics[key] = value
-
-            # for debugging
-            print(f"Run {run + 1} metrics for level {idx + 1}")
-            print("computeDistancePassed: {:.1f}".format(metrics.get("computeDistancePassed", 0)))
-            print("jumpActionsPerformed: {}".format(metrics.get("jumpActionsPerformed", 0)))
-            print("killsTotal: {}".format(metrics.get("killsTotal", 0)))
-            print("lengthOfLevelPassedCells: {}".format(metrics.get("lengthOfLevelPassedCells", 0)))
-            print("lengthOfLevelPassedPhys: {:.1f}".format(metrics.get("lengthOfLevelPassedPhys", 0)))
-            print("totalLengthOfLevelCells: {}".format(metrics.get("totalLengthOfLevelCells", 0)))
-            print("totalLengthOfLevelPhys: {:.1f}".format(metrics.get("totalLengthOfLevelPhys", 0)))
-            print("numberOfGainedCoins: {}".format(metrics.get("numberOfGainedCoins", 0)))
-            print("timeSpentOnLevel: {}".format(metrics.get("timeSpentOnLevel", 0)))
-            print("computeBasicFitness: {:.4f}".format(metrics.get("computeBasicFitness", 0)))
-            print("computeJumpFraction: {:.4f}".format(metrics.get("computeJumpFraction", 0)))
-            print("beaten: {}\n".format(metrics.get("beaten", False)))
-
             run_metrics.append(metrics)
 
-        # Aggregate/average metrics across runs
-        if not run_metrics:
-            results.append({"level_index": idx + 1, "error": "No successful runs"})
-            continue
+        # Compute averages
+        averages = {}
+        if run_metrics:
+            keys = set().union(*run_metrics)
+            for key in keys:
+                values = [m[key] for m in run_metrics if key in m]
+                if all(isinstance(v, (int, float)) for v in values):
+                    averages[key] = sum(values) / len(values)
+                elif all(isinstance(v, bool) for v in values):
+                    averages[key] = sum(v for v in values) / len(values)
+                else:
+                    averages[key] = values
 
-        # Find all metric keys
-        keys = set().union(*run_metrics)
-        avg_metrics = {"level_index": idx + 1}
-        for key in keys:
-            values = [m[key] for m in run_metrics if key in m]
-            if all(isinstance(v, (int, float)) for v in values):
-                avg_metrics[key] = sum(values) / len(values)
-            elif all(isinstance(v, bool) for v in values):
-                avg_metrics[key] = sum(v for v in values) / len(values)  # percent True
-            else:
-                avg_metrics[key] = values  # fallback: list of values
+        # Compose result for this scene
+        results.append({
+            "scene": scene,
+            "caption": caption,
+            "run_results": run_metrics,
+            "averages": averages
+        })
 
-        # for debugging
-        print(f"Average metrics for level {idx + 1}\n")
-        print("computeDistancePassed: {:.1f}".format(avg_metrics.get("computeDistancePassed", 0)))
-        print("jumpActionsPerformed: {}".format(avg_metrics.get("jumpActionsPerformed", 0)))
-        print("killsTotal: {}".format(avg_metrics.get("killsTotal", 0)))
-        print("lengthOfLevelPassedCells: {}".format(avg_metrics.get("lengthOfLevelPassedCells", 0)))
-        print("lengthOfLevelPassedPhys: {:.1f}".format(avg_metrics.get("lengthOfLevelPassedPhys", 0)))
-        print("totalLengthOfLevelCells: {}".format(avg_metrics.get("totalLengthOfLevelCells", 0)))
-        print("totalLengthOfLevelPhys: {:.1f}".format(avg_metrics.get("totalLengthOfLevelPhys", 0)))
-        print("numberOfGainedCoins: {}".format(avg_metrics.get("numberOfGainedCoins", 0)))
-        print("timeSpentOnLevel: {}".format(avg_metrics.get("timeSpentOnLevel", 0)))
-        print("computeBasicFitness: {:.4f}".format(avg_metrics.get("computeBasicFitness", 0)))
-        print("computeJumpFraction: {:.4f}".format(avg_metrics.get("computeJumpFraction", 0)))
-        print("beaten: {}\n".format(avg_metrics.get("beaten", False)))
-
-        results.append(avg_metrics)
+    # Save results to root directory
+    out_file = os.path.join('.', save_name)
+    with open(out_file, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Results saved to {out_file}")
 
     return results
 
