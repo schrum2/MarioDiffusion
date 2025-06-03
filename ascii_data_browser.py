@@ -198,7 +198,7 @@ class TileViewer(tk.Tk):
             )
             if file_path:
                 # Convert scene to character grid
-                char_grid = scene_to_ascii(scene, self.id_to_char)
+                char_grid = scene_to_ascii(scene, self.id_to_char, False)
                 # Write to file
                 try:
                     with open(file_path, "w") as f:
@@ -579,7 +579,7 @@ class TileViewer(tk.Tk):
     def play_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            char_grid = scene_to_ascii(scene, self.id_to_char)
+            char_grid = scene_to_ascii(scene, self.id_to_char, False)
             level = SampleOutput(level=char_grid)
             if hasattr(self, 'is_lode_runner') and self.is_lode_runner and not self.validate_lode_runner_level(scene):
                 print("Invalid Lode Runner level. Cannot play.")
@@ -591,7 +591,7 @@ class TileViewer(tk.Tk):
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            char_grid = scene_to_ascii(scene, self.id_to_char)
+            char_grid = scene_to_ascii(scene, self.id_to_char, False)
             level = SampleOutput(level=char_grid)
             level.run_astar()
 

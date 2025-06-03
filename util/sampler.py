@@ -24,16 +24,21 @@ from mario_gpt.utils import (
     view_level,
 )
 
-def scene_to_ascii(scene, id_to_char):
+def scene_to_ascii(scene, id_to_char, shorten: bool = True) -> List[str]:
     """
     Convert JSON scene files from a list of lists of ints 
-    to a list of lists of ASCII strings using id_to_char mapping.
+    to a list of ASCII strings using id_to_char mapping.
+    If shorten is True, only the last 15 rows are kept.
     Args:
         scene: List[List[int]] - 2D array of tile IDs
         id_to_char: Dict[int, str] - mapping from tile ID to ASCII character
+        shorten: bool - If True, will shorten the output to only include the first 15 rows 
+                        so A* Mario (for SNES graphics) to run without glitching
     Returns:
         List[str]: List of strings, each representing a row in ASCII
     """
+    if shorten and len(scene) > 15:
+        scene = scene[-15:]  # Keep only the last 15 rows
     return ["".join(id_to_char[num] for num in row) for row in scene]
 
 @dataclass

@@ -523,7 +523,7 @@ class ImageGridViewer:
         tile_numbers = scene
         #print(self.id_to_char)
         #print(tile_numbers)
-        char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
+        char_grid = scene_to_ascii(tile_numbers, self.id_to_char, False)
 
         #print(char_grid)
         level = SampleOutput(
