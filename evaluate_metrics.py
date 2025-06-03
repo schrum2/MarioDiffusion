@@ -11,8 +11,17 @@ from util.metrics import (
 from captions.caption_match import TOPIC_KEYWORDS
 
 
-def evaluate_all_levels(json_file_path, output_file):
+def evaluate_all_levels(json_file_path, output_file, original_dataset=None):
+    """
+    Evaluate metrics for a single `all_levels.json` file and save results.
+
+    Args:
+        json_file_path (str): Path to the `all_levels.json` file.
+        output_file (str): Path to save the evaluation results.
+        original_dataset (str): Path to the original dataset for comparison (optional).
+    """
     try:
+        # Load the generated dataset
         with open(json_file_path, "r") as f:
             data = json.load(f)
         print(f"Successfully loaded data from {json_file_path}")
@@ -28,6 +37,14 @@ def evaluate_all_levels(json_file_path, output_file):
             "broken_pipes_percentage": count_broken_feature_mentions(captions, "pipe"),
             "broken_cannons_percentage": count_broken_feature_mentions(captions, "cannon"),
         }
+        
+        # If an original dataset is provided, calculate average_generated_edit_distance
+        if original_dataset:
+            with open(original_dataset, "r") as original_file:
+                original_data = json.load(original_file)
+                original_levels = [entry["scene"] for entry in original_data if "scene" in entry]
+            print(f"Loaded {len(original_levels)} levels from the original dataset.")
+            metrics["average_generated_edit_distance"] = average_generated_edit_distance(levels, original_levels)
         
         print("Calculating phrase metrics...")
 
@@ -60,7 +77,14 @@ def evaluate_all_levels(json_file_path, output_file):
         print(f"An unexpected error occurred: {e}")
 
 
-def evaluate_metrics(model_path):
+def evaluate_metrics(model_path, original_dataset=None):
+    """
+    Evaluate metrics for the given model path.
+
+    Args:
+        model_path (str): Path to the model directory.
+        original_dataset (str): Path to the original dataset for comparison (optional).
+    """
     if not os.path.exists(model_path):
         print(f"Error: Path does not exist - {model_path}")
         return
@@ -73,18 +97,18 @@ def evaluate_metrics(model_path):
 
         real_json_path = os.path.join(real_dir, "all_levels.json")
         real_output_path = os.path.join(real_dir, "evaluation_metrics.json")
-        evaluate_all_levels(real_json_path, real_output_path)
+        evaluate_all_levels(real_json_path, real_output_path, original_dataset)
 
         random_json_path = os.path.join(random_dir, "all_levels.json")
         random_output_path = os.path.join(random_dir, "evaluation_metrics.json")
-        evaluate_all_levels(random_json_path, random_output_path)
+        evaluate_all_levels(random_json_path, random_output_path, original_dataset)
 
     elif os.path.isfile(os.path.join(model_path, "all_levels.json")):
         print("Detected Case 2: Directory directly containing `all_levels.json`.")
 
         json_file_path = os.path.join(model_path, "all_levels.json")
         output_file_path = os.path.join(model_path, "evaluation_metrics.json")
-        evaluate_all_levels(json_file_path, output_file_path)
+        evaluate_all_levels(json_file_path, output_file_path, original_dataset)
 
     else:
         print(f"Error: Could not find `all_levels.json` in the expected structure under {model_path}.")
@@ -93,6 +117,9 @@ def evaluate_metrics(model_path):
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate generated levels and captions.")
     parser.add_argument("--model_path", type=str, help="Path to the model output directory containing all_levels.json or its subdirectories.")
+    parser.add_argument("--original_dataset", type=str, default=None, help="Path to the original dataset for comparison (optional).")
+    parser.add_argument("--game", type=str, default="Mario", choices=["Mario", "LR"], help="Game type for which to evaluate levels.")
+    #parser.add_argument("--game_dir", type=str, default=".", help="Directory containing game-specific data files.")
     # Add more arguments here in the future, for example:
     # parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     # parser.add_argument("--output", type=str, help="Custom output file path")
@@ -102,4 +129,4 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    evaluate_metrics(args.model_path)
+    evaluate_metrics(args.model_path, args.original_dataset)
