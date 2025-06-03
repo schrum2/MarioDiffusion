@@ -24,6 +24,17 @@ from mario_gpt.utils import (
     view_level,
 )
 
+def scene_to_ascii(scene, id_to_char):
+    """
+    Convert JSON scene files from a list of lists of ints 
+    to a list of lists of ASCII strings using id_to_char mapping.
+    Args:
+        scene: List[List[int]] - 2D array of tile IDs
+        id_to_char: Dict[int, str] - mapping from tile ID to ASCII character
+    Returns:
+        List[str]: List of strings, each representing a row in ASCII
+    """
+    return ["".join(id_to_char[num] for num in row) for row in scene]
 
 @dataclass
 class SampleOutput:
