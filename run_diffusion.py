@@ -10,9 +10,6 @@ from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from create_ascii_captions import save_level_data
 import util.common_settings as common_settings
 
-global height
-global width
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")
     
@@ -25,6 +22,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
+    parser.add_argument("--level_width", type=int, default=None, help="Overrides width from unet if specified")
 
     # Hopefully always the user to specify the game they wish to run diffusion on
     parser.add_argument(
@@ -79,6 +77,10 @@ def generate_levels(args):
             scene_height = scene_width = pipeline.unet.config.sample_size
     else:
         raise ValueError("Model config does not have sample_size attribute.")
+    if args.level_width is not None:
+        scene_width = args.level_width
+        print(f"Overriding model width to {scene_width} tiles")
+        
     print(f"Model scene size: {scene_height}x{scene_width}")
 
     # Generate in batches
@@ -124,13 +126,9 @@ if __name__ == "__main__":
     args = parse_args()
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
-        height=common_settings.MARIO_HEIGHT,
-        width=common_settings.MARIO_WIDTH,
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
-        height=common_settings.LR_HEIGHT,
-        width=common_settings.LR_WIDTH,
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")
