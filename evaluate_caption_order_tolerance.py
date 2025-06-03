@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--caption", type=str, required=False, default=None, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
-    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
     parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
     parser.add_argument("--inference_steps", type=int, default=25)
     parser.add_argument("--guidance_scale", type=float, default=3.5)
@@ -51,6 +51,7 @@ def permutation_caption_score(
     caption,
     device,
     num_tiles,
+    dataloader,
     id_to_char,
     char_to_id,
     tile_descriptors,
@@ -60,6 +61,7 @@ def permutation_caption_score(
     describe_absence=False,
     height=None,
     width=None,
+    output=False,
     trials=1
 ):
     # Split caption into phrases and get all permutations
@@ -76,29 +78,10 @@ def permutation_caption_score(
     # Prepare data for LevelDataset
     caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
 
-    dataset = LevelDataset(
-        data_as_list=caption_data,
-        shuffle=False,
-        mode="text",
-        augment=False,
-        num_tiles=num_tiles,
-        negative_captions=False,
-        block_embeddings=None
-    )
-
-    dataloader = DataLoader(
-        dataset,
-        batch_size=len(perm_captions),
-        shuffle=False,
-        num_workers=4,
-        drop_last=False,
-        persistent_workers=True
-    )
-
     avg_score, all_samples, all_prompts = calculate_caption_score_and_samples(
         device, pipe, dataloader, inference_steps, guidance_scale, seed,
         id_to_char, char_to_id, tile_descriptors, describe_absence,
-        output=False, height=height, width=width
+        output=output, height=height, width=width
     )
 
     return avg_score
@@ -108,6 +91,7 @@ def permutation_caption_scores_for_data(
     captions,
     device,
     num_tiles,
+    dataloader,
     id_to_char,
     char_to_id,
     tile_descriptors,
@@ -131,6 +115,7 @@ def permutation_caption_scores_for_data(
             caption=caption,
             device=device,
             num_tiles=num_tiles,
+            dataloader=dataloader,
             id_to_char=id_to_char,
             char_to_id=char_to_id,
             tile_descriptors=tile_descriptors,
@@ -140,7 +125,7 @@ def permutation_caption_scores_for_data(
             describe_absence=describe_absence,
             height=height,
             width=width,
-            trials=trials
+            trials=trials,
         )
         scores.append(avg_score)
     return scores
@@ -160,8 +145,8 @@ def creation_of_parameters():
         num_tiles = common_settings.MARIO_TILE_COUNT
         tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        num_tiles = common_settings.LR_TILE_COUNT # TODO
-        tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
+        num_tiles = common_settings.LR_TILE_COUNT
+        tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")
 
@@ -222,7 +207,7 @@ def creation_of_parameters():
 
     return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader
 
-def statsistics_of_captions(captions, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
+def statsistics_of_captions(captions, dataloader, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
     """
     Calculate statistics of the captions.
     Returns average, standard deviation, minimum, maximum, and median of caption scores.
@@ -238,6 +223,7 @@ def statsistics_of_captions(captions, pipe=None, device=None, id_to_char=None, c
         captions,
         device,
         num_tiles,
+        dataloader,
         id_to_char,
         char_to_id,
         tile_descriptors,
@@ -270,6 +256,9 @@ def main():
     if not pipe:
         print("Failed to create pipeline.")
         return
+    if args.caption is None or args.caption == "":
+        caption = load_captions_from_json(args.json)
+        statsistics_of_captions(caption, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
 
     (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
@@ -277,9 +266,10 @@ def main():
 
     permutation_average = permutation_caption_score(
         pipe,
-        args.caption,
+        caption,
         device,
         num_tiles,
+        dataloader,
         id_to_char,
         char_to_id,
         tile_descriptors,
@@ -295,8 +285,8 @@ def main():
     print("\nPermutation average:", permutation_average)
 
     if args.caption is None or args.caption == "":
-        captions = load_captions_from_json(args.json)
-        statsistics_of_captions(captions, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
+        caption = load_captions_from_json(args.json)
+        statsistics_of_captions(caption, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
 
     visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
     caption_folder = args.caption.replace(" ", "_").replace(".", "_")
