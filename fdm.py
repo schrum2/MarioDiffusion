@@ -53,7 +53,7 @@ class ResBlock(nn.Module):
         return x1 + x
 
 class Gen(nn.Module):
-    def __init__(self, model_name, data_path, num_tiles=13, batch_size=256, embedding_dim=384, z_dim=5, kern_size=7, filter_count=128, num_res_blocks=3,):
+    def __init__(self, model_name, num_tiles=13, batch_size=256, embedding_dim=384, z_dim=5, kern_size=7, filter_count=128, num_res_blocks=3):
         super().__init__()
 
         self.embedding_dim = embedding_dim
@@ -62,7 +62,6 @@ class Gen(nn.Module):
         self.filter_count = filter_count
         self.kern_size = kern_size
         self.num_res_blocks = num_res_blocks
-        self.data_path=data_path
         self.num_tiles=num_tiles
         self.batch_size=batch_size
 
@@ -91,11 +90,6 @@ class Gen(nn.Module):
         x = self.padding(x)
         x = self.last_conv(x)
         return self.softmax(x)
-
-    
-    def render_images(self, images, labels, title, save_path, embeddings=None, correct_images=None):
-        #print(images)
-        visualize_samples(images, save_path, prompts=labels)
 
 
 
@@ -132,9 +126,10 @@ class Gen(nn.Module):
 
             
             embeddings = embeddings * scaling_factor
+            
 
             images, images_test, labels, labels_test, embeddings, embeddings_test = train_test_split(
-            images, labels, embeddings, test_size=24, random_state=seed)
+            images, labels, embeddings, test_size=24, random_state=336)
 
             train_dataset = [embeddings, images, labels]
             test_dataset = [embeddings_test, images_test, labels_test]
@@ -142,16 +137,14 @@ class Gen(nn.Module):
             self.train_set = DataLoader(imageDataSet(train_dataset),
                             batch_size=self.batch_size,
                             shuffle=True,
-                            num_workers= 8 if device == 'cuda' else 1,
-                            pin_memory=(device=="cuda"),
-                            persistent_workers=True) # Makes transfer from the CPU to GPU faster
+                            num_workers= 4,
+                            persistent_workers=True) 
 
             self.test_set = DataLoader(imageDataSet(test_dataset),
                             batch_size=self.batch_size,
                             shuffle=True,
-                            num_workers= 8 if device == 'cuda' else 1,
-                            pin_memory=(device=="cuda"),
-                            persistent_workers=True) # Makes transfer from the CPU to GPU faster
+                            num_workers= 4,
+                            persistent_workers=True) 
 
 
 
@@ -163,73 +156,13 @@ class Gen(nn.Module):
 
 
 
-
-
-def test_set_gen(ep, model, epoch_dir, test_set):
-    title = model.model_name + ' Test set samples, epoch' + str(ep)
-    file_name = os.path.join(epoch_dir, 'test_set_samples.png')
-
-
-    for idx, batch in enumerate(test_set):
-        embeddings = batch[0]
-        labels = batch[2]
-        correct_images = batch[1]
-        
-        predictions = model(embeddings.to(device), torch.rand(len(embeddings), 5).to(device))
-        
-        #I think this is converting out of one-hot, which we do later anyways
-        #argmaxed_gens = predictions.argmax(dim=1)
-        
-
-        model.render_images(images=predictions, labels=labels, correct_images=np.argmax(correct_images, axis=-1), title=title, save_path=file_name)
-
-
-
-
-
-def do_renders(model, ep, test_set):
-    epoch_dir = os.path.join(model.sample_path, 'epoch_' + str(ep))
-    os.makedirs(epoch_dir, exist_ok=True)
-    test_set_gen(ep, model, epoch_dir, test_set)
-
-
-def train(model, EPOCHS):
-    model.load_data()
-
-    train_set, test_set = model.train_set, model.test_set
-
-    loss_metric_train = torch.zeros(EPOCHS).to(device)
-
-    model.to(device)
-
-    optimizer = optim.Adam(model.parameters())
-    
-    for epoch in range(EPOCHS):
-        for embeddings, ytrue, _ in train_set:
-            optimizer.zero_grad()
-            outputs = model(embeddings.to(device), torch.rand(len(embeddings), 5).to(device))
-            loss = nn.NLLLoss()(torch.log(outputs), ytrue.argmax(dim=3).to(device))
-
-            loss_metric_train[epoch] += loss
-
-            loss.backward()
-            optimizer.step()
-        print(f"Epoch {epoch}: Loss = {loss_metric_train[epoch]}")
-        if epoch%10==0:
-            do_renders(model, epoch, test_set)
-    
-    do_renders(model, epoch, test_set)
-
-
 if __name__ == "__main__":
     seed = 7499629
-    
-    input_shape = (10, 10, 16)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"**--Using {device}--**")
     model=Gen(
-        model_name="test-titles",
+        model_name="test-titles-2",
         data_path="datasets\SMB1_LevelsAndCaptions-regular.json"
     )
     train(model, 100)
