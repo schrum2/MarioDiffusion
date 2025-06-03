@@ -7,6 +7,7 @@ import numpy as np
 from level_dataset import LevelDataset, visualize_samples
 import json
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
+from models.fdm_pipeline import FDMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
 from create_ascii_captions import assign_caption, save_level_data, extract_tileset
 from captions.caption_match import compare_captions
@@ -62,12 +63,19 @@ def main():
         torch.cuda.manual_seed_all(args.seed)
 
     # TODO: This won't work if training terminated early, but there are still valid checkpoints I want to evaluate
-    pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
+    if(os.path.exists(os.path.join(args.model_path, "unet"))):
+        #Default to getting the Diffusion pipeline
+        pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
+    else:
+        #Get the FDM pipeline if "unet" doesn't exist
+        pipe = FDMPipeline.from_pretrained(args.model_path).to(device)
+
+    assert(pipe.tokenizer is not None)
 
     # Initialize dataset
     dataset = LevelDataset(
         json_path=args.json,
-        tokenizer=pipe.tokenizer,
+        tokenizer=None,
         shuffle=False,
         mode="text",
         augment=False,
