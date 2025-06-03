@@ -1,7 +1,7 @@
 @echo off
 call SMB1-data.bat
 cd batch
-call batch\SMB2-data.bat
+call SMB2-data.bat
 
 set default_out=datasets\Mario_LevelsAndCaptions
 
