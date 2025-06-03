@@ -3,7 +3,12 @@ import itertools
 import os
 import random
 from collections import defaultdict
-from util.common_settings import MARIO_TILE_COUNT, LR_TILE_COUNT  # adjust import if needed
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import util.common_settings as common_settings  # adjust import if needed
+from level_dataset import LevelDataset
+from torch.utils.data import DataLoader
+from evaluate_caption_adherence import calculate_caption_score_and_samples  # adjust import if needed
 
 import numpy as np
 import torch
@@ -11,7 +16,7 @@ from tqdm import tqdm
 
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from create_ascii_captions import assign_caption
-from caption_match import compare_captions  # adjust import if needed
+from captions.caption_match import compare_captions  # adjust import if needed
 from captions.util import extract_tileset
 
 def parse_args():
@@ -19,10 +24,13 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--caption", type=str, required=True, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
+    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
     parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
     parser.add_argument("--inference_steps", type=int, default=25)
     parser.add_argument("--guidance_scale", type=float, default=3.5)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--game", type=str, choices=["Mario", "LR"], default="Mario", help="Game to evaluate (Mario or Lode Runner)")
+    parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     return parser.parse_args()
 
 
@@ -54,15 +62,28 @@ def caption_score_with_assign_and_compare(
         torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
 
-    # Generate sample
-    tokenized = pipe.tokenizer(prompt, return_tensors="pt").to(device)
-    sample = pipe.generate(
-        **tokenized,
-        num_inference_steps=steps,
-        guidance_scale=guidance_scale
+    dataset = LevelDataset(
+        data_as_list=caption_data,
+        shuffle=False,
+        mode="text",
+        augment=False,
+        num_tiles=args.num_tiles,
+        negative_captions=False,
+        block_embeddings=None
     )
 
-    scene = sample.squeeze().detach().cpu().numpy().tolist()
+    # Create dataloader
+    dataloader = DataLoader(
+        dataset,
+        batch_size=len(perm_captions),
+        shuffle=False,
+        num_workers=4,
+        drop_last=False,
+        persistent_workers=True
+    )
+
+    scene = dataset.images.squeeze().detach().cpu().numpy()
+    scene = np.rint(scene).astype(int).tolist()
 
     # Assign caption from generated scene
     generated_caption = assign_caption(
@@ -82,7 +103,7 @@ def caption_score_with_assign_and_compare(
         print(f"Generated caption: {generated_caption}")
         print(f"Score: {score:.4f}")
 
-    return score, sample
+    return score, dataset
 
 
 def main():
@@ -90,52 +111,136 @@ def main():
     device = setup_environment(args.seed)
 
     if args.game == "Mario":
-        args.num_tiles = MARIO_TILE_COUNT
+        args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = LR_TILE_COUNT # TODO
+        args.num_tiles = common_settings.LR_TILE_COUNT # TODO
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
     else:
         raise ValueError(f"Unknown game: {args.game}")
     
     # Load pipeline
     pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
-    pipe.eval()
 
     # Load tile metadata
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+
+    # TODO: This currently only handles a single caption. Needs to be abel to handle all captions in a dataset.
+    #  Separate code below into function, call once per caption in given --json dataset
 
     # Parse caption into phrase permutations
     phrases = [p.strip() for p in args.caption.split('.') if p.strip()]
     permutations = list(itertools.permutations(phrases))
 
-    all_scores = []
-    permutation_scores = defaultdict(list)
-
+    # After parsing permutations:
+    all_captions = []
     for perm in permutations:
         perm_caption = '. '.join(perm) + '.'
-        print(f"\nEvaluating permutation: {perm_caption}")
         for trial in range(args.trials):
-            score, _ = caption_score_with_assign_and_compare(
-                device=device,
-                pipe=pipe,
-                prompt=perm_caption,
-                steps=args.inference_steps,
-                guidance_scale=args.guidance_scale,
-                seed=args.seed + trial,
+            all_captions.append(perm_caption)
+
+    all_scores = []
+
+    #print(permutations)
+
+    perm_captions = []
+    for perm in permutations:
+        perm_captions.append('. '.join(perm) + '.')
+
+
+    # Create a list of dicts as expected by LevelDataset
+    caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
+
+    # Initialize dataset
+    dataset = LevelDataset(
+        data_as_list=caption_data,
+        shuffle=False,
+        mode="text",
+        augment=False,
+        num_tiles=args.num_tiles,
+        negative_captions=False,
+        block_embeddings=None
+    )
+
+    # Create dataloader
+    dataloader = DataLoader(
+        dataset,
+        batch_size=len(perm_captions),
+        shuffle=False,
+        num_workers=4,
+        drop_last=False,
+        persistent_workers=True
+    )
+
+
+    (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
+
+
+#    for perm in permutations:
+#        perm_caption = '. '.join(perm) + '.'
+#        print(f"\nEvaluating permutation: {perm_caption}")
+#        for trial in range(args.trials):
+#            score, _ = caption_score_with_assign_and_compare(
+#                device=device,
+#                pipe=pipe,
+#                prompt=perm_caption,
+#                steps=args.inference_steps,
+#                guidance_scale=args.guidance_scale,
+#                seed=args.seed + trial,
+#                id_to_char=id_to_char,
+#                char_to_id=char_to_id,
+#                tile_descriptors=tile_descriptors,
+#                describe_absence=False,
+#                output=False
+#            )
+#            permutation_scores[perm_caption].append(score)
+#            all_scores.append(score)
+#            print(f"  Trial {trial + 1}: Score = {score:.4f}")
+
+    all_scores = []
+    permutation_scores = defaultdict(list)
+    for prompt, sample in zip(all_prompts, all_samples):
+        # If sample is a batch (e.g., shape (13, 16, 16)), loop over each scene in the batch
+        if isinstance(sample, torch.Tensor):
+            sample = sample.detach().cpu().numpy()
+        if sample.ndim == 3:
+            # Loop over each scene in the batch
+            for scene_np in sample:
+                scene = np.rint(scene_np).astype(int).tolist()
+                #print(f"Scene rows: {len(scene)}, columns: {len(scene[0]) if len(scene) > 0 else 0}")
+                generated_caption = assign_caption(
+                    scene,
+                    id_to_char=id_to_char,
+                    char_to_id=char_to_id,
+                    tile_descriptors=tile_descriptors,
+                    describe_locations=False,
+                    describe_absence=args.describe_absence
+                )
+                score = compare_captions(prompt, generated_caption)
+                permutation_scores[prompt].append(score)
+                all_scores.append(score)
+        else:
+            # Already a single scene
+            scene = np.rint(sample).astype(int).tolist()
+            #print(f"Scene rows: {len(scene)}, columns: {len(scene[0]) if len(scene) > 0 else 0}")
+            generated_caption = assign_caption(
+                scene,
                 id_to_char=id_to_char,
                 char_to_id=char_to_id,
                 tile_descriptors=tile_descriptors,
-                describe_absence=False,
-                output=False
+                describe_locations=False,
+                describe_absence=args.describe_absence
             )
-            permutation_scores[perm_caption].append(score)
+            score = compare_captions(prompt, generated_caption)
+            permutation_scores[prompt].append(score)
             all_scores.append(score)
-            print(f"  Trial {trial + 1}: Score = {score:.4f}")
+
+    # Use your tokenizer as needed
 
     print("\n--- Summary ---")
-    for caption, scores in permutation_scores.items():
-        print(f"Permutation: {caption}\n  Average Score: {np.mean(scores):.4f}")
+    print(permutation_scores)
+    for perm_caption, scores in permutation_scores.items():
+        print(f"Permutation: {perm_caption}\n  Average Score: {np.mean(scores):.4f}")
 
     print(f"\nOverall Average Across All Permutations and Trials: {np.mean(all_scores):.4f}")
 
