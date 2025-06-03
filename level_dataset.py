@@ -335,7 +335,7 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path, tokenizer, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None):
+    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -362,12 +362,16 @@ class LevelDataset(Dataset):
 
         # For embeddings
         self.block_embeddings = block_embeddings # Store block embeddings
-        
-
-        # Load data
-        print(f"Loading data from {json_path}...")
-        with open(json_path, 'r') as f:
-            self.data = json.load(f)
+        if json_path is None and data_as_list:
+            print(f"Data given as list")
+            self.data = data_as_list  
+        elif not os.path.exists(json_path):
+            raise ValueError(f"JSON file does not exist: {json_path}")
+        else:
+            # Load data
+            print(f"Loading data from {json_path}...")
+            with open(json_path, 'r') as f:
+                self.data = json.load(f)
 
         if limit > -1:
             # Random selection of limited portion of data (if limit is less than actual size)
@@ -437,29 +441,6 @@ class LevelDataset(Dataset):
 
         return flipped_scene
 
-    def _swap_caption_tokens(self, caption_tensor):
-        """swapping directional tokens for consistency with flipped scenes"""
-
-        # If locations are not in captions, then left/right will not exist
-        left_id = self.tokenizer.token_to_id["left"] if "left" in self.tokenizer.token_to_id else -1
-        right_id = self.tokenizer.token_to_id["right"] if "right" in self.tokenizer.token_to_id else -1
-        ascending_id = self.tokenizer.token_to_id["ascending"]
-        descending_id = self.tokenizer.token_to_id["descending"]
-        
-        swapped_caption = []
-        for token in caption_tensor:
-            if token == left_id:
-                swapped_caption.append(right_id)
-            elif token == right_id:
-                swapped_caption.append(left_id)
-            elif token == ascending_id:
-                swapped_caption.append(descending_id)
-            elif token == descending_id:
-                swapped_caption.append(ascending_id)
-            else:
-                swapped_caption.append(token)
-        
-        return swapped_caption
 
     def __len__(self):
         """Returns the number of samples in the dataset."""

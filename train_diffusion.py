@@ -15,7 +15,7 @@ from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
-from captions.util import extract_tileset # TODO: Move this to a caption_util.py file
+from captions.util import extract_tileset 
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 from torch.distributions import Categorical
