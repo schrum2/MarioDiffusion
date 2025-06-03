@@ -140,7 +140,7 @@ def average_min_edit_distance(level_collection: List[List[List[int]]]) -> float:
         
     return total_min_distance / len(level_collection)
 
-def average_generated_edit_distance(
+def average_min_edit_distance_from_real(
     generated_levels: List[List[List[int]]],
     game_levels: List[List[List[int]]]
 ) -> float:
@@ -184,7 +184,7 @@ def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
     ]
     return cleaned_captions
 
-def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
+def count_broken_feature_mentions(captions: List[str], feature: str, as_percentage_of_feature: bool) -> float:
     """
     Calculate percentage of captions mentioning a broken feature
     
@@ -207,7 +207,21 @@ def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
         for caption in cleaned_captions
     )
     
-    # Returns percent of broken feature mentions over
+    if as_percentage_of_feature:
+        # Count total mentions of the feature
+        total_feature_count = sum(
+            f"{feature}" in caption.lower()
+            for caption in cleaned_captions
+        )
+        
+        if total_feature_count == 0:
+            print(f"Warning: No mentions of '{feature}' found in captions")
+            return 0.0
+        
+        # Return percentage of broken feature mentions over total feature mentions
+        return (broken_count / total_feature_count) * 100
+    
+    # Returns percent of broken feature mentions over total captions
     return (broken_count / len(cleaned_captions)) * 100 
 
 def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
@@ -499,10 +513,10 @@ if __name__ == "__main__":
             game_data = json.load(game_levels_file)
             game_levels = [entry["scene"] for entry in game_data if "scene" in entry]
 
-        # Test average_generated_edit_distance
+        # Test average_min_edit_distance_from_real
         print(f"Loaded {len(generated_levels)} generated levels and {len(game_levels)} game levels.")
         print(f"Calculating average min edit distance between generated levels and game levels...")
-        avg_edit_distance = average_generated_edit_distance(generated_levels, game_levels)
+        avg_edit_distance = average_min_edit_distance_from_real(generated_levels, game_levels)
         print(f"Average Generated Edit Distance: {avg_edit_distance:.2f}")
 
     except FileNotFoundError as e:

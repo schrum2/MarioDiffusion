@@ -3,7 +3,7 @@ import json
 import argparse
 from util.metrics import (
     average_min_edit_distance,
-    average_generated_edit_distance,
+    average_min_edit_distance_from_real,
     count_broken_feature_mentions,
     analyze_phrase_targeting,
     percent_perfect_match,
@@ -34,17 +34,19 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset=None):
         metrics = {
             "file_name": os.path.basename(json_file_path),
             "average_min_edit_distance": average_min_edit_distance(levels),
-            "broken_pipes_percentage": count_broken_feature_mentions(captions, "pipe"),
-            "broken_cannons_percentage": count_broken_feature_mentions(captions, "cannon"),
+            "broken_pipes_percentage_in_dataset": count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=False),
+            "broken_pipes_percentage_of_pipes": count_broken_feature_mentions(captions, "pipe", as_percentage_of_pipes=True),
+            "broken_cannons_percentage_in_dataset": count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=False),
+            "broken_cannons_percentage_of_cannons":count_broken_feature_mentions(captions, "cannon", as_percentage_of_pipes=True),
         }
         
-        # If an original dataset is provided, calculate average_generated_edit_distance
+        # If an original dataset is provided, calculate average_min_edit_distance_from_real
         if original_dataset:
             with open(original_dataset, "r") as original_file:
                 original_data = json.load(original_file)
                 original_levels = [entry["scene"] for entry in original_data if "scene" in entry]
             print(f"Loaded {len(original_levels)} levels from the original dataset.")
-            metrics["average_generated_edit_distance"] = average_generated_edit_distance(levels, original_levels)
+            metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, original_levels)
         
         print("Calculating phrase metrics...")
 
