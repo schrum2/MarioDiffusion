@@ -181,6 +181,16 @@ def main():
     print("\nAll samples shape:", all_samples.shape)
     print("\nAll prompts:", all_prompts)
 
+    visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
+    caption_folder = args.caption.replace(" ", "_").replace(".", "_")
+    output_dir = os.path.join(visualizations_dir, caption_folder)
+
+    visualize_samples(
+        all_samples,
+        output_dir=output_dir,
+        prompts=all_prompts[0] if all_prompts else "No prompts available"
+    )
+    print(f"\nVisualizations saved to: {output_dir}")
     quit()
 
 
