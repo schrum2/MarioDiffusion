@@ -153,7 +153,7 @@ def load_captions_from_json(json_path):
     captions = [entry["caption"] for entry in data if "caption" in entry]
     return captions
 
-def main():
+def creation_of_parameters():
     args = parse_args()
     device = setup_environment(args.seed)
 
@@ -172,10 +172,7 @@ def main():
     # Load tile metadata
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
-    # TODO: This currently only handles a single caption. Needs to be abel to handle all captions in a dataset.
-    #  Separate code below into function, call once per caption in given --json dataset
-
-    # Parse caption into phrase permutations
+     # Parse caption into phrase permutations
     phrases = [p.strip() for p in args.caption.split('.') if p.strip()]
     permutations = list(itertools.permutations(phrases))
 
@@ -186,16 +183,11 @@ def main():
         for trial in range(args.trials):
             all_captions.append(perm_caption)
 
-    all_scores = []
-
-    #print(permutations)
-
     perm_captions = []
     for perm in permutations:
         perm_captions.append('.'.join(perm) + '.')
 
-
-    # Create a list of dicts as expected by LevelDataset
+     # Create a list of dicts as expected by LevelDataset
     caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
 
     # Initialize dataset
@@ -218,6 +210,15 @@ def main():
         drop_last=False,
         persistent_workers=True
     )
+
+    return pipe, device, id_to_char, char_to_id, tile_descriptors, args.num_tiles, dataloader
+
+def main():
+    pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader = creation_of_parameters()
+    args = parse_args()
+    if not pipe:
+        print("Failed to create pipeline.")
+        return
 
     (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
