@@ -2,6 +2,7 @@ import json
 import argparse
 from pathlib import Path
 import util.common_settings as common_settings
+from captions.util import extract_tileset
 
 """
 Loads a tileset JSON file (which defines what each tile character means).
@@ -125,6 +126,18 @@ def pad_and_sample(
         width = max(len(row) for row in level)
         pad_rows = target_height - height
         padded_level = [extra_tile * width] * pad_rows + level
+
+        # Special case for SMB2 upside down pipes that extend into the sky
+        _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset) # partially duplicates the work of load_tileset, except for the extra_tile
+        for i in range(width): # Scan top row
+            descriptors = tile_descriptors.get(level[0][i], [])
+            if "pipe" in descriptors:
+                # If the top row has a pipe, extend it upwards
+                for j in range(pad_rows):
+                    row_list = list(padded_level[j])
+                    row_list[i] = level[0][i]
+                    padded_level[j] = ''.join(row_list)
+
         padded_level = [row.ljust(target_width, extra_tile) for row in padded_level]
         samples = []
         for x in range(width - target_width + 1):
