@@ -64,9 +64,19 @@ def permutation_caption_score(
     output=False,
     trials=1
 ):
-    # Split caption into phrases and get all permutations
-    phrases = [p.strip() for p in caption.split('.') if p.strip()]
-    permutations = list(itertools.permutations(phrases))
+    if isinstance(caption, list):
+        # captions is a list of caption strings
+        phrases_per_caption = [
+            [p.strip() for p in cap.split('.') if p.strip()]
+            for cap in caption
+        ]
+        permutations = [
+            list(itertools.permutations(phrases)) for phrases in phrases_per_caption
+        ]
+    elif isinstance(caption, str):
+        # Split caption into phrases and get all permutations
+        phrases = [p.strip() for p in caption.split('.') if p.strip()]
+        permutations = list(itertools.permutations(phrases))
 
     # Repeat each permutation for the number of trials
     perm_captions = []
@@ -137,7 +147,7 @@ def load_captions_from_json(json_path):
     captions = [entry["caption"] for entry in data if "caption" in entry]
     return captions
 
-def creation_of_parameters():
+def creation_of_parameters(caption):
     args = parse_args()
     device = setup_environment(args.seed)
 
@@ -156,20 +166,29 @@ def creation_of_parameters():
     # Load tile metadata
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset)
 
-     # Parse caption into phrase permutations
-    phrases = [p.strip() for p in args.caption.split('.') if p.strip()]
-    permutations = list(itertools.permutations(phrases))
-
-    # After parsing permutations:
-    all_captions = []
-    for perm in permutations:
-        perm_caption = '. '.join(perm) + '. '
-        for trial in range(args.trials):
-            all_captions.append(perm_caption)
-
     perm_captions = []
-    for perm in permutations:
-        perm_captions.append('.'.join(perm) + '.')
+    if isinstance(caption, list):
+        # captions is a list of caption strings
+        phrases_per_caption = [
+            [p.strip() for p in cap.split('.') if p.strip()]
+            for cap in caption
+        ]
+        permutations = [
+            list(itertools.permutations(phrases)) for phrases in phrases_per_caption
+        ]
+
+        for perms in permutations:           # for each caption's permutations
+            for perm in perms:               # for each permutation of that caption
+                perm_captions.append('.'.join(perm) + '.')
+    elif isinstance(caption, str):
+        # Split caption into phrases and get all permutations
+        phrases = [p.strip() for p in caption.split('.') if p.strip()]
+        permutations = list(itertools.permutations(phrases))
+
+        for perm in permutations:
+            perm_captions.append('.'.join(perm) + '.')
+
+
 
      # Create a list of dicts as expected by LevelDataset
     caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
@@ -251,16 +270,24 @@ def statsistics_of_captions(captions, dataloader, pipe=None, device=None, id_to_
     print(f"Median score: {median_score:.4f}")
 
 def main():
-    pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader = creation_of_parameters()
     args = parse_args()
+    if args.caption is None or args.caption == "":
+        caption = load_captions_from_json(args.json)
+    else:
+        caption = args.caption
+    pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader = creation_of_parameters(caption)
     if not pipe:
         print("Failed to create pipeline.")
         return
+    
+    (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
+
+    print(f"\nAverage score across all captions: {avg_score:.4f}")
+
     if args.caption is None or args.caption == "":
         caption = load_captions_from_json(args.json)
         statsistics_of_captions(caption, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
-
-    (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
+        (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
     print(f"\nAverage score across all captions: {avg_score:.4f}")
 
@@ -283,10 +310,6 @@ def main():
     )
 
     print("\nPermutation average:", permutation_average)
-
-    if args.caption is None or args.caption == "":
-        caption = load_captions_from_json(args.json)
-        statsistics_of_captions(caption, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
 
     visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
     caption_folder = args.caption.replace(" ", "_").replace(".", "_")
