@@ -12,7 +12,7 @@ from util.metrics import (
 from captions.caption_match import TOPIC_KEYWORDS
 
 
-def evaluate_all_levels(json_file_path, output_file, original_dataset, random_test):
+def evaluate_all_levels(json_file_path, output_file, original_dataset, random_test, key):
     """
     Evaluate metrics for a single `all_levels.json` file and save results.
 
@@ -29,6 +29,7 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset, random_te
 
         levels = [entry["scene"] for entry in data if "scene" in entry]
         captions = [entry["caption"] for entry in data if "caption" in entry]
+        prompts = None
 
         print(f"Found {len(levels)} generated levels and {len(captions)} captions.")
 
@@ -44,7 +45,7 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset, random_te
         # Only want samples-from-real-captions to process the original dataset and make 'prompts
         # Only want samples-from-random-captions to process from the RandomTest dataset and make prompts
 
-        if original_dataset is not None: # change this to determine if the key == samples from real captions
+        if key == "real" and original_dataset is not None: # change this to determine if the key == samples from real captions
             # With the original dataset, calculate average_min_edit_distance_from_real
             with open(original_dataset, "r") as original_file:
                 original_data = json.load(original_file)
@@ -54,7 +55,7 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset, random_te
           
             metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, original_levels)
         
-        elif random_test is not None: # change this to run if key == samples from random captions
+        elif key == "random" and random_test is not None: # change this to run if key == samples from random captions
             with open(random_test, "r")as random_test:
                 random_data = json.load(random_test)
                 random_levels = [entry["scene"] for entry in random_data if "scene" in entry]
@@ -63,7 +64,7 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset, random_te
             metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, random_levels)    
         
         # If prompts was created, meaning that we can do analysis between prompts and captions
-        if prompts is not None:
+        if prompts is not None and (key == "real" or key == "random"):
             print("Calculating phrase metrics...")
 
             phrase_metrics = {}
@@ -84,7 +85,7 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset, random_te
 
             metrics["perfect_match_metrics"] = match_metrics
         else: 
-            print("Phrase targeting is not performed for {json_file_path} as it is not generated with prompts.")
+            print(f"Phrase targeting is not performed for {json_file_path} as it is not generated with prompts.")
         
         # # adding phrase metrics
         # phrase_metrics = calculate_phrase_metrics(list(zip(prompts, captions)), target_phrase="pipe",strict=True)
@@ -130,11 +131,11 @@ def evaluate_metrics(model_path, original_dataset, random_test):
             
             # These make use of the original dataset
             if key == "real" or key == "short":
-                evaluate_all_levels(json_path, output_file, original_dataset, None)
+                evaluate_all_levels(json_path, output_file, original_dataset, None, key)
             elif key == "random":
-                evaluate_all_levels(json_path, output_file, None, random_test)
+                evaluate_all_levels(json_path, output_file, None, random_test, key)
             elif key == "long":
-                evaluate_all_levels(json_path, output_file, None, None)
+                evaluate_all_levels(json_path, output_file, None, None, key)
         else:
             print(f"Warning: {key} file not found at {json_path}")
         
