@@ -9,6 +9,8 @@ where each element represents a tile. The specific tile representation can be ar
 from typing import List, Dict, Sequence, TypeVar, Union
 import sys
 import os
+import numpy as np
+import json
 from util.sampler import MMNEATSimulator
 from captions.caption_match import compare_captions
 from util.sampler import scene_to_ascii
@@ -18,10 +20,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'captions'))
 
 from captions.caption_match import TOPIC_KEYWORDS
-
 from create_ascii_captions import assign_caption, extract_tileset
-import numpy as np
-import json
+
 
 # Type variable for the tile type
 T = TypeVar('T')
@@ -471,7 +471,7 @@ def astar_metrics(
     num_runs: int = 3,
     simulator_kwargs: dict = None,
     save_name: str = "astar_metrics_results.json"
-) -> list[dict]:
+) -> tuple[List[dict], dict]:
     """
     Runs the SNES A* algorithm on each level multiple times and saves results in the requested format.
     Args:
@@ -497,6 +497,8 @@ def astar_metrics(
             try:
                 sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
                 output = sim.astar(render=False)
+                # # Enable rendering if needed (for debugging)
+                # output = sim.astar()
             except Exception as e:
                 print(f"Error running A* on level {idx}, run {run}: {e}")
                 continue
@@ -520,34 +522,62 @@ def astar_metrics(
                     metrics[key] = value
             run_metrics.append(metrics)
 
-        # Compute averages
+        # Compute averages and medians
         averages = {}
+        medians = {}
+        standard_deviations = {}
         if run_metrics:
             keys = set().union(*run_metrics)
             for key in keys:
                 values = [m[key] for m in run_metrics if key in m]
                 if all(isinstance(v, (int, float)) for v in values):
                     averages[key] = sum(values) / len(values)
+                    medians[key] = np.median(values)
+                    standard_deviations[key] = np.std(values)
                 elif all(isinstance(v, bool) for v in values):
                     averages[key] = sum(v for v in values) / len(values)
+                    medians[key] = np.median([int(v) for v in values])
+                    standard_deviations[key] = np.std([int(v) for v in values])
                 else:
-                    averages[key] = values
+                    raise ValueError(
+                        f"Unexpected value types for key '{key}': All values must be int, float, or bool."
+                    )
 
         # Compose result for this scene
         results.append({
             "scene": scene,
             "caption": caption,
             "run_results": run_metrics,
-            "averages": averages
+            "averages": averages,
+            "medians" : medians,
+            "standard_deviations": standard_deviations
         })
 
-    # Save results to root directory
+    # Save results for all runs to root directory as an organized JSON file
     out_file = os.path.join('.', save_name)
     with open(out_file, "w") as f:
         json.dump(results, f, indent=2)
     print(f"Results saved to {out_file}")
 
-    return results
+    # Compute the overall averages of all averages computed across all runs on all scenes
+    if results:
+        # Collect all keys that appear in averages
+        all_keys = set()
+        for r in results:
+            all_keys.update(r["averages"].keys())
+        overall_averages = {}
+        for key in all_keys:
+            values = [r["averages"][key] for r in results if key in r["averages"]]
+            if values:
+                overall_averages[key] = sum(values) / len(values)
+        # Save to a separate JSON file
+        summary_file = os.path.splitext(save_name)[0] + "_overall_averages.json"
+        summary_path = os.path.join('.', summary_file)
+        with open(summary_path, "w") as f:
+            json.dump(overall_averages, f, indent=2)
+        print(f"Overall averages saved to {summary_path}")
+
+    return results, overall_averages if results else None
 
 if __name__ == "__main__":
     # Base directory for datasets
