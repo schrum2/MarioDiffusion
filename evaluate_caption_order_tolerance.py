@@ -32,6 +32,8 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--game", type=str, choices=["Mario", "LR"], default="Mario", help="Game to evaluate (Mario or Lode Runner)")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
+    parser.add_argument("--output_dir", type=str, default="evaluation_caption_order_results.json", help="Output directory if not comparing checkpoints (subdir of model directory)")
     return parser.parse_args()
 
 
@@ -247,6 +249,8 @@ def statistics_of_captions(captions, dataloader, pipe=None, device=None, id_to_c
     print(f"Maximum score: {max_score:.4f}")
     print(f"Median score: {median_score:.4f}")
 
+    return scores, avg_score, std_dev_score, min_score, max_score, median_score
+
 def main():
     args = parse_args()
     if args.caption is None or args.caption == "":
@@ -265,8 +269,8 @@ def main():
 
     if args.caption is None or args.caption == "":
         #caption = load_captions_from_json(args.json)
-        statistics_of_captions(perm_caption, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
-    
+        scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
+
     (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
     print(f"\nAverage score across all captions: {avg_score:.4f}")
@@ -275,17 +279,41 @@ def main():
 
     visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
     caption_folder = args.caption.replace(" ", "_").replace(".", "_")
-    output_dir = os.path.join(visualizations_dir, caption_folder)
+    output_directory = os.path.join(visualizations_dir, caption_folder)
 
     visualize_samples(
         all_samples,
-        output_dir=output_dir,
+        output_dir=output_directory,
         prompts=all_prompts[0] if all_prompts else "No prompts available"
     )
 
     print("\nAll samples shape:", all_samples.shape)
     print("\nAll prompts:", all_prompts)
-    print(f"\nVisualizations saved to: {output_dir}")
+    print(f"\nVisualizations saved to: {output_directory}")
+
+    # Save results to JSON file
+    results = {
+        "avg_score": avg_score,
+        "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
+        "all_prompts": all_prompts,
+        "scores": {
+            "scores": scores,
+            "num_captions": len(scores),
+            "avg": avg_score,
+            "std_dev": std_dev_score,
+            "min": min_score,
+            "max": max_score,
+            "median": median_score
+        },
+    }
+
+    if args.save_as_json:
+        output_json_path = os.path.join(args.output_dir, "evaluation_caption_order_results.json")
+        with open(output_json_path, "w") as f:
+            json.dump(results, f, indent=4)
+        print(f"Results saved to {output_json_path}")
+    else:
+        print("Results not saved as JSON file. Use --save_as_json to enable saving.")
 
 if __name__ == "__main__":
     main()
