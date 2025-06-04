@@ -9,8 +9,9 @@ where each element represents a tile. The specific tile representation can be ar
 from typing import List, Dict, Sequence, TypeVar, Union
 import sys
 import os
-import traceback
-from interactive_tile_level_generator import compare_captions
+from util.sampler import MMNEATSimulator
+from captions.caption_match import compare_captions
+from util.sampler import scene_to_ascii
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -140,7 +141,7 @@ def average_min_edit_distance(level_collection: List[List[List[int]]]) -> float:
         
     return total_min_distance / len(level_collection)
 
-def average_generated_edit_distance(
+def average_min_edit_distance_from_real(
     generated_levels: List[List[List[int]]],
     game_levels: List[List[List[int]]]
 ) -> float:
@@ -184,7 +185,7 @@ def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
     ]
     return cleaned_captions
 
-def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
+def count_broken_feature_mentions(captions: List[str], feature: str, as_percentage_of_feature: bool) -> float:
     """
     Calculate percentage of captions mentioning a broken feature
     
@@ -207,10 +208,24 @@ def count_broken_feature_mentions(captions: List[str], feature: str) -> float:
         for caption in cleaned_captions
     )
     
-    # Returns percent of broken feature mentions over
+    if as_percentage_of_feature:
+        # Count total mentions of the feature
+        total_feature_count = sum(
+            f"{feature}" in caption.lower()
+            for caption in cleaned_captions
+        )
+        
+        if total_feature_count == 0:
+            print(f"Warning: No mentions of '{feature}' found in captions")
+            return 0.0
+        
+        # Return percentage of broken feature mentions over total feature mentions
+        return (broken_count / total_feature_count) * 100
+    
+    # Returns percent of broken feature mentions over total captions
     return (broken_count / len(cleaned_captions)) * 100 
 
-def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
+def analyze_broken_features_from_data(data: List[Dict], feature: str, as_instance_of_feature: bool) -> float:
     """
     Analyze broken features from list of scene/caption dictionaries
     
@@ -227,9 +242,9 @@ def analyze_broken_features_from_data(data: List[Dict], feature: str) -> float:
         print(f"Warning: No captions found in data for feature '{feature}'")
         return 0.0
     
-    return count_broken_feature_mentions(captions, feature)
+    return count_broken_feature_mentions(captions, feature, as_instance_of_feature)
 
-def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: str) -> float:
+def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: str, as_instance_of_feature: bool) -> float:
     """
     Analyze broken features from raw scene data by generating captions
     
@@ -257,10 +272,10 @@ def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: 
         return 0.0
     
     # Use the generated captions to cound broken feature mentions
-    return count_broken_feature_mentions(captions, feature)
+    return count_broken_feature_mentions(captions, feature, as_instance_of_feature)
 
 # Convenience functions for pipes specifically
-def analyze_broken_pipes(data: Union[List[str], List[Dict], List[List[List[int]]]]) -> float:
+def analyze_broken_pipes(data: Union[List[str], List[Dict], List[List[List[int]]]], as_instance_of_feature: bool) -> float:
     """
     Analyze broken pipes in data, handling different input formats
     
@@ -275,14 +290,14 @@ def analyze_broken_pipes(data: Union[List[str], List[Dict], List[List[List[int]]
         
     # Determine data type and call appropriate function
     if isinstance(data[0], str):
-        return count_broken_feature_mentions(data, "pipe")
+        return count_broken_feature_mentions(data, "pipe", as_instance_of_feature)
     elif isinstance(data[0], dict):
-        return analyze_broken_features_from_data(data, "pipe")
+        return analyze_broken_features_from_data(data, "pipe", as_instance_of_feature)
     else:
-        return analyze_broken_features_from_scenes(data, "pipe")
+        return analyze_broken_features_from_scenes(data, "pipe", as_instance_of_feature)
 
 # Convenience functions for cannons specifically
-def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int]]]]) -> float:
+def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int]]]], as_instance_of_feature: bool) -> float:
     """
     Analyze broken cannons in data, handling different input formats
     
@@ -297,11 +312,11 @@ def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int
         
     # Determine data type and call appropriate function
     if isinstance(data[0], str):
-        return count_broken_feature_mentions(data, "cannon")
+        return count_broken_feature_mentions(data, "cannon", as_instance_of_feature)
     elif isinstance(data[0], dict):
-        return analyze_broken_features_from_data(data, "cannon")
+        return analyze_broken_features_from_data(data, "cannon", as_instance_of_feature)
     else:
-        return analyze_broken_features_from_scenes(data, "cannon")
+        return analyze_broken_features_from_scenes(data, "cannon", as_instance_of_feature)
     
     
 def analyze_phrase_targeting(
@@ -325,11 +340,14 @@ def analyze_phrase_targeting(
     """
     true_positives = 0
     false_positives = 0
-    false_negatives = 0
     true_negatives = 0
+    false_negatives = 0
     
     # Normalize the target phrase for comparison
     target_phrase = target_phrase.lower().strip()
+    
+    # Extract relevant keywords from the target phrase
+    relevant_keywords = [kw for kw in TOPIC_KEYWORDS if kw in target_phrase]
         
     for prompt, caption in prompt_caption_pairs:
         # Normalize prompt and caption
@@ -341,9 +359,9 @@ def analyze_phrase_targeting(
             in_prompt = target_phrase in prompt
             in_caption = target_phrase in caption
         else:
-            # Non-strict: Check if the target phrase's topic is present
-            in_prompt = any(topic in prompt for topic in TOPIC_KEYWORDS if topic in target_phrase)
-            in_caption = any(topic in caption for topic in TOPIC_KEYWORDS if topic in target_phrase)
+            # Look for any relevant keyword from the target phrase
+            in_prompt = any(kw in prompt for kw in relevant_keywords)
+            in_caption = any(kw in caption for kw in relevant_keywords)
         
         # Update counts based on presence
         if in_prompt and in_caption:
@@ -356,55 +374,6 @@ def analyze_phrase_targeting(
             false_negatives += 1
     
     return (true_positives, false_positives, true_negatives, false_negatives)
-
-def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> float:
-    """
-    Calculate the percentage of perfect matches between prompts and captions.
-    
-    Args:
-        prompt_caption_pairs: List of (input_prompt, generated_caption) pairs
-    
-    Returns:
-        Percentage of perfect matches
-    """
-    if not prompt_caption_pairs:
-        raise ValueError("The list of prompt-caption pairs cannot be empty")
-    
-    total_pairs = len(prompt_caption_pairs)
-    perfect_match_count = 0
-    partial_match_count = 0
-    no_match_count = 0
-    
-    for prompt, caption in prompt_caption_pairs:
-        if not isinstance(prompt, str) or not isinstance(caption, str):
-            raise ValueError("Both prompt and caption must be strings")
-        compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(
-            prompt, caption, return_matches=True
-        )
-        
-        # Check for perfect match (all phrases match exactly)
-        if compare_score == 1.0 and not excess_phrases:
-            perfect_match_count += 1
-        elif exact_matches > 0:
-            # Check for at least one matching phrase
-            partial_match_count += 1
-        else:
-            # No matches at all
-            no_match_count += 1
-            
-    # Calculate percentages
-    perfect_match_percentage = (perfect_match_count / total_pairs) * 100
-    partial_match_percentage = (partial_match_count / total_pairs) * 100
-    no_match_percentage = (no_match_count / total_pairs) * 100
-    
-    return {
-        "perfect_match_percentage": perfect_match_percentage,
-        "perfect_match_count": perfect_match_count,
-        "partial_match_percentage": partial_match_percentage,
-        "partial_match_count": partial_match_count,
-        "no_match_percentage": no_match_percentage,
-        "no_match_count": no_match_count
-    }
 
 def calculate_phrase_metrics(
     prompt_caption_pairs: List[tuple[str, str]],
@@ -447,19 +416,138 @@ def calculate_phrase_metrics(
         "f1_score": f1,
         "total": total
     }
-    
 
-
-# TODO: GitHub Issue #56 - A* Solvability
-def astar_metrics():
+def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> Dict[str, Union[int, float]]:
     """
-     Takes a list of levels in the list of strings format used by MarioGPT. 
-     For each of the levels, run my astar code on it (repeat some number of times specified by a parameter). 
-     For each run, parse the returned string to extract information about performance. 
-     Average the performance of he A* agent across multiple runs.
-      Return a list of organized results indicating how A* performed on each level (a list of dictionaries).
-     """
-    pass  # Placeholder for future A* metrics implementation
+    Calculate the percentage of perfect matches between prompts and captions.
+    
+    Args:
+        prompt_caption_pairs: List of (input_prompt, generated_caption) pairs
+    
+    Returns:
+        Percentage of perfect matches
+    """
+    if not prompt_caption_pairs:
+        raise ValueError("The list of prompt-caption pairs cannot be empty")
+    
+    total_pairs = len(prompt_caption_pairs)
+    perfect_match_count = 0
+    partial_match_count = 0
+    no_match_count = 0
+    
+    for prompt, caption in prompt_caption_pairs:
+        if not isinstance(prompt, str) or not isinstance(caption, str):
+            raise ValueError("Both prompt and caption must be strings")
+        compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(
+            prompt, caption, return_matches=True
+        )
+
+        # Check for perfect match (all phrases match exactly)
+        if compare_score == 1.0 and not excess_phrases:
+            perfect_match_count += 1
+        elif len(exact_matches) > 0:
+            # Check for at least one matching phrase
+            partial_match_count += 1
+        else:
+            # No matches at all
+            no_match_count += 1
+            
+    # Calculate percentages
+    perfect_match_percentage = (perfect_match_count / total_pairs) * 100
+    partial_match_percentage = (partial_match_count / total_pairs) * 100
+    no_match_percentage = (no_match_count / total_pairs) * 100
+    
+    return {
+        "perfect_match_percentage": perfect_match_percentage,
+        "perfect_match_count": perfect_match_count,
+        "partial_match_percentage": partial_match_percentage,
+        "partial_match_count": partial_match_count,
+        "no_match_percentage": no_match_percentage,
+        "no_match_count": no_match_count
+    }
+
+def astar_metrics(
+    levels: list[dict],  # Each dict should have "scene" and "caption"
+    num_runs: int = 3,
+    simulator_kwargs: dict = None,
+    save_name: str = "astar_metrics_results.json"
+) -> list[dict]:
+    """
+    Runs the SNES A* algorithm on each level multiple times and saves results in the requested format.
+    Args:
+        levels: List of dicts, each with "scene" (2D int list) and "caption" (str)
+        num_runs: Number of runs per level
+        simulator_kwargs: kwargs for MMNEATSimulator
+        save_name: Filename for output JSON (saved to root directory)
+    Returns:
+        List of dicts as described in the prompt
+    """
+    simulator_kwargs = simulator_kwargs or {}
+    results = []
+
+    for idx, entry in enumerate(levels):
+        scene = entry.get("scene")
+        caption = entry.get("caption", None)
+        if scene is None:
+            continue  # skip if no scene
+
+        ascii_level = scene_to_ascii(scene, id_to_char, True)
+        run_metrics = []
+        for run in range(num_runs):
+            try:
+                sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
+                output = sim.astar(render=False)
+            except Exception as e:
+                print(f"Error running A* on level {idx}, run {run}: {e}")
+                continue
+
+            metrics = {}
+            for line in output.strip().splitlines():
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    if value.lower() in ("true", "false"):
+                        value = value.lower() == "true"
+                    else:
+                        try:
+                            if '.' in value:
+                                value = float(value)
+                            else:
+                                value = int(value)
+                        except Exception:
+                            pass
+                    metrics[key] = value
+            run_metrics.append(metrics)
+
+        # Compute averages
+        averages = {}
+        if run_metrics:
+            keys = set().union(*run_metrics)
+            for key in keys:
+                values = [m[key] for m in run_metrics if key in m]
+                if all(isinstance(v, (int, float)) for v in values):
+                    averages[key] = sum(values) / len(values)
+                elif all(isinstance(v, bool) for v in values):
+                    averages[key] = sum(v for v in values) / len(values)
+                else:
+                    averages[key] = values
+
+        # Compose result for this scene
+        results.append({
+            "scene": scene,
+            "caption": caption,
+            "run_results": run_metrics,
+            "averages": averages
+        })
+
+    # Save results to root directory
+    out_file = os.path.join('.', save_name)
+    with open(out_file, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Results saved to {out_file}")
+
+    return results
 
 if __name__ == "__main__":
     # Base directory for datasets
@@ -499,10 +587,10 @@ if __name__ == "__main__":
             game_data = json.load(game_levels_file)
             game_levels = [entry["scene"] for entry in game_data if "scene" in entry]
 
-        # Test average_generated_edit_distance
+        # Test average_min_edit_distance_from_real
         print(f"Loaded {len(generated_levels)} generated levels and {len(game_levels)} game levels.")
         print(f"Calculating average min edit distance between generated levels and game levels...")
-        avg_edit_distance = average_generated_edit_distance(generated_levels, game_levels)
+        avg_edit_distance = average_min_edit_distance_from_real(generated_levels, game_levels)
         print(f"Average Generated Edit Distance: {avg_edit_distance:.2f}")
 
     except FileNotFoundError as e:

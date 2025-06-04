@@ -1,5 +1,7 @@
 @echo off
-cd ..
+call SMB1-data.bat
+cd batch
+call SMB2-data.bat
 
 set default_out=datasets\Mar1and2_LevelsAndCaptions
 

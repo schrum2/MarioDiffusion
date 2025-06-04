@@ -146,7 +146,7 @@ def compare_captions(correct_caption, generated_caption, debug=False, return_mat
                 print(f"[Topic: {topic}] Both None — full score: 1.0\n")
         elif correct is None or generated is None:
             total_score += -1.0
-            if generated is not None:
+            if generated is not None: # Considered an excess phrase
                 excess_phrases.append(generated)
             if debug:
                 print(f"[Topic: {topic}] One is None — penalty: -1.0\n")
