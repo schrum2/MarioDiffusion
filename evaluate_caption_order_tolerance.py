@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument("--game", type=str, choices=["Mario", "LR"], default="Mario", help="Game to evaluate (Mario or Lode Runner)")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
-    parser.add_argument("--output_dir", type=str, default="evaluation_caption_order_results.json", help="Output directory if not comparing checkpoints (subdir of model directory)")
+    parser.add_argument("--output_dir", type=str, default="visualizations", help="Output directory if not comparing checkpoints (subdir of model directory)")
     return parser.parse_args()
 
 
@@ -257,13 +257,14 @@ def main():
         caption = load_captions_from_json(args.json)
     else:
         caption = args.caption
+        #caption = ("many pipes. many coins. , many enemies. many blocks. , many platforms. many question blocks.").split(',')
 
     pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption = creation_of_parameters(caption, max_permutations=10)
     if not pipe:
         print("Failed to create pipeline.")
         return
-    
-    #(avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
+
+    (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
     #print(f"\nAverage score across all captions: {avg_score:.4f}")
 
@@ -291,21 +292,32 @@ def main():
     print("\nAll prompts:", all_prompts)
     print(f"\nVisualizations saved to: {output_directory}")
 
-    # Save results to JSON file
-    results = {
-        "avg_score": avg_score,
-        "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
-        "all_prompts": all_prompts,
-        "scores": {
-            "scores": scores,
-            "num_captions": len(scores),
-            "avg": avg_score,
-            "std_dev": std_dev_score,
-            "min": min_score,
-            "max": max_score,
-            "median": median_score
-        },
-    }
+    if args.caption is None or args.caption == "":
+        print(f"\nScores for each caption permutation saved to: {args.save_as_json}")
+        # Save results to JSON file
+        results = {
+            "avg_score": avg_score,
+            "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
+            "all_prompts": all_prompts,
+            "scores": {
+                "scores": scores,
+                "num_captions": len(scores),
+                "avg": avg_score,
+                "std_dev": std_dev_score,
+                "min": min_score,
+                "max": max_score,
+                "median": median_score
+            },
+        }
+    else:
+        # Save results for a single caption
+        results = {
+            "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
+            "avg_score": avg_score,
+            "all_prompts": all_prompts,
+            "caption": caption
+        }    
+       
 
     if args.save_as_json:
         output_json_path = os.path.join(args.output_dir, "evaluation_caption_order_results.json")
