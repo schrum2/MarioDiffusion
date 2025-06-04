@@ -30,7 +30,7 @@ if /I "%MODEL%"=="GTE" (
 )
 
 REM Default values for fdm model output and extra flags
-set DIFF_OUTPUT=%GAME%-fdm-%TYPE%%SEED%
+set DIFF_OUTPUT=%GAME%-fdm-%MODEL%-%TYPE%%SEED%
 
 
 python train_fdm.py --augment --output_dir "%DIFF_OUTPUT%" --num_epochs 100 --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-train.json --val_json datasets\%GAME%_LevelsAndCaptions-%TYPE%-validate.json --pretrained_language_model "%MODEL_NAME%" --plot_validation_caption_score --embedding_dim "%EMBED_DIM%" --seed %SEED% %DESCRIBE_ABSENCE_FLAG%
