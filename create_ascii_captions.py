@@ -484,14 +484,14 @@ def generate_captions(dataset_path, tileset_path, output_path, describe_location
     save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_upside_down_pipes=exclude_upside_down_pipes)
     print(f"Captioned dataset saved to {output_path}")
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True, exclude_upside_down_pipes=False):
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True, exclude_upside_down_pipes=False, prompts=None):
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
     num_excluded = 0
     # Generate captions
     captioned_dataset = []
-    for scene in dataset:
+    for i, scene in enumerate(dataset):
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, exclude_upside_down_pipes=exclude_upside_down_pipes)
 
         # We only want to discard levels with broken pipes if we indicate that (describe_absence is True)
@@ -504,7 +504,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
             current = len(captioned_dataset)
             print(f"Excluding training sample: {current}")
             num_excluded += 1
-
+            
             #import torch
             #import torch.nn.functional as F
             #scene_tensor = torch.tensor(scene, dtype=torch.long)
@@ -519,11 +519,21 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
             #    sys.exit(0)
 
             continue
+        
+        # Append the prompt if it exists
+        if prompts is not None and i < len(prompts):
+            captioned_dataset.append({
+                "prompt": prompts[i],
+                "scene": scene,
+                "caption": caption
+            })
 
-        captioned_dataset.append({
+        else: 
+            captioned_dataset.append({
+            # Add prompts here
             "scene": scene,
             "caption": caption
-        })
+            })
 
     # Probably need to fix the VGLC data manually.
     # Should I make the script repair the data or make my own fork of VGLC with good data?
