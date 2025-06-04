@@ -6,10 +6,11 @@ from mario_gpt import MarioLM, SampleOutput
 MODEL_DIR = "Mario-GPT2-TEST-MODEL"
 CHECKPOINT = os.path.join(MODEL_DIR, "model_200000.pt") #"model_200000.pt")  # Use the latest checkpoint
 
-# Initialize MarioLM and load tokenizer if available
-mario_lm = MarioLM()
-if hasattr(mario_lm, "tokenizer") and hasattr(mario_lm.tokenizer, "from_pretrained"):
-    mario_lm.tokenizer = mario_lm.tokenizer.from_pretrained(MODEL_DIR)
+# # Initialize MarioLM and load tokenizer if available
+mario_lm = MarioLM(
+    lm_path=MODEL_DIR,
+    tokenizer_path="distilgpt2"
+)
 
 # Load model weights (assumes MarioLM.lm is the HuggingFace model)
 state_dict = torch.load(CHECKPOINT, map_location="cpu")

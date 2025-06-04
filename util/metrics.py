@@ -9,8 +9,9 @@ where each element represents a tile. The specific tile representation can be ar
 from typing import List, Dict, Sequence, TypeVar, Union
 import sys
 import os
-import traceback
+from util.sampler import MMNEATSimulator
 from captions.caption_match import compare_captions
+from util.sampler import scene_to_ascii
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -415,7 +416,7 @@ def calculate_phrase_metrics(
         "f1_score": f1,
         "total": total
     }
-    
+
 def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> Dict[str, Union[int, float]]:
     """
     Calculate the percentage of perfect matches between prompts and captions.
@@ -465,16 +466,88 @@ def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> Dict[s
         "no_match_count": no_match_count
     }
 
-# TODO: GitHub Issue #56 - A* Solvability
-def astar_metrics():
+def astar_metrics(
+    levels: list[dict],  # Each dict should have "scene" and "caption"
+    num_runs: int = 3,
+    simulator_kwargs: dict = None,
+    save_name: str = "astar_metrics_results.json"
+) -> list[dict]:
     """
-     Takes a list of levels in the list of strings format used by MarioGPT. 
-     For each of the levels, run my astar code on it (repeat some number of times specified by a parameter). 
-     For each run, parse the returned string to extract information about performance. 
-     Average the performance of he A* agent across multiple runs.
-      Return a list of organized results indicating how A* performed on each level (a list of dictionaries).
-     """
-    pass  # Placeholder for future A* metrics implementation
+    Runs the SNES A* algorithm on each level multiple times and saves results in the requested format.
+    Args:
+        levels: List of dicts, each with "scene" (2D int list) and "caption" (str)
+        num_runs: Number of runs per level
+        simulator_kwargs: kwargs for MMNEATSimulator
+        save_name: Filename for output JSON (saved to root directory)
+    Returns:
+        List of dicts as described in the prompt
+    """
+    simulator_kwargs = simulator_kwargs or {}
+    results = []
+
+    for idx, entry in enumerate(levels):
+        scene = entry.get("scene")
+        caption = entry.get("caption", None)
+        if scene is None:
+            continue  # skip if no scene
+
+        ascii_level = scene_to_ascii(scene, id_to_char, True)
+        run_metrics = []
+        for run in range(num_runs):
+            try:
+                sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
+                output = sim.astar(render=False)
+            except Exception as e:
+                print(f"Error running A* on level {idx}, run {run}: {e}")
+                continue
+
+            metrics = {}
+            for line in output.strip().splitlines():
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    if value.lower() in ("true", "false"):
+                        value = value.lower() == "true"
+                    else:
+                        try:
+                            if '.' in value:
+                                value = float(value)
+                            else:
+                                value = int(value)
+                        except Exception:
+                            pass
+                    metrics[key] = value
+            run_metrics.append(metrics)
+
+        # Compute averages
+        averages = {}
+        if run_metrics:
+            keys = set().union(*run_metrics)
+            for key in keys:
+                values = [m[key] for m in run_metrics if key in m]
+                if all(isinstance(v, (int, float)) for v in values):
+                    averages[key] = sum(values) / len(values)
+                elif all(isinstance(v, bool) for v in values):
+                    averages[key] = sum(v for v in values) / len(values)
+                else:
+                    averages[key] = values
+
+        # Compose result for this scene
+        results.append({
+            "scene": scene,
+            "caption": caption,
+            "run_results": run_metrics,
+            "averages": averages
+        })
+
+    # Save results to root directory
+    out_file = os.path.join('.', save_name)
+    with open(out_file, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Results saved to {out_file}")
+
+    return results
 
 if __name__ == "__main__":
     # Base directory for datasets
