@@ -9,7 +9,6 @@ where each element represents a tile. The specific tile representation can be ar
 from typing import List, Dict, Sequence, TypeVar, Union
 import sys
 import os
-import traceback
 import numpy as np
 import json
 from util.sampler import MMNEATSimulator
