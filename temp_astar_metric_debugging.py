@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     # Run astar_metrics and save results to root directory
     try:
-        num_runs = 5
+        num_runs = 3
         results = astar_metrics(
             scene_caption_data,
             num_runs=num_runs,

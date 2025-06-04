@@ -13,6 +13,7 @@ import traceback
 from util.sampler import MMNEATSimulator
 from captions.caption_match import compare_captions
 from util.sampler import scene_to_ascii
+import numpy as np
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -480,7 +481,9 @@ def astar_metrics(
         for run in range(num_runs):
             try:
                 sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
-                output = sim.astar(render=False)
+                # output = sim.astar(render=False)
+                # Enable rendering if needed (for debugging)
+                output = sim.astar()
             except Exception as e:
                 print(f"Error running A* on level {idx}, run {run}: {e}")
                 continue
@@ -504,25 +507,35 @@ def astar_metrics(
                     metrics[key] = value
             run_metrics.append(metrics)
 
-        # Compute averages
+        # Compute averages and medians
         averages = {}
+        medians = {}
+        standard_deviations = {}
         if run_metrics:
             keys = set().union(*run_metrics)
             for key in keys:
                 values = [m[key] for m in run_metrics if key in m]
                 if all(isinstance(v, (int, float)) for v in values):
                     averages[key] = sum(values) / len(values)
+                    medians[key] = np.median(values)
+                    standard_deviations[key] = np.std(values)
                 elif all(isinstance(v, bool) for v in values):
                     averages[key] = sum(v for v in values) / len(values)
-                else:
-                    averages[key] = values
+                    medians[key] = np.median([int(v) for v in values])
+                    standard_deviations[key] = np.std([int(v) for v in values])
+                else: # this should never happen
+                    raise ValueError(
+                        f"Unexpected value types for key '{key}': All values must be int, float, or bool."
+                    )
 
         # Compose result for this scene
         results.append({
             "scene": scene,
             "caption": caption,
             "run_results": run_metrics,
-            "averages": averages
+            "averages": averages,
+            "medians" : medians,
+            "standard_deviations": standard_deviations
         })
 
     # Save results to root directory
