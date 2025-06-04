@@ -34,4 +34,4 @@ set DIFF_OUTPUT=%GAME%-fdm-%TYPE%%SEED%
 
 
 python train_fdm.py --augment --output_dir "%DIFF_OUTPUT%" --num_epochs 100 --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-train.json --val_json datasets\%GAME%_LevelsAndCaptions-%TYPE%-validate.json --pretrained_language_model "%MODEL_NAME%" --plot_validation_caption_score --embedding_dim "%EMBED_DIM%" --seed %SEED% %DESCRIBE_ABSENCE_FLAG%
-call batch\evaluate_caption_adherence_multi.bat "%DIFF_OUTPUT%\\final-model" %TYPE%
+call batch\evaluate_caption_adherence_multi.bat "%DIFF_OUTPUT%\\final-model" %TYPE% %GAME%
