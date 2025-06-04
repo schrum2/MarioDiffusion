@@ -10,12 +10,11 @@ import torch
 from accelerate import Accelerator
 from PIL import ImageDraw
 from torch.nn import CrossEntropyLoss  # noqa
-from torch.optim import AdamW
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers import PreTrainedModel, get_linear_schedule_with_warmup
-
+from torch.optim import AdamW
 from mario_gpt.dataset import MarioDataset
 from mario_gpt.lm import BaseMarioLM, MarioLM
 
@@ -27,7 +26,7 @@ class TrainingConfig:
         "no"  # `no` for float32, `fp16` for automatic mixed precision
     )
     output_dir: str = (
-        "Mario-GPT2-TEST-MODEL"  # the model name locally and on the HF Hub
+        "Mario-GPT2-700-context-length"  # the model name locally and on the HF Hub
     )
     learning_rate: float = 5e-4
     epsilon: float = 1e-9
@@ -191,8 +190,6 @@ class MarioGPTTrainer:
 
         model, optimizer, lr_scheduler = self.prepare()
 
-        os.makedirs(checkpoint_path, exist_ok=True)
-
         bar = tqdm(np.arange(total_steps))
         model.train()
 
@@ -236,8 +233,4 @@ class MarioGPTTrainer:
                         print("Failed to evaluate!", e)
                 model.train()
             if (i + 1) % self.config.save_iteration == 0:
-                # self.mario_lm.save_pretrained(checkpoint_path)
-                torch.save(self.mario_lm.lm.state_dict(), os.path.join(checkpoint_path, f"model_{i+1}.pt"))
-                # Optionally, save tokenizer if possible:
-                if hasattr(self.mario_lm, "tokenizer") and hasattr(self.mario_lm.tokenizer, "save_pretrained"):
-                    self.mario_lm.tokenizer.save_pretrained(checkpoint_path)
+                self.mario_lm.save_model(checkpoint_path, i)
