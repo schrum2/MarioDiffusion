@@ -2,33 +2,38 @@ import os
 import json
 from util.metrics import astar_metrics
 
-def load_scenes_from_json(json_path):
+def load_scene_caption_data(json_path):
     """
-    Loads all scenes from a JSON file where each entry is a dict with a 'scene' key.
-    Returns a list of scenes (each a list of lists of ints).
+    Loads all entries from a JSON file where each entry is a dict with at least a 'scene' key.
+    Returns a list of dicts (each with 'scene' and optionally 'caption').
     """
     with open(json_path, 'r') as f:
         data = json.load(f)
-    scenes = [entry['scene'] for entry in data if 'scene' in entry and entry['scene']]
-    return scenes
+    # Only keep entries with a scene
+    return [entry for entry in data if 'scene' in entry and entry['scene']]
 
 if __name__ == "__main__":
-    # Path to your JSON file (update as needed)
-    json_path = os.path.join("datasets", "SMB1_LevelsAndCaptions-regular-validate.json")
+    # Path to your JSON file
+    json_path = r"C:\Users\haganb\Documents\GitHub\MarioDiffusion\datasets\testJSONfile.json"
+    save_name = "astar_metrics_results.json"
 
-    print(f"Loading scenes from: {json_path}")
-    scenes = load_scenes_from_json(json_path)
-    print(f"Loaded {len(scenes)} scenes.")
+    print(f"Loading scene-caption data from: {json_path}")
+    scene_caption_data = load_scene_caption_data(json_path)
+    print(f"Loaded {len(scene_caption_data)} entries.")
 
-    # Run astar_metrics for debugging
+    # Run astar_metrics and save results to root directory
     try:
-        num_runs = 6
-        results = astar_metrics(scenes, num_runs=num_runs)
+        num_runs = 5
+        results = astar_metrics(
+            scene_caption_data,
+            num_runs=num_runs,
+            save_name=save_name
+        )
         print(f"Running {num_runs} runs of astar_metrics on loaded scenes.")
         print(f"Results from astar_metrics: {len(results)} scenes processed.\n")
         for idx, metrics in enumerate(results):
-            print(f"\nScene {idx + 1}:")
+            print(f"\nScene {idx + 1}:\n")
             for k, v in metrics.items():
-                print(f"  {k}: {v}")
+                print(f"  {k}: {v}\n")
     except Exception as e:
         print("Error running astar_metrics:", e)

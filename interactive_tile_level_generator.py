@@ -480,12 +480,12 @@ Average Segment Score: {avg_segment_score}"""
         if isinstance(idx_or_scene, int):
             tensor = torch.tensor(self.current_levels[idx_or_scene])
             tile_numbers = torch.argmax(tensor, dim=0).numpy()
-            char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
+            char_grid = scene_to_ascii(tile_numbers, self.id_to_char, False)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
             # Assume idx_or_scene is a scene (list of lists of tile indices)
-            char_grid = scene_to_ascii(idx_or_scene, self.id_to_char)
+            char_grid = scene_to_ascii(idx_or_scene, self.id_to_char, False)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
       
