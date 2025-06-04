@@ -63,30 +63,7 @@ def permutation_caption_score(
     trials=1,
     max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
 ):
-    perm_captions = []
-    if isinstance(caption, list):
-        # captions is a list of caption strings
-        phrases_per_caption = [
-            [p.strip() for p in cap.split('.') if p.strip()]
-            for cap in caption
-        ]
-        permutations = []
-        for phrases in phrases_per_caption:
-            perms = list(itertools.permutations(phrases))
-            if len(perms) > max_permutations:
-                perms = random.sample(perms, max_permutations)
-            permutations.append(perms)
-        perm_captions = ['.'.join(perm) + '.' for perms in permutations for perm in perms]
-    elif isinstance(caption, str):
-        # Split caption into phrases and get all permutations
-        phrases = [p.strip() for p in caption.split('.') if p.strip()]
-        permutations = list(itertools.permutations(phrases))
-
-        # Repeat each permutation for the number of trials
-        for perm in permutations:
-            perm_caption = '. '.join(perm) + '.'
-            for _ in range(trials):
-                perm_captions.append(perm_caption)
+   
 
     # Prepare data for LevelDataset
     #caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
@@ -222,7 +199,7 @@ def creation_of_parameters(caption, max_permutations=10):
     )
 
 
-    return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, caption_data
+    return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_captions
 
 def statistics_of_captions(captions, dataloader, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
     """
@@ -277,7 +254,7 @@ def main():
     else:
         caption = args.caption
 
-    pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, caption_data = creation_of_parameters(caption, max_permutations=10)
+    pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption = creation_of_parameters(caption, max_permutations=10)
     if not pipe:
         print("Failed to create pipeline.")
         return
@@ -288,7 +265,7 @@ def main():
 
     if args.caption is None or args.caption == "":
         #caption = load_captions_from_json(args.json)
-        statistics_of_captions(caption_data, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
+        statistics_of_captions(perm_caption, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
     
     (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
