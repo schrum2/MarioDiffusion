@@ -7,6 +7,7 @@ from util.metrics import (
     count_broken_feature_mentions,
     analyze_phrase_targeting,
     percent_perfect_match,
+    calculate_phrase_metrics,
 )
 from captions.caption_match import TOPIC_KEYWORDS
 
@@ -72,6 +73,10 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset):
         print(f"Perfect match metrics complete!")
         
         metrics["perfect_match_metrics"] = match_metrics
+        
+        # # adding phrase metrics
+        # phrase_metrics = calculate_phrase_metrics(list(zip(prompts, captions)), target_phrase="pipe",strict=True)
+        # metrics["calculate_phrase_metrics"] = phrase_metrics
 
         with open(output_file, "w") as f:
             json.dump(metrics, f, indent=2)
