@@ -3,7 +3,7 @@ import json
 import argparse
 from util.metrics import (
     average_min_edit_distance,
-    average_generated_edit_distance,
+    average_min_edit_distance_from_real,
     count_broken_feature_mentions,
     analyze_phrase_targeting,
     percent_perfect_match,
@@ -11,14 +11,14 @@ from util.metrics import (
 from captions.caption_match import TOPIC_KEYWORDS
 
 
-def evaluate_all_levels(json_file_path, output_file, original_dataset=None):
+def evaluate_all_levels(json_file_path, output_file, original_dataset):
     """
     Evaluate metrics for a single `all_levels.json` file and save results.
 
     Args:
         json_file_path (str): Path to the `all_levels.json` file.
         output_file (str): Path to save the evaluation results.
-        original_dataset (str): Path to the original dataset for comparison (optional).
+        original_dataset (str): Path to the original dataset for comparison.
     """
     try:
         # Load the generated dataset
@@ -29,29 +29,36 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset=None):
         levels = [entry["scene"] for entry in data if "scene" in entry]
         captions = [entry["caption"] for entry in data if "caption" in entry]
 
-        print(f"Found {len(levels)} levels and {len(captions)} captions.")
+        print(f"Found {len(levels)} generated levels and {len(captions)} captions.")
 
         metrics = {
             "file_name": os.path.basename(json_file_path),
             "average_min_edit_distance": average_min_edit_distance(levels),
-            "broken_pipes_percentage": count_broken_feature_mentions(captions, "pipe"),
-            "broken_cannons_percentage": count_broken_feature_mentions(captions, "cannon"),
+            "broken_pipes_percentage_in_dataset": count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=False),
+            "broken_pipes_percentage_of_pipes": count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=True),
+            "broken_cannons_percentage_in_dataset": count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=False),
+            "broken_cannons_percentage_of_cannons":count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True),
         }
         
-        # If an original dataset is provided, calculate average_generated_edit_distance
-        if original_dataset:
-            with open(original_dataset, "r") as original_file:
-                original_data = json.load(original_file)
-                original_levels = [entry["scene"] for entry in original_data if "scene" in entry]
-            print(f"Loaded {len(original_levels)} levels from the original dataset.")
-            metrics["average_generated_edit_distance"] = average_generated_edit_distance(levels, original_levels)
+        # With the original dataset, calculate average_min_edit_distance_from_real
+        with open(original_dataset, "r") as original_file:
+            original_data = json.load(original_file)
+            original_levels = [entry["scene"] for entry in original_data if "scene" in entry]
+            prompts = [entry["caption"] for entry in original_data if "caption" in entry]
+        print(f"Found {len(original_levels)} original levels and captions.")
         
-        print("Calculating phrase metrics...")
+        metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, original_levels)
+        
+        # For debugging purposes
+        if len(prompts) != len(captions):
+            print("Length of prompts and captions DO NOT match. Phrase targeting analysis will not be performed")
+        else: 
+            print("Calculating phrase metrics...")
 
         phrase_metrics = {}
         for keyword in TOPIC_KEYWORDS:
             tp, fp, tn, fn = analyze_phrase_targeting(
-                [(caption, caption) for caption in captions], keyword, strict=False
+                list(zip(prompts, captions)), keyword, strict=True
             )
             phrase_metrics[keyword] = {
                 "true_positives": tp,
@@ -61,7 +68,9 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset=None):
             }
         metrics["phrase_targeting"] = phrase_metrics
 
-        match_metrics = percent_perfect_match([(caption, caption) for caption in captions])
+        match_metrics = percent_perfect_match(list(zip(prompts, captions)))
+        print(f"Perfect match metrics complete!")
+        
         metrics["perfect_match_metrics"] = match_metrics
 
         with open(output_file, "w") as f:

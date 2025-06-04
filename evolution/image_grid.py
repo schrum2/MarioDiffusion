@@ -5,6 +5,7 @@ import re
 from util.sampler import SampleOutput
 import os
 from tkinter import filedialog
+from util.sampler import scene_to_ascii
 
 """
 Handles evolution in the latent space for generating level scenes.
@@ -522,10 +523,7 @@ class ImageGridViewer:
         tile_numbers = scene
         #print(self.id_to_char)
         #print(tile_numbers)
-        char_grid = []
-        for row in tile_numbers:
-            char_row = "".join([self.id_to_char[num] for num in row])
-            char_grid.append(char_row)
+        char_grid = scene_to_ascii(tile_numbers, self.id_to_char, False)
 
         #print(char_grid)
         level = SampleOutput(

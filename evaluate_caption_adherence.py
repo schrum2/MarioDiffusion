@@ -240,6 +240,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 if output: print(f"\t{caption}")
 
                 compare_score = compare_captions(caption, actual_caption)
+                
+                if output: print(f"\tcompare_score: {compare_score}")
 
                 score_sum += compare_score
                 total_count += 1
