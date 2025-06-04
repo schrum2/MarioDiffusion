@@ -519,21 +519,12 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
             #    sys.exit(0)
 
             continue
-        
-        # Append the prompt if it exists
-        if prompts is not None and i < len(prompts):
-            captioned_dataset.append({
-                "prompt": prompts[i],
-                "scene": scene,
-                "caption": caption
-            })
 
-        else: 
-            captioned_dataset.append({
-            # Add prompts here
+        captioned_dataset.append({
+            "prompt": prompts[i] if prompts else None,
             "scene": scene,
             "caption": caption
-            })
+        })
 
     # Probably need to fix the VGLC data manually.
     # Should I make the script repair the data or make my own fork of VGLC with good data?
