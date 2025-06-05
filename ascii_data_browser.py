@@ -48,15 +48,6 @@ class TileViewer(tk.Tk):
         self.added_sample_indexes = []
         self.composed_thumbnails = []
 
-        # # Checkbox for switching between original and SNES graphics
-        # self.use_snes_graphics = tk.BooleanVar(value=False)
-        # self.graphics_checkbox = ttk.Checkbutton(
-        #     self,
-        #     text="Use SNES Graphics",
-        #     variable=self.use_snes_graphics
-        # )
-        # self.graphics_checkbox.pack(pady=(10, 0))
-
     def regenerate_caption(self):
         print("Regenerating caption...")
         if not self.dataset:
