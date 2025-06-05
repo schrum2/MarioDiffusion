@@ -544,20 +544,19 @@ def astar_metrics(
             if run_metrics:
                 keys = set().union(*run_metrics)
                 for key in keys:
-                    if values:
-                        values = [m[key] for m in run_metrics if key in m]
-                        if all(isinstance(v, (int, float)) for v in values):
-                            averages[key] = sum(values) / len(values)
-                            medians[key] = np.median(values)
-                            standard_deviations[key] = np.std(values)
-                        elif all(isinstance(v, bool) for v in values):
-                            averages[key] = sum(v for v in values) / len(values)
-                            medians[key] = np.median([int(v) for v in values])
-                            standard_deviations[key] = np.std([int(v) for v in values])
-                    else:
+                    values = [m[key] for m in run_metrics if key in m]
+                    if not values:
                         raise RuntimeError(
                             f"No valid metrics found for key '{key}' in level {idx} (caption: {caption}). Exiting as requested."
                         )
+                    if all(isinstance(v, (int, float)) for v in values):
+                        averages[key] = sum(values) / len(values)
+                        medians[key] = np.median(values)
+                        standard_deviations[key] = np.std(values)
+                    elif all(isinstance(v, bool) for v in values):
+                        averages[key] = sum(v for v in values) / len(values)
+                        medians[key] = np.median([int(v) for v in values])
+                        standard_deviations[key] = np.std([int(v) for v in values])
 
             # Compose result for this scene
             result = {
