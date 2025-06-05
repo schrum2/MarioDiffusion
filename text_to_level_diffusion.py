@@ -7,8 +7,10 @@ from captions.LR_caption_match import compare_captions as lr_compare_captions, p
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
+from util.sampler import scene_to_ascii
 import argparse
 import util.common_settings as common_settings
+from util.sampler import SampleOutput
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")    
@@ -134,6 +136,19 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 describe_absence=self.args.describe_absence,
                 verbose=True
             )
+
+            # Ask if user wants to play level
+            play_level = input("Do you want to play this level? (y/n): ").strip().lower()
+            if play_level == 'y':
+                print("Playing level...")
+                char_grid = scene_to_ascii(scene, self.id_to_char, False)
+                level = SampleOutput(level=char_grid, use_snes_graphics=False)
+                console_output = level.run_astar()
+                print(console_output)
+            elif play_level == 'n':
+                print("Level not played.")
+            else:
+                raise ValueError(f"Unknown input: {play_level}")
 
         return visualize_samples(images)
 
