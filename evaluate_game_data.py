@@ -14,7 +14,7 @@ def parse_args():
 def main():
     args = parse_args()
     game_prefix = args.game
-    output_file = Path(f"{game_prefix}_evaluation_results.json")
+    output_file = Path(f"{game_prefix}_evaluation_game_data_results.json")
     
     # Path to the datasets directory (relative to your current dir)
     datasets_dir = os.path.join("datasets")
