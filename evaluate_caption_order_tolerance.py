@@ -27,7 +27,8 @@ def parse_args():
     parser.add_argument("--caption", type=str, required=False, default=None, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
     #parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
-    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
+    #parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="Path to dataset json file")
     parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
     parser.add_argument("--inference_steps", type=int, default=25)
     parser.add_argument("--guidance_scale", type=float, default=3.5)
@@ -174,6 +175,7 @@ def main():
     all_captions =  [item.strip() for s in caption for item in s.split(",")]
 
     one_caption = []
+    count = 0
 
     output_jsonl_path = os.path.join(args.output_dir, "evaluation_caption_order_results.jsonl")
     with open(output_jsonl_path, "w") as f:
@@ -187,10 +189,16 @@ def main():
                 return
             
             avg_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
+            scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
+            
             if args.save_as_json:
                 result_entry = {
                         "Caption": one_caption,
                         "Average score for all permutations": avg_score,
+                        "Standard deviation": std_dev_score,
+                        "Minimum score": min_score,
+                        "Maximum score": max_score,
+                        "Median score": median_score
                             #"samples": all_samples[i].tolist() if hasattr(all_samples, "__getitem__") else None,
                             #"prompt": all_prompts[i] if i < len(all_prompts) else "N/A"
                     }
@@ -198,13 +206,17 @@ def main():
 
             all_avg_scores.append(avg_score)
         
-            scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
+            #scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
             for score in enumerate(scores):
                 all_scores.append(score) 
             all_std_dev_scores.append(std_dev_score)
             all_min_scores.append(min_score)
             all_max_scores.append(max_score)
             all_median_scores.append(median_score)
+            if (count % 10) == 0:
+                f.flush()  # Ensure each result is written immediately
+                os.fsync(f.fileno())  # Ensure file is flushed to disk
+            count = count + 1
 
     print(f"\nAverage score across all captions: {avg_score:.4f}")
 
