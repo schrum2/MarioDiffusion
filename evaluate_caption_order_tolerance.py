@@ -25,7 +25,8 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--caption", type=str, required=False, default=None, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
-    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
+    #parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
     parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
     parser.add_argument("--inference_steps", type=int, default=25)
     parser.add_argument("--guidance_scale", type=float, default=3.5)
@@ -150,19 +151,19 @@ def creation_of_parameters(caption, max_permutations=10):
     # Load tile metadata
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset)
 
-    perm_captions = []
+    perm_captions = set()
     if isinstance(caption, list):
         # captions is a list of caption strings
         phrases_per_caption = [
             [p.strip() for p in cap.split('.') if p.strip()]
             for cap in caption
         ]
-        permutations = []
-        for phrases in phrases_per_caption:
-            perms = list(itertools.permutations(phrases))
-            if len(perms) > max_permutations:
-                perms = random.sample(perms, max_permutations)
-            permutations.append(perms)
+        permutations = set()
+        max_attempts = max_permutations * 5
+        while len(permutations) < max_permutations and attempts < max_attempts:
+            perm = tuple(random.sample(phrases, len(phrases)))
+            permutations.add(perm)
+            attempts += 1
         perm_captions = ['.'.join(perm) + '.' for perms in permutations for perm in perms]
     elif isinstance(caption, str):
         # Split caption into phrases and get all permutations
