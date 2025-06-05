@@ -151,19 +151,19 @@ def creation_of_parameters(caption, max_permutations=10):
     # Load tile metadata
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset)
 
-    perm_captions = set()
+    perm_captions = []
     if isinstance(caption, list):
         # captions is a list of caption strings
         phrases_per_caption = [
             [p.strip() for p in cap.split('.') if p.strip()]
             for cap in caption
         ]
-        permutations = set()
-        max_attempts = max_permutations * 5
-        while len(permutations) < max_permutations and attempts < max_attempts:
-            perm = tuple(random.sample(phrases, len(phrases)))
-            permutations.add(perm)
-            attempts += 1
+        permutations = []
+        for phrases in phrases_per_caption:
+            perms = list(itertools.permutations(phrases))
+            if len(perms) > max_permutations:
+                perms = random.sample(perms, max_permutations)
+            permutations.append(perms)
         perm_captions = ['.'.join(perm) + '.' for perms in permutations for perm in perms]
     elif isinstance(caption, str):
         # Split caption into phrases and get all permutations
@@ -204,7 +204,7 @@ def creation_of_parameters(caption, max_permutations=10):
 
     return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_captions
 
-def statistics_of_captions(captions, dataloader, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
+def statistics_of_captions(captions, dataloader, compare_all_scores, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
     """
     Calculate statistics of the captions.
     Returns average, standard deviation, minimum, maximum, and median of caption scores.
@@ -215,32 +215,15 @@ def statistics_of_captions(captions, dataloader, pipe=None, device=None, id_to_c
         return
     print(f"\nLoaded {len(captions)} captions from {args.json}")
 
-    scores = permutation_caption_scores_for_data(
-        pipe,
-        captions,
-        device,
-        num_tiles,
-        dataloader,
-        id_to_char,
-        char_to_id,
-        tile_descriptors,
-        inference_steps=args.inference_steps,
-        guidance_scale=args.guidance_scale,
-        seed=args.seed,
-        describe_absence=args.describe_absence,
-        height=common_settings.MARIO_HEIGHT,
-        width=common_settings.MARIO_WIDTH,
-        trials=args.trials,
-        max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
-    )
-    avg_score = np.mean(scores)
-    std_dev_score = np.std(scores)
-    min_score = np.min(scores)
-    max_score = np.max(scores)
-    median_score = np.median(scores)
+    
+    avg_score = np.mean(compare_all_scores)
+    std_dev_score = np.std(compare_all_scores)
+    min_score = np.min(compare_all_scores)
+    max_score = np.max(compare_all_scores)
+    median_score = np.median(compare_all_scores)
     
     print("\n-----Scores for each caption permutation-----")
-    for i, score in enumerate(scores):
+    for i, score in enumerate(compare_all_scores):
         print(f"Scores for caption {i + 1}:", score)
 
     print("\n-----Statistics of captions-----")
@@ -250,7 +233,7 @@ def statistics_of_captions(captions, dataloader, pipe=None, device=None, id_to_c
     print(f"Maximum score: {max_score:.4f}")
     print(f"Median score: {median_score:.4f}")
 
-    return scores, avg_score, std_dev_score, min_score, max_score, median_score
+    return compare_all_scores, avg_score, std_dev_score, min_score, max_score, median_score
 
 def main():
     args = parse_args()
@@ -265,36 +248,39 @@ def main():
         print("Failed to create pipeline.")
         return
 
-    (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
+    (avg_score, all_samples, all_prompts, compare_all_scores) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
     #print(f"\nAverage score across all captions: {avg_score:.4f}")
 
-    if args.caption is None or args.caption == "":
+    #if args.caption is None or args.caption == "":
+        
         #caption = load_captions_from_json(args.json)
-        scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
+    scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
 
-    (avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
+    #(avg_score, all_samples, all_prompts) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
     print(f"\nAverage score across all captions: {avg_score:.4f}")
 
    
 
     visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
-    caption_folder = args.caption.replace(" ", "_").replace(".", "_")
-    output_directory = os.path.join(visualizations_dir, caption_folder)
+    if args.caption is not None or "":
+        caption_folder = args.caption.replace(" ", "_").replace(".", "_")
+        output_directory = os.path.join(visualizations_dir, caption_folder)
 
-    visualize_samples(
-        all_samples,
-        output_dir=output_directory,
-        prompts=all_prompts[0] if all_prompts else "No prompts available"
-    )
+        visualize_samples(
+            all_samples,
+            output_dir=output_directory,
+            prompts=all_prompts[0] if all_prompts else "No prompts available"
+        )
+        print(f"\nVisualizations saved to: {output_directory}")
+
 
     print("\nAll samples shape:", all_samples.shape)
     print("\nAll prompts:", all_prompts)
-    print(f"\nVisualizations saved to: {output_directory}")
 
     if args.caption is None or args.caption == "":
-        print(f"\nScores for each caption permutation saved to: {args.save_as_json}")
+        print(f"\nScores for each caption permutation saved to: {args.output_dir}")
         # Save results to JSON file
         results = {
             "avg_score": avg_score,
