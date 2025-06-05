@@ -14,6 +14,7 @@ import json
 from util.sampler import MMNEATSimulator
 from captions.caption_match import compare_captions
 from util.sampler import scene_to_ascii
+from tqdm import tqdm
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -470,22 +471,28 @@ def astar_metrics(
     levels: list[dict],  # Each dict should have "scene" and "caption"
     num_runs: int = 3,
     simulator_kwargs: dict = None,
-    save_name: str = "astar_metrics_results.json"
+    save_name: str = "astar_metrics_results.jsonl"
 ) -> tuple[List[dict], dict]:
     """
-    Runs the SNES A* algorithm on each level multiple times and saves results in the requested format.
+    Runs the SNES A* algorithm on each level multiple times and saves results in JSONL format.
     Args:
         levels: List of dicts, each with "scene" (2D int list) and "caption" (str)
         num_runs: Number of runs per level
         simulator_kwargs: kwargs for MMNEATSimulator
-        save_name: Filename for output JSON (saved to root directory)
+        save_name: Filename for output JSONL (saved to root directory)
     Returns:
         List of dicts as described in the prompt
     """
     simulator_kwargs = simulator_kwargs or {}
     results = []
+    per_level_averages = []
 
-    for idx, entry in enumerate(levels):
+    out_file = os.path.join('.', save_name)
+    # Open the file in write mode at the start to clear any old content
+    with open(out_file, "w") as f:
+        pass
+
+    for idx, entry in enumerate(tqdm(levels, desc="A* metrics", unit="level")):
         scene = entry.get("scene")
         caption = entry.get("caption", None)
         if scene is None:
@@ -544,30 +551,29 @@ def astar_metrics(
                     )
 
         # Compose result for this scene
-        results.append({
+        result = {
             "scene": scene,
             "caption": caption,
             "run_results": run_metrics,
             "averages": averages,
-            "medians" : medians,
+            "medians": medians,
             "standard_deviations": standard_deviations
-        })
+        }
+        results.append(result)
+        per_level_averages.append(averages)
 
-    # Save results for all runs to root directory as an organized JSON file
-    out_file = os.path.join('.', save_name)
-    with open(out_file, "w") as f:
-        json.dump(results, f, indent=2)
+        # Write this result as a JSON line
+        with open(out_file, "a") as f:
+            f.write(json.dumps(result) + "\n")
+
     print(f"Results saved to {out_file}")
 
     # Compute the overall averages of all averages computed across all runs on all scenes
-    if results:
-        # Collect all keys that appear in averages
-        all_keys = set()
-        for r in results:
-            all_keys.update(r["averages"].keys())
-        overall_averages = {}
+    overall_averages = {}
+    if per_level_averages:
+        all_keys = set().union(*per_level_averages)
         for key in all_keys:
-            values = [r["averages"][key] for r in results if key in r["averages"]]
+            values = [avg[key] for avg in per_level_averages if key in avg]
             if values:
                 overall_averages[key] = sum(values) / len(values)
         # Save to a separate JSON file
