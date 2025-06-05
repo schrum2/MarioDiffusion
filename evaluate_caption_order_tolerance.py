@@ -170,6 +170,8 @@ def creation_of_parameters(caption, max_permutations=10):
         # Split caption into phrases and get all permutations
         phrases = [p.strip() for p in caption.split('.') if p.strip()]
         permutations = list(itertools.permutations(phrases))
+        if len(phrases) > 3:
+                perms = random.sample(permutations, max_permutations)
 
         for perm in permutations:
             perm_captions.append('.'.join(perm) + '.')
@@ -183,28 +185,28 @@ def creation_of_parameters(caption, max_permutations=10):
     #print("Caption data:", caption_data)
 
     # Initialize dataset
-    # dataset = LevelDataset(
-    #     data_as_list=caption_data,
-    #     shuffle=False,
-    #     mode="text",
-    #     augment=False,
-    #     num_tiles=common_settings.MARIO_TILE_COUNT,
-    #     negative_captions=False,
-    #     block_embeddings=None
-    # )
+    dataset = LevelDataset(
+        data_as_list=caption_data,
+        shuffle=False,
+        mode="text",
+        augment=False,
+        num_tiles=common_settings.MARIO_TILE_COUNT,
+        negative_captions=False,
+        block_embeddings=None
+    )
 
-    # # Create dataloader
-    # dataloader = DataLoader(
-    #     dataset,
-    #     batch_size=min(16, len(perm_captions)),
-    #     shuffle=False,
-    #     num_workers=4,
-    #     drop_last=False,
-    #     persistent_workers=True
-    # )
+    # Create dataloader
+    dataloader = DataLoader(
+        dataset,
+        batch_size=min(16, len(perm_captions)),
+        shuffle=False,
+        num_workers=4,
+        drop_last=False,
+        persistent_workers=True
+    )
 
 
-    return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, perm_captions, caption_data
+    return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_captions, caption_data
 
 def statistics_of_captions(captions, dataloader, compare_all_scores, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
     """
@@ -244,13 +246,6 @@ def main():
     else:
         caption = args.caption
         #caption = ("many pipes. many coins. , many enemies. many blocks. , many platforms. many question blocks.").split(',')
-
-    # print(caption)
-    # quit()
-    pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, perm_caption, caption_data = creation_of_parameters(caption, max_permutations=10)
-    if not pipe:
-        print("Failed to create pipeline.")
-        return
     
     all_scores = []
     all_avg_scores = []
@@ -259,39 +254,31 @@ def main():
     all_max_scores = []
     all_median_scores = []
     all_captions =  [item.strip() for s in caption for item in s.split(",")]
-    # print(all_captions)
-    # quit()
+    #print(all_captions)
+    #quit()
+    one_caption = []
+    one_caption_perms = []
 
     for cap in all_captions:
         one_caption = cap
-        # print(one_caption)
-        # quit()
-        # Initialize dataset
-        dataset = LevelDataset(
-            data_as_list=one_caption,
-            shuffle=False,
-            mode="text",
-            augment=False,
-            num_tiles=common_settings.MARIO_TILE_COUNT,
-            negative_captions=False,
-            block_embeddings=None
-        )
+        for perm in one_caption:
+            one_caption_perms.append('.'.join(perm) + '.')
 
-        # Create dataloader
-        dataloader = DataLoader(
-            dataset,
-            batch_size=min(16, len(caption[i])),
-            shuffle=False,
-            num_workers=4,
-            drop_last=False,
-            persistent_workers=True
-        )
+        # print(one_caption)
+        # print(one_caption_list)
+        # quit()
+
+        # Initialize dataset
+        pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption, caption_data = creation_of_parameters(one_caption, max_permutations=10)
+        if not pipe:
+            print("Failed to create pipeline.")
+            return
+        
         avg_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
-        scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
-        
-        all_scores.append(scores)
         all_avg_scores.append(avg_score)
+       
+        scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
         all_std_dev_scores.append(std_dev_score)
         all_min_scores.append(min_score)
         all_max_scores.append(max_score)
@@ -317,40 +304,10 @@ def main():
     print("\nAll samples shape:", all_samples.shape)
     print("\nAll prompts:", all_prompts)
 
-    # if args.caption is None or args.caption == "":
-    #     print(f"\nScores for each caption permutation saved to: {args.output_dir}")
-    #     # Save results to JSON file
-    #     results = {
-    #         "avg_score": avg_score,
-    #         "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
-    #         "all_prompts": all_prompts,
-    #         "scores": {
-    #             "scores": scores,
-    #             "num_captions": len(scores),
-    #             "avg": avg_score,
-    #             "std_dev": std_dev_score,
-    #             "min": min_score,
-    #             "max": max_score,
-    #             "median": median_score
-    #         },
-    #     }
-    # else:
-    #     # Save results for a single caption
-    #     results = {
-    #         "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
-    #         "avg_score": avg_score,
-    #         "all_prompts": all_prompts,
-    #         "caption": caption
-    #     }    
-       
-
-    # if args.save_as_json:
-    #     output_json_path = os.path.join(args.output_dir, "evaluation_caption_order_results.json")
-    #     with open(output_json_path, "w") as f:
-    #         json.dump(results, f, indent=4)
-    #     print(f"Results saved to {output_json_path}")
-    # else:
-    #     print("Results not saved as JSON file. Use --save_as_json to enable saving.")
+    all_std_dev_scores.append(std_dev_score)
+    all_min_scores.append(min_score)
+    all_max_scores.append(max_score)
+    all_median_scores.append(median_score)
 
     all_avg_score = np.mean(all_avg_scores)
     all_std_dev_score = np.std(all_std_dev_scores)
@@ -363,7 +320,7 @@ def main():
         with open(output_jsonl_path, "w") as f:
             if isinstance(caption, list) or (args.caption is None or args.caption == ""):
                 # Multiple captions (permuted)
-                for i, score in enumerate(scores):
+                for i, score in enumerate(all_avg_scores):
                     result_entry = {
                         "caption": caption[i] if i < len(caption) else "N/A",
                         "score": score,
