@@ -14,6 +14,7 @@ import json
 from util.sampler import MMNEATSimulator
 from captions.caption_match import compare_captions
 from util.sampler import scene_to_ascii
+from tqdm import tqdm
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -470,104 +471,117 @@ def astar_metrics(
     levels: list[dict],  # Each dict should have "scene" and "caption"
     num_runs: int = 3,
     simulator_kwargs: dict = None,
-    save_name: str = "astar_metrics_results.json"
+    save_name: str = "astar_metrics_results.jsonl"
 ) -> tuple[List[dict], dict]:
     """
-    Runs the SNES A* algorithm on each level multiple times and saves results in the requested format.
+    Runs the SNES A* algorithm on each level multiple times and saves results in JSONL format.
     Args:
         levels: List of dicts, each with "scene" (2D int list) and "caption" (str)
         num_runs: Number of runs per level
         simulator_kwargs: kwargs for MMNEATSimulator
-        save_name: Filename for output JSON (saved to root directory)
+        save_name: Filename for output JSONL (saved to root directory)
     Returns:
         List of dicts as described in the prompt
     """
     simulator_kwargs = simulator_kwargs or {}
     results = []
+    per_level_averages = []
 
-    for idx, entry in enumerate(levels):
-        scene = entry.get("scene")
-        caption = entry.get("caption", None)
-        if scene is None:
-            continue  # skip if no scene
+    out_file = os.path.join('.', save_name)
 
-        ascii_level = scene_to_ascii(scene, id_to_char, True)
-        run_metrics = []
-        for run in range(num_runs):
-            try:
-                sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
-                output = sim.astar(render=False)
-                # # Enable rendering if needed (for debugging)
-                # output = sim.astar()
-            except Exception as e:
-                print(f"Error running A* on level {idx}, run {run}: {e}")
-                continue
+    if not levels:
+        raise RuntimeError("No levels provided to astar_metrics. Exiting.")
 
-            metrics = {}
-            for line in output.strip().splitlines():
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    key = key.strip()
-                    value = value.strip()
-                    if value.lower() in ("true", "false"):
-                        value = value.lower() == "true"
-                    else:
-                        try:
+    # Open the file ONCE in write mode to clear and write all results
+    with open(out_file, "w") as f:
+        for idx, entry in enumerate(tqdm(levels, desc="A* metrics", unit="level")):
+
+            scene = entry.get("scene")
+            caption = entry.get("caption", None)
+
+            ascii_level = scene_to_ascii(scene, id_to_char, True)
+            run_metrics = []
+            for run in range(num_runs):
+                try:
+                    sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
+                    output = sim.astar(render=False)
+                    # # Enable rendering if needed (for debugging)
+                    # output = sim.astar()
+                except Exception as e:
+                    if not run_metrics:
+                        raise RuntimeError(
+                            f"No output to parse for level {idx} (caption: {caption}). Exiting as requested."
+                        )
+
+                metrics = {}
+                for line in output.strip().splitlines():
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        key = key.strip()
+                        value = value.strip()
+                        if value.lower() in ("true", "false"):
+                            value = value.lower() == "true"
+                        else:
                             if '.' in value:
                                 value = float(value)
                             else:
                                 value = int(value)
-                        except Exception:
-                            pass
-                    metrics[key] = value
-            run_metrics.append(metrics)
-
-        # Compute averages and medians
-        averages = {}
-        medians = {}
-        standard_deviations = {}
-        if run_metrics:
-            keys = set().union(*run_metrics)
-            for key in keys:
-                values = [m[key] for m in run_metrics if key in m]
-                if all(isinstance(v, (int, float)) for v in values):
-                    averages[key] = sum(values) / len(values)
-                    medians[key] = np.median(values)
-                    standard_deviations[key] = np.std(values)
-                elif all(isinstance(v, bool) for v in values):
-                    averages[key] = sum(v for v in values) / len(values)
-                    medians[key] = np.median([int(v) for v in values])
-                    standard_deviations[key] = np.std([int(v) for v in values])
+                        metrics[key] = value
+                if metrics:  # Only append if at least one metric was parsed
+                    run_metrics.append(metrics)
                 else:
-                    raise ValueError(
-                        f"Unexpected value types for key '{key}': All values must be int, float, or bool."
+                    raise RuntimeError(
+                        f"No metrics parsed for level {idx}, run {run} (caption: {caption}). Exiting as requested."
                     )
 
-        # Compose result for this scene
-        results.append({
-            "scene": scene,
-            "caption": caption,
-            "run_results": run_metrics,
-            "averages": averages,
-            "medians" : medians,
-            "standard_deviations": standard_deviations
-        })
+            # Compute averages and medians
+            averages = {}
+            medians = {}
+            standard_deviations = {}
+            if run_metrics:
+                keys = set().union(*run_metrics)
+                for key in keys:
+                    values = [m[key] for m in run_metrics if key in m]
+                    if not values:
+                        raise RuntimeError(
+                            f"No valid metrics found for key '{key}' in level {idx} (caption: {caption}). Exiting as requested."
+                        )
+                    if all(isinstance(v, (int, float)) for v in values):
+                        averages[key] = sum(values) / len(values)
+                        medians[key] = np.median(values)
+                        standard_deviations[key] = np.std(values)
+                    elif all(isinstance(v, bool) for v in values):
+                        averages[key] = sum(v for v in values) / len(values)
+                        medians[key] = np.median([int(v) for v in values])
+                        standard_deviations[key] = np.std([int(v) for v in values])
 
-    # Save results for all runs to root directory as an organized JSON file
-    out_file = os.path.join('.', save_name)
-    with open(out_file, "w") as f:
-        json.dump(results, f, indent=2)
+            # Compose result for this scene
+            result = {
+                "scene": scene,
+                "caption": caption,
+                "run_results": run_metrics,
+                "averages": averages,
+                "medians": medians,
+                "standard_deviations": standard_deviations
+            }
+            results.append(result)
+            per_level_averages.append(averages)
+
+            # Write this result as a JSON line
+            f.write(json.dumps(result) + "\n")
+
+            # Uncomment below to flush after each write (not recommended for performance)
+            #f.flush()  # Ensure each result is written immediately
+            #os.fsync(f.fileno())  # Ensure file is flushed to disk
+
     print(f"Results saved to {out_file}")
 
     # Compute the overall averages of all averages computed across all runs on all scenes
-    if results:
-        # Collect all keys that appear in averages
-        all_keys = set()
-        for r in results:
-            all_keys.update(r["averages"].keys())
-        overall_averages = {}
+    overall_averages = {}
+    if per_level_averages:
+        all_keys = set().union(*per_level_averages)
         for key in all_keys:
-            values = [r["averages"][key] for r in results if key in r["averages"]]
+            values = [avg[key] for avg in per_level_averages if key in avg]
             if values:
                 overall_averages[key] = sum(values) / len(values)
         # Save to a separate JSON file
