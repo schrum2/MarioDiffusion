@@ -12,6 +12,7 @@ from evaluate_caption_adherence import calculate_caption_score_and_samples  # ad
 import matplotlib.pyplot as plt
 import matplotlib
 import json
+from tqdm import tqdm
 
 import numpy as np
 import torch
@@ -25,8 +26,8 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--caption", type=str, required=False, default=None, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
-    parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
-    #parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
+    #parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
     parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
     parser.add_argument("--inference_steps", type=int, default=25)
     parser.add_argument("--guidance_scale", type=float, default=3.5)
@@ -47,83 +48,83 @@ def setup_environment(seed):
         torch.cuda.manual_seed_all(seed)
     return device
 
-def permutation_caption_score(
-    pipe,
-    caption,
-    device,
-    num_tiles,
-    dataloader,
-    id_to_char,
-    char_to_id,
-    tile_descriptors,
-    inference_steps=25,
-    guidance_scale=3.5,
-    seed=42,
-    describe_absence=False,
-    height=None,
-    width=None,
-    output=False,
-    trials=1,
-    max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
-):
+# def permutation_caption_score(
+#     pipe,
+#     caption,
+#     device,
+#     num_tiles,
+#     dataloader,
+#     id_to_char,
+#     char_to_id,
+#     tile_descriptors,
+#     inference_steps=25,
+#     guidance_scale=3.5,
+#     seed=42,
+#     describe_absence=False,
+#     height=None,
+#     width=None,
+#     output=False,
+#     trials=1,
+#     max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
+# ):
    
 
-    # Prepare data for LevelDataset
-    #caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
+#     # Prepare data for LevelDataset
+#     #caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
 
-    avg_score, all_samples, all_prompts = calculate_caption_score_and_samples(
-        device, pipe, dataloader, inference_steps, guidance_scale, seed,
-        id_to_char, char_to_id, tile_descriptors, describe_absence,
-        output=output, height=height, width=width
-    )
+#     avg_score, all_samples, all_prompts = calculate_caption_score_and_samples(
+#         device, pipe, dataloader, inference_steps, guidance_scale, seed,
+#         id_to_char, char_to_id, tile_descriptors, describe_absence,
+#         output=output, height=height, width=width
+#     )
 
-    return avg_score
+#     return avg_score
 
-def permutation_caption_scores_for_data(
-    pipe,
-    captions,
-    device,
-    num_tiles,
-    dataloader,
-    id_to_char,
-    char_to_id,
-    tile_descriptors,
-    inference_steps=25,
-    guidance_scale=3.5,
-    seed=42,
-    describe_absence=False,
-    height=None,
-    width=None,
-    trials=1,
-    max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
-):
-    """
-    Compute permutation_caption_score for each caption in captions.
-    Returns a list of average scores, one per caption.
-    """
-    scores = []
-    for caption in captions:
-        print(f"Evaluating caption: {caption}")
-        avg_score = permutation_caption_score(
-            pipe=pipe,
-            caption=caption,
-            device=device,
-            num_tiles=num_tiles,
-            dataloader=dataloader,
-            id_to_char=id_to_char,
-            char_to_id=char_to_id,
-            tile_descriptors=tile_descriptors,
-            inference_steps=inference_steps,
-            guidance_scale=guidance_scale,
-            seed=seed,
-            describe_absence=describe_absence,
-            height=height,
-            width=width,
-            trials=trials,
-            max_permutations=max_permutations
-        )
-        scores.append(avg_score)
-    return scores
+# def permutation_caption_scores_for_data(
+#     pipe,
+#     captions,
+#     device,
+#     num_tiles,
+#     dataloader,
+#     id_to_char,
+#     char_to_id,
+#     tile_descriptors,
+#     inference_steps=25,
+#     guidance_scale=3.5,
+#     seed=42,
+#     describe_absence=False,
+#     height=None,
+#     width=None,
+#     trials=1,
+#     max_permutations=10  # Limit the number of permutations to avoid excessive memory usage
+# ):
+#     """
+#     Compute permutation_caption_score for each caption in captions.
+#     Returns a list of average scores, one per caption.
+#     """
+#     scores = []
+#     for caption in captions:
+#         print(f"Evaluating caption: {caption}")
+#         avg_score = permutation_caption_score(
+#             pipe=pipe,
+#             caption=caption,
+#             device=device,
+#             num_tiles=num_tiles,
+#             dataloader=dataloader,
+#             id_to_char=id_to_char,
+#             char_to_id=char_to_id,
+#             tile_descriptors=tile_descriptors,
+#             inference_steps=inference_steps,
+#             guidance_scale=guidance_scale,
+#             seed=seed,
+#             describe_absence=describe_absence,
+#             height=height,
+#             width=width,
+    #         trials=trials,
+    #         max_permutations=max_permutations
+    #     )
+    #     scores.append(avg_score)
+    # return scores
 
 def load_captions_from_json(json_path):
     with open(json_path, 'r', encoding='utf-8') as f:
@@ -248,7 +249,7 @@ def main():
         print("Failed to create pipeline.")
         return
 
-    (avg_score, all_samples, all_prompts, compare_all_scores) = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
+    avg_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
 
     scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
 
@@ -272,40 +273,79 @@ def main():
     print("\nAll samples shape:", all_samples.shape)
     print("\nAll prompts:", all_prompts)
 
-    if args.caption is None or args.caption == "":
-        print(f"\nScores for each caption permutation saved to: {args.output_dir}")
-        # Save results to JSON file
-        results = {
-            "avg_score": avg_score,
-            "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
-            "all_prompts": all_prompts,
-            "scores": {
-                "scores": scores,
-                "num_captions": len(scores),
-                "avg": avg_score,
-                "std_dev": std_dev_score,
-                "min": min_score,
-                "max": max_score,
-                "median": median_score
-            },
-        }
-    else:
-        # Save results for a single caption
-        results = {
-            "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
-            "avg_score": avg_score,
-            "all_prompts": all_prompts,
-            "caption": caption
-        }    
+    # if args.caption is None or args.caption == "":
+    #     print(f"\nScores for each caption permutation saved to: {args.output_dir}")
+    #     # Save results to JSON file
+    #     results = {
+    #         "avg_score": avg_score,
+    #         "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
+    #         "all_prompts": all_prompts,
+    #         "scores": {
+    #             "scores": scores,
+    #             "num_captions": len(scores),
+    #             "avg": avg_score,
+    #             "std_dev": std_dev_score,
+    #             "min": min_score,
+    #             "max": max_score,
+    #             "median": median_score
+    #         },
+    #     }
+    # else:
+    #     # Save results for a single caption
+    #     results = {
+    #         "all_samples": all_samples.tolist(),  # Convert to list for JSON serialization
+    #         "avg_score": avg_score,
+    #         "all_prompts": all_prompts,
+    #         "caption": caption
+    #     }    
        
 
-    if args.save_as_json:
-        output_json_path = os.path.join(args.output_dir, "evaluation_caption_order_results.json")
-        with open(output_json_path, "w") as f:
-            json.dump(results, f, indent=4)
-        print(f"Results saved to {output_json_path}")
-    else:
-        print("Results not saved as JSON file. Use --save_as_json to enable saving.")
+    # if args.save_as_json:
+    #     output_json_path = os.path.join(args.output_dir, "evaluation_caption_order_results.json")
+    #     with open(output_json_path, "w") as f:
+    #         json.dump(results, f, indent=4)
+    #     print(f"Results saved to {output_json_path}")
+    # else:
+    #     print("Results not saved as JSON file. Use --save_as_json to enable saving.")
 
+
+    if args.save_as_json:
+        output_jsonl_path = os.path.join(args.output_dir, "evaluation_caption_order_results.jsonl")
+        with open(output_jsonl_path, "w") as f:
+            if isinstance(caption, list) or (args.caption is None or args.caption == ""):
+                # Multiple captions (permuted)
+                for i, score in enumerate(scores):
+                    result_entry = {
+                        "caption": caption[i] if i < len(caption) else "N/A",
+                        "score": score,
+                        #"samples": all_samples[i].tolist() if hasattr(all_samples, "__getitem__") else None,
+                        "prompt": all_prompts[i] if i < len(all_prompts) else "N/A"
+                    }
+                    f.write(json.dumps(result_entry) + "\n")
+            else:
+                # Single caption
+                result_entry = {
+                    "caption": caption,
+                    "avg_score": avg_score,
+                    "samples": all_samples.tolist(),
+                    "prompts": all_prompts
+                }
+                f.write(json.dumps(result_entry) + "\n")
+
+            results = {
+
+                "Scores of all captions": {
+                "Scores": scores,
+                    "Number of captions": len(scores),
+                    "Average": avg_score,
+                    "Standard deviation": std_dev_score,
+                    "Min score": min_score,
+                    "Max score": max_score,
+                    "Median score": median_score
+                },
+            }
+            json.dump(results, f, indent=4)
+
+        print(f"Results saved to {output_jsonl_path}")
 if __name__ == "__main__":
     main()
