@@ -498,9 +498,6 @@ def astar_metrics(
 
             scene = entry.get("scene")
             caption = entry.get("caption", None)
-            if scene is None:
-                print(f"Skipping level {idx} due to missing scene data.")
-                continue  # skip if no scene
 
             ascii_level = scene_to_ascii(scene, id_to_char, True)
             run_metrics = []
