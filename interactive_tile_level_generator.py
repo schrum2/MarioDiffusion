@@ -120,7 +120,7 @@ class CaptionBuilder(ParentBuilder):
         self.composed_frame = ttk.Frame(self.caption_frame)
         self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
 
-        # Checkboxe for SMB graphics
+        # Checkbox for SMB graphics
         self.use_snes_graphics = tk.BooleanVar(value=False)
         self.graphics_checkbox = ttk.Checkbutton(
             self.caption_frame,
