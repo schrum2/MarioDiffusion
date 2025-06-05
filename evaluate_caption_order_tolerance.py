@@ -168,21 +168,17 @@ def creation_of_parameters(caption, max_permutations=10):
         perm_captions = ['.'.join(perm) + '.' for perms in permutations for perm in perms]
     elif isinstance(caption, str):
         # Split caption into phrases and get all permutations
-        phrases = [p.strip() for p in caption.split('.') if p.strip()]
-        permutations = list(itertools.permutations(phrases))
-        if len(phrases) > 3:
-                perms = random.sample(permutations, max_permutations)
+        phrase = [p.strip() for p in caption.split('.') if p.strip()]
+        permutations_cap = []
+        perms = list(itertools.permutations(phrase))
+        if len(perms) > max_permutations:
+            perms = random.sample(perms, max_permutations)
+        permutations_cap.append(perms)
 
-        for perm in permutations:
-            perm_captions.append('.'.join(perm) + '.')
-    # print(perm_captions)
-    # quit()
+        perm_captions = ['.'.join(perm) + '.' for perms in permutations_cap for perm in perms]
 
      # Create a list of dicts as expected by LevelDataset
     caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
-    # print(caption_data)
-    # quit()
-    #print("Caption data:", caption_data)
 
     # Initialize dataset
     dataset = LevelDataset(
@@ -254,19 +250,15 @@ def main():
     all_max_scores = []
     all_median_scores = []
     all_captions =  [item.strip() for s in caption for item in s.split(",")]
+
     #print(all_captions)
     #quit()
+
     one_caption = []
-    one_caption_perms = []
 
     for cap in all_captions:
         one_caption = cap
-        for perm in one_caption:
-            one_caption_perms.append('.'.join(perm) + '.')
 
-        # print(one_caption)
-        # print(one_caption_list)
-        # quit()
 
         # Initialize dataset
         pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption, caption_data = creation_of_parameters(one_caption, max_permutations=10)
@@ -279,6 +271,8 @@ def main():
         all_avg_scores.append(avg_score)
        
         scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
+        for score in enumerate(scores):
+            all_scores.append(score) 
         all_std_dev_scores.append(std_dev_score)
         all_min_scores.append(min_score)
         all_max_scores.append(max_score)
@@ -322,10 +316,10 @@ def main():
                 # Multiple captions (permuted)
                 for i, score in enumerate(all_avg_scores):
                     result_entry = {
-                        "caption": caption[i] if i < len(caption) else "N/A",
-                        "score": score,
+                        "Caption": caption[i] if i < len(caption) else "N/A",
+                        "Average score for all permutations": score,
                         #"samples": all_samples[i].tolist() if hasattr(all_samples, "__getitem__") else None,
-                        "prompt": all_prompts[i] if i < len(all_prompts) else "N/A"
+                        #"prompt": all_prompts[i] if i < len(all_prompts) else "N/A"
                     }
                     f.write(json.dumps(result_entry) + "\n") 
             else:
@@ -341,8 +335,8 @@ def main():
             results = {
 
                 "Scores of all captions": {
-                "Scores": scores,
-                    "Number of captions": len(scores),
+                "Scores": all_scores,
+                    "Number of captions": len(all_scores),
                     "Average": all_avg_score,
                     "Standard deviation": all_std_dev_score,
                     "Min score": all_min_score,
