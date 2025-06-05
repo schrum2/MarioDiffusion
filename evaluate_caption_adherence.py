@@ -191,6 +191,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     total_count = 0
     all_samples = []
     all_prompts = []
+    compare_all_scores = []
     for batch_idx, batch in enumerate(dataloader):
         with torch.no_grad():  # Disable gradient computation to save memory            
             if dataloader.dataset.negative_captions:
@@ -244,6 +245,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 compare_score = compare_captions(caption, actual_caption)
 
                 if output: print(f"\tcompare_score: {compare_score}")
+                compare_all_scores.append(compare_score)
 
                 score_sum += compare_score
                 total_count += 1
@@ -261,7 +263,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
     dataloader.dataset.mode=original_mode
 
-    return (avg_score, all_samples, all_prompts)
+    return (avg_score, all_samples, all_prompts, compare_all_scores)
 
 if __name__ == "__main__":
     main()
