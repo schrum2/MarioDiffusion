@@ -14,10 +14,10 @@ tokenizer = AutoTokenizer.from_pretrained(BASE)
 mario_lm = MarioLM(lm=lm, tokenizer=tokenizer)
 
 # create dataset
-dataset = MarioDataset(mario_lm.tokenizer)
+dataset = MarioDataset(mario_lm.tokenizer, context_len=210)
 
 # create training config and trainer
-config = TrainingConfig(eval_iteration=100000)
+config = TrainingConfig(eval_iteration=100000, output_dir="Mario-GPT2-210-context-length")
 trainer = MarioGPTTrainer(mario_lm, dataset, config=config)
 
 # train for 100 iterations!

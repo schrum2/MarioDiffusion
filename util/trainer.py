@@ -19,6 +19,8 @@ from mario_gpt.dataset import MarioDataset
 from mario_gpt.lm import BaseMarioLM, MarioLM
 
 
+
+
 @dataclass
 class TrainingConfig:
     gradient_accumulation_steps: int = 1
@@ -206,9 +208,9 @@ class MarioGPTTrainer:
             bar.set_description(f"{logs}")
             self.accelerator.log({**logs, **grad_dict}, step=i)
 
-            if (i + 1) % self.config.eval_iteration == 0:
+            """if (i + 1) % self.config.eval_iteration == 0:
                 print("Evaluating...")
-                """with torch.no_grad():
+                with torch.no_grad():
                     try:
                         if self.config.mask_proportion <= 0.0:
                             (
@@ -230,7 +232,7 @@ class MarioGPTTrainer:
                                 "image", np.array(out.img), i, dataformats="HWC"
                             )
                     except Exception as e:
-                        print("Failed to evaluate!", e)"""
-                model.train()
+                        print("Failed to evaluate!", e)
+                model.train()"""
             if (i + 1) % self.config.save_iteration == 0:
                 self.mario_lm.lm.save_pretrained(os.path.join(checkpoint_path, f"iteration_{i}"))
