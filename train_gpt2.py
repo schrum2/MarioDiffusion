@@ -17,7 +17,7 @@ mario_lm = MarioLM(lm=lm, tokenizer=tokenizer)
 dataset = MarioDataset(mario_lm.tokenizer)
 
 # create training config and trainer
-config = TrainingConfig()
+config = TrainingConfig(eval_iteration=100000)
 trainer = MarioGPTTrainer(mario_lm, dataset, config=config)
 
 # train for 100 iterations!
