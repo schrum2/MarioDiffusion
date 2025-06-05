@@ -14,7 +14,7 @@ def load_scene_caption_data(json_path):
 
 if __name__ == "__main__":
     # Path to your JSON file
-    json_path = r"C:\Users\williamsr\Documents\GitHub\MarioDiffusion\datasets\Mar1and2_LevelsAndCaptions-regular.json"
+    json_path = r"C:\Users\williamsr\Documents\GitHub\MarioDiffusion\Mar1and2-conditional-regular0\long-samples-from-random-captions\all_levels.json"
     save_name = "astar_metrics_results.jsonl"
 
     print(f"Loading scene-caption data from: {json_path}")
