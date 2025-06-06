@@ -263,7 +263,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
     dataloader.dataset.mode=original_mode
 
-    return (avg_score, all_samples, all_prompts, compare_all_scores)
+    return (avg_score, all_samples, all_prompts) # , compare_all_scores) # Adding this return value broke code in MANY places. Cannot do this unless you make sure that all calls to this function expect 4 values
 
 if __name__ == "__main__":
     main()
