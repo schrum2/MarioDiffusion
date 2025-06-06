@@ -203,18 +203,18 @@ def find_latest_checkpoint(output_dir):
     latest_epoch, latest_ckpt = max(epochs, key=lambda x: x[0])
     return latest_ckpt, latest_epoch
 
-def copy_log_up_to_epoch(output_dir, log_file, resume_epoch):
+def copy_log_up_to_epoch(output_dir, log_file, resume_epoch, log_pattern):
     """
-    Find the most recent previous training log in output_dir (excluding log_file itself),
+    Find the most recent previous log in output_dir (excluding log_file itself),
     and copy entries up to resume_epoch into log_file.
     """
     # Find all previous log files except the new one
     log_files = [
-        f for f in glob.glob(os.path.join(output_dir, "training_log_*.jsonl"))
+        f for f in glob.glob(os.path.join(output_dir, log_pattern))
         if os.path.abspath(f) != os.path.abspath(log_file)
     ]
     if not log_files:
-        print("No previous log file found to copy from.")
+        print(f"No previous log file found to copy from for pattern {log_pattern}.")
         exit()
     # Pick the most recent one by modification time
     prev_log_file = max(log_files, key=os.path.getmtime)
@@ -530,9 +530,9 @@ def main():
     if resume_training:
         latest_ckpt, latest_epoch = find_latest_checkpoint(args.output_dir)
         # Handles log file(s) before resuming
-        copy_log_up_to_epoch(args.output_dir, log_file, latest_epoch)
+        copy_log_up_to_epoch(args.output_dir, log_file, latest_epoch, "training_log_*.jsonl")
         if args.text_conditional and args.plot_validation_caption_score and caption_score_log_file:
-            copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch)
+            copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch, "caption_score_log_*.jsonl")
         if latest_ckpt is not None:
             # Use pipeline's from_pretrained to load everything from the checkpoint directory
             if args.text_conditional:
