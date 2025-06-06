@@ -14,6 +14,7 @@ import random
 import colorsys
 from util.sampler import scene_to_ascii
 from util.sampler import SampleOutput
+#from LodeRunner.loderunner.graphics import *
 
 
 class TileViewer(tk.Tk):
