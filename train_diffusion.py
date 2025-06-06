@@ -203,19 +203,19 @@ def find_latest_checkpoint(output_dir):
     latest_epoch, latest_ckpt = max(epochs, key=lambda x: x[0])
     return latest_ckpt, latest_epoch
 
-def copy_log_up_to_epoch(output_dir, log_file, resume_epoch):
+def copy_log_up_to_epoch(output_dir, log_file, resume_epoch, log_pattern):
     """
-    Find the most recent previous training log in output_dir (excluding log_file itself),
+    Find the most recent previous log in output_dir (excluding log_file itself),
     and copy entries up to resume_epoch into log_file.
     """
     # Find all previous log files except the new one
     log_files = [
-        f for f in glob.glob(os.path.join(output_dir, "training_log_*.jsonl"))
+        f for f in glob.glob(os.path.join(output_dir, log_pattern))
         if os.path.abspath(f) != os.path.abspath(log_file)
     ]
     if not log_files:
-        print("No previous log file found to copy from.")
-        exit()
+        raise RuntimeError(f"No previous log files found in {output_dir} matching pattern {log_pattern}.")
+
     # Pick the most recent one by modification time
     prev_log_file = max(log_files, key=os.path.getmtime)
     print(f"Copying log entries from {prev_log_file} up to epoch {resume_epoch} into {log_file}")
@@ -226,9 +226,8 @@ def copy_log_up_to_epoch(output_dir, log_file, resume_epoch):
                 entry = json.loads(line)
                 if entry.get("epoch", -1) <= resume_epoch:
                     fout.write(line)
-            except Exception:
-                print(f"Warning: Skipping a malformed log line in {prev_log_file}.")
-                exit()
+            except Exception as e:
+                raise RuntimeError(f"Malformed log line in {prev_log_file}: {line.strip()} ({e})")
     print(f"Truncated log file {log_file} to only include entries up to epoch {resume_epoch}")
 
 def infer_global_step_from_log(log_file):
@@ -246,8 +245,8 @@ def infer_global_step_from_log(log_file):
                         global_step = entry["step"]
                 except Exception:
                     continue
-    except Exception:
-        pass
+    except Exception as e:
+        raise RuntimeError(f"Could not read log file {log_file} to infer global step: {e}")
     return global_step
 
 def main():
@@ -293,8 +292,7 @@ def main():
                 exit()
             resume_training = True
         else:
-            print(f"Output directory '{args.output_dir}' already exists but contains no checkpoints. Please remove it or choose a different name.")
-            exit()
+            raise RuntimeError(f"Output directory '{args.output_dir}' already exists but contains no checkpoints. Please remove it or choose a different name.")
     else:
         os.makedirs(args.output_dir)
         resume_training = False
@@ -530,9 +528,9 @@ def main():
     if resume_training:
         latest_ckpt, latest_epoch = find_latest_checkpoint(args.output_dir)
         # Handles log file(s) before resuming
-        copy_log_up_to_epoch(args.output_dir, log_file, latest_epoch)
+        copy_log_up_to_epoch(args.output_dir, log_file, latest_epoch, "training_log_*.jsonl")
         if args.text_conditional and args.plot_validation_caption_score and caption_score_log_file:
-            copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch)
+            copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch, "caption_score_log_*.jsonl")
         if latest_ckpt is not None:
             # Use pipeline's from_pretrained to load everything from the checkpoint directory
             if args.text_conditional:
@@ -582,8 +580,7 @@ def main():
             global_step = infer_global_step_from_log(log_file)
             print(f"Resumed training from epoch {start_epoch}, global_step {global_step}")
         else:
-            print("Exiting from resumed training. No checkpoint found.") 
-            exit()
+            raise RuntimeError(f"No checkpoint found in {args.output_dir}. Please check the directory or remove it to start fresh.")
             
     for epoch in range(start_epoch, args.num_epochs):
         if args.use_early_stopping and early_stop:
