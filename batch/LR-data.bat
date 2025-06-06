@@ -1,3 +1,4 @@
+@echo off
 cd ..
 
 if not exist "datasets" mkdir datasets

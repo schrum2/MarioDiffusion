@@ -29,14 +29,15 @@ def parse_args():
     #parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
     #parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
     parser.add_argument("--json", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="Path to dataset json file")
-    parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
-    parser.add_argument("--inference_steps", type=int, default=25)
-    parser.add_argument("--guidance_scale", type=float, default=3.5)
+    #parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
+    parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS)
+    parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--game", type=str, choices=["Mario", "LR"], default="Mario", help="Game to evaluate (Mario or Lode Runner)")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--output_dir", type=str, default="visualizations", help="Output directory if not comparing checkpoints (subdir of model directory)")
+    parser.add_argument("--max_permutations", type=int, default=5, help="Maximum amount of permutations that can be made per caption")
     return parser.parse_args()
 
 
@@ -56,7 +57,7 @@ def load_captions_from_json(json_path):
     captions = [entry["caption"] for entry in data if "caption" in entry]
     return captions
 
-def creation_of_parameters(caption, max_permutations=10):
+def creation_of_parameters(caption, max_permutations):
     args = parse_args()
     device = setup_environment(args.seed)
 
@@ -183,7 +184,7 @@ def main():
             one_caption = cap
 
             # Initialize dataset
-            pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption, caption_data = creation_of_parameters(one_caption, max_permutations=10)
+            pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption, caption_data = creation_of_parameters(one_caption, args.max_permutations)
             if not pipe:
                 print("Failed to create pipeline.")
                 return
