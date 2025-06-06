@@ -63,6 +63,10 @@ except FileNotFoundError:
 
     raise
 
+def edit_distance_tensor(level1: torch.Tensor, level2: torch.Tensor) -> int:
+    """Computes edit distance. Here for future use if needed (not used in evaluate metrics)"""
+    return (level1 != level2).sum().item()
+
 
 def average_min_edit_distance(level_collection: List[List[List[int]]], use_gpu=True) -> float:
     """
