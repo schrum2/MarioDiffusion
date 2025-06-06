@@ -89,16 +89,6 @@ class ImageGridViewer:
         )
         self.done_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        # This saves images, so not needed
-        # Add Save button
-        #self.save_button = tk.Button(
-        #    self.button_frame,
-        #    text="Save Selected",
-        #    command=self._save_selected,
-        #    width=20
-        #)
-        #self.save_button.pack(side=tk.LEFT, padx=5, pady=5)
-
         # Add Close button
         self.close_button = tk.Button(
             self.button_frame,
@@ -140,6 +130,15 @@ class ImageGridViewer:
         )
         self.clear_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+        # toggle checkbox for SNES graphics
+        self.use_snes_graphics = tk.BooleanVar(value=False)
+        self.snes_checkbox = tk.Checkbutton(
+            self.control_frame,
+            text="Use SNES Graphics",
+            variable=self.use_snes_graphics
+        )
+        self.snes_checkbox.pack(side=tk.LEFT, padx=5, pady=5)
+        
         self.allow_prompt = allow_prompt
         self.allow_negative_prompt = allow_negative_prompt
         self.negative_prompt_var = None
@@ -195,15 +194,24 @@ class ImageGridViewer:
             else:
                 print("Save operation cancelled.")
 
+    def get_sample_output(self, scene, use_snes_graphics=None):
+        if use_snes_graphics is None:
+            use_snes_graphics = self.use_snes_graphics.get()
+        char_grid = scene_to_ascii(scene, self.id_to_char, False)
+        return SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+
     def _play_composed_level(self):
         if self.added_image_indexes:
-            level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
+            # level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
+            level = self.get_sample_output(self._merge_selected(self.added_image_indexes), use_snes_graphics=self.use_snes_graphics.get())
             level.play()
 
     def _astar_composed_level(self):
         if self.added_image_indexes:
-            level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
-            level.run_astar()
+            # level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
+            level = self.get_sample_output(self._merge_selected(self.added_image_indexes), use_snes_graphics=self.use_snes_graphics.get())
+            console_output = level.run_astar()
+            print(console_output)
 
     def get_available_scenes(self):
         """Returns a list of available scenes from the genomes."""
@@ -519,25 +527,16 @@ class ImageGridViewer:
         label = tk.Label(self.bottom_frame, image=photo)
         label.pack(side=tk.LEFT, padx=2)
 
-    def get_sample_output(self, scene):
-        tile_numbers = scene
-        #print(self.id_to_char)
-        #print(tile_numbers)
-        char_grid = scene_to_ascii(tile_numbers, self.id_to_char, False)
-
-        #print(char_grid)
-        level = SampleOutput(
-            level = char_grid
-        )
-        return level
-
     def _play_genome(self, genome):
-        level = self.get_sample_output(genome.scene)
+        # level = self.get_sample_output(genome.scene)
+        level = self.get_sample_output(genome.scene, use_snes_graphics=self.use_snes_graphics.get())
         level.play()
 
     def _run_astar_agent(self, genome):
-        level = self.get_sample_output(genome.scene)
-        level.run_astar()
+        # level = self.get_sample_output(genome.scene)
+        level = self.get_sample_output(genome.scene, use_snes_graphics=self.use_snes_graphics.get())
+        console_output = level.run_astar()
+        print(console_output)
 
     def _toggle_selection(self, idx, button):
         # Don't toggle selection if in expanded view
@@ -597,8 +596,8 @@ class ImageGridViewer:
     def _save_selected(self):
         selected = self.get_selected_images()
         for (i,image) in selected:
-            full_desc = self.genomes[idx].__str__()
-            image_meta = self.genomes[idx].metadata()
+            full_desc = self.genomes[i].__str__()
+            image_meta = self.genomes[i].metadata()
 
             metadata = PngImagePlugin.PngInfo()
             for key in image_meta:

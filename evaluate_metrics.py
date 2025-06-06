@@ -22,7 +22,7 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset, random_te
         original_dataset (str): Path to the original dataset for comparison.
     """
     try:
-        # Load the generated dataset
+        # Load the generated dataset from the path
         with open(json_file_path, "r") as f:
             data = json.load(f)
         print(f"Successfully loaded data from {json_file_path}")
@@ -56,10 +56,13 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset, random_te
             metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, original_levels)
         
         elif key == "random" and random_test is not None: # change this to run if key == samples from random captions
-            with open(random_test, "r")as random_test:
+            print("GOOD. You have entered the random if statement")
+            with open(random_test, "r") as random_test:
                 random_data = json.load(random_test)
                 random_levels = [entry["scene"] for entry in random_data if "scene" in entry]
                 prompts = [entry["caption"] for entry in random_data if "caption" in entry]
+                
+                print(f"Contents of prompts: ", {prompts})
             print(f"Found {len(random_levels)} random levels and captions.")
             metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, random_levels)    
         
@@ -91,6 +94,7 @@ def evaluate_all_levels(json_file_path, output_file, original_dataset, random_te
         # phrase_metrics = calculate_phrase_metrics(list(zip(prompts, captions)), target_phrase="pipe",strict=True)
         # metrics["calculate_phrase_metrics"] = phrase_metrics
 
+        # Add resulting metrics to a JSON file in the same directory as all_levels.json
         with open(output_file, "w") as f:
             json.dump(metrics, f, indent=2)
 

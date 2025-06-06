@@ -14,7 +14,13 @@ def load_tileset(tileset_path):
     """
     with open(tileset_path, 'r') as f:
         tileset_data = json.load(f)
+    # tile_chars = sorted(tileset_data['tiles'].keys())
+    # tile_to_id = {char: idx for idx, char in enumerate(tile_chars)}
     tile_chars = sorted(tileset_data['tiles'].keys())
+    global extra_tile
+    if extra_tile not in tile_chars:
+        tile_chars.append(extra_tile)
+    tile_chars = sorted(tile_chars)  # re-sort to maintain order
     tile_to_id = {char: idx for idx, char in enumerate(tile_chars)}
     return tile_to_id
 
@@ -64,7 +70,7 @@ def pad_and_sample(level, tile_to_id, window_size):
                 window_row = []
                 for col_idx in range(x, x + window_size):
                     char = level[row_idx][col_idx]
-                    tile_id = tile_to_id.get(char, -1)
+                    tile_id = tile_to_id.get(char, tile_to_id[extra_tile])
                     window_row.append(tile_id)
                 sample.append(tuple(window_row))  # Convert row to tuple
             samples.add(tuple(sample))  # Convert sample to tuple of tuples before adding
@@ -119,6 +125,9 @@ if __name__ == "__main__":
     parser.add_argument('--output', required=True, help='Path to the output JSON file')
     parser.add_argument('--tile_size', type=int, required=False, help='Size of the tile (window) to extract')
     args = parser.parse_args()
+    
+    global extra_tile
+    extra_tile = "-"
 
     # Add debug prints
     print(f"Loading tileset from: {args.tileset}")
