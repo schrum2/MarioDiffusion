@@ -78,13 +78,9 @@ class FDMPipeline():
 
         tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
-        if os.path.exists(text_encoder_path):
-            try:
-                text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
-                tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
-            except (ValueError, KeyError):
-                text_encoder = TransformerModel.from_pretrained(text_encoder_path)
-                tokenizer = text_encoder.tokenizer
+        if os.path.exists(text_encoder_path): #Should always be a pretrained model
+            text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
+            tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
         else:
             text_encoder = None
 
