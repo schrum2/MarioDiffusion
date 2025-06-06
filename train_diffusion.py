@@ -214,8 +214,8 @@ def copy_log_up_to_epoch(output_dir, log_file, resume_epoch, log_pattern):
         if os.path.abspath(f) != os.path.abspath(log_file)
     ]
     if not log_files:
-        print(f"No previous log file found to copy from for pattern {log_pattern}.")
-        exit()
+        raise RuntimeError(f"No previous log files found in {output_dir} matching pattern {log_pattern}.")
+
     # Pick the most recent one by modification time
     prev_log_file = max(log_files, key=os.path.getmtime)
     print(f"Copying log entries from {prev_log_file} up to epoch {resume_epoch} into {log_file}")
@@ -226,9 +226,8 @@ def copy_log_up_to_epoch(output_dir, log_file, resume_epoch, log_pattern):
                 entry = json.loads(line)
                 if entry.get("epoch", -1) <= resume_epoch:
                     fout.write(line)
-            except Exception:
-                print(f"Warning: Skipping a malformed log line in {prev_log_file}.")
-                exit()
+            except Exception as e:
+                raise RuntimeError(f"Malformed log line in {prev_log_file}: {line.strip()} ({e})")
     print(f"Truncated log file {log_file} to only include entries up to epoch {resume_epoch}")
 
 def infer_global_step_from_log(log_file):
@@ -246,8 +245,8 @@ def infer_global_step_from_log(log_file):
                         global_step = entry["step"]
                 except Exception:
                     continue
-    except Exception:
-        pass
+    except Exception as e:
+        raise RuntimeError(f"Could not read log file {log_file} to infer global step: {e}")
     return global_step
 
 def main():
@@ -293,8 +292,7 @@ def main():
                 exit()
             resume_training = True
         else:
-            print(f"Output directory '{args.output_dir}' already exists but contains no checkpoints. Please remove it or choose a different name.")
-            exit()
+            raise RuntimeError(f"Output directory '{args.output_dir}' already exists but contains no checkpoints. Please remove it or choose a different name.")
     else:
         os.makedirs(args.output_dir)
         resume_training = False
@@ -582,8 +580,7 @@ def main():
             global_step = infer_global_step_from_log(log_file)
             print(f"Resumed training from epoch {start_epoch}, global_step {global_step}")
         else:
-            print("Exiting from resumed training. No checkpoint found.") 
-            exit()
+            raise RuntimeError(f"No checkpoint found in {args.output_dir}. Please check the directory or remove it to start fresh.")
             
     for epoch in range(start_epoch, args.num_epochs):
         if args.use_early_stopping and early_stop:
