@@ -300,7 +300,7 @@ class CaptionBuilder(ParentBuilder):
             self.generated_scenes.append(scene)
             #selected_game = self.game_var.get()
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-
+           
             pil_img = visualize_samples(images)
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
@@ -522,6 +522,7 @@ app = CaptionBuilder(root)
 
 global tileset_path
 tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+#tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
 
 if len(sys.argv) > 3:
     tileset_path = sys.argv[3]
