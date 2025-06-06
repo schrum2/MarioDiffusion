@@ -1,3 +1,4 @@
+import argparse
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -20,10 +21,9 @@ from util.sampler import scene_to_ascii
 # Add the parent directory to sys.path so sibling folders can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-try:
-    from LodeRunner import main as lr_main
-except ImportError:
-    lr_main = None  # Handle gracefully if not present
+#from LodeRunner.loderunner import main as lr_main
+# except ImportError:
+#     lr_main = None  # Handle gracefully if not present
 
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
@@ -298,8 +298,9 @@ class CaptionBuilder(ParentBuilder):
             sample_indices = convert_to_level_format(sample_tensor)
             scene = sample_indices[0].tolist()
             self.generated_scenes.append(scene)
+            #selected_game = self.game_var.get()
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-
+           
             pil_img = visualize_samples(images)
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
@@ -507,7 +508,7 @@ Average Segment Score: {avg_segment_score}"""
             else:
                 print("LodeRunner main module not found.")
         else:
-            # Default: Mario play logic
+            #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
 
@@ -521,6 +522,8 @@ app = CaptionBuilder(root)
 
 global tileset_path
 tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+#tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+
 if len(sys.argv) > 3:
     tileset_path = sys.argv[3]
 
