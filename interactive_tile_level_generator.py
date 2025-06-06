@@ -438,7 +438,7 @@ Average Segment Score: {avg_segment_score}"""
         label = ttk.Label(self.bottom_frame, image=photo, borderwidth=2, relief="flat")
         label.pack(side=tk.LEFT, padx=2)
         self.composed_thumbnail_labels.append(label)
-        label.bind("<Button-1>", lambda e, i=len(self.composed_thumbnail_labels)-1: self.select_composed_thumbnail(i))
+        self.rebind_composed_thumbnail_clicks()
 
     def select_composed_thumbnail(self, index):
         # Deselect all
@@ -447,6 +447,16 @@ Average Segment Score: {avg_segment_score}"""
         # Select the clicked one
         self.composed_thumbnail_labels[index].config(relief="solid", borderwidth=4)
         self.selected_composed_index = index
+
+    def rebind_composed_thumbnail_clicks(self):
+        """
+        Updates the click event bindings for each thumbnail label to ensure 
+        that when you click a thumbnail, the correct index is assigned
+        This must be called after any operation that changes the order,
+        adds, or removes thumbnails, to keep selection working correctly.
+        """
+        for i, lbl in enumerate(self.composed_thumbnail_labels):
+            lbl.bind("<Button-1>", lambda e, i=i: self.select_composed_thumbnail(i))
 
     def delete_selected_composed_image(self):
         idx = self.selected_composed_index
@@ -458,10 +468,35 @@ Average Segment Score: {avg_segment_score}"""
             label.destroy()
             self.selected_composed_index = None
             # Rebind click events for all remaining labels
-            for i, lbl in enumerate(self.composed_thumbnail_labels):
-                lbl.bind("<Button-1>", lambda e, i=i: self.select_composed_thumbnail(i))
+            self.rebind_composed_thumbnail_clicks()
         else:
             messagebox.showinfo("No selection", "Please select a thumbnail first.")
+
+    def move_selected_image(self, direction):
+        idx = self.selected_composed_index
+        if idx is None or not (0 <= idx < len(self.composed_scenes)):
+            messagebox.showinfo("No selection", "Please select a thumbnail first.")
+            return
+
+        new_idx = idx + direction
+        if not (0 <= new_idx < len(self.composed_scenes)):
+            return  # Out of bounds, do nothing
+
+        # Swap in all lists
+        for lst in [self.composed_scenes, self.composed_thumbnails, self.composed_thumbnail_labels]:
+            lst[idx], lst[new_idx] = lst[new_idx], lst[idx]
+
+        # Remove all labels and re-pack in new order
+        for lbl in self.composed_thumbnail_labels:
+            lbl.pack_forget()
+        for lbl in self.composed_thumbnail_labels:
+            lbl.pack(side=tk.LEFT, padx=2)
+
+        # Rebind click events with correct indices
+        self.rebind_composed_thumbnail_clicks()
+
+        # Update selection
+        self.select_composed_thumbnail(new_idx)
 
     def clear_composed_level(self):
         self.composed_scenes.clear()
