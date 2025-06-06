@@ -34,6 +34,8 @@ def parse_args():
     parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Width of the generated levels")
+    parser.add_argument("--height", type=int, default=common_settings.MARIO_HEIGHT, help="Height of the generated levels")
 
     # Output args
     parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory if not comparing checkpoints (subdir of model directory)")
@@ -96,7 +98,7 @@ def main():
 
     else:
         # Just run on one model and get samples as well
-        avg_score, all_samples, all_prompts = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False)
+        avg_score, all_samples, all_prompts = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=args.height, width=args.width)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
@@ -105,7 +107,7 @@ def main():
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
-            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
+            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
 
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
@@ -148,7 +150,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
 
             avg_score, _, _ = calculate_caption_score_and_samples(
-                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False
+                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=args.width, height=args.height
             )
 
             print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
@@ -240,7 +242,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 if output: print(f"\t{caption}")
 
                 compare_score = compare_captions(caption, actual_caption)
-                
+
                 if output: print(f"\tcompare_score: {compare_score}")
 
                 score_sum += compare_score
