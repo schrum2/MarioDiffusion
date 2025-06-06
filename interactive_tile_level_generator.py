@@ -31,10 +31,14 @@ class CaptionBuilder(ParentBuilder):
                 
         # Holds tensors of levels currently on display
         self.current_levels = []
-        self.added_image_indexes = []
-        self.bottom_thumbnails = []
         self.generated_images = []
         self.generated_scenes = []
+
+        # For tracking composed scenes and thumbnails
+        self.composed_scenes = []
+        self.composed_thumbnails = []
+        self.composed_thumbnail_labels = []
+        self.selected_composed_index = None
 
         # Frame for caption display
         self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
@@ -138,7 +142,7 @@ class CaptionBuilder(ParentBuilder):
         self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics)
         self.graphics_checkbox.pack(side=tk.LEFT, padx=5)
 
-        self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=lambda: self.move_selected_image(0))
+        self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=self.delete_selected_composed_image)
         self.delete_image_button.pack(side=tk.LEFT, padx=10)
         self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level)
         self.clear_composed_button.pack(side=tk.LEFT, padx=10)
@@ -420,22 +424,55 @@ Average Segment Score: {avg_segment_score}"""
         #print(self.current_levels)
 
     def add_to_composed_level(self, idx):
-        self.added_image_indexes.append(idx)
+        # Store the actual scene
+        scene = self.generated_scenes[idx]
+        self.composed_scenes.append(scene)
+
+        # Create and store the thumbnail
         img = self.generated_images[idx].copy()
         img.thumbnail((64, 64))
         photo = ImageTk.PhotoImage(img)
-        self.bottom_thumbnails.append(photo)  # Prevent GC
-        label = ttk.Label(self.bottom_frame, image=photo)
+        self.composed_thumbnails.append(photo)  # Prevent GC
+
+        # Create a clickable label for the thumbnail
+        label = ttk.Label(self.bottom_frame, image=photo, borderwidth=2, relief="flat")
         label.pack(side=tk.LEFT, padx=2)
+        self.composed_thumbnail_labels.append(label)
+        label.bind("<Button-1>", lambda e, i=len(self.composed_thumbnail_labels)-1: self.select_composed_thumbnail(i))
+
+    def select_composed_thumbnail(self, index):
+        # Deselect all
+        for lbl in self.composed_thumbnail_labels:
+            lbl.config(relief="flat", borderwidth=2)
+        # Select the clicked one
+        self.composed_thumbnail_labels[index].config(relief="solid", borderwidth=4)
+        self.selected_composed_index = index
+
+    def delete_selected_composed_image(self):
+        idx = self.selected_composed_index
+        if idx is not None and 0 <= idx < len(self.composed_scenes):
+            # Remove from all lists
+            self.composed_scenes.pop(idx)
+            self.composed_thumbnails.pop(idx)
+            label = self.composed_thumbnail_labels.pop(idx)
+            label.destroy()
+            self.selected_composed_index = None
+            # Rebind click events for all remaining labels
+            for i, lbl in enumerate(self.composed_thumbnail_labels):
+                lbl.bind("<Button-1>", lambda e, i=i: self.select_composed_thumbnail(i))
+        else:
+            messagebox.showinfo("No selection", "Please select a thumbnail first.")
 
     def clear_composed_level(self):
-        self.added_image_indexes.clear()
-        self.bottom_thumbnails.clear()
+        self.composed_scenes.clear()
+        self.composed_thumbnails.clear()
+        self.composed_thumbnail_labels.clear()
+        self.selected_composed_index = None
         for widget in self.bottom_frame.winfo_children():
             widget.destroy()
 
     def merge_selected_scenes(self):
-        scenes = [self.generated_scenes[i] for i in self.added_image_indexes]
+        scenes = self.composed_scenes
         if not scenes:
             return None
         num_rows = len(scenes[0])
