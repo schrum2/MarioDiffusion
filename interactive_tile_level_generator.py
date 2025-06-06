@@ -120,27 +120,35 @@ class CaptionBuilder(ParentBuilder):
         self.composed_frame = ttk.Frame(self.caption_frame)
         self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
 
-        # Checkbox for SMB graphics
-        self.use_snes_graphics = tk.BooleanVar(value=False)
-        self.graphics_checkbox = ttk.Checkbutton(
-            self.caption_frame,
-            text="Use SNES Graphics",
-            variable=self.use_snes_graphics
-        )
-        self.graphics_checkbox.pack(pady=(10, 0))
+        # First row: Checkbox, Play, Use A*
+        row1 = ttk.Frame(self.composed_frame)
+        row1.pack(pady=(10, 0), anchor="center")
+        # Second row: Delete, Clear, Save
+        row2 = ttk.Frame(self.composed_frame)
+        row2.pack(pady=(10, 0), anchor="center")
+        # Third row: Move selection left/right
+        row3 = ttk.Frame(self.composed_frame)
+        row3.pack(pady=(10, 0), anchor="center")
 
-        self.play_composed_button = ttk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
-        self.play_composed_button.pack(side=tk.LEFT, padx=2)
-        self.save_composed_button = ttk.Button(self.composed_frame, text="Save Composed Level", command=self.save_composed_level)
-        self.save_composed_button.pack(side=tk.LEFT, padx=2)
-        self.clear_composed_button = ttk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
-        self.clear_composed_button.pack(side=tk.LEFT, padx=2)
-        self.astar_composed_button = ttk.Button(
-            self.composed_frame, 
-            text="Use A* on Composed Level", 
-            command=self.astar_composed_level
-        )
-        self.astar_composed_button.pack(side=tk.LEFT, padx=2)
+        self.play_composed_button = ttk.Button(row1, text="Play Composed Level", command=self.play_composed_level)
+        self.play_composed_button.pack(side=tk.LEFT, padx=5)
+        self.astar_composed_button = ttk.Button(row1, text="Use A* on Composed Level", command=self.astar_composed_level)
+        self.astar_composed_button.pack(side=tk.LEFT, padx=5)
+        self.use_snes_graphics = tk.BooleanVar(value=False)
+        self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics)
+        self.graphics_checkbox.pack(side=tk.LEFT, padx=5)
+
+        self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=lambda: self.move_selected_image(0))
+        self.delete_image_button.pack(side=tk.LEFT, padx=10)
+        self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level)
+        self.clear_composed_button.pack(side=tk.LEFT, padx=10)
+        self.save_composed_button = ttk.Button(row2, text="Save Composed Level", command=self.save_composed_level)
+        self.save_composed_button.pack(side=tk.LEFT, padx=10)
+        
+        self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1))
+        self.move_left_button.pack(side=tk.LEFT, padx=60)
+        self.move_right_button = ttk.Button(row3, text="Move Selected Image Right", command=lambda: self.move_selected_image(1))
+        self.move_right_button.pack(side=tk.LEFT, padx=60)
 
         # Frame for thumbnails with horizontal scrolling
         self.bottom_canvas = tk.Canvas(self.caption_frame, height=70, borderwidth=0, highlightthickness=0)
@@ -237,9 +245,9 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text.config(state=tk.DISABLED)
     
     def generate_image(self):
-        # cannot use multiple generations of levels in one composed level
-        self.clear_composed_level()
-        print("Clearing previously composed level for newly generated scenes.")
+        # # cannot use multiple generations of levels in one composed level
+        # self.clear_composed_level()
+        # print("Clearing previously composed level for newly generated scenes.")
 
         # clear the previous images
         self.generated_images = []
