@@ -3,13 +3,13 @@ import json
 import os
 import shutil
 
-# add_prompts_to_json.py --source_json datasets\\Mar1and2_LevelsAndCaptions-regular.json --target_json Mar1and2-conditional-regular0\\samples-from-real-Mar1and2-captions\\all_levels.json
+# add_prompts_to_json.py --source_json datasets\\Mar1and2_LevelsAndCaptions-regular.json --target_json Mar1and2-conditional-regular0\\samples-from-real-Mar1and2-captions-OLD\\all_levels.json
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source_json", type=str, required=True, help="Path to the source json with prompts as captions")
-    parser.add_argument("--target_json", type=str, required=True, help="Json file that gets prompts added")
-    return parser
+    parser.add_argument("--source_json", required=True, help="Path to the source json with prompts as captions")
+    parser.add_argument("--target_json", required=True, help="Json file that gets prompts added")
+    return parser.parse_args()
 
 def main():
     args = parse_args()
@@ -22,6 +22,7 @@ def main():
     with open(args.target_json, 'r') as f:
         target_data = json.load(f)
         
+
     if len(source_data) == len(target_data):
         print("Number of source file entries match number of target file entries")
     else:
@@ -46,7 +47,7 @@ def main():
     # Save the modified target JSON
     with open(args.target_json, 'w') as f:
         json.dump(target_data, f, indent=2)
-    print(f"Prompts added and saved to {args.target_json}")
+        print(f"Prompts added and saved to {args.target_json}")
 
 
 if __name__ == "__main__":
