@@ -558,6 +558,22 @@ def main():
             if os.path.exists(lr_scheduler_path):
                 lr_scheduler.load_state_dict(torch.load(lr_scheduler_path, map_location="cpu"))
 
+            # When resuming:
+            lr_scheduler_config_path = os.path.join(latest_ckpt, "lr_scheduler_config.json")
+            if os.path.exists(lr_scheduler_config_path):
+                with open(lr_scheduler_config_path, "r") as f:
+                    scheduler_config = json.load(f)
+                # Use these values to re-create the scheduler
+                lr_scheduler = get_cosine_schedule_with_warmup(
+                    optimizer=optimizer,
+                    num_cycles=scheduler_config["num_cycles"],
+                    num_warmup_steps=scheduler_config["num_warmup_steps"],
+                    num_training_steps=scheduler_config["num_training_steps"],
+                )
+            else:
+                # Fallback to old behavior or raise an error
+                raise RuntimeError("lr_scheduler_config.json not found in checkpoint. Cannot resume scheduler correctly.")
+
             # rewrap with accelerator
             model, optimizer = accelerator.prepare(model, optimizer)
 
@@ -846,6 +862,15 @@ def main():
             early_stop_path = os.path.join(checkpoint_dir, "early_stop_state.json")
             with open(early_stop_path, "w") as f:
                 json.dump(early_stop_state, f)
+            
+            # When saving checkpoint:
+            scheduler_config = {
+                "num_warmup_steps": warmup_steps,
+                "num_training_steps": total_training_steps,
+                "num_cycles": args.lr_scheduler_cycles,
+            }
+            with open(os.path.join(checkpoint_dir, "lr_scheduler_config.json"), "w") as f:
+                json.dump(scheduler_config, f)
             
     try:
         # Clean up plotting resources
