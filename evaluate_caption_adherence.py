@@ -9,7 +9,10 @@ import json
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.fdm_pipeline import FDMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
-from create_ascii_captions import assign_caption, save_level_data, extract_tileset
+from create_ascii_captions import assign_caption, save_level_data
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from LR_create_ascii_captions import save_level_data as lr_save_level_data
+from captions.util import extract_tileset 
 from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
@@ -98,7 +101,7 @@ def main():
 
     else:
         # Just run on one model and get samples as well
-        avg_score, all_samples, all_prompts = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=args.height, width=args.width)
+        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=args.height, width=args.width)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
@@ -107,7 +110,10 @@ def main():
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
-            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
+            if args.height == common_settings.MARIO_HEIGHT:
+                save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
+            elif args.height == common_settings.LR_HEIGHT:
+                lr_save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
 
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
@@ -149,7 +155,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             print(f"Evaluating checkpoint: {checkpoint_dir}")
             pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
 
-            avg_score, _, _ = calculate_caption_score_and_samples(
+            avg_score, _, _, _ = calculate_caption_score_and_samples(
                 device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=args.width, height=args.height
             )
 
@@ -238,7 +244,10 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 sample = samples[i].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample)
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
-                actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
+                if height == common_settings.LR_HEIGHT:
+                    actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
+                elif height == common_settings.MARIO_HEIGHT:
+                    actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
 
                 if output: print(f"\t{caption}")
 

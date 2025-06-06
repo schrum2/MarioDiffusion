@@ -673,7 +673,7 @@ def main():
                 inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
                 guidance_scale = common_settings.GUIDANCE_SCALE
-                avg_caption_score, _, _ = calculate_caption_score_and_samples(
+                avg_caption_score, _, _, _= calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width
