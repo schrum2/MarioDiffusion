@@ -43,7 +43,7 @@ def main():
 
     # create training config and trainer
     config = TrainingConfig(eval_iteration=100000, output_dir="Mario-GPT2-210-context-length")
-    trainer = MarioGPTTrainer(mario_lm, dataset, tokenizer=tokenizer, config=config)
+    trainer = MarioGPTTrainer(mario_lm, dataset, tokenizer=tokenizer, config=config) #I'm not sure this is the correct tokenizer
 
     # train for 100 iterations!
     trainer.train(50000, batch_size=4)

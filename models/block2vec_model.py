@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import os
 import json
 from safetensors.torch import save_file, load_file
+import time
 
 class Block2Vec(nn.Module):
     """Block2Vec model that learns tile embeddings through context prediction"""
@@ -27,22 +28,27 @@ class Block2Vec(nn.Module):
         Forward pass computing loss for predicting context tiles given center tile
         
         Args:
-            center_ids: Tensor of shape (batch_size,) containing target tile IDs
+            center_ids: Tensor of shape (batch_size) containing target tile IDs
             context_ids: Tensor of shape (batch_size, context_size) containing context tile IDs
         Returns:
             Tensor containing loss value
         """
         # Flatten context_ids to shape (batch * context_len)
+        #print("\n\n Next Scene:")
         batch_size, context_len = context_ids.shape
+        #print(f"center_ids: {center_ids}", f"context_ids: {context_ids}", f"batch_size: {batch_size}", f"context_len: {context_len}")
         center_ids_expanded = center_ids.unsqueeze(1).expand(-1, context_len).reshape(-1)
         context_ids_flat = context_ids.reshape(-1)
-
+        #print(f"center_ids: {center_ids_expanded}", f"context_ids: {context_ids_flat}", f"batch_size: {batch_size}", f"context_len: {context_len}")
         center_vec = self.in_embed(center_ids_expanded)  # (batch * context_len, dim)
         context_vec = self.out_embed(context_ids_flat)   # (batch * context_len, dim)
 
         scores = (center_vec * context_vec).sum(dim=1)  # dot product
-        loss = F.binary_cross_entropy_with_logits(scores, torch.ones_like(scores))  # positive pairs
+        #print(scores.shape, center_vec.shape, context_vec.shape)
 
+        #print("\nOutput:\n", f"center_vec: {center_vec}", f"context_vec: {context_vec}", f"scores: {scores}")
+        loss = F.binary_cross_entropy_with_logits(scores, torch.ones_like(scores))  # positive pairs
+        #print(f"loss: {loss}")
         return loss
 
     def get_embeddings(self):
