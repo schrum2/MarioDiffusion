@@ -93,8 +93,9 @@ def main():
                     print("Exiting without deleting files.")
                     return
                 elif choice == '3':
-                    # Delete current batch
+                    # Open log file once for all deletions
                     with open(log_file, 'a') as log:
+                        # Delete current batch
                         for file in chunk:
                             try:
                                 send2trash(file)
@@ -105,18 +106,18 @@ def main():
                                 error_msg = f"Error deleting {file}: {e}"
                                 print(error_msg)
                                 log.write(error_msg + "\n")
-                    
-                    # Delete all remaining files as they are found
-                    for file in file_generator:
-                        try:
-                            send2trash(file)
-                            deletion_msg = f"Moved to Recycle Bin: {file}"
-                            print(deletion_msg)
-                            log.write(deletion_msg + "\n")
-                        except Exception as e:
-                            error_msg = f"Error deleting {file}: {e}"
-                            print(error_msg)
-                            log.write(error_msg + "\n")
+                        
+                        # Delete all remaining files as they are found
+                        for file in file_generator:
+                            try:
+                                send2trash(file)
+                                deletion_msg = f"Moved to Recycle Bin: {file}"
+                                print(deletion_msg)
+                                log.write(deletion_msg + "\n")
+                            except Exception as e:
+                                error_msg = f"Error deleting {file}: {e}"
+                                print(error_msg)
+                                log.write(error_msg + "\n")
                     
                     # Cleanup empty directories after deleting all files
                     cleanup_empty_dirs('.')
