@@ -4,16 +4,16 @@ from datetime import datetime
 from send2trash import send2trash
 
 def get_files_to_delete(directory):
-    """Recursively find all target files to delete"""
+    """Generator that yields files to delete as they are found"""
     # Find sample_*.png files
     sample_pattern = os.path.join(directory, '**', 'sample_*.png')
-    sample_files = glob.glob(sample_pattern, recursive=True)
+    for file in glob.iglob(sample_pattern, recursive=True):
+        yield file
     
     # Find desktop.ini files
     desktop_pattern = os.path.join(directory, '**', 'desktop.ini')
-    desktop_files = glob.glob(desktop_pattern, recursive=True)
-    
-    return sample_files + desktop_files
+    for file in glob.iglob(desktop_pattern, recursive=True):
+        yield file
 
 def chunk_list(lst, chunk_size):
     """Split list into chunks of specified size"""
@@ -38,35 +38,76 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     log_file = f"deleted_files_{timestamp}.txt"
     
-    # Get all matching files
-    all_files = get_files_to_delete('.')
-    
-    if not all_files:
-        print("No files found to delete.")
-        return
-
-    print(f"Found {len(all_files)} files to delete")
-    
-    # Process files in chunks of 20 for better readability
+    # Process files as they are found
+    file_generator = get_files_to_delete('.')
+    chunk = []
     chunk_size = 20
-    file_chunks = list(chunk_list(all_files, chunk_size))
+    batch_num = 1
+    last_batch = False
     
-    for i, chunk in enumerate(file_chunks):
-        print(f"\nBatch {i+1} of {len(file_chunks)}:")
-        print("Files to be deleted:")
-        for file in chunk:
-            print(f"  {file}")
+    print("Searching for files to delete...")
+    print("Files will be shown in batches of", chunk_size)
+    
+    try:
+        while True:
+            # Fill the current chunk
+            while len(chunk) < chunk_size:
+                try:
+                    file = next(file_generator)
+                    chunk.append(file)
+                except StopIteration:
+                    if not chunk:  # No more files found and chunk is empty
+                        if batch_num == 1:  # No files were found at all
+                            print("No files found to delete.")
+                        return
+                    last_batch = True
+                    break  # Process the final partial chunk
             
-        if i < len(file_chunks) - 1:
-            choice = input("\nWhat would you like to do?\n"
-                         "1) Delete these files and show next batch\n"
-                         "2) Exit without deleting\n"
-                         "3) Delete all remaining files without asking\n"
-                         "Enter choice (1/2/3): ").strip()
+            print(f"\nBatch {batch_num}:")
+            print("Files to be deleted:")
+            for file in chunk:
+                print(f"  {file}")
             
-            if choice == '1':                # Delete current batch
-                with open(log_file, 'a') as log:
-                    for file in chunk:
+            if not last_batch:
+                choice = input("\nWhat would you like to do?\n"
+                             "1) Delete these files and show next batch\n"
+                             "2) Exit without deleting\n"
+                             "3) Delete all remaining files without asking\n"
+                             "Enter choice (1/2/3): ").strip()
+                
+                if choice == '1':
+                    with open(log_file, 'a') as log:
+                        for file in chunk:
+                            try:
+                                send2trash(file)
+                                deletion_msg = f"Moved to Recycle Bin: {file}"
+                                print(deletion_msg)
+                                log.write(deletion_msg + "\n")
+                            except Exception as e:
+                                error_msg = f"Error deleting {file}: {e}"
+                                print(error_msg)
+                                log.write(error_msg + "\n")
+                    chunk = []  # Clear the chunk for next batch
+                    batch_num += 1
+                elif choice == '2':
+                    print("Exiting without deleting files.")
+                    return
+                elif choice == '3':
+                    # Delete current batch
+                    with open(log_file, 'a') as log:
+                        for file in chunk:
+                            try:
+                                send2trash(file)
+                                deletion_msg = f"Moved to Recycle Bin: {file}"
+                                print(deletion_msg)
+                                log.write(deletion_msg + "\n")
+                            except Exception as e:
+                                error_msg = f"Error deleting {file}: {e}"
+                                print(error_msg)
+                                log.write(error_msg + "\n")
+                    
+                    # Delete all remaining files as they are found
+                    for file in file_generator:
                         try:
                             send2trash(file)
                             deletion_msg = f"Moved to Recycle Bin: {file}"
@@ -76,47 +117,34 @@ def main():
                             error_msg = f"Error deleting {file}: {e}"
                             print(error_msg)
                             log.write(error_msg + "\n")
-            elif choice == '2':
-                print("Exiting without deleting files.")
-                return
-            elif choice == '3':                # Delete current and all remaining batches
-                remaining_files = [f for chunk in file_chunks[i:] for f in chunk]
-                with open(log_file, 'a') as log:
-                    for file in remaining_files:
-                        try:
-                            send2trash(file)
-                            deletion_msg = f"Moved to Recycle Bin: {file}"
-                            print(deletion_msg)
-                            log.write(deletion_msg + "\n")
-                        except Exception as e:
-                            error_msg = f"Error deleting {file}: {e}"
-                            print(error_msg)
-                            log.write(error_msg + "\n")
-                # Cleanup empty directories after deleting all files
-                cleanup_empty_dirs('.')
-                return
+                    
+                    # Cleanup empty directories after deleting all files
+                    cleanup_empty_dirs('.')
+                    return
+                else:
+                    print("Invalid choice. Exiting without deleting files.")
+                    return
             else:
-                print("Invalid choice. Exiting without deleting files.")
+                # Last batch
+                choice = input("\nThis is the final batch. Delete these files? (y/n): ").strip().lower()
+                if choice == 'y':
+                    with open(log_file, 'a') as log:
+                        for file in chunk:
+                            try:
+                                send2trash(file)
+                                deletion_msg = f"Moved to Recycle Bin: {file}"
+                                print(deletion_msg)
+                                log.write(deletion_msg + "\n")
+                            except Exception as e:
+                                error_msg = f"Error deleting {file}: {e}"
+                                print(error_msg)
+                                log.write(error_msg + "\n")
+                    # Cleanup empty directories after deleting all files
+                    cleanup_empty_dirs('.')
                 return
-        else:
-            # Last batch
-            choice = input("\nThis is the final batch. Delete these files? (y/n): ").strip().lower()
-            if choice == 'y':
-                with open(log_file, 'a') as log:
-                    for file in chunk:
-                        try:
-                            send2trash(file)
-                            deletion_msg = f"Moved to Recycle Bin: {file}"
-                            print(deletion_msg)
-                            log.write(deletion_msg + "\n")
-                        except Exception as e:
-                            error_msg = f"Error deleting {file}: {e}"
-                            print(error_msg)
-                            log.write(error_msg + "\n")
-                # Cleanup empty directories after deleting all files
-                cleanup_empty_dirs('.')
-            else:
-                print("Skipping deletion of final batch.")
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.")
+        return
 
 if __name__ == "__main__":
     main()
