@@ -100,7 +100,8 @@ def main():
                 return
         else:
             # Last batch
-            choice = input("\nThis is the final batch. Delete these files? (y/n): ").strip().lower()            if choice == 'y':
+            choice = input("\nThis is the final batch. Delete these files? (y/n): ").strip().lower()
+            if choice == 'y':
                 with open(log_file, 'a') as log:
                     for file in chunk:
                         try:
