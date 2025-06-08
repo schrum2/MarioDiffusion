@@ -41,19 +41,39 @@ def calculate_duration(start_time, end_time):
     duration = end_dt - start_dt
     return duration
 
+def seconds_to_time_str(seconds: float) -> str:
+    """Convert seconds to HH:MM:SS format"""
+    return datetime.fromtimestamp(seconds).strftime('%H:%M:%S')
+
 def calculate_statistics(durations: List[float]) -> Dict:
     """Calculate various statistics from a list of durations in seconds"""
     duration_array = np.array(durations)
     
-    return {
-        "mean": float(np.mean(duration_array)),
-        "std": float(np.std(duration_array)),
-        "stderr": float(np.std(duration_array) / np.sqrt(len(duration_array))),
-        "median": float(np.median(duration_array)),
-        "min": float(np.min(duration_array)),
-        "max": float(np.max(duration_array)),
-        "individual_times": durations
+    # Calculate raw statistics
+    stats = {
+        "raw": {
+            "mean": float(np.mean(duration_array)),
+            "std": float(np.std(duration_array)),
+            "stderr": float(np.std(duration_array) / np.sqrt(len(duration_array))),
+            "median": float(np.median(duration_array)),
+            "min": float(np.min(duration_array)),
+            "max": float(np.max(duration_array)),
+            "individual_times": durations
+        }
     }
+    
+    # Add formatted times
+    stats["formatted"] = {
+        "mean": seconds_to_time_str(stats["raw"]["mean"]),
+        "std": seconds_to_time_str(stats["raw"]["std"]),
+        "stderr": seconds_to_time_str(stats["raw"]["stderr"]),
+        "median": seconds_to_time_str(stats["raw"]["median"]),
+        "min": seconds_to_time_str(stats["raw"]["min"]),
+        "max": seconds_to_time_str(stats["raw"]["max"]),
+        "individual_times": [seconds_to_time_str(d) for d in durations]
+    }
+    
+    return stats
 
 def save_statistics(stats: Dict, prefix: str):
     """Save statistics to a JSON file"""
@@ -100,15 +120,14 @@ def main():
     # Calculate and save statistics
     stats = calculate_statistics(durations_seconds)
     output_file = save_statistics(stats, args.prefix)
-    
-    # Print summary
+      # Print summary
     print("\nSummary Statistics:")
-    print(f"  Average runtime: {datetime.fromtimestamp(stats['mean']).strftime('%H:%M:%S')}")
-    print(f"  Std deviation:  {datetime.fromtimestamp(stats['std']).strftime('%H:%M:%S')}")
-    print(f"  Std error:     {datetime.fromtimestamp(stats['stderr']).strftime('%H:%M:%S')}")
-    print(f"  Median:        {datetime.fromtimestamp(stats['median']).strftime('%H:%M:%S')}")
-    print(f"  Min:           {datetime.fromtimestamp(stats['min']).strftime('%H:%M:%S')}")
-    print(f"  Max:           {datetime.fromtimestamp(stats['max']).strftime('%H:%M:%S')}")
+    print(f"  Average runtime: {stats['formatted']['mean']}")
+    print(f"  Std deviation:  {stats['formatted']['std']}")
+    print(f"  Std error:     {stats['formatted']['stderr']}")
+    print(f"  Median:        {stats['formatted']['median']}")
+    print(f"  Min:           {stats['formatted']['min']}")
+    print(f"  Max:           {stats['formatted']['max']}")
     print(f"\nStatistics saved to: {output_file}")
     
     if failed_runs:
