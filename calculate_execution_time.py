@@ -43,7 +43,10 @@ def calculate_duration(start_time, end_time):
 
 def seconds_to_time_str(seconds: float) -> str:
     """Convert seconds to HH:MM:SS format"""
-    return datetime.fromtimestamp(seconds).strftime('%H:%M:%S')
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = int(seconds % 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 def calculate_statistics(durations: List[float]) -> Dict:
     """Calculate various statistics from a list of durations in seconds"""
