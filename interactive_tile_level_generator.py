@@ -31,10 +31,14 @@ class CaptionBuilder(ParentBuilder):
                 
         # Holds tensors of levels currently on display
         self.current_levels = []
-        self.added_image_indexes = []
-        self.bottom_thumbnails = []
         self.generated_images = []
         self.generated_scenes = []
+
+        # For tracking composed scenes and thumbnails
+        self.composed_scenes = []
+        self.composed_thumbnails = []
+        self.composed_thumbnail_labels = []
+        self.selected_composed_index = None
 
         # Frame for caption display
         self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
@@ -120,27 +124,35 @@ class CaptionBuilder(ParentBuilder):
         self.composed_frame = ttk.Frame(self.caption_frame)
         self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
 
-        # Checkbox for SMB graphics
-        self.use_snes_graphics = tk.BooleanVar(value=False)
-        self.graphics_checkbox = ttk.Checkbutton(
-            self.caption_frame,
-            text="Use SNES Graphics",
-            variable=self.use_snes_graphics
-        )
-        self.graphics_checkbox.pack(pady=(10, 0))
+        # First row: Checkbox, Play, Use A*
+        row1 = ttk.Frame(self.composed_frame)
+        row1.pack(pady=(10, 0), anchor="center")
+        # Second row: Delete, Clear, Save
+        row2 = ttk.Frame(self.composed_frame)
+        row2.pack(pady=(10, 0), anchor="center")
+        # Third row: Move selection left/right
+        row3 = ttk.Frame(self.composed_frame)
+        row3.pack(pady=(10, 0), anchor="center")
 
-        self.play_composed_button = ttk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
-        self.play_composed_button.pack(side=tk.LEFT, padx=2)
-        self.save_composed_button = ttk.Button(self.composed_frame, text="Save Composed Level", command=self.save_composed_level)
-        self.save_composed_button.pack(side=tk.LEFT, padx=2)
-        self.clear_composed_button = ttk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
-        self.clear_composed_button.pack(side=tk.LEFT, padx=2)
-        self.astar_composed_button = ttk.Button(
-            self.composed_frame, 
-            text="Use A* on Composed Level", 
-            command=self.astar_composed_level
-        )
-        self.astar_composed_button.pack(side=tk.LEFT, padx=2)
+        self.play_composed_button = ttk.Button(row1, text="Play Composed Level", command=self.play_composed_level)
+        self.play_composed_button.pack(side=tk.LEFT, padx=5)
+        self.astar_composed_button = ttk.Button(row1, text="Use A* on Composed Level", command=self.astar_composed_level)
+        self.astar_composed_button.pack(side=tk.LEFT, padx=5)
+        self.use_snes_graphics = tk.BooleanVar(value=False)
+        self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics)
+        self.graphics_checkbox.pack(side=tk.LEFT, padx=5)
+
+        self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=self.delete_selected_composed_image)
+        self.delete_image_button.pack(side=tk.LEFT, padx=10)
+        self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level)
+        self.clear_composed_button.pack(side=tk.LEFT, padx=10)
+        self.save_composed_button = ttk.Button(row2, text="Save Composed Level", command=self.save_composed_level)
+        self.save_composed_button.pack(side=tk.LEFT, padx=10)
+        
+        self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1))
+        self.move_left_button.pack(side=tk.LEFT, padx=60)
+        self.move_right_button = ttk.Button(row3, text="Move Selected Image Right", command=lambda: self.move_selected_image(1))
+        self.move_right_button.pack(side=tk.LEFT, padx=60)
 
         # Frame for thumbnails with horizontal scrolling
         self.bottom_canvas = tk.Canvas(self.caption_frame, height=70, borderwidth=0, highlightthickness=0)
@@ -237,9 +249,9 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text.config(state=tk.DISABLED)
     
     def generate_image(self):
-        # cannot use multiple generations of levels in one composed level
-        self.clear_composed_level()
-        print("Clearing previously composed level for newly generated scenes.")
+        # # cannot use multiple generations of levels in one composed level
+        # self.clear_composed_level()
+        # print("Clearing previously composed level for newly generated scenes.")
 
         # clear the previous images
         self.generated_images = []
@@ -413,22 +425,90 @@ Average Segment Score: {avg_segment_score}"""
         #print(self.current_levels)
 
     def add_to_composed_level(self, idx):
-        self.added_image_indexes.append(idx)
+        # Store the actual scene
+        scene = self.generated_scenes[idx]
+        self.composed_scenes.append(scene)
+
+        # Create and store the thumbnail
         img = self.generated_images[idx].copy()
         img.thumbnail((64, 64))
         photo = ImageTk.PhotoImage(img)
-        self.bottom_thumbnails.append(photo)  # Prevent GC
-        label = ttk.Label(self.bottom_frame, image=photo)
+        self.composed_thumbnails.append(photo)  # Prevent GC
+
+        # Create a clickable label for the thumbnail
+        label = ttk.Label(self.bottom_frame, image=photo, borderwidth=2, relief="flat")
         label.pack(side=tk.LEFT, padx=2)
+        self.composed_thumbnail_labels.append(label)
+        self.rebind_composed_thumbnail_clicks()
+
+    def select_composed_thumbnail(self, index):
+        # Deselect all
+        for lbl in self.composed_thumbnail_labels:
+            lbl.config(relief="flat", borderwidth=2)
+        # Select the clicked one
+        self.composed_thumbnail_labels[index].config(relief="solid", borderwidth=4)
+        self.selected_composed_index = index
+
+    def rebind_composed_thumbnail_clicks(self):
+        """
+        Updates the click event bindings for each thumbnail label to ensure 
+        that when you click a thumbnail, the correct index is assigned
+        This must be called after any operation that changes the order,
+        adds, or removes thumbnails, to keep selection working correctly.
+        """
+        for i, lbl in enumerate(self.composed_thumbnail_labels):
+            lbl.bind("<Button-1>", lambda e, i=i: self.select_composed_thumbnail(i))
+
+    def delete_selected_composed_image(self):
+        idx = self.selected_composed_index
+        if idx is not None and 0 <= idx < len(self.composed_scenes):
+            # Remove from all lists
+            self.composed_scenes.pop(idx)
+            self.composed_thumbnails.pop(idx)
+            label = self.composed_thumbnail_labels.pop(idx)
+            label.destroy()
+            self.selected_composed_index = None
+            # Rebind click events for all remaining labels
+            self.rebind_composed_thumbnail_clicks()
+        else:
+            messagebox.showinfo("No selection", "Please select a thumbnail first.")
+
+    def move_selected_image(self, direction):
+        idx = self.selected_composed_index
+        if idx is None or not (0 <= idx < len(self.composed_scenes)):
+            messagebox.showinfo("No selection", "Please select a thumbnail first.")
+            return
+
+        new_idx = idx + direction
+        if not (0 <= new_idx < len(self.composed_scenes)):
+            return  # Out of bounds, do nothing
+
+        # Swap in all lists
+        for lst in [self.composed_scenes, self.composed_thumbnails, self.composed_thumbnail_labels]:
+            lst[idx], lst[new_idx] = lst[new_idx], lst[idx]
+
+        # Remove all labels and re-pack in new order
+        for lbl in self.composed_thumbnail_labels:
+            lbl.pack_forget()
+        for lbl in self.composed_thumbnail_labels:
+            lbl.pack(side=tk.LEFT, padx=2)
+
+        # Rebind click events with correct indices
+        self.rebind_composed_thumbnail_clicks()
+
+        # Update selection
+        self.select_composed_thumbnail(new_idx)
 
     def clear_composed_level(self):
-        self.added_image_indexes.clear()
-        self.bottom_thumbnails.clear()
+        self.composed_scenes.clear()
+        self.composed_thumbnails.clear()
+        self.composed_thumbnail_labels.clear()
+        self.selected_composed_index = None
         for widget in self.bottom_frame.winfo_children():
             widget.destroy()
 
     def merge_selected_scenes(self):
-        scenes = [self.generated_scenes[i] for i in self.added_image_indexes]
+        scenes = self.composed_scenes
         if not scenes:
             return None
         num_rows = len(scenes[0])
