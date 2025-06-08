@@ -51,14 +51,16 @@ def seconds_to_time_str(seconds: float) -> str:
 def calculate_statistics(durations: List[float]) -> Dict:
     """Calculate various statistics from a list of durations in seconds"""
     duration_array = np.array(durations)
-    
-    # Calculate raw statistics
+      # Calculate raw statistics
+    q1, q3 = float(np.percentile(duration_array, 25)), float(np.percentile(duration_array, 75))
     stats = {
         "raw": {
             "mean": float(np.mean(duration_array)),
             "std": float(np.std(duration_array)),
             "stderr": float(np.std(duration_array) / np.sqrt(len(duration_array))),
             "median": float(np.median(duration_array)),
+            "q1": q1,
+            "q3": q3,
             "min": float(np.min(duration_array)),
             "max": float(np.max(duration_array)),
             "individual_times": durations
@@ -71,6 +73,8 @@ def calculate_statistics(durations: List[float]) -> Dict:
         "std": seconds_to_time_str(stats["raw"]["std"]),
         "stderr": seconds_to_time_str(stats["raw"]["stderr"]),
         "median": seconds_to_time_str(stats["raw"]["median"]),
+        "q1": seconds_to_time_str(q1),
+        "q3": seconds_to_time_str(q3),
         "min": seconds_to_time_str(stats["raw"]["min"]),
         "max": seconds_to_time_str(stats["raw"]["max"]),
         "individual_times": [seconds_to_time_str(d) for d in durations]
@@ -123,12 +127,13 @@ def main():
     # Calculate and save statistics
     stats = calculate_statistics(durations_seconds)
     output_file = save_statistics(stats, args.prefix)
-      # Print summary
-    print("\nSummary Statistics:")
+      # Print summary    print("\nSummary Statistics:")
     print(f"  Average runtime: {stats['formatted']['mean']}")
     print(f"  Std deviation:  {stats['formatted']['std']}")
     print(f"  Std error:     {stats['formatted']['stderr']}")
+    print(f"  Q1 (25th):     {stats['formatted']['q1']}")
     print(f"  Median:        {stats['formatted']['median']}")
+    print(f"  Q3 (75th):     {stats['formatted']['q3']}")
     print(f"  Min:           {stats['formatted']['min']}")
     print(f"  Max:           {stats['formatted']['max']}")
     print(f"\nStatistics saved to: {output_file}")
