@@ -39,6 +39,7 @@ def parse_args():
 
     # Output args
     parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory if not comparing checkpoints (subdir of model directory)")
+    parser.add_argument("--save_image_samples", action="store_true", help="Save generated levels in png files")
 
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
 
@@ -103,7 +104,8 @@ def main():
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
         
-        visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
+        if args.save_image_samples:
+            visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
