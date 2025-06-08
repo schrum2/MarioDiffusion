@@ -85,12 +85,19 @@ def verify_data_completeness(model_path, type_str):
 
 def main():
     parser = argparse.ArgumentParser(description="Verify completeness of model evaluation data")
-    parser.add_argument("model_path", type=str, help="Path to the model directory")
+    parser.add_argument("prefix", type=str, help="Prefix of the model directory paths")
     parser.add_argument("type", type=str, choices=["absence", "regular"], 
                         help="Type of evaluation (absence or regular)")
+    parser.add_argument("start_num", type=int, help="Starting number for model directory range")
+    parser.add_argument("end_num", type=int, help="Ending number for model directory range (inclusive)")
     
     args = parser.parse_args()
-    verify_data_completeness(args.model_path, args.type)
+    
+    # Loop through the range of model directories
+    for i in range(args.start_num, args.end_num + 1):
+        model_path = f"{args.prefix}{i}"
+        print(f"\nChecking model directory: {model_path}")
+        verify_data_completeness(model_path, args.type)
 
 if __name__ == "__main__":
     main()
