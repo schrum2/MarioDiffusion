@@ -13,8 +13,9 @@ def count_jsonl_entries(file_path):
             count += 1
     return count
 
-def verify_json_length(file_path, expected_length):
-    """Verify that a JSON file exists and contains a list of expected length."""
+def verify_json_length(file_path, expected_length, check_prompts=False):
+    """Verify that a JSON file exists and contains a list of expected length.
+    Optionally verify that the first entry has a non-None prompt field."""
     if not os.path.exists(file_path):
         return f"File does not exist: {file_path}"
     
@@ -25,6 +26,13 @@ def verify_json_length(file_path, expected_length):
                 return f"JSON content is not a list in {file_path}"
             if len(data) != expected_length:
                 return f"Expected length {expected_length}, but found length {len(data)} in {file_path}"
+            
+            if check_prompts and data:
+                if "prompt" not in data[0]:
+                    return f"First entry missing 'prompt' field in {file_path}"
+                if data[0]["prompt"] is None:
+                    return f"First entry has None value for 'prompt' in {file_path}"
+                
     except json.JSONDecodeError:
         return f"Invalid JSON format in {file_path}"
     
@@ -32,17 +40,15 @@ def verify_json_length(file_path, expected_length):
 
 def verify_data_completeness(model_path, type_str):
     """Verify all data requirements for a given model path and type."""
-    errors = []
-
-    # Check random caption samples
+    errors = []    # Check random caption samples
     random_samples = os.path.join(model_path, "samples-from-random-Mar1and2-captions", "all_levels.json")
-    error = verify_json_length(random_samples, 100)
+    error = verify_json_length(random_samples, 100, check_prompts=True)
     if error:
         errors.append(f"Requirement 1 failed: {error}")
 
     # Check real caption samples
     real_samples = os.path.join(model_path, "samples-from-real-Mar1and2-captions", "all_levels.json")
-    error = verify_json_length(real_samples, 7687)
+    error = verify_json_length(real_samples, 7687, check_prompts=True)
     if error:
         errors.append(f"Requirement 2 failed: {error}")
 
