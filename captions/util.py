@@ -170,13 +170,13 @@ def extract_tileset(tileset_path):
         # However, this requires me to add some bogus tiles to the list.
         tile_chars.append('!') 
         tile_chars.append('*') 
-        print(f"tile_chars: {tile_chars}")
+        #print(f"tile_chars: {tile_chars}")
         id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
-        print(f"id_to_char: {id_to_char}")
+        #print(f"id_to_char: {id_to_char}")
         char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-        print(f"char_to_id: {char_to_id}")
+        #print(f"char_to_id: {char_to_id}")
         tile_descriptors = get_tile_descriptors(tileset)
-        print(f"tile_descriptors: {tile_descriptors}")
+        #print(f"tile_descriptors: {tile_descriptors}")
 
     return tile_chars, id_to_char, char_to_id, tile_descriptors
 
