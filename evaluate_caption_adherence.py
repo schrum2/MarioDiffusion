@@ -114,10 +114,11 @@ def main():
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
-            if args.height == common_settings.MARIO_HEIGHT:
+            if args.num_tiles == common_settings.MARIO_TILE_COUNT:
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
-            elif args.height == common_settings.LR_HEIGHT:
-                lr_save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
+            elif args.num_tiles == common_settings.LR_TILE_COUNT:
+                tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+                lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
 
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
@@ -284,7 +285,9 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
     dataloader.dataset.mode=original_mode
 
-    return (avg_score, all_samples, all_prompts) # , compare_all_scores) # Adding this return value broke code in MANY places. Cannot do this unless you make sure that all calls to this function expect 4 values
+    return (avg_score, all_samples, all_prompts, compare_all_scores) 
+    # Adding this return value broke code in MANY places. Cannot do this unless you make sure that all calls to this function expect 4 values
+    # Found all references of this method and made them all return 4 values
 
 if __name__ == "__main__":
     main()
