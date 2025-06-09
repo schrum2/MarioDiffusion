@@ -2,6 +2,7 @@ import os
 import glob
 from datetime import datetime
 from send2trash import send2trash
+import argparse
 
 def get_files_to_delete(directory):
     """Generator that yields files to delete as they are found"""
@@ -14,6 +15,18 @@ def get_files_to_delete(directory):
     desktop_pattern = os.path.join(directory, '**', 'desktop.ini')
     for file in glob.iglob(desktop_pattern, recursive=True):
         yield file
+
+def delete_file(file_path, permanent=False):
+    """Delete a file, either permanently or to recycle bin"""
+    try:
+        if permanent:
+            os.remove(file_path)
+            return f"Permanently deleted: {file_path}"
+        else:
+            send2trash(file_path)
+            return f"Moved to Recycle Bin: {file_path}"
+    except Exception as e:
+        return f"Error deleting {file_path}: {e}"
 
 def chunk_list(lst, chunk_size):
     """Split list into chunks of specified size"""
@@ -34,6 +47,12 @@ def cleanup_empty_dirs(directory):
                 print(f"Error removing directory {dir_path}: {e}")
 
 def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Delete sample files and empty directories")
+    parser.add_argument("--permanent", action="store_true", 
+                       help="Permanently delete files instead of moving to recycle bin")
+    args = parser.parse_args()
+
     # Create log file with timestamp
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     log_file = f"deleted_files_{timestamp}.txt"
@@ -45,8 +64,9 @@ def main():
     batch_num = 1
     last_batch = False
     
+    delete_mode = "permanently" if args.permanent else "to Recycle Bin"
     print("Searching for files to delete...")
-    print("Files will be shown in batches of", chunk_size)
+    print(f"Files will be deleted {delete_mode} in batches of {chunk_size}")
     
     try:
         while True:
@@ -78,15 +98,9 @@ def main():
                 if choice == '1':
                     with open(log_file, 'a') as log:
                         for file in chunk:
-                            try:
-                                send2trash(file)
-                                deletion_msg = f"Moved to Recycle Bin: {file}"
-                                print(deletion_msg)
-                                log.write(deletion_msg + "\n")
-                            except Exception as e:
-                                error_msg = f"Error deleting {file}: {e}"
-                                print(error_msg)
-                                log.write(error_msg + "\n")
+                            deletion_msg = delete_file(file, args.permanent)
+                            print(deletion_msg)
+                            log.write(deletion_msg + "\n")
                     chunk = []  # Clear the chunk for next batch
                     batch_num += 1
                 elif choice == '2':
@@ -97,27 +111,15 @@ def main():
                     with open(log_file, 'a') as log:
                         # Delete current batch
                         for file in chunk:
-                            try:
-                                send2trash(file)
-                                deletion_msg = f"Moved to Recycle Bin: {file}"
-                                print(deletion_msg)
-                                log.write(deletion_msg + "\n")
-                            except Exception as e:
-                                error_msg = f"Error deleting {file}: {e}"
-                                print(error_msg)
-                                log.write(error_msg + "\n")
+                            deletion_msg = delete_file(file, args.permanent)
+                            print(deletion_msg)
+                            log.write(deletion_msg + "\n")
                         
                         # Delete all remaining files as they are found
                         for file in file_generator:
-                            try:
-                                send2trash(file)
-                                deletion_msg = f"Moved to Recycle Bin: {file}"
-                                print(deletion_msg)
-                                log.write(deletion_msg + "\n")
-                            except Exception as e:
-                                error_msg = f"Error deleting {file}: {e}"
-                                print(error_msg)
-                                log.write(error_msg + "\n")
+                            deletion_msg = delete_file(file, args.permanent)
+                            print(deletion_msg)
+                            log.write(deletion_msg + "\n")
                     
                     # Cleanup empty directories after deleting all files
                     cleanup_empty_dirs('.')
@@ -131,15 +133,9 @@ def main():
                 if choice == 'y':
                     with open(log_file, 'a') as log:
                         for file in chunk:
-                            try:
-                                send2trash(file)
-                                deletion_msg = f"Moved to Recycle Bin: {file}"
-                                print(deletion_msg)
-                                log.write(deletion_msg + "\n")
-                            except Exception as e:
-                                error_msg = f"Error deleting {file}: {e}"
-                                print(error_msg)
-                                log.write(error_msg + "\n")
+                            deletion_msg = delete_file(file, args.permanent)
+                            print(deletion_msg)
+                            log.write(deletion_msg + "\n")
                     # Cleanup empty directories after deleting all files
                     cleanup_empty_dirs('.')
                 return
