@@ -13,6 +13,7 @@ from PIL.Image import Image
 from tqdm import tqdm
 from transformers import LogitsProcessorList, TemperatureLogitsWarper, TopKLogitsWarper
 
+
 from mario_gpt.lm.base import BaseMarioLM
 from mario_gpt.prompter import Prompter
 from mario_gpt.simulator import Simulator
@@ -151,11 +152,11 @@ class SampleOutput:
                 json.dump(lr_json, tmp)
                 tmp_path = tmp.name
             import sys, os
-            #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-            import LodeRunner
+            sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+            from LodeRunner.loderunner import main
             tmp_path = tmp_path if dataset_path is None else dataset_path
             print(f"Playing Lode Runner level interactively -- {tmp_path}!")
-            LodeRunner.main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
+            main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
         else:
             if self.use_snes_graphics:
                 simulator = MMNEATSimulator(level=self.level)

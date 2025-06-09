@@ -30,6 +30,8 @@ def main():
         f for f in matching_files
         if "RandomTest" not in os.path.basename(f)
         and os.path.basename(f) != f"{game_prefix}_Levels.json"
+        and "tiles" not in os.path.basename(f)
+        and "ValidationCaptions" not in os.path.basename(f)
     ]
     
     results = {}

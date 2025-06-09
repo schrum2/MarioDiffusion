@@ -5,7 +5,7 @@ The functions in this module operate on level layouts represented as 2D lists/ar
 where each element represents a tile. The specific tile representation can be arbitrary
 (characters, integers, etc.) as long as equality comparison is supported between tiles.
 """
-
+import torch
 from typing import List, Dict, Sequence, TypeVar, Union
 import sys
 import os
@@ -14,6 +14,7 @@ import json
 from util.sampler import MMNEATSimulator
 from captions.caption_match import compare_captions
 from util.sampler import scene_to_ascii
+from tqdm import tqdm
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -63,109 +64,57 @@ except FileNotFoundError:
 
     raise
 
-def edit_distance(level1: Sequence[Sequence[T]], level2: Sequence[Sequence[T]]) -> int:
-    """
-    Calculate the edit distance between two levels, defined as the number of differing tiles.
-    
-    Args:
-        level1: First level layout as a 2D sequence of tiles
-        level2: Second level layout as a 2D sequence of tiles
-        
-    Returns:
-        The number of positions where the tiles differ between the two levels
-        
-    Raises:
-        ValueError: If the levels have different dimensions
-    """
-    if not level1 or not level2:
-        raise ValueError("Levels cannot be empty")
-        
-    if len(level1) != len(level2) or len(level1[0]) != len(level2[0]):
-        raise ValueError(
-            f"Levels must have same dimensions. Got {len(level1)}x{len(level1[0])} "
-            f"vs {len(level2)}x{len(level2[0])}"
-        )
-    
-    return sum(
-        tile1 != tile2
-        for row1, row2 in zip(level1, level2)
-        for tile1, tile2 in zip(row1, row2)
-    )
+def edit_distance_tensor(level1: torch.Tensor, level2: torch.Tensor) -> int:
+    """Computes edit distance. Here for future use if needed (not used in evaluate metrics)"""
+    return (level1 != level2).sum().item()
 
-def min_edit_distance(level: Sequence[Sequence[T]], 
-                     level_collection: Sequence[Sequence[Sequence[T]]]) -> int:
-    """
-    Find the minimum edit distance between a level and any level in a collection.
-    
-    Args:
-        level: The level layout to compare against the collection
-        level_collection: A sequence of level layouts to compare against
-        
-    Returns:
-        The minimum edit distance found between the input level and any level
-        in the collection
-        
-    Raises:
-        ValueError: If level_collection is empty or if any level has different
-                   dimensions from the input level
-    """
-    if not level_collection:
-        raise ValueError("Level collection cannot be empty")
-        
-    try:
-        distances = [edit_distance(level, other) for other in level_collection if other != level]
-        return min(distances)
-    except ValueError as e:
-        raise ValueError("All levels in collection must have same dimensions as input level") from e
 
-def average_min_edit_distance(level_collection: List[List[List[int]]]) -> float:
+def average_min_edit_distance(level_collection: List[List[List[int]]], use_gpu=True) -> float:
     """
-    Calculate the average minimum edit distance between each level and all other levels.
-    
-    Args:
-        level_collection: List of level layouts
-        
-    Returns:
-        Average of minimum edit distances
+    Calculate average minimum edit distance (tile-wise) between levels using PyTorch for acceleration.
     """
     if len(level_collection) < 2:
         raise ValueError("Need at least 2 levels to compare")
-        
-    total_min_distance = 0
-    
-    for i, level in enumerate(level_collection):
-        # Create list of all levels except current one
-        other_levels = level_collection[:i] + level_collection[i+1:]
-        min_dist = min_edit_distance(level, other_levels)
-        total_min_distance += min_dist
-        
-    return total_min_distance / len(level_collection)
+
+    levels = torch.tensor(level_collection, dtype=torch.int16)
+    device = "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
+    levels = levels.to(device)
+
+    total_min_dist = 0.0
+    num_levels = levels.shape[0]
+
+    for i in range(num_levels):
+        current = levels[i]  # (H, W)
+        others = torch.cat([levels[:i], levels[i+1:]])  # (N-1, H, W)
+        diff = (others != current).sum(dim=(1, 2))  # (N-1,)
+        total_min_dist += diff.min().item()
+
+    return total_min_dist / num_levels
+
 
 def average_min_edit_distance_from_real(
     generated_levels: List[List[List[int]]],
-    game_levels: List[List[List[int]]]
+    game_levels: List[List[List[int]]],
+    use_gpu=True
 ) -> float:
     """
-    Calculate the average minimum edit distance between generated levels and game levels
-
-    Args:
-        generated_levels (List[List[List[int]]]): Generated level dataset
-        game_levels (List[List[List[int]]]): Game level dataset
-
-    Returns:
-        float: the average minimum edit distance between generated levels and game levels
+    Calculate average minimum edit distance from generated levels to real levels using GPU.
     """
     if not generated_levels or not game_levels:
         print("Warning: One or both level lists are empty. Returning 0.0")
         return 0.0
-    
-    average_distance = 0.0
-    
-    for level in generated_levels:
-        average_distance += min_edit_distance(level, game_levels) # Calculate the min edit distance for each generated level
-        
-    average_distance /= len(generated_levels)  # Average over all generated levels
-    return average_distance
+
+    device = "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
+    gen = torch.tensor(generated_levels, dtype=torch.int16).to(device)
+    real = torch.tensor(game_levels, dtype=torch.int16).to(device)
+
+    avg_min_dist = 0.0
+
+    for level in gen:
+        dists = (real != level).sum(dim=(1, 2))
+        avg_min_dist += dists.min().item()
+
+    return avg_min_dist / len(gen)
     
 
 def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
@@ -470,104 +419,117 @@ def astar_metrics(
     levels: list[dict],  # Each dict should have "scene" and "caption"
     num_runs: int = 3,
     simulator_kwargs: dict = None,
-    save_name: str = "astar_metrics_results.json"
+    save_name: str = "astar_metrics_results.jsonl"
 ) -> tuple[List[dict], dict]:
     """
-    Runs the SNES A* algorithm on each level multiple times and saves results in the requested format.
+    Runs the SNES A* algorithm on each level multiple times and saves results in JSONL format.
     Args:
         levels: List of dicts, each with "scene" (2D int list) and "caption" (str)
         num_runs: Number of runs per level
         simulator_kwargs: kwargs for MMNEATSimulator
-        save_name: Filename for output JSON (saved to root directory)
+        save_name: Filename for output JSONL (saved to root directory)
     Returns:
         List of dicts as described in the prompt
     """
     simulator_kwargs = simulator_kwargs or {}
     results = []
+    per_level_averages = []
 
-    for idx, entry in enumerate(levels):
-        scene = entry.get("scene")
-        caption = entry.get("caption", None)
-        if scene is None:
-            continue  # skip if no scene
+    out_file = os.path.join('.', save_name)
 
-        ascii_level = scene_to_ascii(scene, id_to_char, True)
-        run_metrics = []
-        for run in range(num_runs):
-            try:
-                sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
-                output = sim.astar(render=False)
-                # # Enable rendering if needed (for debugging)
-                # output = sim.astar()
-            except Exception as e:
-                print(f"Error running A* on level {idx}, run {run}: {e}")
-                continue
+    if not levels:
+        raise RuntimeError("No levels provided to astar_metrics. Exiting.")
 
-            metrics = {}
-            for line in output.strip().splitlines():
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    key = key.strip()
-                    value = value.strip()
-                    if value.lower() in ("true", "false"):
-                        value = value.lower() == "true"
-                    else:
-                        try:
+    # Open the file ONCE in write mode to clear and write all results
+    with open(out_file, "w") as f:
+        for idx, entry in enumerate(tqdm(levels, desc="A* metrics", unit="level")):
+
+            scene = entry.get("scene")
+            caption = entry.get("caption", None)
+
+            ascii_level = scene_to_ascii(scene, id_to_char, True)
+            run_metrics = []
+            for run in range(num_runs):
+                try:
+                    sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
+                    output = sim.astar(render=False)
+                    # # Enable rendering if needed (for debugging)
+                    # output = sim.astar()
+                except Exception as e:
+                    if not run_metrics:
+                        raise RuntimeError(
+                            f"No output to parse for level {idx} (caption: {caption}). Exiting as requested."
+                        )
+
+                metrics = {}
+                for line in output.strip().splitlines():
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        key = key.strip()
+                        value = value.strip()
+                        if value.lower() in ("true", "false"):
+                            value = value.lower() == "true"
+                        else:
                             if '.' in value:
                                 value = float(value)
                             else:
                                 value = int(value)
-                        except Exception:
-                            pass
-                    metrics[key] = value
-            run_metrics.append(metrics)
-
-        # Compute averages and medians
-        averages = {}
-        medians = {}
-        standard_deviations = {}
-        if run_metrics:
-            keys = set().union(*run_metrics)
-            for key in keys:
-                values = [m[key] for m in run_metrics if key in m]
-                if all(isinstance(v, (int, float)) for v in values):
-                    averages[key] = sum(values) / len(values)
-                    medians[key] = np.median(values)
-                    standard_deviations[key] = np.std(values)
-                elif all(isinstance(v, bool) for v in values):
-                    averages[key] = sum(v for v in values) / len(values)
-                    medians[key] = np.median([int(v) for v in values])
-                    standard_deviations[key] = np.std([int(v) for v in values])
+                        metrics[key] = value
+                if metrics:  # Only append if at least one metric was parsed
+                    run_metrics.append(metrics)
                 else:
-                    raise ValueError(
-                        f"Unexpected value types for key '{key}': All values must be int, float, or bool."
+                    raise RuntimeError(
+                        f"No metrics parsed for level {idx}, run {run} (caption: {caption}). Exiting as requested."
                     )
 
-        # Compose result for this scene
-        results.append({
-            "scene": scene,
-            "caption": caption,
-            "run_results": run_metrics,
-            "averages": averages,
-            "medians" : medians,
-            "standard_deviations": standard_deviations
-        })
+            # Compute averages and medians
+            averages = {}
+            medians = {}
+            standard_deviations = {}
+            if run_metrics:
+                keys = set().union(*run_metrics)
+                for key in keys:
+                    values = [m[key] for m in run_metrics if key in m]
+                    if not values:
+                        raise RuntimeError(
+                            f"No valid metrics found for key '{key}' in level {idx} (caption: {caption}). Exiting as requested."
+                        )
+                    if all(isinstance(v, (int, float)) for v in values):
+                        averages[key] = sum(values) / len(values)
+                        medians[key] = np.median(values)
+                        standard_deviations[key] = np.std(values)
+                    elif all(isinstance(v, bool) for v in values):
+                        averages[key] = sum(v for v in values) / len(values)
+                        medians[key] = np.median([int(v) for v in values])
+                        standard_deviations[key] = np.std([int(v) for v in values])
 
-    # Save results for all runs to root directory as an organized JSON file
-    out_file = os.path.join('.', save_name)
-    with open(out_file, "w") as f:
-        json.dump(results, f, indent=2)
+            # Compose result for this scene
+            result = {
+                "scene": scene,
+                "caption": caption,
+                "run_results": run_metrics,
+                "averages": averages,
+                "medians": medians,
+                "standard_deviations": standard_deviations
+            }
+            results.append(result)
+            per_level_averages.append(averages)
+
+            # Write this result as a JSON line
+            f.write(json.dumps(result) + "\n")
+
+            # Uncomment below to flush after each write (not recommended for performance)
+            #f.flush()  # Ensure each result is written immediately
+            #os.fsync(f.fileno())  # Ensure file is flushed to disk
+
     print(f"Results saved to {out_file}")
 
     # Compute the overall averages of all averages computed across all runs on all scenes
-    if results:
-        # Collect all keys that appear in averages
-        all_keys = set()
-        for r in results:
-            all_keys.update(r["averages"].keys())
-        overall_averages = {}
+    overall_averages = {}
+    if per_level_averages:
+        all_keys = set().union(*per_level_averages)
         for key in all_keys:
-            values = [r["averages"][key] for r in results if key in r["averages"]]
+            values = [avg[key] for avg in per_level_averages if key in avg]
             if values:
                 overall_averages[key] = sum(values) / len(values)
         # Save to a separate JSON file

@@ -25,7 +25,7 @@ class DiffusionEvolver(Evolver):
         # Create the initial noise latents (this is what the pipeline does internally)
         height = common_settings.MARIO_HEIGHT
         width = self.width
-        num_channels_latents = len(self.id_to_char)
+        num_channels_latents = common_settings.MARIO_TILE_COUNT
         latents_shape = (1, num_channels_latents, height, width)
         latents = torch.randn(
             latents_shape, 

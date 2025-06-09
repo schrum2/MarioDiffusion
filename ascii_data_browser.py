@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from tkinter import filedialog
 import json
 import sys
@@ -13,6 +14,7 @@ import random
 import colorsys
 from util.sampler import scene_to_ascii
 from util.sampler import SampleOutput
+#from LodeRunner.loderunner.graphics import *
 
 
 class TileViewer(tk.Tk):
@@ -181,6 +183,16 @@ class TileViewer(tk.Tk):
         # Thumbnails for composed level
         self.composed_thumb_frame = tk.Frame(self)
         self.composed_thumb_frame.pack(fill=tk.X)
+
+        # Checkbox for switching between original and SNES graphics
+        self.use_snes_graphics = tk.BooleanVar(value=False)
+        self.graphics_checkbox = ttk.Checkbutton(
+            self.composed_frame,
+            text="Use SNES Graphics",
+            variable=self.use_snes_graphics
+        )
+        self.graphics_checkbox.pack(side=tk.LEFT, padx=2)
+
 
     # method to enter txt file name and save composed level
     def save_composed_level(self):
@@ -579,21 +591,22 @@ class TileViewer(tk.Tk):
     def play_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            char_grid = scene_to_ascii(scene, self.id_to_char, False)
-            level = SampleOutput(level=char_grid)
+            level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             if hasattr(self, 'is_lode_runner') and self.is_lode_runner and not self.validate_lode_runner_level(scene):
                 print("Invalid Lode Runner level. Cannot play.")
                 return  # Stop playing if level is invalid
-            level.play(game="loderunner" if self.is_lode_runner else "mario", 
-                       level_idx=(self.added_sample_indexes[0] + 1) if self.added_sample_indexes else 1,
-                       dataset_path=self.dataset_path if hasattr(self, 'dataset_path') else None)
+            level.play(
+                game="loderunner" if self.is_lode_runner else "mario",
+                level_idx=(self.added_sample_indexes[0] + 1) if self.added_sample_indexes else 1,
+                dataset_path=self.dataset_path if hasattr(self, 'dataset_path') else None
+            )
 
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            char_grid = scene_to_ascii(scene, self.id_to_char, False)
-            level = SampleOutput(level=char_grid)
-            level.run_astar()
+            level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
+            console_output = level.run_astar()
+            print(console_output)
 
     def validate_lode_runner_level(self, scene):
         # Check rectangularity
@@ -629,6 +642,10 @@ class TileViewer(tk.Tk):
     def on_close(self):
         self.destroy()
         sys.exit(0)
+
+    def get_sample_output(self, scene, use_snes_graphics=False):
+        char_grid = scene_to_ascii(scene, self.id_to_char, False)
+        return SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
 
 if __name__ == "__main__":
     # Command-line argument parsing

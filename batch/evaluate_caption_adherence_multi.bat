@@ -14,6 +14,8 @@ if "%MODEL_PATH%"=="" (
 )
 if "%TYPE%"=="" set TYPE=regular
 
+if "%GAME%"=="" set GAME=Mar1and2
+
 REM Add --describe_absence flag if TYPE is absence
 set DESCRIBE_ABSENCE_FLAG=
 if /I "%TYPE%"=="absence" set DESCRIBE_ABSENCE_FLAG=--describe_absence
