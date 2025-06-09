@@ -21,6 +21,9 @@ class TileViewer(tk.Tk):
     def __init__(self, dataset_path=None, tileset_path=None):
         super().__init__()
         self.title("Tile Dataset Viewer")
+        self.added_sample_indexes = []
+        self.composed_thumbnails = []
+        self.selected_thumb_idx = None  # Track selected thumbnail
 
         # Set a more reasonable default window size for typical grids
         self.window_size = 512  # px, fits 16x16 well but still scales for larger grids
@@ -183,7 +186,12 @@ class TileViewer(tk.Tk):
         # Thumbnails for composed level
         self.composed_thumb_frame = tk.Frame(self)
         self.composed_thumb_frame.pack(fill=tk.X)
-
+        # Controls for thumbnail manipulation
+        self.thumb_ctrl_frame = tk.Frame(self)
+        self.thumb_ctrl_frame.pack()
+        tk.Button(self.thumb_ctrl_frame, text="Delete", command=self.delete_selected_thumbnail).pack(side=tk.LEFT, padx=2)
+        tk.Button(self.thumb_ctrl_frame, text="Move Left", command=self.move_selected_thumbnail_left).pack(side=tk.LEFT, padx=2)
+        tk.Button(self.thumb_ctrl_frame, text="Move Right", command=self.move_selected_thumbnail_right).pack(side=tk.LEFT, padx=2)
         # Checkbox for switching between original and SNES graphics
         self.use_snes_graphics = tk.BooleanVar(value=False)
         self.graphics_checkbox = ttk.Checkbutton(
@@ -544,10 +552,6 @@ class TileViewer(tk.Tk):
 
     def add_to_composed_level(self):
         idx = self.current_sample_idx
-        #print("HELLO", idx, self.added_sample_indexes)
-        if idx in self.added_sample_indexes:
-            return
-        #print("WHY?")
         self.added_sample_indexes.append(idx)
         # Create a thumbnail for the scene
         from level_dataset import visualize_samples
@@ -564,12 +568,57 @@ class TileViewer(tk.Tk):
         thumb.thumbnail((64, 64))
         photo = PIL.ImageTk.PhotoImage(thumb)
         self.composed_thumbnails.append(photo)  # Prevent GC
-        label = tk.Label(self.composed_thumb_frame, image=photo)
-        label.pack(side=tk.LEFT, padx=2)
+        self.redraw_composed_thumbnails()  # Use new redraw method
+
+    def redraw_composed_thumbnails(self):
+        # Clear frame
+        for widget in self.composed_thumb_frame.winfo_children():
+            widget.destroy()
+        # Redraw all thumbnails
+        for i, photo in enumerate(self.composed_thumbnails):
+            borderwidth = 4 if i == self.selected_thumb_idx else 1
+            relief = "solid" if i == self.selected_thumb_idx else "flat"
+            label = tk.Label(self.composed_thumb_frame, image=photo, borderwidth=borderwidth, relief=relief)
+            label.pack(side=tk.LEFT, padx=2)
+            label.bind("<Button-1>", lambda e, idx=i: self.select_thumbnail(idx))
+
+    def select_thumbnail(self, idx):
+        self.selected_thumb_idx = idx
+        self.redraw_composed_thumbnails()
+
+    def delete_selected_thumbnail(self):
+        if self.selected_thumb_idx is not None and 0 <= self.selected_thumb_idx < len(self.added_sample_indexes):
+            del self.added_sample_indexes[self.selected_thumb_idx]
+            del self.composed_thumbnails[self.selected_thumb_idx]
+            # Adjust selection
+            if self.selected_thumb_idx >= len(self.composed_thumbnails):
+                self.selected_thumb_idx = len(self.composed_thumbnails) - 1
+            if self.selected_thumb_idx < 0:
+                self.selected_thumb_idx = None
+            self.redraw_composed_thumbnails()
+
+    def move_selected_thumbnail_left(self):
+        idx = self.selected_thumb_idx
+        if idx is not None and idx > 0:
+            # Swap with previous
+            self.added_sample_indexes[idx - 1], self.added_sample_indexes[idx] = self.added_sample_indexes[idx], self.added_sample_indexes[idx - 1]
+            self.composed_thumbnails[idx - 1], self.composed_thumbnails[idx] = self.composed_thumbnails[idx], self.composed_thumbnails[idx - 1]
+            self.selected_thumb_idx -= 1
+            self.redraw_composed_thumbnails()
+
+    def move_selected_thumbnail_right(self):
+        idx = self.selected_thumb_idx
+        if idx is not None and idx < len(self.added_sample_indexes) - 1:
+            # Swap with next
+            self.added_sample_indexes[idx + 1], self.added_sample_indexes[idx] = self.added_sample_indexes[idx], self.added_sample_indexes[idx + 1]
+            self.composed_thumbnails[idx + 1], self.composed_thumbnails[idx] = self.composed_thumbnails[idx], self.composed_thumbnails[idx + 1]
+            self.selected_thumb_idx += 1
+            self.redraw_composed_thumbnails()
 
     def clear_composed_level(self):
         self.added_sample_indexes.clear()
         self.composed_thumbnails.clear()
+        self.selected_thumb_idx = None
         for widget in self.composed_thumb_frame.winfo_children():
             widget.destroy()
 
