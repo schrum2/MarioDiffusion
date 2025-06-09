@@ -52,6 +52,20 @@ def main():
     args = parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
+
+    # Based on the number of tiles, decides which game to run
+    if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Super Mario Bros\\smb.json'
+            height = common_settings.MARIO_HEIGHT
+            width = common_settings.MARIO_WIDTH
+            path_to_json = args.json
+    elif args.num_tiles == common_settings.LR_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+            height = common_settings.LR_HEIGHT
+            width = common_settings.LR_WIDTH
+            path_to_json = "datasets\LR_LevelsAndCaptions-regular.json"
+
+
     if not args.compare_checkpoints:
         args.output_dir = os.path.join(args.model_path, args.output_dir)
         # Check if output directory already exists
@@ -61,7 +75,7 @@ def main():
         # Create output directory
         os.makedirs(args.output_dir)
 
-    _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+    _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset)
         
     # Set seeds for reproducibility
     random.seed(args.seed)
@@ -82,7 +96,7 @@ def main():
 
     # Initialize dataset
     dataset = LevelDataset(
-        json_path=args.json,
+        json_path=path_to_json,
         tokenizer=None,
         shuffle=False,
         mode="text",
@@ -104,13 +118,6 @@ def main():
 
     else:
         # Just run on one model and get samples as well
-        if args.num_tiles == common_settings.MARIO_TILE_COUNT:
-            height = args.height
-            width = args.width
-        elif args.num_tiles == common_settings.LR_TILE_COUNT:
-            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
-            height = common_settings.LR_HEIGHT
-            width = common_settings.LR_WIDTH
         avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
@@ -130,6 +137,17 @@ def main():
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
 
+    if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Super Mario Bros\\smb.json'
+            height = common_settings.MARIO_HEIGHT
+            width = common_settings.MARIO_WIDTH
+            path_to_json = args.json
+    elif args.num_tiles == common_settings.LR_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+            height = common_settings.LR_HEIGHT
+            width = common_settings.LR_WIDTH
+            path_to_json = "datasets\LR_LevelsAndCaptions-regular.json"
+
     checkpoint_dirs = [
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))
         for d in os.listdir(args.model_path)
@@ -140,8 +158,8 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         checkpoint_dirs.append((checkpoint_dirs[-1][0] + 1, args.model_path))
 
     # Prepare output paths
-    scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_scores_by_epoch.jsonl")
-    plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_caption_scores_plot.png")
+    scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_scores_by_epoch.jsonl")
+    plot_png_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_caption_scores_plot.png")
 
     # Check if output files already exist
     if os.path.exists(scores_jsonl_path):
@@ -176,7 +194,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
 
             avg_score, _, _, _ = calculate_caption_score_and_samples(
-                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=args.width, height=args.height
+                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height
             )
 
             print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
