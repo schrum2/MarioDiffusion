@@ -166,7 +166,13 @@ def main():
     else:
         caption = args.caption
         #caption = ("many pipes. many coins. , many enemies. many blocks. , many platforms. many question blocks.").split(',')
-    
+    phrases_per_model_path = [p.strip() for p in args.model_path.split('\\') if p.strip()]
+    model_name = phrases_per_model_path[-1]
+
+    # print("phrases_per_model_path:", phrases_per_model_path)
+    # print("model_name:", model_name)
+    # quit()
+
     all_scores = []
     all_avg_scores = []
     all_std_dev_scores = []
@@ -178,7 +184,9 @@ def main():
     one_caption = []
     count = 0
 
-    output_jsonl_path = os.path.join(args.output_dir, "evaluation_caption_order_results.jsonl")
+    folder_name = model_name + '_caption_order_tolerance'
+    os.makedirs(folder_name,  exist_ok=True)
+    output_jsonl_path = os.path.join(folder_name, "output.jsonl")
     with open(output_jsonl_path, "w") as f:
         for cap in all_captions:
             one_caption = cap
@@ -223,17 +231,17 @@ def main():
 
    
 
-    visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
-    if args.caption is not None or "":
-        caption_folder = args.caption.replace(" ", "_").replace(".", "_")
-        output_directory = os.path.join(visualizations_dir, caption_folder)
+    # visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
+    # if args.caption is not None or "":
+    #     caption_folder = args.caption.replace(" ", "_").replace(".", "_")
+    #     output_directory = os.path.join(visualizations_dir, caption_folder)
 
-        visualize_samples(
-            all_samples,
-            output_dir=output_directory,
-            prompts=all_prompts[0] if all_prompts else "No prompts available"
-        )
-        print(f"\nVisualizations saved to: {output_directory}")
+    #     visualize_samples(
+    #         all_samples,
+    #         output_dir=output_directory,
+    #         prompts=all_prompts[0] if all_prompts else "No prompts available"
+    #     )
+    #     print(f"\nVisualizations saved to: {output_directory}")
 
 
     print("\nAll samples shape:", all_samples.shape)
@@ -246,7 +254,10 @@ def main():
     all_median_score = np.median(all_median_scores)
 
     if args.save_as_json:
-        output_jsonl_path = os.path.join(args.output_dir, "evaluation_caption_order_results.jsonl")
+        folder_name = model_name + '_caption_order_tolerance'
+        os.makedirs(folder_name,  exist_ok=True)
+        output_jsonl_path = os.path.join(folder_name, "output.jsonl")
+        #output_jsonl_path = os.path.join(model_name, "evaluation_caption_order_results.jsonl")
         with open(output_jsonl_path, "w") as f:
             if isinstance(caption, list) or (args.caption is None or args.caption == ""):
                 # Multiple captions (permuted)
@@ -273,7 +284,8 @@ def main():
                 "Scores of all captions": {
                 "Scores": all_scores,
                     "Number of captions": len(all_scores),
-                    "Average of all permutations": all_avg_score,
+                    "Average of average permutations": all_avg_score,
+                    "Average of all permutations": np.mean(all_scores),
                     "Standard deviation of all permutations": all_std_dev_score,
                     "Min score of all permutations": all_min_score,
                     "Max score of all permutations": all_max_score,
