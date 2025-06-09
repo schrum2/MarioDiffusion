@@ -42,6 +42,7 @@ def parse_args():
 
     # Output args
     parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory if not comparing checkpoints (subdir of model directory)")
+    parser.add_argument("--save_image_samples", action="store_true", help="Save generated levels in png files")
 
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
 
@@ -50,13 +51,15 @@ def parse_args():
 def main():
     args = parse_args()
 
-    device = "cuda" if torch.cuda.is_available() else "cpu" 
-
-    # Save within the model path directory
+    device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
     if not args.compare_checkpoints:
         args.output_dir = os.path.join(args.model_path, args.output_dir)
+        # Check if output directory already exists
+        if os.path.exists(args.output_dir):
+            print(f"Error: Output directory '{args.output_dir}' already exists. Please remove it or specify a different output directory.")
+            exit(1)
         # Create output directory
-        os.makedirs(args.output_dir, exist_ok=True)
+        os.makedirs(args.output_dir)
 
     _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
         
@@ -106,7 +109,8 @@ def main():
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
         
-        visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
+        if args.save_image_samples:
+            visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
@@ -122,7 +126,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))
         for d in os.listdir(args.model_path)
         if os.path.isdir(os.path.join(args.model_path, d)) and d.startswith("checkpoint-")
-    ]
+    ]    
     checkpoint_dirs = sorted(checkpoint_dirs, key=lambda x: x[0])
     if os.path.isdir(os.path.join(args.model_path, "unet")):
         checkpoint_dirs.append((checkpoint_dirs[-1][0] + 1, args.model_path))
@@ -130,6 +134,14 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     # Prepare output paths
     scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_scores_by_epoch.jsonl")
     plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_caption_scores_plot.png")
+
+    # Check if output files already exist
+    if os.path.exists(scores_jsonl_path):
+        print(f"Error: Output file '{scores_jsonl_path}' already exists. Please remove it or move it elsewhere.")
+        exit(1)
+    if os.path.exists(plot_png_path):
+        print(f"Error: Output file '{plot_png_path}' already exists. Please remove it or move it elsewhere.")
+        exit(1)
 
     # Initialize Plotter
     plotter = Plotter(
@@ -272,7 +284,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
     dataloader.dataset.mode=original_mode
 
-    return (avg_score, all_samples, all_prompts, compare_all_scores)
+    return (avg_score, all_samples, all_prompts) # , compare_all_scores) # Adding this return value broke code in MANY places. Cannot do this unless you make sure that all calls to this function expect 4 values
 
 if __name__ == "__main__":
     main()

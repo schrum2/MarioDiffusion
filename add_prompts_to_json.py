@@ -23,12 +23,11 @@ def main():
         target_data = json.load(f)
         
 
-    if len(source_data) == len(target_data):
-        print("Number of source file entries match number of target file entries")
+    if len(source_data) != len(target_data):
+        raise ValueError(f"{len(source_data)} entries in source data and {len(target_data)} entries in target data. Cannot add prompts to JSON")
     else:
-        print(f"{len(source_data)} entries in source data and {len(target_data)} entries in target data. Cannot add prompts to JSON")
-        exit()
-        
+        print("Number of source file entries match number of target file entries")
+                
     # Extract prompts from the source json
     prompts = [entry["caption"] for entry in source_data if "caption" in entry]
 

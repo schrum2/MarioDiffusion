@@ -45,7 +45,6 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
         }
         
     
-
         if key == "real" or key == "short": 
             # With the original dataset, calculate average_min_edit_distance_from_real
             original_dataset_path = os.path.join("datasets", f"{game}_LevelsAndCaptions-regular.json")
@@ -56,17 +55,18 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
           
             metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, original_levels)
         
-        elif key == "random": # change this to run if key == samples from random captions
-            random_dataset_path = os.path.join("datasets", f"{game}_RandomTest-regular.json")
-            with open(random_dataset_path, "r") as random_file:
-                random_data = json.load(random_file)
-                random_levels = [entry["scene"] for entry in random_data if "scene" in entry]
+        #Cannot do this as RandomTest has no scenes
+        # elif key == "random": # change this to run if key == samples from random captions
+        #     random_dataset_path = os.path.join("datasets", f"{game}_RandomTest-regular.json")
+        #     with open(random_dataset_path, "r") as random_file:
+        #         random_data = json.load(random_file)
+        #         random_levels = [entry["scene"] for entry in random_data if "scene" in entry]
                 
-            print(f"Found {len(random_levels)} random levels and captions.")
-            metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, random_levels)    
+        #     print(f"Found {len(random_levels)} random levels and captions.")
+        #     metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, random_levels)    
         
         # If prompts was created, meaning that we can do analysis between prompts and captions
-        if prompts[0] != "null":
+        if prompts[0] is not None:
             print("Calculating phrase metrics...")
 
             phrase_metrics = {}
