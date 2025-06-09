@@ -44,6 +44,6 @@ if /I "%TYPE%"=="negative" (
     set DIFF_FLAGS=--negative_prompt_training
 )
 
-python train_diffusion.py --augment --text_conditional --output_dir "%DIFF_OUTPUT%" --num_epochs 500 --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-train.json --val_json datasets\%GAME%_LevelsAndCaptions-%TYPE%-validate.json --pretrained_language_model "%MODEL_NAME%" --plot_validation_caption_score --seed %SEED% %DIFF_FLAGS% %SPLIT_FLAG% %DESCRIBE_ABSENCE_FLAG%
+python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir "%DIFF_OUTPUT%" --num_epochs 500 --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-train.json --val_json datasets\%GAME%_LevelsAndCaptions-%TYPE%-validate.json --pretrained_language_model "%MODEL_NAME%" --plot_validation_caption_score --seed %SEED% %DIFF_FLAGS% %SPLIT_FLAG% %DESCRIBE_ABSENCE_FLAG%
 call batch\run_diffusion_multi.bat %DIFF_OUTPUT% %TYPE% text
 call batch\evaluate_caption_adherence_multi.bat %DIFF_OUTPUT% %TYPE% %GAME%

@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
 
     # Used to generate captions when generating images
-    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default='..\\TheVGLC\\Super Mario Bros\\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Width of the generated levels")
@@ -39,6 +39,7 @@ def parse_args():
 
     # Output args
     parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory if not comparing checkpoints (subdir of model directory)")
+    parser.add_argument("--save_image_samples", action="store_true", help="Save generated levels in png files")
 
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
 
@@ -103,11 +104,12 @@ def main():
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
         
-        visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
+        if args.save_image_samples:
+            visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
-            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
+            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
 
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
@@ -191,6 +193,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     total_count = 0
     all_samples = []
     all_prompts = []
+    compare_all_scores = []
     for batch_idx, batch in enumerate(dataloader):
         with torch.no_grad():  # Disable gradient computation to save memory            
             if dataloader.dataset.negative_captions:
@@ -244,6 +247,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 compare_score = compare_captions(caption, actual_caption)
 
                 if output: print(f"\tcompare_score: {compare_score}")
+                compare_all_scores.append(compare_score)
 
                 score_sum += compare_score
                 total_count += 1
@@ -261,7 +265,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
     dataloader.dataset.mode=original_mode
 
-    return (avg_score, all_samples, all_prompts)
+    return (avg_score, all_samples, all_prompts) # , compare_all_scores) # Adding this return value broke code in MANY places. Cannot do this unless you make sure that all calls to this function expect 4 values
 
 if __name__ == "__main__":
     main()
