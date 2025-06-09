@@ -104,7 +104,14 @@ def main():
 
     else:
         # Just run on one model and get samples as well
-        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=args.height, width=args.width)
+        if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+            height = args.height
+            width = args.width
+        elif args.num_tiles == common_settings.LR_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+            height = common_settings.LR_HEIGHT
+            width = common_settings.LR_WIDTH
+        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
@@ -118,7 +125,7 @@ def main():
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
             elif args.num_tiles == common_settings.LR_TILE_COUNT:
                 tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
-                lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
+                lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
