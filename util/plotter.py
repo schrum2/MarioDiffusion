@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 import os
 import time
 import json
+import tempfile
+import shutil
+from pathlib import Path
 
 
 def parse_args():
@@ -93,9 +96,37 @@ def general_update_plot(log_file, left_key, right_key, left_label, right_label, 
             else:
                 output_path = os.path.join(log_dir, output_png)
 
-            fig.savefig(output_path)
+            save_figure_safely(fig, output_path)
     finally:
         plt.close(fig)  # Ensure figure is closed even if an error occurs
+
+def save_figure_safely(fig, output_path):
+    """Save figure to a temporary file first, then move it to the final location"""
+    output_path = str(Path(output_path))  # Convert to string path
+    
+    # Create temporary file with .png extension
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+        tmp_path = tmp_file.name
+    
+    try:
+        # Save to temporary file
+        fig.savefig(tmp_path)
+        
+        # Create output directory if it doesn't exist
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        
+        # Try to move the file to final destination
+        # If move fails, try to copy and then delete
+        try:
+            shutil.move(tmp_path, output_path)
+        except OSError:
+            shutil.copy2(tmp_path, output_path)
+            os.unlink(tmp_path)
+    except Exception as e:
+        # Clean up temporary file if anything goes wrong
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise e
 
 class Plotter:
     def __init__(self, log_file, update_interval=1.0, left_key='loss', right_key='lr', 
