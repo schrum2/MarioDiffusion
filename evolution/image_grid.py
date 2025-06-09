@@ -26,7 +26,11 @@ class ImageGridViewer:
         self.generation_fn = generation_fn # get current generation number
         self.expanded_view = False  # Tracks if an image is currently expanded
         self.expanded_image_idx = None  # Tracks which image is expanded
-        self.added_image_indexes = []
+        # For tracking composed scenes and thumbnails
+        self.composed_scenes = []
+        self.composed_thumbnails = []
+        self.composed_thumbnail_labels = []
+        self.selected_composed_index = None
         
         self.id_to_char = None # Will come later
 
@@ -130,6 +134,31 @@ class ImageGridViewer:
         )
         self.clear_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+        # Add these after your other control buttons (e.g., after self.clear_composed_button)
+        self.delete_scene_button = tk.Button(
+            self.button_frame,
+            text="Delete Scene",
+            command=self.delete_selected_composed_scene,
+            width=15
+        )
+        self.delete_scene_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.move_left_button = tk.Button(
+            self.button_frame,
+            text="Move Left",
+            command=lambda: self.move_selected_composed_scene(-1),
+            width=12
+        )
+        self.move_left_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.move_right_button = tk.Button(
+            self.button_frame,
+            text="Move Right",
+            command=lambda: self.move_selected_composed_scene(1),
+            width=12
+        )
+        self.move_right_button.pack(side=tk.LEFT, padx=5, pady=5)
+
         # toggle checkbox for SNES graphics
         self.use_snes_graphics = tk.BooleanVar(value=False)
         self.snes_checkbox = tk.Checkbutton(
@@ -170,18 +199,55 @@ class ImageGridViewer:
         self.root.bind('<Configure>', self._on_window_resize)
 
     def _clear_composed_level(self):
-        self.added_image_indexes.clear()
-        self.bottom_thumbnails.clear()
-        for widget in self.bottom_frame.winfo_children():
-            widget.destroy()
+        self.composed_scenes.clear()
+        self.composed_thumbnails.clear()
+        for label in self.composed_thumbnail_labels:
+            label.destroy()
+        self.composed_thumbnail_labels.clear()
+        self.selected_composed_index = None
+
+    def delete_selected_composed_scene(self):
+        idx = self.selected_composed_index
+        if idx is not None and 0 <= idx < len(self.composed_scenes):
+            # Remove from all lists
+            self.composed_scenes.pop(idx)
+            self.composed_thumbnails.pop(idx)
+            label = self.composed_thumbnail_labels.pop(idx)
+            label.destroy()
+            self.selected_composed_index = None
+            self.rebind_composed_thumbnail_clicks()
+        else:
+            tk.messagebox.showinfo("No selection", "Please select a scene to delete.")
+
+    def move_selected_composed_scene(self, direction):
+        idx = self.selected_composed_index
+        if idx is None or not (0 <= idx < len(self.composed_scenes)):
+            tk.messagebox.showinfo("No selection", "Please select a scene to move.")
+            return
+
+        new_idx = idx + direction
+        if not (0 <= new_idx < len(self.composed_scenes)):
+            return  # Out of bounds
+
+        # Swap in all lists
+        for lst in [self.composed_scenes, self.composed_thumbnails, self.composed_thumbnail_labels]:
+            lst[idx], lst[new_idx] = lst[new_idx], lst[idx]
+
+        # Re-pack labels in new order
+        for lbl in self.composed_thumbnail_labels:
+            lbl.pack_forget()
+        for lbl in self.composed_thumbnail_labels:
+            lbl.pack(side=tk.LEFT, padx=2)
+
+        self.rebind_composed_thumbnail_clicks()
+        self.select_composed_thumbnail(new_idx)
 
     def _save_composed_level(self):
-        if self.added_image_indexes:
-            level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
+        if self.composed_scenes:
+            level = self.get_sample_output(self._merge_composed_scenes())
             # Always open in the current working directory or a subfolder
             initial_dir = os.path.join(os.getcwd(), "Composed Levels")
             os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
-
             file_path = filedialog.asksaveasfilename(
                 defaultextension=".txt",
                 filetypes=[("Text files", "*.txt")],
@@ -194,6 +260,21 @@ class ImageGridViewer:
             else:
                 print("Save operation cancelled.")
 
+    def _merge_composed_scenes(self):
+        scenes = self.composed_scenes
+        if not scenes:
+            return None
+        num_rows = len(scenes[0])
+        if not all(len(scene) == num_rows for scene in scenes):
+            raise ValueError("All scenes must have the same number of rows.")
+        concatenated_scene = []
+        for row_index in range(num_rows):
+            new_row = []
+            for scene in scenes:
+                new_row.extend(scene[row_index])
+            concatenated_scene.append(new_row)
+        return concatenated_scene
+
     def get_sample_output(self, scene, use_snes_graphics=None):
         if use_snes_graphics is None:
             use_snes_graphics = self.use_snes_graphics.get()
@@ -201,43 +282,21 @@ class ImageGridViewer:
         return SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
 
     def _play_composed_level(self):
-        if self.added_image_indexes:
-            # level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
-            level = self.get_sample_output(self._merge_selected(self.added_image_indexes), use_snes_graphics=self.use_snes_graphics.get())
+        composed_scene = self._merge_composed_scenes()
+        if composed_scene:
+            level = self.get_sample_output(composed_scene, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
 
     def _astar_composed_level(self):
-        if self.added_image_indexes:
-            # level = self.get_sample_output(self._merge_selected(self.added_image_indexes))
-            level = self.get_sample_output(self._merge_selected(self.added_image_indexes), use_snes_graphics=self.use_snes_graphics.get())
+        composed_scene = self._merge_composed_scenes()
+        if composed_scene:
+            level = self.get_sample_output(composed_scene, use_snes_graphics=self.use_snes_graphics.get())
             console_output = level.run_astar()
             print(console_output)
 
     def get_available_scenes(self):
         """Returns a list of available scenes from the genomes."""
         return [g.scene for g in self.genomes if g.scene is not None]
-
-    def _merge_selected(self, indexes=None):
-
-        scenes = self.get_available_scenes()
-
-        if indexes is None:
-            indexes = self.selected_images
-        selected_scenes = [scenes[i] for i in indexes if scenes[i] is not None]
-
-        # Ensure all selected scenes have the same number of rows
-        num_rows = len(selected_scenes[0])
-        if not all(len(scene) == num_rows for scene in selected_scenes):
-            raise ValueError("The selected genomes' scenes must have the same number of rows.")
-
-        concatenated_scene = []
-        for row_index in range(num_rows):
-            new_row = []
-            for scene in selected_scenes:
-                new_row.extend(scene[row_index])
-            concatenated_scene.append(new_row)
-
-        return concatenated_scene
 
     def clear_images(self):
         """Clears all images from the grid and resets selections."""
@@ -516,16 +575,40 @@ class ImageGridViewer:
                 if idx in self.selected_images:
                     btn.configure(bg='blue')
 
+    def select_composed_thumbnail(self, index):
+        # Deselect all
+        for lbl in self.composed_thumbnail_labels:
+            lbl.config(relief="flat", borderwidth=2)
+        # Select the clicked one
+        self.composed_thumbnail_labels[index].config(relief="solid", borderwidth=3)
+        self.selected_composed_index = index
+
+    def rebind_composed_thumbnail_clicks(self):
+        """
+        Updates the click event bindings for each thumbnail label to ensure 
+        that when you click a thumbnail, the correct index is assigned
+        This must be called after any operation that changes the order,
+        adds, or removes thumbnails, to keep selection working correctly.
+        """
+        for i, lbl in enumerate(self.composed_thumbnail_labels):
+            lbl.bind("<Button-1>", lambda e, i=i: self.select_composed_thumbnail(i))
+
     def _add_to_level(self, idx):
-        self.added_image_indexes.append(idx)
-        # Display thumbnail in bottom frame
+        # Store a copy of the scene
+        scene = self.genomes[idx].scene
+        self.composed_scenes.append(scene)
+
+        # Create and store the thumbnail
         img = self.images[idx].copy()
         img.thumbnail((64, 64), Image.Resampling.LANCZOS)
         photo = ImageTk.PhotoImage(img)
-        self.bottom_thumbnails.append(photo)  # Prevent GC
+        self.composed_thumbnails.append(photo)  # Prevent GC
 
-        label = tk.Label(self.bottom_frame, image=photo)
+        # Create a clickable label for the thumbnail
+        label = tk.Label(self.bottom_frame, image=photo, borderwidth=2, relief="flat")
         label.pack(side=tk.LEFT, padx=2)
+        self.composed_thumbnail_labels.append(label)
+        self.rebind_composed_thumbnail_clicks()
 
     def _play_genome(self, genome):
         # level = self.get_sample_output(genome.scene)
@@ -557,9 +640,6 @@ class ImageGridViewer:
 
     def _handle_done(self):
         """Called when Evolve button is clicked"""
-
-        # It might be nice to built up the level across generations, but is easier to clear it each time
-        self._clear_composed_level()
 
         self.done_button.config(text="Reset")
         if self.callback_fn:
