@@ -88,37 +88,29 @@ def verify_data_completeness(model_path, type_str):
     
     return errors
 
-def find_numbered_directories() -> List[Tuple[str, int]]:
-    """Find all directories in current path that end with a number.
-    Returns list of tuples (directory_path, number)."""
+def find_numbered_directories() -> List[Tuple[str, int, str]]:
+    """Find all conditional model directories in current path that end with a number.
+    Returns list of tuples (directory_path, number, type).
+    Only includes directories containing '-conditional-' and determines type based on name."""
     numbered_dirs = []
     for item in os.listdir('.'):
-        if os.path.isdir(item) and item[-1].isdigit():
-            # Get the number at the end of the directory name
-            num = ""
-            for char in reversed(item):
-                if char.isdigit():
-                    num = char + num
-                else:
-                    break
-            if num:  # If we found a number
-                numbered_dirs.append((item, int(num)))
+        if not (os.path.isdir(item) and item[-1].isdigit() and "-conditional-" in item):
+            continue
+            
+        # Get the number at the end of the directory name
+        num = ""
+        for char in reversed(item):
+            if char.isdigit():
+                num = char + num
+            else:
+                break
+        
+        if num:  # If we found a number
+            # Determine type based on directory name
+            dir_type = "absence" if "absence" in item.lower() else "regular"
+            numbered_dirs.append((item, int(num), dir_type))
+            
     return sorted(numbered_dirs, key=lambda x: x[1])  # Sort by number
-
-def verify_directory(model_path: str) -> Tuple[bool, List[str], str]:
-    """Try both regular and absence types, return success status, errors, and best type."""
-    regular_errors = verify_data_completeness(model_path, "regular")
-    absence_errors = verify_data_completeness(model_path, "absence")
-    
-    if not regular_errors:  # Regular verification succeeded
-        return True, [], "regular"
-    if not absence_errors:  # Absence verification succeeded
-        return True, [], "absence"
-    
-    # Both failed, return the one with fewer errors
-    if len(regular_errors) <= len(absence_errors):
-        return False, regular_errors, "regular"
-    return False, absence_errors, "absence"
 
 def main():
     parser = argparse.ArgumentParser(description="Verify completeness of model evaluation data")
@@ -149,22 +141,23 @@ def main():
     else:
         # Automatic discovery mode
         print("Running in automatic directory discovery mode...")
+        print("Looking for directories containing '-conditional-' that end in a number...")
         numbered_dirs = find_numbered_directories()
         if not numbered_dirs:
-            print("No numbered directories found in current directory.")
+            print("No matching directories found in current directory.")
             return
         
         success_count = 0
-        for dir_path, num in numbered_dirs:
-            print(f"\nChecking directory: {dir_path}")
-            success, errors, best_type = verify_directory(dir_path)
-            if success:
-                print(f"Verification successful! (Type: {best_type})")
-                success_count += 1
-            else:
-                print(f"Verification failed using type '{best_type}'. Problems found:")
+        for dir_path, num, dir_type in numbered_dirs:
+            print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
+            errors = verify_data_completeness(dir_path, dir_type)
+            if errors:
+                print("Verification failed. Problems found:")
                 for error in errors:
                     print(error)
+            else:
+                print("Verification successful!")
+                success_count += 1
         
         print(f"\nVerification complete. {success_count} out of {len(numbered_dirs)} directories passed verification.")
 
