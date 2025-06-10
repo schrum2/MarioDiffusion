@@ -16,8 +16,8 @@ def load_scene_caption_data(json_path):
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate solvability of Mario levels using A* metrics.")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the model output directory containing all_levels.json or its subdirectories.")
-    parser.add_argument("--save_name", type=str, default="astar_metrics.jsonl", help="Name of the file to save astar metrics results.")
-    parser.add_argument("--num_runs", type=int, default=3, help="Number of runs for astar metrics evaluation.")
+    parser.add_argument("--save_name", type=str, default="astar_result.jsonl", help="Name of the file to save astar metrics results.")
+    parser.add_argument("--num_runs", type=int, default=1, help="Number of runs for astar metrics evaluation.")
     parser.add_argument("--simulator_kwargs", type=str, default="{}", help="JSON string of additional keyword arguments for the simulator.")
 
     #parser.add_argument("--random_test", type=str, default=None)
@@ -28,17 +28,6 @@ if __name__ == "__main__":
     model_path = args.model_path
     if not os.path.exists(model_path):
         raise RuntimeError(f"Model path does not exist: {model_path}. Please provide a valid path.")
-
-    if args.save_name:
-        save_name = args.save_name
-    else:
-        # Same as default
-        save_name = f"astar_result.jsonl"
-
-    if args.num_runs == None:
-        num_runs = 1
-    else:
-        num_runs = args.num_runs
 
     if args.simulator_kwargs is not None:
         try:
@@ -80,10 +69,10 @@ if __name__ == "__main__":
         try:
             results, overall_averages = astar_metrics(
                 levels = scene_caption_data,
-                num_runs = num_runs,
+                num_runs = args.num_runs,
                 simulator_kwargs = simulator_kwargs,
                 output_json_path = json_path,
-                save_name = save_name,
+                save_name = args.save_name,
             )
             print(f"Results from astar_metrics for {save_name}: {len(results)} levels processed.")
             print(f"Overall averages saved to {os.path.splitext(save_name)[0]}_overall_averages.json")
