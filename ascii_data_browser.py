@@ -130,32 +130,33 @@ class TileViewer(tk.Tk):
         self.caption_text.tag_configure("center", justify="center")
         self.caption_text.configure(state="disabled")  # Make it read-only
 
-        nav_frame = tk.Frame(self)
-        nav_frame.pack(pady=2, side=tk.BOTTOM)  # Moved navigation buttons closer to the canvas
-        tk.Button(nav_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=5)
-        tk.Button(nav_frame, text="Next >>", command=self.next_sample).pack(side=tk.LEFT, padx=5)
-
-        # Add a button to generate from the current scene (initially disabled)
-        self.generate_button = tk.Button(nav_frame, text="Generate From Scene", command=self.generate_from_scene, state=tk.DISABLED)
-        self.generate_button.pack(side=tk.LEFT, padx=5)
-
-        # Add steps input field
-        tk.Label(nav_frame, text="Steps:").pack(side=tk.LEFT)
-        self.steps_entry = tk.Entry(nav_frame, width=4)
-        self.steps_entry.insert(0, "50")  # Default value
-        self.steps_entry.config(state=tk.DISABLED)  # Initially disabled
-        self.steps_entry.pack(side=tk.LEFT, padx=2)
+        # Combined navigation and info frame
+        nav_info_frame = tk.Frame(self)
+        nav_info_frame.pack(pady=2)  # Place above composed controls and thumbnails
 
         # Sample info and jump
-        info_frame = tk.Frame(self)
-        info_frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
-        self.sample_label = tk.Label(info_frame, text="Sample: 0 / 0")
+        self.sample_label = tk.Label(nav_info_frame, text="Sample: 0 / 0")
         self.sample_label.pack(side=tk.LEFT, padx=5)
 
-        tk.Label(info_frame, text="Jump to:").pack(side=tk.LEFT)
-        self.jump_entry = tk.Entry(info_frame, width=5)
+        tk.Label(nav_info_frame, text="Jump to:").pack(side=tk.LEFT)
+        self.jump_entry = tk.Entry(nav_info_frame, width=5)
         self.jump_entry.pack(side=tk.LEFT)
         self.jump_entry.bind("<Return>", self.jump_to_sample)
+
+        # Generate button (initially disabled)
+        self.generate_button = tk.Button(nav_info_frame, text="Generate From Scene", command=self.generate_from_scene, state=tk.DISABLED)
+        self.generate_button.pack(side=tk.LEFT, padx=20)
+
+        # Steps input field
+        tk.Label(nav_info_frame, text="Steps:").pack(side=tk.LEFT)
+        self.steps_entry = tk.Entry(nav_info_frame, width=4)
+        self.steps_entry.insert(0, "50")  # Default value
+        self.steps_entry.config(state=tk.DISABLED)  # Initially disabled
+        self.steps_entry.pack(side=tk.LEFT, padx=20)
+
+        # Navigation buttons
+        tk.Button(nav_info_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=10)
+        tk.Button(nav_info_frame, text="Next >>", command=self.next_sample).pack(side=tk.LEFT, padx=10)
 
         # Composed level controls (below navigation)
         self.composed_frame = tk.Frame(self)
@@ -200,8 +201,6 @@ class TileViewer(tk.Tk):
         self.clear_composed_button.pack(side=tk.LEFT, padx=2)
         
         # Thumbnails for composed level
-        self.thumb_ctrl_frame = tk.Frame(self)
-        self.thumb_ctrl_frame.pack()
         self.composed_thumb_frame = tk.Frame(self)
         self.composed_thumb_frame.pack(fill=tk.X)
 
