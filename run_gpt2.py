@@ -1,65 +1,88 @@
 import torch
 from mario_gpt import MarioLM, SampleOutput
-from transformers import AutoModelWithLMHead, AutoTokenizer
-
-# pretrained_model = shyamsn97/Mario-GPT2-700-context-length
-lm = AutoModelWithLMHead.from_pretrained(".//Mario-GPT2-700-context-length//iteration_9999", add_cross_attention = True)
+import argparse
+import os
 
 
-mario_lm = MarioLM(lm=lm)
-# use cuda to speed stuff up
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-mario_lm = mario_lm.to(device)
 
-prompts = ["many pipes, many enemies, some blocks, high elevation"]
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate MarioGPT levels")
 
-# generate level of size 1400, pump temperature up to ~2.4 for more stochastic but playable levels
-generated_level = mario_lm.sample(
-    prompts=prompts,
-    num_steps=1400,
-    temperature=2.0,
-    use_tqdm=True
-)
+    parser.add_argument("--num_collumns", type=int, default=128, help="The number of vertical collumns to generate")
+    parser.add_argument("--prompt", type=str, default=None, help="A specific prompt to generate if wanted")
+    parser.add_argument("--temperature", type=float, default=2.0, help="The temperature (chaos scale) input into the model")
+
+    parser.add_argument("--split_levels", action="store_true", help="Split and pad levels into 16X16 scenes")
+    parser.add_argument("--output_dir", type=str, default="SMB1-gpt-levels", help="The number of vertical collumns to generate")
 
 
-# show string list
-generated_level.level
+    return parser.parse_args()
 
-# show PIL image
-generated_level.img
 
-# save image
-generated_level.img.save("generated_level.png")
+def main():
+    
+    args = parse_args()
 
-# save text level to file
-generated_level.save("generated_level.txt")
 
-# play in interactive
-generated_level.play()
 
-# run Astar agent
-generated_level.run_astar()
+    if os.path.exists(args.output_dir):
+        print("Exiting. Please remove the directory or choose a different output directory.")
+        exit()
+    else:
+        os.makedirs(args.output_dir)
 
-# Continue generation
-generated_level_continued = mario_lm.sample(
-    seed=generated_level,
-    prompts=prompts,
-    num_steps=1400,
-    temperature=2.0,
-    use_tqdm=True
-)
+    mario_lm = MarioLM()
+    # use cuda to speed stuff up
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    mario_lm = mario_lm.to(device)
+    
 
-# save image
-generated_level_continued.img.save("generated_level.png")
+    #Prompt loading
+    all_prompts=[]
 
-# save text level to file
-generated_level_continued.save("generated_level.txt")
+    if args.prompt is None:
+        pipe_prompt_options=["no pipes", "little pipes", "some pipes", "many pipes"]
+        enemy_prompt_options=["no enemies", "little enemies", "some enemies", "many enemies"]
+        block_prompt_options=["little blocks", "some blocks", "many blocks"]
+        elevation_prompt_options=["low elevation", "high elevation"]
 
-# load from text file
-loaded_level = SampleOutput.load("generated_level.txt")
+        for pipe_prompt in pipe_prompt_options:
+            for enemy_prompt in enemy_prompt_options:
+                for block_prompt in block_prompt_options:
+                    for elevation_prompt in elevation_prompt_options:
+                        prompt = f"{pipe_prompt}, {enemy_prompt}, {block_prompt}, {elevation_prompt}"
+                        all_prompts.append(prompt) #Creates a list of all possible prompt combinations
+    else:
+        all_prompts.append(args.prompt)
 
-# play from loaded (should be the same level that we generated)
-loaded_level.play()
+    
 
-# run Astar agent
-generated_level.run_astar()
+    #Generate all levels at once
+    generated_levels = mario_lm.sample(
+        prompts=prompt,
+        num_steps=args.num_collumns*14,
+        temperature=args.temperature,
+        use_tqdm=True
+    )
+
+    #Save generated levels
+    for i in range(len(generated_levels)):
+
+        save_location=os.path.join(args.output_dir, all_prompts[i])
+        if args.split_levels:
+            print("Not yet supported!")
+            #TODO: add support for level splitting
+        else:
+            # save image
+            generated_levels[i].img.save(f"{save_location}.png")
+
+            # save text level to file
+            generated_levels[i].save(f"{save_location}.txt")
+
+
+
+
+
+
+if __name__ == "__main__":
+    main()
