@@ -74,7 +74,7 @@ if __name__ == "__main__":
                 output_json_path = json_path,
                 save_name = args.save_name,
             )
-            print(f"Results from astar_metrics for {save_name}: {len(results)} levels processed.")
-            print(f"Overall averages saved to {os.path.splitext(save_name)[0]}_overall_averages.json")
+            print(f"Results from astar_metrics for {args.save_name}: {len(results)} levels processed.")
+            print(f"Overall averages saved to {os.path.splitext(args.save_name)[0]}_overall_averages.json")
         except Exception as e:
             raise RuntimeError(f"Error processing {json_path} with label {label}: {e}")
