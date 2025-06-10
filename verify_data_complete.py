@@ -124,7 +124,7 @@ def main():
 
     # If any argument is provided, all required arguments must be provided
     if any([args.prefix, args.type, args.start_num, args.end_num]):
-        if not all([args.prefix, args.type, args.start_num, args.end_num]):
+        if not all([args.prefix, args.type, args.start_num or args.start_num == 0, args.end_num]):
             parser.error("If any argument is provided, all arguments (--prefix, --type, --start_num, --end_num) are required")
         
         # Parameter-based mode
