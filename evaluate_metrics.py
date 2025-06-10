@@ -56,9 +56,8 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
             with open(original_dataset_path, "r") as original_file:
                 original_data = json.load(original_file)
                 original_levels = [entry["scene"] for entry in original_data if "scene" in entry]
-            #print(f"Found {len(original_levels)} original levels and captions.")
             
-            metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, original_levels)
+            metrics["average_min_edit_distance_from_real"], metrics["generated_vs_real_perfect_matches"] = average_min_edit_distance_from_real(levels, original_levels)
             
         # If prompts was created, meaning that we can do analysis between prompts and captions
         if prompts is not None and (key != "short" and key != "long"):
