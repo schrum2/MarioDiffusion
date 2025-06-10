@@ -419,7 +419,7 @@ def astar_metrics(
     levels: list[dict],  # Each dict should have "scene" and "caption"
     num_runs: int = 3,
     simulator_kwargs: dict = None,
-    input_json_path: str = None,
+    output_json_path: str = None,
     save_name: str = "astar_result.jsonl"
 ) -> tuple[List[dict], dict]:
     """
@@ -428,8 +428,8 @@ def astar_metrics(
         levels: List of dicts, each with "scene" (2D int list) and "caption" (str)
         num_runs: Number of runs per level
         simulator_kwargs: kwargs for MMNEATSimulator
-        input_json_path: Path to input JSON file (for determining output directory)
-        save_name: Filename for output JSONL (saved to same directory as input_json_path if provided)
+        output_json_path: Path to input JSON file (saves in root directory if None)
+        save_name: Filename for output JSONL
     Returns:
         List of dicts as described in the prompt
     """
@@ -438,8 +438,8 @@ def astar_metrics(
     per_level_averages = []
 
     # Determine output directory
-    if input_json_path is not None:
-        output_dir = os.path.dirname(input_json_path)
+    if output_json_path is not None:
+        output_dir = os.path.dirname(output_json_path)
     else:
         output_dir = '.'
     out_file = os.path.join(output_dir, save_name)

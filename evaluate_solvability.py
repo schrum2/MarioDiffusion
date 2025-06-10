@@ -26,15 +26,27 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     model_path = args.model_path
-    num_runs = args.num_runs
+    if not os.path.exists(model_path):
+        raise RuntimeError(f"Model path does not exist: {model_path}. Please provide a valid path.")
 
-    # Parse simulator_kwargs from JSON string to dict ONCE
-    try:
-        simulator_kwargs = json.loads(args.simulator_kwargs)
-    except Exception as e:
-        raise RuntimeError(f"Failed to parse simulator_kwargs: {e}. Please provide a valid JSON string.")
+    if args.save_name:
+        save_name = args.save_name
+    else:
+        # Same as default
+        save_name = f"astar_result.jsonl"
 
-    # Parse model name for conditional/unconditional and data
+    if args.num_runs == None:
+        num_runs = 1
+    else:
+        num_runs = args.num_runs
+
+    if args.simulator_kwargs is not None:
+        try:
+            simulator_kwargs = json.loads(args.simulator_kwargs)
+        except Exception as e:
+            raise RuntimeError(f"Failed to parse simulator_kwargs: {e}. Please provide a valid JSON string.")
+
+    # Parse model path name for conditional/unconditional and data
     model_parts = os.path.basename(model_path).split('-')
     data = model_parts[0] if len(model_parts) > 0 else ""
     model_type = model_parts[1] if len(model_parts) > 1 else ""
@@ -51,10 +63,10 @@ if __name__ == "__main__":
 
     # If conditional, add the two conditional JSONs in the model directory
     if is_conditional:
-        for cond_type in ["random", "real"]:
-            cond_dir = os.path.join(model_path, f"samples-from-{cond_type}-{data}-captions")
+        for real_or_rand in ["random", "real"]:
+            cond_dir = os.path.join(model_path, f"samples-from-{real_or_rand}-{data}-captions")
             cond_json = os.path.join(cond_dir, "all_levels.json")
-            json_jobs.append({"path": cond_json, "label": f"conditional-{cond_type}"})
+            json_jobs.append({"path": cond_json, "label": f"conditional-{real_or_rand}"})
 
     # Process each JSON
     for job in json_jobs:
@@ -64,29 +76,16 @@ if __name__ == "__main__":
             raise RuntimeError(f"JSON file not found: {label} JSON not found at {json_path}. Please check the path and try again.")
 
         scene_caption_data = load_scene_caption_data(json_path)
-        if args.save_name:
-            # If save_name is provided, use it; otherwise, default to astar_metrics.jsonl
-            save_name = args.save_name
-        else:
-            # Default save name based on label
-            save_name = f"astar_result.jsonl"
-        # Prepare arguments for astar_metrics, only passing those explicitly set
-        astar_args = {
-            "levels": scene_caption_data,
-            "num_runs": num_runs,
-        }
-        # Only pass simulator_kwargs if user provided a non-empty string (not just default "{}")
-        if args.simulator_kwargs and args.simulator_kwargs.strip() != "{}":
-            astar_args["simulator_kwargs"] = simulator_kwargs
-        # Only pass save_name if user provided it (not default)
-        if args.save_name and args.save_name != "astar_metrics.jsonl":
-            astar_args["save_name"] = args.save_name
-        # Always pass input_json_path for correct output location
-        astar_args["input_json_path"] = json_path
 
         try:
-            results, overall_averages = astar_metrics(**astar_args)
-            print(f"Results from astar_metrics for {astar_args.get('save_name', 'astar_result.jsonl')}: {len(results)} levels processed.")
-            print(f"Overall averages saved to {os.path.splitext(astar_args.get('save_name', 'astar_result'))[0]}_overall_averages.json")
+            results, overall_averages = astar_metrics(
+                levels = scene_caption_data,
+                num_runs = num_runs,
+                simulator_kwargs = simulator_kwargs,
+                output_json_path = json_path,
+                save_name = save_name,
+            )
+            print(f"Results from astar_metrics for {save_name}: {len(results)} levels processed.")
+            print(f"Overall averages saved to {os.path.splitext(save_name)[0]}_overall_averages.json")
         except Exception as e:
             raise RuntimeError(f"Error processing {json_path} with label {label}: {e}")
