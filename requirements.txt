@@ -12,6 +12,7 @@ safetensors
 datasets
 matplotlib
 mario-gpt
+send2trash
 cmaes
 timm==0.9.12
 
