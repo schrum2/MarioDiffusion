@@ -9,6 +9,13 @@ from verify_data_complete import find_numbered_directories
 # Extract and plot the average min edit distance from each of these files. Use a barplot for avg and an x for each of the actual points
 # The outer loop should be for each prefix
 
+def strip_common_prefix(strings):
+    """Strip the longest common prefix from a list of strings."""
+    if not strings:
+        return strings
+    common_prefix = os.path.commonprefix(strings)
+    return [s[len(common_prefix):] for s in strings], common_prefix
+
 def extract_prefix(name):
     """Extract the prefix before the final number from a directory name."""
     return name.rstrip("0123456789").rstrip("-_")
@@ -74,7 +81,9 @@ def main():
             plt.bar(i, mean_val, color="skyblue", edgecolor="black", linewidth=2, label="Average" if i == 0 else "")
             # Plot x's for each value
             plt.scatter([i]*len(values), values, color="black", marker="x", label="Run" if i == 0 else "")
-
+    
+    all_labels, removed_prefix = strip_common_prefix(all_labels)
+    
     plt.xticks(range(len(all_labels)), all_labels, rotation=45, ha='right')
     plt.ylabel("Average Min Edit Distance")
     plt.title("Performance Comparison of Conditional Diffusion Models")
