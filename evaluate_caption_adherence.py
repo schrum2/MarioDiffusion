@@ -280,8 +280,11 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 all_prompts.append(caption)
 
                 sample = samples[i].unsqueeze(0)
+                #print("sample.shape", sample.shape)
                 sample_indices = convert_to_level_format(sample)
+                #print("first sample_indices", sample_indices[0])
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
+                #quit()
                 if height == common_settings.LR_HEIGHT:
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 elif height == common_settings.MARIO_HEIGHT:
