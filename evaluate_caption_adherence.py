@@ -270,7 +270,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
             generator = torch.Generator(device).manual_seed(int(random_seed))
             # Generate a batch of samples at once
             samples = pipe(generator=generator, **param_values).images  # (batch_size, ...)
-
+            print("samples.shape", samples.shape)
             for i in range(len(samples)):
                 if dataloader.dataset.negative_captions:
                     caption = positive_captions[i]
