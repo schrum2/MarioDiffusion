@@ -220,7 +220,7 @@ class TileViewer(tk.Tk):
             )
             if file_path:
                 # Convert scene to character grid
-                char_grid = scene_to_ascii(scene, self.id_to_char, False)
+                char_grid = scene_to_ascii(scene, self.id_to_char)
                 # Write to file
                 try:
                     with open(file_path, "w") as f:
@@ -695,7 +695,7 @@ class TileViewer(tk.Tk):
         sys.exit(0)
 
     def get_sample_output(self, scene, use_snes_graphics=False):
-        char_grid = scene_to_ascii(scene, self.id_to_char, False)
+        char_grid = scene_to_ascii(scene, self.id_to_char)
         return SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
 
 if __name__ == "__main__":

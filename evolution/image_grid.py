@@ -278,7 +278,7 @@ class ImageGridViewer:
     def get_sample_output(self, scene, use_snes_graphics=None):
         if use_snes_graphics is None:
             use_snes_graphics = self.use_snes_graphics.get()
-        char_grid = scene_to_ascii(scene, self.id_to_char, False)
+        char_grid = scene_to_ascii(scene, self.id_to_char)
         return SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
 
     def _play_composed_level(self):
