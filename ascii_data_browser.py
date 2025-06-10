@@ -161,37 +161,12 @@ class TileViewer(tk.Tk):
         self.composed_frame = tk.Frame(self)
         self.composed_frame.pack(pady=(10, 2))
 
-        # Add buttons to add scenes to composed level and test play the level
+        # Add buttons to test play the composed level
         self.play_composed_button = tk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
         self.play_composed_button.pack(side=tk.LEFT, padx=2)
         self.astar_composed_button = tk.Button(self.composed_frame, text="Use A* on Composed Level", command=self.astar_composed_level)
         self.astar_composed_button.pack(side=tk.LEFT, padx=2)
-        self.clear_composed_button = tk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
-        self.clear_composed_button.pack(side=tk.LEFT, padx=2)
-        # Add button to save composed level
-        self.save_composed_button = tk.Button(
-            self.composed_frame,
-            text="Save Composed Level",
-            command=self.save_composed_level
-        )
-        self.save_composed_button.pack(side=tk.LEFT, padx=2)
-        # Add button to add current scene to composed level
-        self.add_to_composed_level_button = tk.Button(
-            self.composed_frame,
-            text="Add To Level",
-            command=self.add_to_composed_level
-        )
-        self.add_to_composed_level_button.pack(side=tk.LEFT, padx=2)
-        
-        # Thumbnails for composed level
-        self.composed_thumb_frame = tk.Frame(self)
-        self.composed_thumb_frame.pack(fill=tk.X)
-        # Controls for thumbnail manipulation
-        self.thumb_ctrl_frame = tk.Frame(self)
-        self.thumb_ctrl_frame.pack()
-        tk.Button(self.thumb_ctrl_frame, text="Delete", command=self.delete_selected_thumbnail).pack(side=tk.LEFT, padx=2)
-        tk.Button(self.thumb_ctrl_frame, text="Move Left", command=self.move_selected_thumbnail_left).pack(side=tk.LEFT, padx=2)
-        tk.Button(self.thumb_ctrl_frame, text="Move Right", command=self.move_selected_thumbnail_right).pack(side=tk.LEFT, padx=2)
+
         # Checkbox for switching between original and SNES graphics
         self.use_snes_graphics = tk.BooleanVar(value=False)
         self.graphics_checkbox = ttk.Checkbutton(
@@ -201,6 +176,34 @@ class TileViewer(tk.Tk):
         )
         self.graphics_checkbox.pack(side=tk.LEFT, padx=2)
 
+        # Add button to save composed level
+        self.save_composed_button = tk.Button(
+            self.composed_frame,
+            text="Save Composed Level",
+            command=self.save_composed_level
+        )
+        self.save_composed_button.pack(side=tk.LEFT, padx=2)
+
+        # Add button to add current scene to composed level
+        self.add_to_composed_level_button = tk.Button(
+            self.composed_frame,
+            text="Add To Level",
+            command=self.add_to_composed_level
+        )
+        self.add_to_composed_level_button.pack(side=tk.LEFT, padx=2)
+
+        # Controls for thumbnail manipulation: Move/Delete/Clear all
+        tk.Button(self.composed_frame, text="Move Left", command=self.move_selected_thumbnail_left).pack(side=tk.LEFT, padx=2)
+        tk.Button(self.composed_frame, text="Move Right", command=self.move_selected_thumbnail_right).pack(side=tk.LEFT, padx=2)
+        tk.Button(self.composed_frame, text="Delete", command=self.delete_selected_thumbnail).pack(side=tk.LEFT, padx=2)
+        self.clear_composed_button = tk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
+        self.clear_composed_button.pack(side=tk.LEFT, padx=2)
+        
+        # Thumbnails for composed level
+        self.thumb_ctrl_frame = tk.Frame(self)
+        self.thumb_ctrl_frame.pack()
+        self.composed_thumb_frame = tk.Frame(self)
+        self.composed_thumb_frame.pack(fill=tk.X)
 
     # method to enter txt file name and save composed level
     def save_composed_level(self):
