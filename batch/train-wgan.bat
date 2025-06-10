@@ -12,5 +12,5 @@ set GAME=%2
 set DIFF_OUTPUT=%GAME%-wgan%SEED%
 set UNCOND_OUTPUT=%DIFF_OUTPUT%-samples
 
-python train_wgan.py --augment --json datasets\%GAME%_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir "%DIFF_OUTPUT%" --seed %SEED%
+python train_wgan.py --augment --json datasets\%GAME%_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir "%DIFF_OUTPUT%" --seed %SEED% --save_image_epochs 10000
 python run_wgan.py --model_path "%DIFF_OUTPUT%\final_models\generator.pth" --num_samples 100 --output_dir "%UNCOND_OUTPUT%" --save_as_json

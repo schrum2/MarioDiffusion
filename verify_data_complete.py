@@ -1,6 +1,7 @@
 import os
 import json
 import argparse
+from typing import List, Tuple
 
 def count_jsonl_entries(file_path):
     """Count the number of entries in a JSONL file."""
@@ -39,8 +40,11 @@ def verify_json_length(file_path, expected_length, check_prompts=False):
     return None
 
 def verify_data_completeness(model_path, type_str):
-    """Verify all data requirements for a given model path and type."""
-    errors = []    # Check random caption samples
+    """Verify all data requirements for a given model path and type.
+    Returns a list of error messages, or an empty list if verification succeeded."""
+    errors = []
+    
+    # Check random caption samples
     random_samples = os.path.join(model_path, "samples-from-random-Mar1and2-captions", "all_levels.json")
     error = verify_json_length(random_samples, 100, check_prompts=True)
     if error:
@@ -81,29 +85,81 @@ def verify_data_completeness(model_path, type_str):
     error = verify_json_length(uncond_short, 100)
     if error:
         errors.append(f"Requirement 7 failed: {error}")
+    
+    return errors
 
-    if errors:
-        print("\nVerification failed. The following problems were found:")
-        for error in errors:
-            print(error)
-    else:
-        print("\nAll requirements verified successfully!")
+def find_numbered_directories() -> List[Tuple[str, int, str]]:
+    """Find all conditional model directories in current path that end with a number.
+    Returns list of tuples (directory_path, number, type).
+    Only includes directories containing '-conditional-' and determines type based on name."""
+    numbered_dirs = []
+    for item in os.listdir('.'):
+        if not (os.path.isdir(item) and item[-1].isdigit() and "-conditional-" in item):
+            continue
+            
+        # Get the number at the end of the directory name
+        num = ""
+        for char in reversed(item):
+            if char.isdigit():
+                num = char + num
+            else:
+                break
+        
+        if num:  # If we found a number
+            # Determine type based on directory name
+            dir_type = "absence" if "absence" in item.lower() else "regular"
+            numbered_dirs.append((item, int(num), dir_type))
+            
+    return sorted(numbered_dirs, key=lambda x: x[1])  # Sort by number
 
 def main():
     parser = argparse.ArgumentParser(description="Verify completeness of model evaluation data")
-    parser.add_argument("prefix", type=str, help="Prefix of the model directory paths")
-    parser.add_argument("type", type=str, choices=["absence", "regular"], 
+    parser.add_argument("--prefix", type=str, help="Prefix of the model directory paths")
+    parser.add_argument("--type", type=str, choices=["absence", "regular"], 
                         help="Type of evaluation (absence or regular)")
-    parser.add_argument("start_num", type=int, help="Starting number for model directory range")
-    parser.add_argument("end_num", type=int, help="Ending number for model directory range (inclusive)")
+    parser.add_argument("--start_num", type=int, help="Starting number for model directory range")
+    parser.add_argument("--end_num", type=int, help="Ending number for model directory range (inclusive)")
     
     args = parser.parse_args()
-    
-    # Loop through the range of model directories
-    for i in range(args.start_num, args.end_num + 1):
-        model_path = f"{args.prefix}{i}"
-        print(f"\nChecking model directory: {model_path}")
-        verify_data_completeness(model_path, args.type)
+
+    # If any argument is provided, all required arguments must be provided
+    if any([args.prefix, args.type, args.start_num, args.end_num]):
+        if not all([args.prefix, args.type, args.start_num or args.start_num == 0, args.end_num]):
+            parser.error("If any argument is provided, all arguments (--prefix, --type, --start_num, --end_num) are required")
+        
+        # Parameter-based mode
+        for i in range(args.start_num, args.end_num + 1):
+            model_path = f"{args.prefix}{i}"
+            print(f"\nChecking model directory: {model_path}")
+            errors = verify_data_completeness(model_path, args.type)
+            if errors:
+                print("\nVerification failed. The following problems were found:")
+                for error in errors:
+                    print(error)
+            else:
+                print("\nAll requirements verified successfully!")
+    else:
+        # Automatic discovery mode
+        print("Running in automatic directory discovery mode...")
+        print("Looking for directories containing '-conditional-' that end in a number...")
+        numbered_dirs = find_numbered_directories()
+        if not numbered_dirs:
+            print("No matching directories found in current directory.")
+            return
+        
+        success_count = 0
+        for dir_path, num, dir_type in numbered_dirs:
+            print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
+            errors = verify_data_completeness(dir_path, dir_type)
+            if errors:
+                print("Verification failed. Problems found:")
+                for error in errors:
+                    print(error)
+            else:
+                print("Verification successful!")
+                success_count += 1
+        
+        print(f"\nVerification complete. {success_count} out of {len(numbered_dirs)} directories passed verification.")
 
 if __name__ == "__main__":
     main()
