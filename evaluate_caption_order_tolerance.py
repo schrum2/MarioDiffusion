@@ -26,9 +26,9 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--caption", type=str, required=False, default=None, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
-    #parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
     #parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
-    parser.add_argument("--json", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="Path to dataset json file")
+    #parser.add_argument("--json", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="Path to dataset json file")
     #parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS)
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE)
@@ -171,6 +171,7 @@ def main():
 
     # print("phrases_per_model_path:", phrases_per_model_path)
     # print("model_name:", model_name)
+    # print("args.model_path:", args.model_path)
     # quit()
 
     all_scores = []
@@ -179,14 +180,15 @@ def main():
     all_min_scores = []
     all_max_scores = []
     all_median_scores = []
+    just_all_scores = []
     all_captions =  [item.strip() for s in caption for item in s.split(",")]
 
     one_caption = []
     count = 0
 
     folder_name = model_name + '_caption_order_tolerance'
-    os.makedirs(folder_name,  exist_ok=True)
-    output_jsonl_path = os.path.join(folder_name, "output.jsonl")
+    #os.makedirs(folder_name,  exist_ok=True)
+    output_jsonl_path = os.path.join(args.model_path, "caption_order_tolerance.jsonl")
     with open(output_jsonl_path, "w") as f:
         for cap in all_captions:
             one_caption = cap
@@ -217,7 +219,8 @@ def main():
         
             #scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
             for score in enumerate(scores):
-                all_scores.append(score) 
+                all_scores.append(score)
+                just_all_scores.append(score[1]) 
             all_std_dev_scores.append(std_dev_score)
             all_min_scores.append(min_score)
             all_max_scores.append(max_score)
@@ -226,26 +229,33 @@ def main():
                 f.flush()  # Ensure each result is written immediately
                 os.fsync(f.fileno())  # Ensure file is flushed to disk
             count = count + 1
+        
+        all_avg_score = np.mean(all_avg_scores)
+        all_std_dev_score = np.std(all_std_dev_scores)
+        all_min_score = np.min(all_min_scores)
+        all_max_score = np.max(all_max_scores)
+        all_median_score = np.median(all_median_scores)
+        results = {
+
+                "Scores of all captions": {
+                "Scores": all_scores,
+                    "Number of captions": len(all_scores),
+                    "Average of average permutations": all_avg_score,
+                    "Average of all permutations": np.mean(just_all_scores),
+                    "Standard deviation of all permutations": all_std_dev_score,
+                    "Min score of all permutations": all_min_score,
+                    "Max score of all permutations": all_max_score,
+                    "Median score of all permutations": all_median_score
+                },
+            }
+        json.dump(results, f, indent=4)
+
+        print(f"Results saved to {output_jsonl_path}")
 
     print(f"\nAverage score across all captions: {avg_score:.4f}")
 
-   
-
-    # visualizations_dir = os.path.join(os.path.dirname(__file__), "visualizations")
-    # if args.caption is not None or "":
-    #     caption_folder = args.caption.replace(" ", "_").replace(".", "_")
-    #     output_directory = os.path.join(visualizations_dir, caption_folder)
-
-    #     visualize_samples(
-    #         all_samples,
-    #         output_dir=output_directory,
-    #         prompts=all_prompts[0] if all_prompts else "No prompts available"
-    #     )
-    #     print(f"\nVisualizations saved to: {output_directory}")
-
-
     print("\nAll samples shape:", all_samples.shape)
-    print("\nAll prompts:", all_prompts)
+    #print("\nAll prompts:", all_prompts)
 
     all_avg_score = np.mean(all_avg_scores)
     all_std_dev_score = np.std(all_std_dev_scores)
@@ -255,45 +265,7 @@ def main():
 
     if args.save_as_json:
         folder_name = model_name + '_caption_order_tolerance'
-        os.makedirs(folder_name,  exist_ok=True)
-        output_jsonl_path = os.path.join(folder_name, "output.jsonl")
-        #output_jsonl_path = os.path.join(model_name, "evaluation_caption_order_results.jsonl")
-        with open(output_jsonl_path, "w") as f:
-            if isinstance(caption, list) or (args.caption is None or args.caption == ""):
-                # Multiple captions (permuted)
-                for i, score in enumerate(all_avg_scores):
-                    result_entry = {
-                        "Caption": caption[i] if i < len(caption) else "N/A",
-                        "Average score for all permutations": score,
-                        #"samples": all_samples[i].tolist() if hasattr(all_samples, "__getitem__") else None,
-                        #"prompt": all_prompts[i] if i < len(all_prompts) else "N/A"
-                    }
-                    f.write(json.dumps(result_entry) + "\n") 
-            else:
-                # Single caption
-                result_entry = {
-                    "caption": caption,
-                    "avg_score": avg_score,
-                    "samples": all_samples.tolist(),
-                    "prompts": all_prompts
-                }
-                f.write(json.dumps(result_entry) + "\n")
-
-            results = {
-
-                "Scores of all captions": {
-                "Scores": all_scores,
-                    "Number of captions": len(all_scores),
-                    "Average of average permutations": all_avg_score,
-                    "Average of all permutations": np.mean(all_scores),
-                    "Standard deviation of all permutations": all_std_dev_score,
-                    "Min score of all permutations": all_min_score,
-                    "Max score of all permutations": all_max_score,
-                    "Median score of all permutations": all_median_score
-                },
-            }
-            json.dump(results, f, indent=4)
-
-        print(f"Results saved to {output_jsonl_path}")
+        #os.makedirs(folder_name,  exist_ok=True)
+        output_jsonl_path = os.path.join(args.model_path, "caption_order_tolerance.jsonl")
 if __name__ == "__main__":
     main()
