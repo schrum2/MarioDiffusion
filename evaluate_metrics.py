@@ -50,7 +50,7 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
         }
         
     
-        if key == "real" or key == "short": 
+        if key == "real" or key == "short" or key == "random": 
             # With the original dataset, calculate average_min_edit_distance_from_real
             original_dataset_path = os.path.join("datasets", f"{game}_LevelsAndCaptions-regular.json")
             with open(original_dataset_path, "r") as original_file:
@@ -58,14 +58,8 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
                 original_levels = [entry["scene"] for entry in original_data if "scene" in entry]
             #print(f"Found {len(original_levels)} original levels and captions.")
             
-            if len(levels) == len(original_levels):
-                #print("Length of generated levels matches length of original levels")
+            metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, original_levels)
             
-                metrics["average_min_edit_distance_from_real"] = average_min_edit_distance_from_real(levels, original_levels)
-                #print("Edit distance from real complete")
-            #else:
-                #print("Avg edit distance from real was NOT computed as the number of generated and original levels did not match")  
-        
         # If prompts was created, meaning that we can do analysis between prompts and captions
         if prompts is not None and (key != "short" and key != "long"):
             print("Calculating phrase metrics...")
