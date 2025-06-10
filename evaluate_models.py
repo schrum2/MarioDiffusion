@@ -48,20 +48,6 @@ def main():
     for i, (prefix, dirs) in enumerate(sorted(grouped.items())):
         values = []
         for d in dirs:
-            # metrics_path = get_metrics_path(d, mode)
-            # if not os.path.exists(metrics_path):
-            #     print(f"Missing file: {metrics_path}")
-            #     continue
-            # try:
-            #     with open(metrics_path, 'r') as f:
-            #         metrics = json.load(f)
-            #     val = metrics.get("avg_min_edit_distance")
-            #     if val is not None:
-            #         values.append(val)
-            #     else:
-            #         print(f"'avg_min_edit_distance' not found in {metrics_path}")
-            # except Exception as e:
-            #     print(f"Error reading {metrics_path}: {e}")
             metrics_path = get_metrics_path(d, mode)
             if not os.path.exists(metrics_path):
                 print(f"[SKIP] Missing evaluation_metrics.json in: {metrics_path}")
@@ -73,11 +59,11 @@ def main():
                 print(f"[SKIP] Failed to read JSON from: {metrics_path}. Error: {e}")
                 continue
 
-            val = metrics.get("avg_min_edit_distance")
+            val = metrics.get("average_min_edit_distance")
             if val is not None:
                 values.append(val)
             else:
-                print(f"[SKIP] 'avg_min_edit_distance' not found in: {metrics_path}")
+                print(f"[SKIP] 'average_min_edit_distance' not found in: {metrics_path}")
 
         if values:
             mean_val = sum(values) / len(values)
@@ -85,7 +71,7 @@ def main():
             all_labels.append(prefix)
 
             # Plot bar for mean
-            plt.bar(i, mean_val, color="skyblue", edgecolor="black", linewidth=1, label="Average" if i == 0 else "")
+            plt.bar(i, mean_val, color="skyblue", edgecolor="black", linewidth=2, label="Average" if i == 0 else "")
             # Plot x's for each value
             plt.scatter([i]*len(values), values, color="black", marker="x", label="Run" if i == 0 else "")
 
