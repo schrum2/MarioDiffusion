@@ -19,12 +19,16 @@ class GrammarGenerator:
             "platform": ["one platform", "two platforms", "a few platforms", "several platforms"],
             "ladder cluster": ["one ladder cluster", "two ladder clusters", "a few ladder clusters", "several ladder clusters"],
             "lone ladder tile": ["one lone ladder tile", "two lone ladder tiles", "a few lone ladder tiles", "several lone ladder tiles"],
-            
-            
-            
+            "short ladder": ["one short ladder", "two short ladders", "a few short ladders", "several short ladders"],
+            "tall ladder": ["one tall ladder", "two tall ladders", "a few tall ladders", "several tall ladders"],
+            "chamber": ["one chamber", "two chambers", "several chambers", "a few chambers", "many chambers"],
+            "rope": ["one rope", "two ropes", "several ropes", "a few ropes", "many ropes"],
             "rectangular": ["one rectangular block cluster", "two rectangular block clusters", "a few rectangular block clusters"],
             "irregular": ["one irregular block cluster", "two irregular block clusters", "a few irregular block clusters"],
             "loose block": ["one loose block", "two loose blocks", "several loose blocks", "a few loose blocks", "many loose blocks"],
+            "diggable ground": ["one diggable ground", "two diggable ground", "several diggable ground", "a few diggable ground", "many diggable ground"],
+            "solid ground": ["one solid ground", "two solid ground", "several solid ground", "a few solid ground", "many solid ground"],
+            "background area": ["one background area", "two background areas", "several background areas", "a few background areas", "many background areas"],
             "enem": ["one enemy", "two enemies", "a few enemies", "several enemies"]
         }
 
@@ -34,10 +38,19 @@ class GrammarGenerator:
             "ceiling": "no ceiling",
             "gold line": "no gold lines", 
             "gold": "no gold",
+            "ladder cluster": "no ladder clusters",
+            "lone ladder tile": "no lone ladder tiles",
+            "short ladder": "no short ladders",
+            "tall ladder": "no tall ladders",
+            "chamber": "no chamber",
+            "rope": "no ropes",
             "platform": "no platforms",
             "rectangular": "no rectangular block clusters",
             "irregular": "no irregular block clusters",
             "loose block": "no loose blocks",
+            "diggable ground": "no diggable ground",
+            "solid ground": "no solid ground",
+            "background area": "no background area",
             "enem": "no enemies"
         }
         
@@ -45,10 +58,17 @@ class GrammarGenerator:
         self.topic_keywords = [
             "floor", "ceiling",
             "gold line", "gold",
+            "ladder cluster",
+            "lone ladder tile", "short ladder", "tall ladder",
+            "chamber",
+            "rope",
             "platform",
             "rectangular",
             "irregular", 
-            "loose block", 
+            "loose block",
+            "diggable ground",
+            "solid ground",
+            "background area", 
             "enem"
         ]
 
