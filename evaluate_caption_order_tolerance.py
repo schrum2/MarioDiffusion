@@ -9,14 +9,15 @@ import util.common_settings as common_settings  # adjust import if needed
 from level_dataset import LevelDataset, visualize_samples, colors, mario_tiles  # adjust import if needed
 from torch.utils.data import DataLoader
 from evaluate_caption_adherence import calculate_caption_score_and_samples  # adjust import if needed
-import matplotlib.pyplot as plt
-import matplotlib
+#import matplotlib.pyplot as plt
+#import matplotlib
 import json
-from tqdm import tqdm
+#from tqdm import tqdm
+import re
 
 import numpy as np
 import torch
-from tqdm import tqdm
+#from tqdm import tqdm
 
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from captions.util import extract_tileset
@@ -128,7 +129,7 @@ def creation_of_parameters(caption, max_permutations):
 
     return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_captions, caption_data
 
-def statistics_of_captions(captions, dataloader, compare_all_scores, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
+def statistics_of_captions(captions, dataloader, compare_all_scores, count, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
     """
     Calculate statistics of the captions.
     Returns average, standard deviation, minimum, maximum, and median of caption scores.
@@ -149,8 +150,8 @@ def statistics_of_captions(captions, dataloader, compare_all_scores, pipe=None, 
     print("\n-----Scores for each caption permutation-----")
     for i, score in enumerate(compare_all_scores):
         print(f"Scores for caption {i + 1}:", score)
-
-    print("\n-----Statistics of captions-----")
+    caption_variable = "\n-----Statistics of caption " + str(count) +"-----"
+    print(caption_variable)
     print(f"Average score: {avg_score:.4f}")
     print(f"Standard deviation: {std_dev_score:.4f}")
     print(f"Minimum score: {min_score:.4f}")
@@ -168,10 +169,22 @@ def main():
         #caption = ("many pipes. many coins. , many enemies. many blocks. , many platforms. many question blocks.").split(',')
     phrases_per_model_path = [p.strip() for p in args.model_path.split('\\') if p.strip()]
     model_name = phrases_per_model_path[-1]
+    phrases_per_json_path = [p.strip() for p in re.split(r'[\\.]', args.json) if p.strip()]
+    json_name = phrases_per_json_path[-2]
+    if "regular" in json_name:
+        type = "regular"
+    elif "absence" in json_name:
+        type = "absence"
+    elif "negative" in json_name:
+        type = "negative"
+
 
     # print("phrases_per_model_path:", phrases_per_model_path)
     # print("model_name:", model_name)
     # print("args.model_path:", args.model_path)
+    # print("phrases_per_json_path:", phrases_per_json_path)
+    # print("json_name:", json_name)
+    # print("type:", type)
     # quit()
 
     all_scores = []
@@ -186,9 +199,9 @@ def main():
     one_caption = []
     count = 0
 
-    folder_name = model_name + '_caption_order_tolerance'
+    file_name = json_name + '_caption_order_tolerance.jsonl'
     #os.makedirs(folder_name,  exist_ok=True)
-    output_jsonl_path = os.path.join(args.model_path, "caption_order_tolerance.jsonl")
+    output_jsonl_path = os.path.join(args.model_path, file_name)
     with open(output_jsonl_path, "w") as f:
         for cap in all_captions:
             one_caption = cap
@@ -200,11 +213,11 @@ def main():
                 return
             
             avg_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
-            scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
-            
+            scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, count, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
+            caption_variable = 'Caption ' + str(count)
             if args.save_as_json:
                 result_entry = {
-                        "Caption": one_caption,
+                        caption_variable: one_caption,
                         "Average score for all permutations": avg_score,
                         "Standard deviation": std_dev_score,
                         "Minimum score": min_score,
@@ -257,15 +270,9 @@ def main():
     print("\nAll samples shape:", all_samples.shape)
     #print("\nAll prompts:", all_prompts)
 
-    all_avg_score = np.mean(all_avg_scores)
-    all_std_dev_score = np.std(all_std_dev_scores)
-    all_min_score = np.min(all_min_scores)
-    all_max_score = np.max(all_max_scores)
-    all_median_score = np.median(all_median_scores)
-
-    if args.save_as_json:
-        file_name = model_name + '_caption_order_tolerance'
-        #os.makedirs(folder_name,  exist_ok=True)
-        output_jsonl_path = os.path.join(args.model_path, file_name)
+    # if args.save_as_json:
+    #     folder_name = model_name + '_caption_order_tolerance'
+    #     #os.makedirs(folder_name,  exist_ok=True)
+    #     output_jsonl_path = os.path.join(args.model_path, "caption_order_tolerance.jsonl")
 if __name__ == "__main__":
     main()
