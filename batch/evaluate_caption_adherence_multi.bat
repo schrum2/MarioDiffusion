@@ -14,15 +14,22 @@ if "%MODEL_PATH%"=="" (
 )
 if "%TYPE%"=="" set TYPE=regular
 
-if "%GAME%"=="" set GAME=Mar1and2
+set NUM_TILES=
+
+if /I "%GAME%"=="" set GAME=Mar1and2
+if /I "%GAME%"=="LR" set NUM_TILES=--num_tiles=8
+
+if "%NUM_TILES%"=="" set NUM_TILES=13
 
 REM Add --describe_absence flag if TYPE is absence
 set DESCRIBE_ABSENCE_FLAG=
 if /I "%TYPE%"=="absence" set DESCRIBE_ABSENCE_FLAG=--describe_absence
 
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json --output_dir samples-from-real-%GAME%-captions %DESCRIBE_ABSENCE_FLAG%
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json --compare_checkpoints %DESCRIBE_ABSENCE_FLAG%
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-test.json --compare_checkpoints %DESCRIBE_ABSENCE_FLAG%
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_RandomTest-%TYPE%.json --output_dir samples-from-random-%GAME%-captions %DESCRIBE_ABSENCE_FLAG%
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_RandomTest-%TYPE%.json --compare_checkpoints %DESCRIBE_ABSENCE_FLAG%
+
+
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json --output_dir samples-from-real-%GAME%-captions %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json --compare_checkpoints %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-test.json --compare_checkpoints %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_RandomTest-%TYPE%.json --output_dir samples-from-random-%GAME%-captions %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_RandomTest-%TYPE%.json --compare_checkpoints %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
 

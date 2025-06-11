@@ -63,7 +63,9 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
     lines = []
     height = len(scene)
     width = len(scene[0]) if height > 0 else 0
-
+    # print("scene:", scene)
+    # print("id to char:", id_to_char)
+    # print("tile_descriptors:", tile_descriptors)
     #print((10,0) in already_accounted)
 
     for y in range(height - 1):  # Skip FLOOR row

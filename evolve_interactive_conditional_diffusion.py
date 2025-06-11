@@ -11,6 +11,10 @@ import util.common_settings as common_settings
 class TextDiffusionEvolver(Evolver):
     def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json', args = None):
         Evolver.__init__(self)
+        # args = parse_args()
+        # if args.tileset_path != "":
+        #     tileset_path = args.tileset_path
+        #print("tile path:", tileset_path)
         self.args = args
         self.width = width
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -19,12 +23,19 @@ class TextDiffusionEvolver(Evolver):
         self.negative_prompt_supported = getattr(self.pipe, "supports_negative_prompt", False)
 
         _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+        # print("self.id_to_char:", self.id_to_char)
+        # print("self.char_to_id:", self.char_to_id)
 
     def random_latent(self, seed=1):
         # Create the initial noise latents (this is what the pipeline does internally)
-        height = common_settings.MARIO_HEIGHT
-        width = self.width
+        if args.width == common_settings.MARIO_WIDTH:
+            height = common_settings.MARIO_HEIGHT
+            width = self.width
+        elif args.width == common_settings.LR_WIDTH:
+            height = common_settings.LR_HEIGHT
+            width = common_settings.LR_WIDTH
         num_channels_latents = len(self.id_to_char)
+        #print("num_channels_latents:", num_channels_latents)
         latents_shape = (1, num_channels_latents, height, width)
         latents = torch.randn(
             latents_shape, 

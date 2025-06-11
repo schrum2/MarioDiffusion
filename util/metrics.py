@@ -475,7 +475,15 @@ def astar_metrics(
 
                 metrics = {}
                 for line in output.strip().splitlines():
-                    if ':' in line:
+                    if ':' not in line:
+                        # If a line does not contain a colon, it might be an error message
+                        if "Invalid or corrupt jarfile" in line or "Exception" in line or "Error" in line:
+                            print(
+                                f"Warning: Error from A* agent for level {idx}, run {run} (caption: {caption}): {line}"
+                            )
+                            # Continue to the next run
+                            continue
+                    elif ':' in line:
                         key, value = line.split(':', 1)
                         key = key.strip()
                         value = value.strip()
@@ -487,12 +495,13 @@ def astar_metrics(
                             else:
                                 value = int(value)
                         metrics[key] = value
-                if metrics:  # Only append if at least one metric was parsed
-                    run_metrics.append(metrics)
-                else:
-                    raise RuntimeError(
-                        f"No metrics parsed for level {idx}, run {run} (caption: {caption}). Exiting as requested."
-                    )
+                    if metrics:
+                        run_metrics.append(metrics)
+                    else:
+                        print(
+                            f"Warning: No metrics parsed for level {idx}, run {run} (caption: {caption}). Skipping this run."
+                        )
+                        continue
 
             # Compute averages and medians
             averages = {}

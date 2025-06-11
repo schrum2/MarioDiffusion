@@ -271,8 +271,8 @@ def main():
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = common_settings.LR_TILE_COUNT # TODO
-        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
+        args.num_tiles = common_settings.LR_TILE_COUNT
+        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")
 
@@ -674,7 +674,7 @@ def main():
                 inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
                 guidance_scale = common_settings.GUIDANCE_SCALE
-                avg_caption_score, _, _ = calculate_caption_score_and_samples(
+                avg_caption_score, _, _, _= calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width

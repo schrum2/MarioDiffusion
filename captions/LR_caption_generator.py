@@ -14,21 +14,21 @@ class GrammarGenerator:
                      "giant gap with one chunk of floor", "giant gap with two chunks of floor", "giant gap with a few chunks of floor", "giant gap with several chunks of floor"],
             "ceiling": ["full ceiling", "ceiling with one gap", "ceiling with two gaps", "ceiling with a few gaps"],
             # "broken pipe": ["one broken pipe", "two broken pipes"],
-            "upside down pipe": ["one upside down pipe", "two upside down pipes", "a few upside down pipes", "several upside down pipes"],
-            "pipe": ["one pipe", "two pipes", "a few pipes", "several pipes"],
-            "coin line": ["one coin line", "two coin lines", "a few coin lines"],
-            "coin": ["one coin", "two coins", "several coins", "a few coins", "many coins"],
+            "gold line": ["one gold line", "two gold lines", "a few gold lines"],
+            "gold": ["one gold", "two gold", "several gold", "a few gold", "many gold"],
             "platform": ["one platform", "two platforms", "a few platforms", "several platforms"],
-            "tower": ["one tower", "two towers", "a few towers"],
-            #"wall": ["one wall"], # "walls" is not a token in the original data # , "two walls"],
-            # "broken cannon": ["one broken cannon", "two broken cannons"],
-            "cannon": ["one cannon", "two cannons", "a few cannons"],
-            "ascending staircase": ["one ascending staircase", "two ascending staircases"],
-            "descending staircase": ["one descending staircase", "two descending staircases"],
+            "ladder cluster": ["one ladder cluster", "two ladder clusters", "a few ladder clusters", "several ladder clusters"],
+            "lone ladder tile": ["one lone ladder tile", "two lone ladder tiles", "a few lone ladder tiles", "several lone ladder tiles"],
+            "short ladder": ["one short ladder", "two short ladders", "a few short ladders", "several short ladders"],
+            "tall ladder": ["one tall ladder", "two tall ladders", "a few tall ladders", "several tall ladders"],
+            "chamber": ["one chamber", "two chambers", "several chambers", "a few chambers", "many chambers"],
+            "rope": ["one rope", "two ropes", "several ropes", "a few ropes", "many ropes"],
             "rectangular": ["one rectangular block cluster", "two rectangular block clusters", "a few rectangular block clusters"],
             "irregular": ["one irregular block cluster", "two irregular block clusters", "a few irregular block clusters"],
-            "question block": ["one question block", "two question blocks", "several question blocks", "a few question blocks", "many question blocks"],
             "loose block": ["one loose block", "two loose blocks", "several loose blocks", "a few loose blocks", "many loose blocks"],
+            "diggable ground": ["one diggable ground", "two diggable ground", "several diggable ground", "a few diggable ground", "many diggable ground"],
+            "solid ground": ["one solid ground", "two solid ground", "several solid ground", "a few solid ground", "many solid ground"],
+            "background area": ["one background area", "two background areas", "several background areas", "a few background areas", "many background areas"],
             "enem": ["one enemy", "two enemies", "a few enemies", "several enemies"]
         }
 
@@ -36,35 +36,39 @@ class GrammarGenerator:
         self.absence_phrases = {
             "floor": "no floor",
             "ceiling": "no ceiling",
-            "upside down pipe": "no upside down pipes",
-            "pipe": "no pipes",
-            "coin line": "no coin lines", 
-            "coin": "no coins",
+            "gold line": "no gold lines", 
+            "gold": "no gold",
+            "ladder cluster": "no ladder clusters",
+            "lone ladder tile": "no lone ladder tiles",
+            "short ladder": "no short ladders",
+            "tall ladder": "no tall ladders",
+            "chamber": "no chamber",
+            "rope": "no ropes",
             "platform": "no platforms",
-            "tower": "no towers",
-            "cannon": "no cannons",
-            "ascending staircase": "no ascending staircases",
-            "descending staircase": "no descending staircases",
             "rectangular": "no rectangular block clusters",
             "irregular": "no irregular block clusters",
-            "question block": "no question blocks",
             "loose block": "no loose blocks",
+            "diggable ground": "no diggable ground",
+            "solid ground": "no solid ground",
+            "background area": "no background area",
             "enem": "no enemies"
         }
         
         # These are the keywords used to identify topics
         self.topic_keywords = [
-            "floor", "ceiling", 
-            # "broken pipe", 
-            "upside down pipe", "pipe", 
-            "coin line", "coin",
-            "platform", "tower", #"wall", 
-            # "broken cannon", 
-            "cannon",
-            "ascending staircase", "descending staircase",
+            "floor", "ceiling",
+            "gold line", "gold",
+            "ladder cluster",
+            "lone ladder tile", "short ladder", "tall ladder",
+            "chamber",
+            "rope",
+            "platform",
             "rectangular",
             "irregular", 
-            "question block", "loose block", 
+            "loose block",
+            "diggable ground",
+            "solid ground",
+            "background area", 
             "enem"
         ]
 
@@ -123,12 +127,7 @@ class GrammarGenerator:
             phrase = random.choice(self.topic_phrases[topic])
             selected_phrases.append(phrase)
 
-        # Special case for consistenct of coins and coin lines
-        if "coin line" in used_topics and "coin" not in used_topics:
-            # If coin line is present, add a coin
-            selected_phrases.append(random.choice(self.topic_phrases["coin"]))
-            used_topics.add("coin")
-
+        # Special case for consistenct of gold and gold lines
         if "gold line" in used_topics and "gold" not in used_topics:
             # If coin line is present, add a coin
             selected_phrases.append(random.choice(self.topic_phrases["gold"]))
@@ -213,22 +212,22 @@ if __name__ == "__main__":
         print(f"- {sentence}")
     
     # Test with example sentences
-    example_sentences = [
-        "full floor. one enemy. a few question blocks. one platform. one pipe.",
-        "full floor. one enemy. two pipes.",
-        "floor with one gap. one enemy. one question block. two platforms.",
-        "full floor. a few enemies. two question blocks. two platforms.",
-        "full floor. full ceiling. two enemies. several question blocks. one platform. one irregular block cluster.",
-        "floor with one gap. full ceiling. two enemies. one irregular block cluster. one tower.",
+    lr_example_sentences = [
+        "full floor. one enemy. a few ladders. one platform. one rope.",
+        "full floor. one enemy. two ropes.",
+        "floor with one gap. one enemy. one gold. two platforms.",
+        "full floor. a few enemies. two ladders. two platforms.",
+        "full floor. full ceiling. two enemies. several ladders. one platform. one irregular block cluster.",
+        "floor with one gap. full ceiling. two enemies. one irregular block cluster. one gold.",
         "giant gap with one chunk of floor. two platforms.",
-        "giant gap with two chunks of floor. one enemy. one question block. two coins. one coin line. two platforms.",
-        "giant gap with one chunk of floor. one enemy. several coins. two coin lines. a few platforms.",
-        "full floor. a few enemies. one cannon.",
-        "full floor. two enemies. one cannon. one ascending staircase."
+        "giant gap with two chunks of floor. one enemy. one ladder. two gold. one gold line. two platforms.",
+        "giant gap with one chunk of floor. one enemy. several gold. two gold lines. a few platforms.",
+        "full floor. a few enemies. one ladder.",
+        "full floor. two enemies. one ladder. one gold line."
     ]
     
     print("\nValidation of example sentences:")
-    for sentence in example_sentences:
+    for sentence in lr_example_sentences:
         is_valid = generator.is_valid_sentence(sentence)
         print(f"- {'GOOD' if is_valid else ' BAD'} {sentence}")
         if not is_valid:
