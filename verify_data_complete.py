@@ -3,6 +3,7 @@ import json
 import argparse
 from typing import List, Tuple
 from evaluate_metrics import *
+import re
 
 def count_jsonl_entries(file_path):
     """Count the number of entries in a JSONL file."""
@@ -106,6 +107,11 @@ def verify_data_completeness(model_path, type_str):
     
     return errors
 
+def find_directories_with_prefix(prefix):
+    """Find directories that start with the given prefix and end in a number."""
+    pattern = re.compile(f"^{re.escape(prefix)}(\\d+)$")
+    return [d for d in os.listdir() if os.path.isdir(d) and pattern.match(d)]
+
 def find_numbered_directories() -> List[Tuple[str, int, str]]:
     """Find all conditional model directories in current path that end with a number.
     Returns list of tuples (directory_path, number, type).
@@ -138,28 +144,8 @@ def main():
     
     args = parser.parse_args()
 
-    # If any argument is provided, all required arguments must be provided
-    if any([args.prefix, args.start_num, args.end_num]):
-        if not all([args.prefix, args.start_num or args.start_num == 0, args.end_num or args.end_num == 0]):
-            parser.error("If any argument is provided, all arguments (--prefix, --start_num, --end_num) are required")
-        
-        if args.end_num < args.start_num:
-            parser.error("--end_num must be greater than or equal to --start_num")
-
-        # Parameter-based mode
-        for i in range(args.start_num, args.end_num + 1):
-            model_path = f"{args.prefix}{i}"
-            print(f"\nChecking model directory: {model_path}")
-            dir_type = "absence" if "absence" in model_path.lower() else "regular"
-            errors = verify_data_completeness(model_path, dir_type)
-            if errors:
-                print("\nVerification failed. The following problems were found:")
-                for error in errors:
-                    print(error)
-            else:
-                print("\nAll requirements verified successfully!")
-    else:
-        # Automatic discovery mode
+    if not any(vars(args).values()):
+        # Case 1: Automatic discovery mode
         print("Running in automatic directory discovery mode...")
         print("Looking for directories containing '-conditional-' that end in a number...")
         numbered_dirs = find_numbered_directories()
@@ -170,7 +156,6 @@ def main():
         success_count = 0
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
-            #evaluate_metrics(dir_path, "Mar1and2", override=True) # Uncomment this line to run evaluate metrics on all models and override existing metrics
             errors = verify_data_completeness(dir_path, dir_type)
             if errors:
                 print("Verification failed. Problems found:")
@@ -181,6 +166,47 @@ def main():
                 success_count += 1
         
         print(f"\nVerification complete. {success_count} out of {len(numbered_dirs)} directories passed verification.")
+
+    elif args.prefix and args.start_num is None and args.end_num is None:
+        # Case 2: Only prefix is provided
+        print(f"Scanning all directories with prefix: {args.prefix}")
+        matched_dirs = find_directories_with_prefix(args.prefix)
+        if not matched_dirs:
+            print("No directories found matching the given prefix.")
+            return
+        
+        for model_path in matched_dirs:
+            print(f"\nChecking model directory: {model_path}")
+            dir_type = "absence" if "absence" in model_path.lower() else "regular"
+            errors = verify_data_completeness(model_path, dir_type)
+            if errors:
+                print("Verification failed. Problems found:")
+                for error in errors:
+                    print(error)
+            else:
+                print("Verification successful!")
+
+    elif args.prefix and args.start_num is not None and args.end_num is not None:
+        # Case 3: Full manual range mode
+        if args.end_num < args.start_num:
+            parser.error("--end_num must be greater than or equal to --start_num")
+
+        for i in range(args.start_num, args.end_num + 1):
+            model_path = f"{args.prefix}{i}"
+            print(f"\nChecking model directory: {model_path}")
+            dir_type = "absence" if "absence" in model_path.lower() else "regular"
+            errors = verify_data_completeness(model_path, dir_type)
+            if errors:
+                print("Verification failed. The following problems were found:")
+                for error in errors:
+                    print(error)
+            else:
+                print("All requirements verified successfully!")
+
+    else:
+        # Invalid combination
+        parser.error("Invalid argument combination. Provide either no arguments, only --prefix, or all three: --prefix, --start_num, and --end_num.")
+
 
 if __name__ == "__main__":
     main()
