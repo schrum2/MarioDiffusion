@@ -2,6 +2,7 @@ import os
 import json
 import argparse
 from typing import List, Tuple
+from evaluate_metrics import *
 
 def count_jsonl_entries(file_path):
     """Count the number of entries in a JSONL file."""
@@ -13,6 +14,7 @@ def count_jsonl_entries(file_path):
         for _ in f:
             count += 1
     return count
+    
 
 def verify_json_length(file_path, expected_length, check_prompts=False):
     """Verify that a JSON file exists and contains a list of expected length.
@@ -49,42 +51,58 @@ def verify_data_completeness(model_path, type_str):
     error = verify_json_length(random_samples, 100, check_prompts=True)
     if error:
         errors.append(f"Requirement 1 failed: {error}")
+    # Check if evaluation_metrics.json exists in the same directory as all_levels.json
+    evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
+    if not os.path.isfile(evaluation_metrics_path):
+        errors.append(f"Requirement 2 failed: 'evaluation_metrics.json' file is missing in {random_samples}.")
 
     # Check real caption samples
     real_samples = os.path.join(model_path, "samples-from-real-Mar1and2-captions", "all_levels.json")
     error = verify_json_length(real_samples, 7687, check_prompts=True)
     if error:
-        errors.append(f"Requirement 2 failed: {error}")
+        errors.append(f"Requirement 3 failed: {error}")
+    # Check if evaluation_metrics.json exists in the same directory as all_levels.json
+    evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
+    if not os.path.isfile(evaluation_metrics_path):
+        errors.append(f"Requirement 4 failed: 'evaluation_metrics.json' file is missing in {real_samples}.")
 
     # Check main scores file
     scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}_scores_by_epoch.jsonl")
     count = count_jsonl_entries(scores_file)
     if count != 27:
-        errors.append(f"Requirement 3 failed: Expected 27 entries in {scores_file}, found {count if count is not None else 'file missing'}")
+        errors.append(f"Requirement 5 failed: Expected 27 entries in {scores_file}, found {count if count is not None else 'file missing'}")
 
     # Check test scores file
     test_scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}-test_scores_by_epoch.jsonl")
     count = count_jsonl_entries(test_scores_file)
     if count != 27:
-        errors.append(f"Requirement 4 failed: Expected 27 entries in {test_scores_file}, found {count if count is not None else 'file missing'}")
+        errors.append(f"Requirement 6 failed: Expected 27 entries in {test_scores_file}, found {count if count is not None else 'file missing'}")
 
     # Check random test scores file
     random_scores_file = os.path.join(model_path, f"Mar1and2_RandomTest-{type_str}_scores_by_epoch.jsonl")
     count = count_jsonl_entries(random_scores_file)
     if count != 27:
-        errors.append(f"Requirement 5 failed: Expected 27 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
+        errors.append(f"Requirement 7 failed: Expected 27 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
 
     # Check unconditional samples (long)
     uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
     error = verify_json_length(uncond_long, 100)
     if error:
-        errors.append(f"Requirement 6 failed: {error}")
+        errors.append(f"Requirement 8 failed: {error}")
+    # Check if evaluation_metrics.json exists in the same directory as all_levels.json
+    evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
+    if not os.path.isfile(evaluation_metrics_path):
+        errors.append(f"Requirement 9 failed: 'evaluation_metrics.json' file is missing in {uncond_long}.")
 
     # Check unconditional samples (short)
     uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
     error = verify_json_length(uncond_short, 100)
     if error:
-        errors.append(f"Requirement 7 failed: {error}")
+        errors.append(f"Requirement 10 failed: {error}")
+    # Check if evaluation_metrics.json exists in the same directory as all_levels.json
+    evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
+    if not os.path.isfile(evaluation_metrics_path):
+        errors.append(f"Requirement 11 failed: 'evaluation_metrics.json' file is missing in {uncond_short}.")
     
     return errors
 
@@ -152,6 +170,7 @@ def main():
         success_count = 0
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
+            #evaluate_metrics(dir_path, "Mar1and2") # see if this works
             errors = verify_data_completeness(dir_path, dir_type)
             if errors:
                 print("Verification failed. Problems found:")

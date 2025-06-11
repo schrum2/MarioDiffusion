@@ -6,7 +6,7 @@ where each element represents a tile. The specific tile representation can be ar
 (characters, integers, etc.) as long as equality comparison is supported between tiles.
 """
 import torch
-from typing import List, Dict, Sequence, TypeVar, Union
+from typing import List, Dict, Sequence, TypeVar, Union, Tuple
 import sys
 import os
 import numpy as np
@@ -96,25 +96,29 @@ def average_min_edit_distance_from_real(
     generated_levels: List[List[List[int]]],
     game_levels: List[List[List[int]]],
     use_gpu=True
-) -> float:
+) -> Tuple[float, int]:
     """
     Calculate average minimum edit distance from generated levels to real levels using GPU.
     """
     if not generated_levels or not game_levels:
-        print("Warning: One or both level lists are empty. Returning 0.0")
-        return 0.0
+        raise ValueError("Warning: One or both level lists are empty. Returning 0.0")
+  
 
     device = "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
     gen = torch.tensor(generated_levels, dtype=torch.int16).to(device)
     real = torch.tensor(game_levels, dtype=torch.int16).to(device)
 
     avg_min_dist = 0.0
+    perfect_matches = 0
 
     for level in gen:
         dists = (real != level).sum(dim=(1, 2))
-        avg_min_dist += dists.min().item()
+        current_min = dists.min().item()
+        if current_min == 0:
+            perfect_matches += 1
+        avg_min_dist += current_min
 
-    return avg_min_dist / len(gen)
+    return avg_min_dist / len(gen), perfect_matches
     
 
 def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
