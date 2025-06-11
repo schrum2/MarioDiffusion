@@ -2,11 +2,11 @@ import argparse
 import itertools
 import os
 import random
-from collections import defaultdict
-import sys, os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import os
+
 import util.common_settings as common_settings  # adjust import if needed
-from level_dataset import LevelDataset, visualize_samples, colors, mario_tiles  # adjust import if needed
+from level_dataset import LevelDataset  # adjust import if needed
 from torch.utils.data import DataLoader
 from evaluate_caption_adherence import calculate_caption_score_and_samples  # adjust import if needed
 #import matplotlib.pyplot as plt
