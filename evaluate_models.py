@@ -15,10 +15,6 @@ def extract_prefix(name):
     return name.rstrip("0123456789").rstrip("-_")
 
 def get_metrics_path(base_dir, mode):
-    """
-    Return the path to evaluation_metrics.json based on mode.
-    Supports 'real', 'random', and 'short'.
-    """
     if mode == "short" or mode == "long":
         parent_dir = os.path.dirname(base_dir)
         model_name = os.path.basename(base_dir)
@@ -47,10 +43,9 @@ def main():
     if not numbered_dirs:
         print("No matching directories found.")
         return
-    
-    # Determine where to save plots (same level as the models)
-    parent_dir = os.path.dirname(numbered_dirs[0][0])  # directory of the first model
-    save_dir = os.path.join(parent_dir, "comparison_plots") # create the folder where pdf graphs will be
+
+    parent_dir = os.path.dirname(numbered_dirs[0][0])
+    save_dir = os.path.join(parent_dir, "comparison_plots")
     os.makedirs(save_dir, exist_ok=True)
 
     grouped = defaultdict(list)
@@ -80,19 +75,49 @@ def main():
                     print(f"[SKIP] {metric_key} missing in: {metrics_path}")
 
     model_names = list(data.keys())
+
+    # Step 1: Strip common prefix
     clean_labels, removed_prefix = strip_common_prefix(model_names)
     print(f"Removed common prefix: '{removed_prefix}'")
 
-    sorted_models = sorted(model_names)
-    clean_labels_sorted = [label for _, label in sorted(zip(model_names, clean_labels))]
+    # Step 2: Renaming logic
+    def rename_model_label(label):
+        if label in {"regular", "absence", "negative"}:
+            return f"MLM-{label}"
+        elif "split" in label:
+            return label.replace("split", "multiple")
+        else:
+            parts = label.split("-")
+            if len(parts) == 2:
+                return f"{parts[0]}-single-{parts[1]}"
+            else:
+                return f"{label}-single"
 
+    model_label_map = {original: rename_model_label(cleaned) for original, cleaned in zip(model_names, clean_labels)}
+    sorted_models = sorted(model_names)
+    clean_labels_sorted = [model_label_map[m] for m in sorted_models]
+
+    # Plotting
     bar_width = 0.35
     num_models = len(sorted_models)
     num_modes = len(modes)
-    x = [i * (bar_width * num_modes + 0.3) for i in range(num_models)]  # Add spacing between model groups
+    x = [i * (bar_width * num_modes + 0.3) for i in range(num_models)]
     offsets = [(i - (num_modes - 1) / 2) * bar_width for i in range(num_modes)]
 
-    plt.figure(figsize=(max(10, num_models * 1.5), 6))
+    plt.rcParams.update({
+        'font.size': 14,
+        'axes.labelsize': 16,
+        'axes.titlesize': 16,
+        'xtick.labelsize': 14,
+        'ytick.labelsize': 12,
+        'legend.fontsize': 12,
+        'legend.title_fontsize': 14,
+        'figure.titlesize': 18
+    })
+
+    plt.figure(figsize=(8, 8))
+
+    colors = ['#66c2a5', '#fc8d62', '#8da0cb']  # Colorblind-friendly, light colors
 
     for i, mode in enumerate(modes):
         means = []
@@ -102,30 +127,48 @@ def main():
             means.append(mean_val)
 
         bar_positions = [xi + offsets[i] for xi in x]
-        plt.barh(bar_positions, means, height=bar_width, label=mode, edgecolor="black")
+        plt.barh(
+            bar_positions,
+            means,
+            height=bar_width,
+            color=colors[i % len(colors)],
+            edgecolor='black',
+            label=mode,
+            alpha=0.6
+        )
 
-        # Add individual "x" markers
         for j, model in enumerate(sorted_models):
             values = data[model][mode]
             y_positions = [x[j] + offsets[i]] * len(values)
-            plt.scatter(values, y_positions, color="black", marker="x")
+            plt.scatter(
+                values,
+                y_positions,
+                color='black',
+                marker='x',
+                zorder=10
+            )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)
-    plt.xlabel(metric_key.replace("_", " ").capitalize())
-    plt.title(f"Model Comparison: {', '.join(reversed(modes))}")  # Show original order in title
-    #plt.legend(title="Mode", loc='best')
+    plt.xlabel(metric_key.replace("_", " ").capitalize(), labelpad=10)
+
     handles, labels = plt.gca().get_legend_handles_labels()
-    plt.legend(handles[::-1], labels[::-1], title="Mode", loc='best')
-    plt.tight_layout()
+    plt.legend(
+        handles[::-1],
+        labels[::-1],
+        title="Mode",
+        loc='best',
+        frameon=True,
+        edgecolor='black'
+    )
+
     plt.grid(True, axis='x', linestyle='--', alpha=0.5)
+    plt.tight_layout(pad=2)
 
     if args.save:
         filename = f"comparison_{'_'.join(reversed(modes))}_{metric_key}.pdf"
         save_path = os.path.join(save_dir, filename)
-        plt.savefig(save_path, bbox_inches='tight')
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
         print(f"Plot saved as: {save_path}")
-    
-    #plt.show()
 
 if __name__ == "__main__":
     main()
