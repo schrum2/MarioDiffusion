@@ -271,8 +271,8 @@ def main():
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
     elif args.game == "LR":
-        args.num_tiles = common_settings.LR_TILE_COUNT # TODO
-        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' # TODO
+        args.num_tiles = common_settings.LR_TILE_COUNT
+        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")
 
