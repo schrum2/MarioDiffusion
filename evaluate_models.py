@@ -167,8 +167,15 @@ def main():
     if args.save:
         filename = f"comparison_{'_'.join(reversed(modes))}_{metric_key}.pdf"
         save_path = os.path.join(save_dir, filename)
+        
+        # Delete existing file if it exists
+        if os.path.exists(save_path):
+            os.remove(save_path)
+            
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
         print(f"Plot saved as: {save_path}")
+    else:
+        plt.show()
 
 if __name__ == "__main__":
     main()
