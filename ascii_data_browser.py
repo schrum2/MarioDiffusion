@@ -21,6 +21,9 @@ class TileViewer(tk.Tk):
     def __init__(self, dataset_path=None, tileset_path=None):
         super().__init__()
         self.title("Tile Dataset Viewer")
+        self.added_sample_indexes = []
+        self.composed_thumbnails = []
+        self.selected_thumb_idx = None  # Track selected thumbnail
 
         # Set a more reasonable default window size for typical grids
         self.window_size = 512  # px, fits 16x16 well but still scales for larger grids
@@ -127,62 +130,43 @@ class TileViewer(tk.Tk):
         self.caption_text.tag_configure("center", justify="center")
         self.caption_text.configure(state="disabled")  # Make it read-only
 
-        nav_frame = tk.Frame(self)
-        nav_frame.pack(pady=2, side=tk.BOTTOM)  # Moved navigation buttons closer to the canvas
-        tk.Button(nav_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=5)
-        tk.Button(nav_frame, text="Next >>", command=self.next_sample).pack(side=tk.LEFT, padx=5)
-
-        # Add a button to generate from the current scene (initially disabled)
-        self.generate_button = tk.Button(nav_frame, text="Generate From Scene", command=self.generate_from_scene, state=tk.DISABLED)
-        self.generate_button.pack(side=tk.LEFT, padx=5)
-
-        # Add steps input field
-        tk.Label(nav_frame, text="Steps:").pack(side=tk.LEFT)
-        self.steps_entry = tk.Entry(nav_frame, width=4)
-        self.steps_entry.insert(0, "50")  # Default value
-        self.steps_entry.config(state=tk.DISABLED)  # Initially disabled
-        self.steps_entry.pack(side=tk.LEFT, padx=2)
+        # Combined navigation and info frame
+        nav_info_frame = tk.Frame(self)
+        nav_info_frame.pack(pady=2)  # Place above composed controls and thumbnails
 
         # Sample info and jump
-        info_frame = tk.Frame(self)
-        info_frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
-        self.sample_label = tk.Label(info_frame, text="Sample: 0 / 0")
+        self.sample_label = tk.Label(nav_info_frame, text="Sample: 0 / 0")
         self.sample_label.pack(side=tk.LEFT, padx=5)
 
-        tk.Label(info_frame, text="Jump to:").pack(side=tk.LEFT)
-        self.jump_entry = tk.Entry(info_frame, width=5)
+        tk.Label(nav_info_frame, text="Jump to:").pack(side=tk.LEFT)
+        self.jump_entry = tk.Entry(nav_info_frame, width=5)
         self.jump_entry.pack(side=tk.LEFT)
         self.jump_entry.bind("<Return>", self.jump_to_sample)
+
+        # Generate button (initially disabled)
+        self.generate_button = tk.Button(nav_info_frame, text="Generate From Scene", command=self.generate_from_scene, state=tk.DISABLED)
+        self.generate_button.pack(side=tk.LEFT, padx=20)
+
+        # Steps input field
+        tk.Label(nav_info_frame, text="Steps:").pack(side=tk.LEFT)
+        self.steps_entry = tk.Entry(nav_info_frame, width=4)
+        self.steps_entry.insert(0, "50")  # Default value
+        self.steps_entry.config(state=tk.DISABLED)  # Initially disabled
+        self.steps_entry.pack(side=tk.LEFT, padx=20)
+
+        # Navigation buttons
+        tk.Button(nav_info_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=10)
+        tk.Button(nav_info_frame, text="Next >>", command=self.next_sample).pack(side=tk.LEFT, padx=10)
 
         # Composed level controls (below navigation)
         self.composed_frame = tk.Frame(self)
         self.composed_frame.pack(pady=(10, 2))
 
-        # Add buttons to add scenes to composed level and test play the level
+        # Add buttons to test play the composed level
         self.play_composed_button = tk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
         self.play_composed_button.pack(side=tk.LEFT, padx=2)
         self.astar_composed_button = tk.Button(self.composed_frame, text="Use A* on Composed Level", command=self.astar_composed_level)
         self.astar_composed_button.pack(side=tk.LEFT, padx=2)
-        self.clear_composed_button = tk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
-        self.clear_composed_button.pack(side=tk.LEFT, padx=2)
-        # Add button to save composed level
-        self.save_composed_button = tk.Button(
-            self.composed_frame,
-            text="Save Composed Level",
-            command=self.save_composed_level
-        )
-        self.save_composed_button.pack(side=tk.LEFT, padx=2)
-        # Add button to add current scene to composed level
-        self.add_to_composed_level_button = tk.Button(
-            self.composed_frame,
-            text="Add To Level",
-            command=self.add_to_composed_level
-        )
-        self.add_to_composed_level_button.pack(side=tk.LEFT, padx=2)
-        
-        # Thumbnails for composed level
-        self.composed_thumb_frame = tk.Frame(self)
-        self.composed_thumb_frame.pack(fill=tk.X)
 
         # Checkbox for switching between original and SNES graphics
         self.use_snes_graphics = tk.BooleanVar(value=False)
@@ -193,6 +177,32 @@ class TileViewer(tk.Tk):
         )
         self.graphics_checkbox.pack(side=tk.LEFT, padx=2)
 
+        # Add button to save composed level
+        self.save_composed_button = tk.Button(
+            self.composed_frame,
+            text="Save Composed Level",
+            command=self.save_composed_level
+        )
+        self.save_composed_button.pack(side=tk.LEFT, padx=2)
+
+        # Add button to add current scene to composed level
+        self.add_to_composed_level_button = tk.Button(
+            self.composed_frame,
+            text="Add To Level",
+            command=self.add_to_composed_level
+        )
+        self.add_to_composed_level_button.pack(side=tk.LEFT, padx=2)
+
+        # Controls for thumbnail manipulation: Move/Delete/Clear all
+        tk.Button(self.composed_frame, text="Move Left", command=self.move_selected_thumbnail_left).pack(side=tk.LEFT, padx=2)
+        tk.Button(self.composed_frame, text="Move Right", command=self.move_selected_thumbnail_right).pack(side=tk.LEFT, padx=2)
+        tk.Button(self.composed_frame, text="Delete", command=self.delete_selected_thumbnail).pack(side=tk.LEFT, padx=2)
+        self.clear_composed_button = tk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
+        self.clear_composed_button.pack(side=tk.LEFT, padx=2)
+        
+        # Thumbnails for composed level
+        self.composed_thumb_frame = tk.Frame(self)
+        self.composed_thumb_frame.pack(fill=tk.X)
 
     # method to enter txt file name and save composed level
     def save_composed_level(self):
@@ -210,7 +220,7 @@ class TileViewer(tk.Tk):
             )
             if file_path:
                 # Convert scene to character grid
-                char_grid = scene_to_ascii(scene, self.id_to_char, False)
+                char_grid = scene_to_ascii(scene, self.id_to_char)
                 # Write to file
                 try:
                     with open(file_path, "w") as f:
@@ -544,10 +554,6 @@ class TileViewer(tk.Tk):
 
     def add_to_composed_level(self):
         idx = self.current_sample_idx
-        #print("HELLO", idx, self.added_sample_indexes)
-        if idx in self.added_sample_indexes:
-            return
-        #print("WHY?")
         self.added_sample_indexes.append(idx)
         # Create a thumbnail for the scene
         from level_dataset import visualize_samples
@@ -564,12 +570,57 @@ class TileViewer(tk.Tk):
         thumb.thumbnail((64, 64))
         photo = PIL.ImageTk.PhotoImage(thumb)
         self.composed_thumbnails.append(photo)  # Prevent GC
-        label = tk.Label(self.composed_thumb_frame, image=photo)
-        label.pack(side=tk.LEFT, padx=2)
+        self.redraw_composed_thumbnails()  # Use new redraw method
+
+    def redraw_composed_thumbnails(self):
+        # Clear frame
+        for widget in self.composed_thumb_frame.winfo_children():
+            widget.destroy()
+        # Redraw all thumbnails
+        for i, photo in enumerate(self.composed_thumbnails):
+            borderwidth = 4 if i == self.selected_thumb_idx else 1
+            relief = "solid" if i == self.selected_thumb_idx else "flat"
+            label = tk.Label(self.composed_thumb_frame, image=photo, borderwidth=borderwidth, relief=relief)
+            label.pack(side=tk.LEFT, padx=2)
+            label.bind("<Button-1>", lambda e, idx=i: self.select_thumbnail(idx))
+
+    def select_thumbnail(self, idx):
+        self.selected_thumb_idx = idx
+        self.redraw_composed_thumbnails()
+
+    def delete_selected_thumbnail(self):
+        if self.selected_thumb_idx is not None and 0 <= self.selected_thumb_idx < len(self.added_sample_indexes):
+            del self.added_sample_indexes[self.selected_thumb_idx]
+            del self.composed_thumbnails[self.selected_thumb_idx]
+            # Adjust selection
+            if self.selected_thumb_idx >= len(self.composed_thumbnails):
+                self.selected_thumb_idx = len(self.composed_thumbnails) - 1
+            if self.selected_thumb_idx < 0:
+                self.selected_thumb_idx = None
+            self.redraw_composed_thumbnails()
+
+    def move_selected_thumbnail_left(self):
+        idx = self.selected_thumb_idx
+        if idx is not None and idx > 0:
+            # Swap with previous
+            self.added_sample_indexes[idx - 1], self.added_sample_indexes[idx] = self.added_sample_indexes[idx], self.added_sample_indexes[idx - 1]
+            self.composed_thumbnails[idx - 1], self.composed_thumbnails[idx] = self.composed_thumbnails[idx], self.composed_thumbnails[idx - 1]
+            self.selected_thumb_idx -= 1
+            self.redraw_composed_thumbnails()
+
+    def move_selected_thumbnail_right(self):
+        idx = self.selected_thumb_idx
+        if idx is not None and idx < len(self.added_sample_indexes) - 1:
+            # Swap with next
+            self.added_sample_indexes[idx + 1], self.added_sample_indexes[idx] = self.added_sample_indexes[idx], self.added_sample_indexes[idx + 1]
+            self.composed_thumbnails[idx + 1], self.composed_thumbnails[idx] = self.composed_thumbnails[idx], self.composed_thumbnails[idx + 1]
+            self.selected_thumb_idx += 1
+            self.redraw_composed_thumbnails()
 
     def clear_composed_level(self):
         self.added_sample_indexes.clear()
         self.composed_thumbnails.clear()
+        self.selected_thumb_idx = None
         for widget in self.composed_thumb_frame.winfo_children():
             widget.destroy()
 
@@ -644,7 +695,7 @@ class TileViewer(tk.Tk):
         sys.exit(0)
 
     def get_sample_output(self, scene, use_snes_graphics=False):
-        char_grid = scene_to_ascii(scene, self.id_to_char, False)
+        char_grid = scene_to_ascii(scene, self.id_to_char)
         return SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
 
 if __name__ == "__main__":
