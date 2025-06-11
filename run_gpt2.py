@@ -67,7 +67,7 @@ def main():
 
     #Save generated levels
     img_directory = os.path.join(args.output_dir, "images")
-    lvl_directory = os.path.join(args.output_dir, "images")
+    lvl_directory = os.path.join(args.output_dir, "levels")
 
     os.makedirs(img_directory)
     os.makedirs(lvl_directory)

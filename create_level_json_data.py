@@ -10,13 +10,12 @@ Sorts the tile characters and assigns each a unique integer ID.
 Adds a special "extra tile" (default %) for padding, if not already present.
 Returns a mapping from tile character to integer ID.
 """
-def load_tileset(tileset_path):
+def load_tileset(tileset_path, extra_tile='%'):
     with open(tileset_path, 'r') as f:
         tileset_data = json.load(f)
     tile_chars = sorted(tileset_data['tiles'].keys())
     # ! is used to indicate the outside of actual level
     # and is not a tile in the tileset
-    global extra_tile
     #extra_tile = '-'
     if extra_tile not in tile_chars:
         tile_chars.append(extra_tile)
@@ -109,7 +108,8 @@ def pad_and_sample(
     room_width=11,
     room_height=16,
     window_rooms_w=2,
-    window_rooms_h=2
+    window_rooms_h=2,
+    extra_tile='-'
 ):
     if scan_mode == "room_cluster":
         return room_cluster_samples(
@@ -164,9 +164,10 @@ def main(
     room_width=11,
     room_height=16,
     window_rooms_w=2,
-    window_rooms_h=2
+    window_rooms_h=2, 
+    extra_tile='-'
 ):
-    tile_to_id = load_tileset(tileset_path)
+    tile_to_id = load_tileset(tileset_path, extra_tile=extra_tile)
     levels = load_levels(levels_dir)
     dataset = []
     for level in levels:
@@ -179,7 +180,8 @@ def main(
             room_width=room_width,
             room_height=room_height,
             window_rooms_w=window_rooms_w,
-            window_rooms_h=window_rooms_h
+            window_rooms_h=window_rooms_h,
+            extra_tile=extra_tile
         )
         dataset.extend(samples)
     with open(output_path, 'w') as f:
@@ -207,8 +209,7 @@ if __name__ == "__main__":
     parser.add_argument('--window_rooms_h', type=int, default=2, help='Window height = total number of vert rooms in window vertically (room_cluster mode)')
 
     args = parser.parse_args()
-    global extra_tile
-    extra_tile = args.extra_tile
+    
     main(
         args.tileset,
         args.levels,
@@ -219,5 +220,6 @@ if __name__ == "__main__":
         room_width=args.room_width,
         room_height=args.room_height,
         window_rooms_w=args.window_rooms_w,
-        window_rooms_h=args.window_rooms_h
+        window_rooms_h=args.window_rooms_h,
+        extra_tile=args.extra_tile
     )
