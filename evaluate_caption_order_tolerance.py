@@ -264,8 +264,8 @@ def main():
     all_median_score = np.median(all_median_scores)
 
     if args.save_as_json:
-        folder_name = model_name + '_caption_order_tolerance'
+        file_name = model_name + '_caption_order_tolerance'
         #os.makedirs(folder_name,  exist_ok=True)
-        output_jsonl_path = os.path.join(args.model_path, "caption_order_tolerance.jsonl")
+        output_jsonl_path = os.path.join(args.model_path, file_name)
 if __name__ == "__main__":
     main()
