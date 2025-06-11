@@ -102,7 +102,7 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
         print(f"An unexpected error occurred: {e}")
 
 
-def evaluate_metrics(model_path, game):
+def evaluate_metrics(model_path, game, override):
     """
     Evaluate metrics for the given model path.
 
@@ -126,7 +126,7 @@ def evaluate_metrics(model_path, game):
         if os.path.isfile(json_path):
             output_file = os.path.join(os.path.dirname(json_path), "evaluation_metrics.json")
             
-            if args.override and os.path.exists(output_file):
+            if override and os.path.exists(output_file):
                 print(f"Override enabled: deleting existing {output_file}")
                 os.remove(output_file)
 
@@ -147,4 +147,4 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    evaluate_metrics(args.model_path, args.game)
+    evaluate_metrics(args.model_path, args.game, args.override)
