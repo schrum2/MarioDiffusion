@@ -225,10 +225,10 @@ def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, l
     plt.ylabel('Caption Score', fontsize=12)
     
     # Set title if provided
-    if title is not None:
-        plt.title(title, fontsize=14)
-    else:
-        plt.title('Caption Score vs Epoch (Averaged Across Runs)', fontsize=14)
+    # if title is not None:
+    #     plt.title(title, fontsize=14)
+    # else:
+    #     plt.title('Caption Score vs Epoch (Averaged Across Runs)', fontsize=14)
     
     plt.grid(True, alpha=0.3)
     
@@ -240,12 +240,12 @@ def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, l
         legend = plt.legend(loc=legend_loc)
     
     # Add error type to legend title if applicable
-    if error_type == 'std':
-        legend.set_title('Experiments (± 1 std)', prop={'size': 20})
-    elif error_type == 'ci':
-        legend.set_title(f'Experiments ({int(confidence*100)}% CI)', prop={'size': 20})
-    else:
-        legend.set_title('Experiments', prop={'size': 20})
+    # if error_type == 'std':
+        # legend.set_title('Experiments (± 1 std)', prop={'size': 20})
+    # elif error_type == 'ci':
+        # legend.set_title(f'Experiments ({int(confidence*100)}% CI)', prop={'size': 20})
+    # else:
+        # legend.set_title('Experiments', prop={'size': 20})
     
     # Add info about runs at bottom
     info_lines = []
@@ -326,8 +326,8 @@ File patterns support wildcards:
                        help='Experiment specifications in format "prefix:run_ids"')
     parser.add_argument('--file-pattern', '-f', type=str, default="caption_score_log_*.jsonl",
                        help='Default file pattern for experiments without specific pattern (default: "caption_score_log_*.jsonl")')
-    parser.add_argument('--title', type=str, default='Caption Score vs Epoch (Averaged Across Runs)',
-                       help='Title for the plot (use "none" for no title)')
+    # parser.add_argument('--title', type=str, default='Caption Score vs Epoch (Averaged Across Runs)',
+    #                    help='Title for the plot (use "none" for no title)')
     parser.add_argument('--legend-loc', type=str, default='lower right',
                        help='Legend location (e.g., "lower right", "upper left", "center", "outside")')
     parser.add_argument('--allow-partial', action='store_true',
@@ -401,11 +401,11 @@ File patterns support wildcards:
         error_type = 'ci'
     
     # Handle title and legend location
-    title = None if args.title.lower() == 'none' else args.title
+    #title = None if args.title.lower() == 'none' else args.title
     legend_loc = 'bbox_to_anchor=(1.05, 1), loc=upper left' if args.legend_loc == 'outside' else args.legend_loc
     
     # Create plot
-    fig = create_plot(experiment_data, error_type, args.confidence, title, legend_loc)
+    fig = create_plot(experiment_data, error_type, args.confidence, legend_loc)
     
     # Save or show plot
     if args.output:
