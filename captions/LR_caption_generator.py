@@ -43,17 +43,12 @@ class GrammarGenerator:
         
         # These are the keywords used to identify topics
         self.topic_keywords = [
-            "floor", "ceiling", 
-            # "broken pipe", 
-            "upside down pipe", "pipe", 
-            "coin line", "coin",
-            "platform", "tower", #"wall", 
-            # "broken cannon", 
-            "cannon",
-            "ascending staircase", "descending staircase",
+            "floor", "ceiling",
+            "gold line", "gold",
+            "platform",
             "rectangular",
             "irregular", 
-            "question block", "loose block", 
+            "loose block", 
             "enem"
         ]
 
@@ -112,12 +107,7 @@ class GrammarGenerator:
             phrase = random.choice(self.topic_phrases[topic])
             selected_phrases.append(phrase)
 
-        # Special case for consistenct of coins and coin lines
-        if "coin line" in used_topics and "coin" not in used_topics:
-            # If coin line is present, add a coin
-            selected_phrases.append(random.choice(self.topic_phrases["coin"]))
-            used_topics.add("coin")
-
+        # Special case for consistenct of gold and gold lines
         if "gold line" in used_topics and "gold" not in used_topics:
             # If coin line is present, add a coin
             selected_phrases.append(random.choice(self.topic_phrases["gold"]))
