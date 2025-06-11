@@ -19,12 +19,12 @@ def get_metrics_path(base_dir, mode):
     Return the path to evaluation_metrics.json based on mode.
     Supports 'real', 'random', and 'short'.
     """
-    if mode == "short":
+    if mode == "short" or mode == "long":
         # Assuming base_dir is the model path, and short lives in a sibling dir
         parent_dir = os.path.dirname(base_dir)
         model_name = os.path.basename(base_dir)
-        short_dir = os.path.join(parent_dir, f"{model_name}-unconditional-samples-short")
-        return os.path.join(short_dir, "evaluation_metrics.json")
+        uncond_dir = os.path.join(parent_dir, f"{model_name}-unconditional-samples-{mode}")
+        return os.path.join(uncond_dir, "evaluation_metrics.json")
     else:
         subdir = f"samples-from-{mode}-Mar1and2-captions"
         return os.path.join(base_dir, subdir, "evaluation_metrics.json")
