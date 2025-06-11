@@ -101,7 +101,8 @@ def average_min_edit_distance_from_real(
     Calculate average minimum edit distance from generated levels to real levels using GPU.
     """
     if not generated_levels or not game_levels:
-        raise ValueError("Warning: One or both level lists are empty. Returning 0.0")
+        print("Warning: One or both level lists are empty. Returning 0.0, 0.")
+        return 0.0, 0
   
 
     device = "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
@@ -114,7 +115,7 @@ def average_min_edit_distance_from_real(
     for level in gen:
         dists = (real != level).sum(dim=(1, 2))
         current_min = dists.min().item()
-        if current_min == 0:
+        if current_min == 0.0:
             perfect_matches += 1
         avg_min_dist += current_min
 
