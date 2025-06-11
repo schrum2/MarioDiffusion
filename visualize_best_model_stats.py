@@ -22,8 +22,9 @@ with open(jsonl_path, "r") as f:
             records.append(model)
 df = pd.DataFrame(records)
 
-# If model is not Mar1and2-unconditional remove prefix "Mar1and2-conditional-"
-df["group"] = df["group"].str.replace(r"^Mar1and2-(?:conditional|unconditional)-", "", regex=True)
+# Remove "Mar1and2-conditional-" for conditional, and "Mar1and2-" for unconditional
+df["group"] = df["group"].str.replace(r"^Mar1and2-conditional-", "", regex=True)
+df["group"] = df["group"].str.replace(r"^Mar1and2-", "", regex=True)
 
 # Set the desired group order
 desired_order = [
@@ -41,7 +42,7 @@ desired_order = [
     "GTE-negative",
     "GTEsplit-regular",
     "GTEsplit-absence",
-    "Mar1and2-unconditional"
+    "unconditional"
 ]
 df["group"] = pd.Categorical(df["group"], categories=desired_order, ordered=True)
 df = df.sort_values("group")
@@ -50,13 +51,23 @@ df = df.sort_values("group")
 for col in ["best_epoch", "best_val_loss", "best_caption_score"]:
     df[col] = pd.to_numeric(df[col], errors="coerce")
 
+# Update matplotlib settings for better readability
+plt.rcParams.update({
+    "font.size": 22,         # Controls default text size
+    "axes.titlesize": 24,    # Axes title font size
+    "axes.labelsize": 24,    # Axes label font size
+    "xtick.labelsize": 20,   # X tick label font size
+    "ytick.labelsize": 20,   # Y tick label font size
+    "legend.fontsize": 20,   # Legend font size
+    "figure.titlesize": 26   # Figure title font size (if used)
+})
+
 # 1. Boxplot: best_epoch
-plt.figure(figsize=(12, 6))
+plt.figure(figsize=(10, 10))
 groups = [g for g in desired_order if g in df["group"].unique()]
 data = [df[df["group"] == g]["best_epoch"].dropna() for g in groups]
 plt.boxplot(data, tick_labels=groups)
 plt.xticks(rotation=45, ha='right')
-plt.title("Distribution of Best Epoch by Model Group")
 plt.xlabel("Model Group")
 plt.ylabel("Best Epoch")
 plt.tight_layout()
@@ -64,10 +75,9 @@ plt.savefig(os.path.join(output_dir, "boxplot_best_epoch_by_group.png"))
 plt.close()
 
 # 1b. Violin plot: best_epoch by group
-plt.figure(figsize=(12, 6))
+plt.figure(figsize=(10, 10))
 parts = plt.violinplot(data, showmeans=True, showmedians=True)
 plt.xticks(range(1, len(groups) + 1), groups, rotation=45, ha='right')
-plt.title("Violin Plot of Best Epoch by Model Group")
 plt.xlabel("Model Group")
 plt.ylabel("Best Epoch")
 
@@ -88,31 +98,36 @@ plt.tight_layout()
 plt.savefig(os.path.join(output_dir, "violinplot_best_epoch_by_group.png"))
 plt.close()
 
-# 2. Barplot: mean and median best_epoch by group
+# 2. Horizontal barplot: mean and median best_epoch by group
 grouped = df.groupby("group")
-means = grouped["best_epoch"].mean()
 medians = grouped["best_epoch"].median()
-x = range(len(groups))
-plt.figure(figsize=(12, 6))
-plt.bar(x, means[groups], width=0.4, label="Mean", align='center', color="skyblue")
-plt.bar([i + 0.4 for i in x], medians[groups], width=0.4, label="Median", align='center', color="orange", alpha=0.7)
-plt.xticks([i + 0.2 for i in x], groups, rotation=45, ha='right')
-plt.title("Mean and Median Best Epoch by Model Group")
-plt.xlabel("Model Group")
-plt.ylabel("Best Epoch")
-plt.legend()
+means = grouped["best_epoch"].mean()
+groups_reversed = groups[::-1]
+y = range(len(groups_reversed))
+plt.figure(figsize=(10, 10))
+plt.barh([i + 0.4 for i in y], medians[groups_reversed], height=0.4, label="Median", align='center', color="orange", alpha=0.7)
+plt.barh(y, means[groups_reversed], height=0.4, label="Mean", align='center', color="skyblue")
+plt.yticks([i + 0.2 for i in y], groups_reversed)
+
+# Overlay individual data points (strip plot) WITHOUT jitter
+for i, group in enumerate(groups_reversed):
+    points = df[df["group"] == group]["best_epoch"].dropna()
+    plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
+
+plt.ylabel("Model Group")
+plt.xlabel("Best Epoch")
+plt.legend(loc='upper left')
 plt.tight_layout()
-plt.savefig(os.path.join(output_dir, "barplot_mean_median_best_best_epoch_by_group.png"))
+plt.savefig(os.path.join(output_dir, "horizontal_barplot_mean_median_best_epoch_by_group.png"))
 plt.close()
 
 
 # 3. Scatter plot: best_epoch vs best_caption_score, colored by group
-plt.figure(figsize=(10, 7))
+plt.figure(figsize=(10, 10))
 colors = plt.cm.get_cmap('tab20', len(groups))
 for i, g in enumerate(groups):
     subset = df[df["group"] == g]
     plt.scatter(subset["best_epoch"], subset["best_caption_score"], label=g, s=80, color=colors(i))
-plt.title("Best Epoch vs Best Caption Score")
 plt.xlabel("Best Epoch")
 plt.ylabel("Best Caption Score")
 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
@@ -128,7 +143,6 @@ pd.plotting.scatter_matrix(
     alpha=0.7,
     marker='o'
 )
-plt.suptitle("Pairwise Scatterplot Matrix of Model Metrics")
 plt.tight_layout(rect=[0, 0, 1, 0.97])
 plt.savefig(os.path.join(output_dir, "scatter_matrix_model_metrics.png"))
 plt.close()
