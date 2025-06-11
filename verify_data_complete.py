@@ -133,23 +133,25 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
 def main():
     parser = argparse.ArgumentParser(description="Verify completeness of model evaluation data")
     parser.add_argument("--prefix", type=str, help="Prefix of the model directory paths")
-    parser.add_argument("--type", type=str, choices=["absence", "regular"], 
-                        help="Type of evaluation (absence or regular)")
     parser.add_argument("--start_num", type=int, help="Starting number for model directory range")
     parser.add_argument("--end_num", type=int, help="Ending number for model directory range (inclusive)")
     
     args = parser.parse_args()
 
     # If any argument is provided, all required arguments must be provided
-    if any([args.prefix, args.type, args.start_num, args.end_num]):
-        if not all([args.prefix, args.type, args.start_num or args.start_num == 0, args.end_num]):
-            parser.error("If any argument is provided, all arguments (--prefix, --type, --start_num, --end_num) are required")
+    if any([args.prefix, args.start_num, args.end_num]):
+        if not all([args.prefix, args.start_num or args.start_num == 0, args.end_num or args.end_num == 0]):
+            parser.error("If any argument is provided, all arguments (--prefix, --start_num, --end_num) are required")
         
+        if args.end_num < args.start_num:
+            parser.error("--end_num must be greater than or equal to --start_num")
+
         # Parameter-based mode
         for i in range(args.start_num, args.end_num + 1):
             model_path = f"{args.prefix}{i}"
             print(f"\nChecking model directory: {model_path}")
-            errors = verify_data_completeness(model_path, args.type)
+            dir_type = "absence" if "absence" in model_path.lower() else "regular"
+            errors = verify_data_completeness(model_path, dir_type)
             if errors:
                 print("\nVerification failed. The following problems were found:")
                 for error in errors:

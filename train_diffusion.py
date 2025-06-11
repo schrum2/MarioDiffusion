@@ -553,11 +553,6 @@ def main():
             if os.path.exists(optimizer_path):
                 optimizer.load_state_dict(torch.load(optimizer_path, map_location="cpu"))
 
-            # Load the learning rate scheduler state if it exists
-            lr_scheduler_path = os.path.join(latest_ckpt, "lr_scheduler.pt")
-            if os.path.exists(lr_scheduler_path):
-                lr_scheduler.load_state_dict(torch.load(lr_scheduler_path, map_location="cpu"))
-
             # When resuming:
             lr_scheduler_config_path = os.path.join(latest_ckpt, "lr_scheduler_config.json")
             if os.path.exists(lr_scheduler_config_path):
@@ -570,12 +565,18 @@ def main():
                     num_warmup_steps=scheduler_config["num_warmup_steps"],
                     num_training_steps=scheduler_config["num_training_steps"],
                 )
+                # Now load the state dict into the new scheduler
+                lr_scheduler_path = os.path.join(latest_ckpt, "lr_scheduler.pt")
+                if os.path.exists(lr_scheduler_path):
+                    lr_scheduler.load_state_dict(torch.load(lr_scheduler_path, map_location="cpu"))
             else:
                 # Fallback to old behavior or raise an error
                 raise RuntimeError("lr_scheduler_config.json not found in checkpoint. Cannot resume scheduler correctly.")
 
             # rewrap with accelerator
-            model, optimizer = accelerator.prepare(model, optimizer)
+            model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+                model, optimizer, train_dataloader, lr_scheduler
+            )
 
             # After loading the pipeline and re-preparing with accelerator:
             early_stop_path = os.path.join(latest_ckpt, "early_stop_state.json")
