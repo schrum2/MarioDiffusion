@@ -66,18 +66,24 @@ def main():
     )
 
     #Save generated levels
+    img_directory = os.path.join(args.output_dir, "images")
+    lvl_directory = os.path.join(args.output_dir, "images")
+
+    os.makedirs(img_directory)
+    os.makedirs(lvl_directory)
+
     for i in range(len(generated_levels)):
 
-        save_location=os.path.join(args.output_dir, all_prompts[i])
-        if args.split_levels:
-            print("Not yet supported!")
-            #TODO: add support for level splitting
-        else:
-            # save image
-            generated_levels[i].img.save(f"{save_location}.png")
+        save_location_img=os.path.join(img_directory, all_prompts[i])
+        save_location_lvl=os.path.join(lvl_directory, all_prompts[i])
 
-            # save text level to file
-            generated_levels[i].save(f"{save_location}.txt")
+
+
+        # save image
+        generated_levels[i].img.save(f"{save_location_img}.png")
+
+        # save text level to file
+        generated_levels[i].save(f"{save_location_lvl}.txt")
 
 
 
