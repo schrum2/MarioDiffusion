@@ -17,8 +17,11 @@ class GrammarGenerator:
             "gold line": ["one gold line", "two gold lines", "a few gold lines"],
             "gold": ["one gold", "two gold", "several gold", "a few gold", "many gold"],
             "platform": ["one platform", "two platforms", "a few platforms", "several platforms"],
-            #"wall": ["one wall"], # "walls" is not a token in the original data # , "two walls"],
-            # "broken cannon": ["one broken cannon", "two broken cannons"],
+            "ladder cluster": ["one ladder cluster", "two ladder clusters", "a few ladder clusters", "several ladder clusters"],
+            "lone ladder tile": ["one lone ladder tile", "two lone ladder tiles", "a few lone ladder tiles", "several lone ladder tiles"],
+            
+            
+            
             "rectangular": ["one rectangular block cluster", "two rectangular block clusters", "a few rectangular block clusters"],
             "irregular": ["one irregular block cluster", "two irregular block clusters", "a few irregular block clusters"],
             "loose block": ["one loose block", "two loose blocks", "several loose blocks", "a few loose blocks", "many loose blocks"],
