@@ -168,7 +168,7 @@ def main():
         success_count = 0
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
-            #evaluate_metrics(dir_path, "Mar1and2") # see if this works
+            #evaluate_metrics(dir_path, "Mar1and2", override=True) # Uncomment this line to run evaluate metrics on all models and override existing metrics
             errors = verify_data_completeness(dir_path, dir_type)
             if errors:
                 print("Verification failed. Problems found:")
