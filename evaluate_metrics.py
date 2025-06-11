@@ -49,7 +49,6 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
             "broken_cannons_percentage_of_cannons":count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True),
         }
         
-    
         if key == "real" or key == "short" or key == "random": 
             # With the original dataset, calculate average_min_edit_distance_from_real
             original_dataset_path = os.path.join("datasets", f"{game}_LevelsAndCaptions-regular.json")
@@ -58,7 +57,8 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
                 original_levels = [entry["scene"] for entry in original_data if "scene" in entry]
             
             metrics["average_min_edit_distance_from_real"], metrics["generated_vs_real_perfect_matches"] = average_min_edit_distance_from_real(levels, original_levels)
-            
+            metrics["percent_perfect_matches"] = metrics["generated_vs_real_perfect_matches"] / len(levels) * 100 # What % of the generated dataset are real levels
+ 
         # If prompts was created, meaning that we can do analysis between prompts and captions
         if prompts is not None and (key != "short" and key != "long"):
             print("Calculating phrase metrics...")
@@ -101,7 +101,7 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
         print(f"An unexpected error occurred: {e}")
 
 
-def evaluate_metrics(model_path, game):
+def evaluate_metrics(model_path, game, override):
     """
     Evaluate metrics for the given model path.
 
@@ -124,9 +124,12 @@ def evaluate_metrics(model_path, game):
     for key, json_path in paths.items():
         if os.path.isfile(json_path):
             output_file = os.path.join(os.path.dirname(json_path), "evaluation_metrics.json")
-            print(f"Processing {key} metrics...")
             
-            # Call evaluate metrics. The key will determine how many metrics are called
+            if override and os.path.exists(output_file):
+                print(f"Override enabled: deleting existing {output_file}")
+                os.remove(output_file)
+
+            print(f"Processing {key} metrics...")
             evaluate_all_levels(json_path, output_file, game, key)
         else:
             print(f"Warning: {key} file not found at {json_path}")
@@ -137,9 +140,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate generated levels and captions.")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the model output directory containing all_levels.json or its subdirectories.")
     parser.add_argument("--game", type=str, default="Mar1and2", help="Game prefix for which to evaluate levels.")
+    parser.add_argument("--override", action="store_true", help="Override all previously existing evaluation_metrics.json files and re-run calculations")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    evaluate_metrics(args.model_path, args.game)
+    evaluate_metrics(args.model_path, args.game, args.override)
