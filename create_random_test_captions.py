@@ -2,6 +2,7 @@ import argparse
 from level_dataset import LevelDataset
 import json
 from captions.caption_generator import GrammarGenerator
+from captions.LR_caption_generator import GrammarGenerator as LR_GrammarGenerator
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 import util.common_settings as common_settings
@@ -38,9 +39,19 @@ def main():
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+        generator = GrammarGenerator(
+            seed = args.seed, 
+            describe_absence=args.describe_absence,
+            no_upside_down_pipes=args.no_upside_down_pipes
+        )
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' 
+        generator = LR_GrammarGenerator(
+            seed = args.seed, 
+            describe_absence=args.describe_absence,
+            no_upside_down_pipes=args.no_upside_down_pipes
+        )
 
     # Initialize dataset
     dataset = LevelDataset(
@@ -51,12 +62,6 @@ def main():
         augment=False, # No augmenting just for testing
         num_tiles=args.num_tiles
     )
-
-    generator = GrammarGenerator(
-        seed = args.seed, 
-        describe_absence=args.describe_absence,
-        no_upside_down_pipes=args.no_upside_down_pipes
-        )
 
     validation_captions = []
     while len(validation_captions) < args.validation_set_size:
