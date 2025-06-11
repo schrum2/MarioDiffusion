@@ -125,7 +125,7 @@ def main():
         plt.savefig(save_path, bbox_inches='tight')
         print(f"Plot saved as: {save_path}")
     
-    plt.show()
+    #plt.show()
 
 if __name__ == "__main__":
     main()
