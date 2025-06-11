@@ -221,8 +221,8 @@ def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, l
                             alpha=0.15, color=color)
     
     # Formatting
-    plt.xlabel('Epoch', fontsize=12)
-    plt.ylabel('Caption Score', fontsize=12)
+    plt.xlabel('Epoch', fontsize=18)
+    plt.ylabel('Caption Score', fontsize=18)
     
     # Set title if provided
     # if title is not None:
@@ -235,9 +235,9 @@ def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, l
     # Legend with specified location
     if legend_loc.startswith('bbox_to_anchor'):
         # Handle outside legend placement
-        legend = plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        legend = plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 16}, handlelength=2.5, handletextpad=1.5)
     else:
-        legend = plt.legend(loc=legend_loc)
+        legend = plt.legend(loc=legend_loc, prop={'size': 16}, handlelength=2.5, handletextpad=1.5)
     
     # Add error type to legend title if applicable
     # if error_type == 'std':
