@@ -58,7 +58,7 @@ class FDMPipeline():
             "num_res_blocks": self.num_res_blocks,
             "out_channels": self.out_channels,
         }
-        with open(os.path.join(save_directory, "config.json"), "w") as f:
+        with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
             json.dump(config, f)
 
 
