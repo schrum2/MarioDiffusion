@@ -6,7 +6,7 @@ where each element represents a tile. The specific tile representation can be ar
 (characters, integers, etc.) as long as equality comparison is supported between tiles.
 """
 import torch
-from typing import List, Dict, Sequence, TypeVar, Union
+from typing import List, Dict, Sequence, TypeVar, Union, Tuple
 import sys
 import os
 import numpy as np
@@ -96,25 +96,29 @@ def average_min_edit_distance_from_real(
     generated_levels: List[List[List[int]]],
     game_levels: List[List[List[int]]],
     use_gpu=True
-) -> float:
+) -> Tuple[float, int]:
     """
     Calculate average minimum edit distance from generated levels to real levels using GPU.
     """
     if not generated_levels or not game_levels:
-        print("Warning: One or both level lists are empty. Returning 0.0")
-        return 0.0
+        raise ValueError("Warning: One or both level lists are empty. Returning 0.0")
+  
 
     device = "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
     gen = torch.tensor(generated_levels, dtype=torch.int16).to(device)
     real = torch.tensor(game_levels, dtype=torch.int16).to(device)
 
     avg_min_dist = 0.0
+    perfect_matches = 0
 
     for level in gen:
         dists = (real != level).sum(dim=(1, 2))
-        avg_min_dist += dists.min().item()
+        current_min = dists.min().item()
+        if current_min == 0:
+            perfect_matches += 1
+        avg_min_dist += current_min
 
-    return avg_min_dist / len(gen)
+    return avg_min_dist / len(gen), perfect_matches
     
 
 def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
@@ -419,7 +423,8 @@ def astar_metrics(
     levels: list[dict],  # Each dict should have "scene" and "caption"
     num_runs: int = 3,
     simulator_kwargs: dict = None,
-    save_name: str = "astar_metrics_results.jsonl"
+    output_json_path: str = None,
+    save_name: str = "astar_result.jsonl"
 ) -> tuple[List[dict], dict]:
     """
     Runs the SNES A* algorithm on each level multiple times and saves results in JSONL format.
@@ -427,7 +432,8 @@ def astar_metrics(
         levels: List of dicts, each with "scene" (2D int list) and "caption" (str)
         num_runs: Number of runs per level
         simulator_kwargs: kwargs for MMNEATSimulator
-        save_name: Filename for output JSONL (saved to root directory)
+        output_json_path: Path to input JSON file (saves in root directory if None)
+        save_name: Filename for output JSONL
     Returns:
         List of dicts as described in the prompt
     """
@@ -435,7 +441,12 @@ def astar_metrics(
     results = []
     per_level_averages = []
 
-    out_file = os.path.join('.', save_name)
+    # Determine output directory
+    if output_json_path is not None:
+        output_dir = os.path.dirname(output_json_path)
+    else:
+        output_dir = '.'
+    out_file = os.path.join(output_dir, save_name)
 
     if not levels:
         raise RuntimeError("No levels provided to astar_metrics. Exiting.")
@@ -534,7 +545,7 @@ def astar_metrics(
                 overall_averages[key] = sum(values) / len(values)
         # Save to a separate JSON file
         summary_file = os.path.splitext(save_name)[0] + "_overall_averages.json"
-        summary_path = os.path.join('.', summary_file)
+        summary_path = os.path.join(output_dir, summary_file)
         with open(summary_path, "w") as f:
             json.dump(overall_averages, f, indent=2)
         print(f"Overall averages saved to {summary_path}")
