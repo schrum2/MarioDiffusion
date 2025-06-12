@@ -42,10 +42,14 @@ def verify_json_length(file_path, expected_length, check_prompts=False):
     
     return None
 
-def verify_data_completeness(model_path, type_str):
+def verify_data_completeness(model_path, type_str, fdm):
     """Verify all data requirements for a given model path and type.
     Returns a list of error messages, or an empty list if verification succeeded."""
     errors = []
+    
+    # Set model path correctly if the current model is an fdm model
+    if fdm:
+        model_path = os.path.join(model_path, "final-model")
     
     # Check random caption samples
     random_samples = os.path.join(model_path, "samples-from-random-Mar1and2-captions", "all_levels.json")
@@ -85,27 +89,29 @@ def verify_data_completeness(model_path, type_str):
     if count != 27:
         errors.append(f"Requirement 7 failed: Expected 27 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
 
-    # Check unconditional samples (long)
-    uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
-    error = verify_json_length(uncond_long, 100)
-    if error:
-        errors.append(f"Requirement 8 failed: {error}")
-    # Check if evaluation_metrics.json exists in the same directory as all_levels.json
-    evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
-    if not os.path.isfile(evaluation_metrics_path):
-        errors.append(f"Requirement 9 failed: 'evaluation_metrics.json' file is missing in {uncond_long}.")
+    if fdm == False:
+        # Check unconditional samples (long)
+        uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
+        error = verify_json_length(uncond_long, 100)
+        if error:
+            errors.append(f"Requirement 8 failed: {error}")
+        # Check if evaluation_metrics.json exists in the same directory as all_levels.json
+        evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
+        if not os.path.isfile(evaluation_metrics_path):
+            errors.append(f"Requirement 9 failed: 'evaluation_metrics.json' file is missing in {uncond_long}.")
 
-    # Check unconditional samples (short)
-    uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
-    error = verify_json_length(uncond_short, 100)
-    if error:
-        errors.append(f"Requirement 10 failed: {error}")
-    # Check if evaluation_metrics.json exists in the same directory as all_levels.json
-    evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
-    if not os.path.isfile(evaluation_metrics_path):
-        errors.append(f"Requirement 11 failed: 'evaluation_metrics.json' file is missing in {uncond_short}.")
+        # Check unconditional samples (short)
+        uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
+        error = verify_json_length(uncond_short, 100)
+        if error:
+            errors.append(f"Requirement 10 failed: {error}")
+        # Check if evaluation_metrics.json exists in the same directory as all_levels.json
+        evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
+        if not os.path.isfile(evaluation_metrics_path):
+            errors.append(f"Requirement 11 failed: 'evaluation_metrics.json' file is missing in {uncond_short}.")
     
     return errors
+
 
 def find_directories_with_prefix(prefix):
     """Find directories that start with the given prefix and end in a number."""
@@ -118,7 +124,7 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
     Only includes directories containing '-conditional-' and determines type based on name."""
     numbered_dirs = []
     for item in os.listdir('.'):
-        if not (os.path.isdir(item) and item[-1].isdigit() and "-conditional-" in item):
+        if not (os.path.isdir(item) and item[-1].isdigit() and ("-conditional-" in item or "-fdm-" in item)):
             continue
             
         # Get the number at the end of the directory name
@@ -178,7 +184,7 @@ def main():
     if not any(vars(args).values()):
         # Case 1: Automatic discovery mode
         print("Running in automatic directory discovery mode...")
-        print("Looking for directories containing '-conditional-' that end in a number...")
+        print("Looking for directories that end in a number...")
         numbered_dirs = find_numbered_directories()
         if not numbered_dirs:
             print("No matching directories found in current directory.")
@@ -199,7 +205,10 @@ def main():
 
             #quit()
 
-            errors = verify_data_completeness(dir_path, dir_type)
+            fdm = True if "fdm" in dir_path.lower() else False
+            # Add evaluate_metrics call ?? 
+            evaluate_metrics(dir_path, "Mar1and2", override=False, fdm=fdm)
+            errors = verify_data_completeness(dir_path, dir_type, fdm)
             if errors:
                 print("Verification failed. Problems found:")
                 for error in errors:
@@ -231,7 +240,8 @@ def main():
             #print("last_line:", last_line)
             #quit()
 
-            errors = verify_data_completeness(model_path, dir_type)
+            fdm = True if "fdm" in model_path.lower() else False
+            errors = verify_data_completeness(model_path, dir_type, fdm)
             if errors:
                 print("Verification failed. Problems found:")
                 for error in errors:
@@ -258,7 +268,8 @@ def main():
             #print("last_line:", last_line)
             #quit()
 
-            errors = verify_data_completeness(model_path, dir_type)
+            fdm = True if "fdm" in model_path.lower() else False
+            errors = verify_data_completeness(model_path, dir_type, fdm)
             if errors:
                 print("Verification failed. The following problems were found:")
                 for error in errors:
