@@ -53,13 +53,11 @@ def main():
                         prompt = f"{pipe_prompt}, {enemy_prompt}, {block_prompt}, {elevation_prompt}"
                         all_prompts.append(prompt) #Creates a list of all possible prompt combinations
     else:
-        all_prompts.append(args.prompt)
-
-    
+        all_prompts.append(args.prompt)   
 
     #Generate all levels at once
     generated_levels = mario_lm.sample(
-        prompts=prompt,
+        prompts=all_prompts,
         num_steps=args.num_collumns*14,
         temperature=args.temperature,
         use_tqdm=True

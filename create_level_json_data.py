@@ -48,7 +48,8 @@ def room_cluster_samples(
     room_width=11,
     room_height=16,
     window_rooms_w=2,
-    window_rooms_h=2
+    window_rooms_h=2,
+    extra_tile='-'
 ):
     # Split the level into a grid of rooms
     dungeon_rows = len(level) // room_height
@@ -104,12 +105,13 @@ def pad_and_sample(
     tile_to_id,
     target_height,
     target_width,
+    tileset_path,
     scan_mode="platformer",
     room_width=11,
     room_height=16,
     window_rooms_w=2,
     window_rooms_h=2,
-    extra_tile='-'
+    extra_tile='-',
 ):
     if scan_mode == "room_cluster":
         return room_cluster_samples(
@@ -118,7 +120,8 @@ def pad_and_sample(
             room_width=room_width,
             room_height=room_height,
             window_rooms_w=window_rooms_w,
-            window_rooms_h=window_rooms_h
+            window_rooms_h=window_rooms_h,
+            extra_tile=extra_tile,
         )
     else:
         # Platformer: original sliding window
@@ -128,7 +131,7 @@ def pad_and_sample(
         padded_level = [extra_tile * width] * pad_rows + level
 
         # Special case for SMB2 upside down pipes that extend into the sky
-        _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset) # partially duplicates the work of load_tileset, except for the extra_tile
+        _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path) # partially duplicates the work of load_tileset, except for the extra_tile
         for i in range(width): # Scan top row
             descriptors = tile_descriptors.get(level[0][i], [])
             if "pipe" in descriptors:
@@ -176,6 +179,7 @@ def main(
             tile_to_id,
             target_height,
             target_width,
+            tileset_path,
             scan_mode=scan_mode,
             room_width=room_width,
             room_height=room_height,
