@@ -10,7 +10,7 @@ for dir_name in os.listdir(root_dir):
         # Check for "wgan" and "samples" in directory name
         if "wgan" in dir_name.lower() and "samples" in dir_name.lower():
             print(f"Running A* Solvability evaluation on WGAN directory: {dir_path}")
-            best_model_json = os.path.join(dir_path, "best_model_info.json")
+            best_model_json = os.path.join(dir_path, "all_levels.json")
             if os.path.isfile(best_model_json):
                 with open(best_model_json, "r") as f:
                     levels = json.load(f)
