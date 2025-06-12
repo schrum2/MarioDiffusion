@@ -124,7 +124,7 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
     Only includes directories containing '-conditional-' and determines type based on name."""
     numbered_dirs = []
     for item in os.listdir('.'):
-        if not (os.path.isdir(item) and item[-1].isdigit() and ("-conditional-" in item or "-fdm-" in item)):
+        if not (os.path.isdir(item) and item[-1].isdigit() and ("-conditional-" in item or "-fdm-" in item or "wgan" in item)):
             continue
             
         # Get the number at the end of the directory name
