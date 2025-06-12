@@ -67,13 +67,15 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
+    using_unet_pipe = False
     # TODO: This won't work if training terminated early, but there are still valid checkpoints I want to evaluate
     if(os.path.exists(os.path.join(args.model_path, "unet"))):
         #Default to getting the Diffusion pipeline
+        using_unet_pipe = True
         pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
     else:
         #Get the FDM pipeline if "unet" doesn't exist
-        pipe = FDMPipeline.from_pretrained(args.model_path).to(device)
+        pipe = FDMPipeline.from_pretrained(os.path.join(args.model_path, "final-model")).to(device)
 
     assert(pipe.tokenizer is not None)
 
@@ -97,7 +99,7 @@ def main():
     )
 
     if args.compare_checkpoints:
-        scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors)
+        scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe)
 
     else:
         # Just run on one model and get samples as well
@@ -114,7 +116,7 @@ def main():
             save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
 
 
-def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors):
+def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True):
 
     checkpoint_dirs = [
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))
@@ -159,7 +161,11 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     with open(scores_jsonl_path, "a") as f:
         for epoch, checkpoint_dir in tqdm(checkpoint_dirs, desc="Evaluating Checkpoints"):
             print(f"Evaluating checkpoint: {checkpoint_dir}")
-            pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
+            if using_unet_pipe:
+                pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
+            else:
+                pipe = FDMPipeline.from_pretrained(checkpoint_dir).to(device)
+
 
             avg_score, _, _ = calculate_caption_score_and_samples(
                 device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=args.width, height=args.height
