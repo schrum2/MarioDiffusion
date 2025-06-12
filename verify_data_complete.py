@@ -159,10 +159,10 @@ def find_last_line_caption_order_tolerance(model_path, file, key="Caption"):
             try:
                 data = json.loads(line)
                 if isinstance(data, dict):
-                    for k in data:
-                        if key in k:
-                            # You can parse number from key if needed
-                            return data[k]
+                    for key in data:
+                        match = re.match(r"Caption (\d+)", key)
+                        if match:
+                            return int(match.group(1))
             except ValueError:
                 continue
     return 0
