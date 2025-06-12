@@ -1,6 +1,9 @@
 import json
 import pandas as pd
+import matplotlib
 import matplotlib.pyplot as plt
+matplotlib.rcParams['pdf.fonttype'] = 42  # Embed TrueType fonts in PDF
+matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.lines as mlines
 import os
 
@@ -22,28 +25,47 @@ with open(jsonl_path, "r") as f:
             records.append(model)
 df = pd.DataFrame(records)
 
-# Remove "Mar1and2-conditional-" for conditional, and "Mar1and2-" for unconditional
-df["group"] = df["group"].str.replace(r"^Mar1and2-conditional-", "", regex=True)
-df["group"] = df["group"].str.replace(r"^Mar1and2-", "", regex=True)
+# Mapping from input group names to desired plotting names
+group_name_map = {
+    "Mar1and2-conditional-regular": "MLM-regular",
+    "Mar1and2-conditional-absence": "MLM-absence",
+    "Mar1and2-conditional-negative": "MLM-negative",
+    "Mar1and2-conditional-MiniLM-regular": "MiniLM-single-regular",
+    "Mar1and2-conditional-MiniLM-absence": "MiniLM-single-absence",
+    "Mar1and2-conditional-MiniLM-negative": "MiniLM-single-negative",
+    "Mar1and2-conditional-MiniLMsplit-regular": "MiniLM-multiple-regular",
+    "Mar1and2-conditional-MiniLMsplit-absence": "MiniLM-multiple-absence",
+    "Mar1and2-conditional-MiniLMsplit-negative": "MiniLM-multiple-negative",
+    "Mar1and2-conditional-GTE-regular": "GTE-single-regular",
+    "Mar1and2-conditional-GTE-absence": "GTE-single-absence",
+    "Mar1and2-conditional-GTE-negative": "GTE-single-negative",
+    "Mar1and2-conditional-GTEsplit-regular": "GTE-multiple-regular",
+    "Mar1and2-conditional-GTEsplit-absence": "GTE-multiple-absence",
+    "Mar1and2-conditional-GTEsplit-negative": "GTE-multiple-negative",
+    "Mar1and2-unconditional": "Unconditional"
+}
 
-# Set the desired group order
 desired_order = [
-    "regular",
-    "absence",
-    "negative",
-    "MiniLM-regular",
-    "MiniLM-absence",
-    "MiniLM-negative",
-    "MiniLMsplit-regular",
-    "MiniLMsplit-absence",
-    "MiniLMsplit-negative",
-    "GTE-regular",
-    "GTE-absence",
-    "GTE-negative",
-    "GTEsplit-regular",
-    "GTEsplit-absence",
-    "unconditional"
+    "MLM-regular",
+    "MLM-absence",
+    "MLM-negative",
+    "MiniLM-single-regular",
+    "MiniLM-single-absence",
+    "MiniLM-single-negative",
+    "MiniLM-multiple-regular",
+    "MiniLM-multiple-absence",
+    "MiniLM-multiple-negative",
+    "GTE-single-regular",
+    "GTE-single-absence",
+    "GTE-single-negative",
+    "GTE-multiple-regular",
+    "GTE-multiple-absence",
+    "GTE-multiple-negative",
+    "Unconditional"
 ]
+
+# Apply the mapping to the group column
+df["group"] = df["group"].replace(group_name_map)
 df["group"] = pd.Categorical(df["group"], categories=desired_order, ordered=True)
 df = df.sort_values("group")
 
@@ -66,12 +88,13 @@ plt.rcParams.update({
 plt.figure(figsize=(10, 10))
 groups = [g for g in desired_order if g in df["group"].unique()]
 data = [df[df["group"] == g]["best_epoch"].dropna() for g in groups]
-plt.boxplot(data, tick_labels=groups)
+plt.boxplot(data)
+plt.xticks(ticks=range(1, len(groups)+1), labels=groups, rotation=45, ha='right')
 plt.xticks(rotation=45, ha='right')
 plt.xlabel("Model Group")
 plt.ylabel("Best Epoch")
 plt.tight_layout()
-plt.savefig(os.path.join(output_dir, "boxplot_best_epoch_by_group.png"))
+plt.savefig(os.path.join(output_dir, "boxplot_best_epoch_by_group.pdf"))
 plt.close()
 
 # 1b. Violin plot: best_epoch by group
@@ -84,7 +107,7 @@ plt.ylabel("Best Epoch")
 # Make median and mean lines thicker and colored for clarity
 if 'cmedians' in parts:
     parts['cmedians'].set_color('red')
-    parts['cmedians'].set_linewidth(3)
+    parts['cmedians'].set_linewidth(1.5)
 if 'cmeans' in parts:
     parts['cmeans'].set_color('blue')
     parts['cmeans'].set_linewidth(3)
@@ -95,17 +118,15 @@ mean_line = mlines.Line2D([], [], color='blue', linewidth=3, label='Mean')
 plt.legend(handles=[median_line, mean_line], loc='lower left')
 
 plt.tight_layout()
-plt.savefig(os.path.join(output_dir, "violinplot_best_epoch_by_group.png"))
+plt.savefig(os.path.join(output_dir, "violinplot_best_epoch_by_group.pdf"))
 plt.close()
 
 # 2. Horizontal barplot: mean and median best_epoch by group
 grouped = df.groupby("group")
-medians = grouped["best_epoch"].median()
 means = grouped["best_epoch"].mean()
 groups_reversed = groups[::-1]
 y = range(len(groups_reversed))
 plt.figure(figsize=(10, 10))
-plt.barh([i + 0.4 for i in y], medians[groups_reversed], height=0.4, label="Median", align='center', color="orange", alpha=0.7)
 plt.barh(y, means[groups_reversed], height=0.4, label="Mean", align='center', color="skyblue")
 plt.yticks([i + 0.2 for i in y], groups_reversed)
 
@@ -116,9 +137,8 @@ for i, group in enumerate(groups_reversed):
 
 plt.ylabel("Model Group")
 plt.xlabel("Best Epoch")
-plt.legend(loc='upper left')
 plt.tight_layout()
-plt.savefig(os.path.join(output_dir, "horizontal_barplot_mean_median_best_epoch_by_group.png"))
+plt.savefig(os.path.join(output_dir, "horizontal_barplot_mean_median_best_epoch_by_group.pdf"))
 plt.close()
 
 
@@ -132,28 +152,8 @@ plt.xlabel("Best Epoch")
 plt.ylabel("Best Caption Score")
 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.savefig(os.path.join(output_dir, "scatter_best_epoch_vs_best_caption_score.png"))
+plt.savefig(os.path.join(output_dir, "scatter_best_epoch_vs_best_caption_score.pdf"))
 plt.close()
-
-# 3b. Pairwise scatterplot matrix (pair plot) for all metrics
-pd.plotting.scatter_matrix(
-    df[["best_epoch", "best_caption_score"]],
-    figsize=(10, 10),
-    diagonal='hist',
-    alpha=0.7,
-    marker='o'
-)
-plt.tight_layout(rect=[0, 0, 1, 0.97])
-plt.savefig(os.path.join(output_dir, "scatter_matrix_model_metrics.png"))
-plt.close()
-
-# 6. Table: summary statistics (mean, median, std, count) for each group
-summary = grouped.agg({
-    "best_epoch": ["mean", "median", "std", "count"],
-    "best_val_loss": ["mean", "median", "std", "count"],
-    "best_caption_score": ["mean", "median", "std", "count"]
-})
-summary.to_csv(os.path.join(output_dir, "summary_statistics_by_group.csv"))
 
 
 print("All visualizations and summary table saved to:", output_dir)
