@@ -200,23 +200,20 @@ def main():
 
     one_caption = []
 
-    _, file = detect_caption_order_tolerance(args.model_path)
-
-    # if last_line <= 0 then the file is empty
-    # else it is the number of the last caption in the jsonl file
-    last_line = find_last_line_caption_order_tolerance(args.model_path, file, key="Caption")
-
     # print("last_line:", last_line)
     # quit()
-
+    _, file = detect_caption_order_tolerance(args.model_path)
     #count = args.start_line
     #count = last_line + 1
 
-    if last_line <= 0 and args.start_line == 0:
+    if file is None and args.start_line == 0:
         letter = "w"
         count = 1
     else:
         letter = "a"
+        # if last_line <= 0 then the file is empty
+        # else it is the number of the last caption in the jsonl file
+        last_line = find_last_line_caption_order_tolerance(args.model_path, file, key="Caption")
         count = last_line + 1
 
     file_name = json_name + '_caption_order_tolerance.jsonl'
