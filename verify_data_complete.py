@@ -149,7 +149,8 @@ def find_last_line_caption_order_tolerance(model_path, file, key="Caption"):
     file_path = os.path.join(model_path, file)
     with open(file_path, "r") as f:
         lines = f.read().splitlines()
-
+        if not lines:
+            return 0
         # Find last line that contains a number
         for line in reversed(lines):
             line = line.strip()
@@ -157,13 +158,14 @@ def find_last_line_caption_order_tolerance(model_path, file, key="Caption"):
                 continue
             try:
                 data = json.loads(line)
-                for key in data:
-                    match = re.match(r"Caption (\d+)", key)
-                    if match:
-                        return int(match.group(1)) + 1
+                if isinstance(data, dict):
+                    for k in data:
+                        if key in k:
+                            # You can parse number from key if needed
+                            return data[k]
             except ValueError:
                 continue
-    return None
+    return 0
 
 def main():
     parser = argparse.ArgumentParser(description="Verify completeness of model evaluation data")
@@ -188,12 +190,14 @@ def main():
 
             # Can put check for caption order tolerance here
             has_caption_order_tolerance, file = detect_caption_order_tolerance(dir_path)
-            print("dir_path:", dir_path)
-            print("has_caption_order_tolerance:", has_caption_order_tolerance)
+            #print("dir_path:", dir_path)
+            #print("has_caption_order_tolerance:", has_caption_order_tolerance)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
-            print("last_line:", last_line)
-            quit()
+            #print("last_line:", last_line)
+
+
+            #quit()
 
             errors = verify_data_completeness(dir_path, dir_type)
             if errors:
@@ -220,12 +224,12 @@ def main():
 
             # Can put check for caption order tolerance here
             has_caption_order_tolerance, file = detect_caption_order_tolerance(model_path)
-            print("model_path:", model_path)
-            print("has_caption_order_tolerance:", has_caption_order_tolerance)
+           #print("model_path:", model_path)
+            #print("has_caption_order_tolerance:", has_caption_order_tolerance)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
-            print("last_line:", last_line)
-            quit()
+            #print("last_line:", last_line)
+            #quit()
 
             errors = verify_data_completeness(model_path, dir_type)
             if errors:
@@ -247,12 +251,12 @@ def main():
 
             # Can put check for caption order tolerance here
             has_caption_order_tolerance, file = detect_caption_order_tolerance(model_path)
-            print("model_path:", model_path)
-            print("has_caption_order_tolerance:", has_caption_order_tolerance)
+            #print("model_path:", model_path)
+            #print("has_caption_order_tolerance:", has_caption_order_tolerance)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
-            print("last_line:", last_line)
-            quit()
+            #print("last_line:", last_line)
+            #quit()
 
             errors = verify_data_completeness(model_path, dir_type)
             if errors:
