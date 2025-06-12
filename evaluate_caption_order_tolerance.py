@@ -9,6 +9,7 @@ import util.common_settings as common_settings  # adjust import if needed
 from level_dataset import LevelDataset  # adjust import if needed
 from torch.utils.data import DataLoader
 from evaluate_caption_adherence import calculate_caption_score_and_samples  # adjust import if needed
+from verify_data_complete import detect_caption_order_tolerance, find_last_line_caption_order_tolerance
 #import matplotlib.pyplot as plt
 #import matplotlib
 import json
@@ -27,8 +28,8 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--caption", type=str, required=False, default=None, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
-    parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
-    #parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
+    #parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
     #parser.add_argument("--json", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="Path to dataset json file")
     #parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS)
@@ -39,6 +40,7 @@ def parse_args():
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--output_dir", type=str, default="visualizations", help="Output directory if not comparing checkpoints (subdir of model directory)")
     parser.add_argument("--max_permutations", type=int, default=5, help="Maximum amount of permutations that can be made per caption")
+    parser.add_argument("--start_line", type=int, default=0, help="Where in the jsonl file should it continue from")
     return parser.parse_args()
 
 
@@ -197,14 +199,33 @@ def main():
     all_captions =  [item.strip() for s in caption for item in s.split(",")]
 
     one_caption = []
-    count = 0
+
+    _, file = detect_caption_order_tolerance(args.model_path)
+
+    # if last_line <= 0 then the file is empty
+    # else it is the number of the last caption in the jsonl file
+    last_line = find_last_line_caption_order_tolerance(args.model_path, file, key="Caption")
+
+    # print("last_line:", last_line)
+    # quit()
+
+    #count = args.start_line
+    #count = last_line + 1
+
+    if last_line <= 0 and args.start_line == 0:
+        letter = "w"
+        count = 1
+    else:
+        letter = "a"
+        count = last_line + 1
 
     file_name = json_name + '_caption_order_tolerance.jsonl'
     #os.makedirs(folder_name,  exist_ok=True)
     output_jsonl_path = os.path.join(args.model_path, file_name)
-    with open(output_jsonl_path, "w") as f:
-        for cap in all_captions:
-            one_caption = cap
+    with open(output_jsonl_path, letter) as f:
+        while(count <= len(all_captions)):
+        #for cap in all_captions:
+            one_caption = all_captions[count - 1]
 
             # Initialize dataset
             pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption, caption_data = creation_of_parameters(one_caption, args.max_permutations)
