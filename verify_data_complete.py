@@ -42,73 +42,123 @@ def verify_json_length(file_path, expected_length, check_prompts=False):
     
     return None
 
-def verify_data_completeness(model_path, type_str, fdm):
+def verify_data_completeness(model_path, type_str):
     """Verify all data requirements for a given model path and type.
     Returns a list of error messages, or an empty list if verification succeeded."""
     errors = []
     
-    # Set model path correctly if the current model is an fdm model
-    if fdm:
-        model_path = os.path.join(model_path, "final-model")
+    conditional = "-conditional-" in model_path.lower()
+    fdm = "fdm" in model_path.lower()
+    wgan = "wgan" in model_path.lower()
+    unconditional = "unconditional" in model_path.lower()
     
-    # Check random caption samples
-    random_samples = os.path.join(model_path, "samples-from-random-Mar1and2-captions", "all_levels.json")
-    error = verify_json_length(random_samples, 100, check_prompts=True)
-    if error:
-        errors.append(f"Requirement 1 failed: {error}")
-    # Check if evaluation_metrics.json exists in the same directory as all_levels.json
-    evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
-    if not os.path.isfile(evaluation_metrics_path):
-        errors.append(f"Requirement 2 failed: 'evaluation_metrics.json' file is missing in {random_samples}.")
+    if fdm or conditional:
+        # Set model path correctly if the current model is an fdm model
+        if fdm:
+            model_path = os.path.join(model_path, "final-model")
 
-    # Check real caption samples
-    real_samples = os.path.join(model_path, "samples-from-real-Mar1and2-captions", "all_levels.json")
-    error = verify_json_length(real_samples, 7687, check_prompts=True)
-    if error:
-        errors.append(f"Requirement 3 failed: {error}")
-    # Check if evaluation_metrics.json exists in the same directory as all_levels.json
-    evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
-    if not os.path.isfile(evaluation_metrics_path):
-        errors.append(f"Requirement 4 failed: 'evaluation_metrics.json' file is missing in {real_samples}.")
-
-    # Check main scores file
-    scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}_scores_by_epoch.jsonl")
-    count = count_jsonl_entries(scores_file)
-    if count != 27:
-        errors.append(f"Requirement 5 failed: Expected 27 entries in {scores_file}, found {count if count is not None else 'file missing'}")
-
-    # Check test scores file
-    test_scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}-test_scores_by_epoch.jsonl")
-    count = count_jsonl_entries(test_scores_file)
-    if count != 27:
-        errors.append(f"Requirement 6 failed: Expected 27 entries in {test_scores_file}, found {count if count is not None else 'file missing'}")
-
-    # Check random test scores file
-    random_scores_file = os.path.join(model_path, f"Mar1and2_RandomTest-{type_str}_scores_by_epoch.jsonl")
-    count = count_jsonl_entries(random_scores_file)
-    if count != 27:
-        errors.append(f"Requirement 7 failed: Expected 27 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
-
-    if not fdm:
-        # Check unconditional samples (long)
-        uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
-        error = verify_json_length(uncond_long, 100)
+        # Check random caption samples
+        random_samples = os.path.join(model_path, "samples-from-random-Mar1and2-captions", "all_levels.json")
+        error = verify_json_length(random_samples, 100, check_prompts=True)
         if error:
-            errors.append(f"Requirement 8 failed: {error}")
+            errors.append(f"Requirement 1 failed: {error}")
         # Check if evaluation_metrics.json exists in the same directory as all_levels.json
         evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
         if not os.path.isfile(evaluation_metrics_path):
-            errors.append(f"Requirement 9 failed: 'evaluation_metrics.json' file is missing in {uncond_long}.")
+            errors.append(f"Requirement 2 failed: 'evaluation_metrics.json' file is missing in {random_samples}.")
+        astar_metrics_path = os.path.join(os.path.dirname(random_samples), "astar_result.jsonl")
+        if not os.path.isfile(astar_metrics_path):
+            errors.append(f"Requirement 3 failed: 'astar_result.jsonl' file is missing in {random_samples}")
+        astar_metrics_path = os.path.join(os.path.dirname(random_samples), "astar_result_overall_averages.json")
+        if not os.path.isfile(astar_metrics_path):
+            errors.append(f"Requirement 4 failed: 'astar_result_overall_averages.json' file is missing in {random_samples}")
 
-        # Check unconditional samples (short)
-        uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
-        error = verify_json_length(uncond_short, 100)
+        # Check real caption samples
+        real_samples = os.path.join(model_path, "samples-from-real-Mar1and2-captions", "all_levels.json")
+        error = verify_json_length(real_samples, 7687, check_prompts=True)
         if error:
-            errors.append(f"Requirement 10 failed: {error}")
+            errors.append(f"Requirement 5 failed: {error}")
         # Check if evaluation_metrics.json exists in the same directory as all_levels.json
-        evaluation_metrics_path = os.path.join(os.path.dirname(random_samples), "evaluation_metrics.json")
+        evaluation_metrics_path = os.path.join(os.path.dirname(real_samples), "evaluation_metrics.json")
         if not os.path.isfile(evaluation_metrics_path):
-            errors.append(f"Requirement 11 failed: 'evaluation_metrics.json' file is missing in {uncond_short}.")
+            errors.append(f"Requirement 6 failed: 'evaluation_metrics.json' file is missing in {real_samples}.")
+        astar_metrics_path = os.path.join(os.path.dirname(real_samples), "astar_result.jsonl")
+        if not os.path.isfile(astar_metrics_path):
+            errors.append(f"Requirement 7 failed: 'astar_result.jsonl' file is missing in {real_samples}")
+        astar_metrics_path = os.path.join(os.path.dirname(real_samples), "astar_result_overall_averages.json")
+        if not os.path.isfile(astar_metrics_path):
+            errors.append(f"Requirement 8 failed: 'astar_result_overall_averages.json' file is missing in {real_samples}")
+
+        # Check main scores file
+        scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}_scores_by_epoch.jsonl")
+        count = count_jsonl_entries(scores_file)
+        if count != 27:
+            errors.append(f"Requirement 9 failed: Expected 27 entries in {scores_file}, found {count if count is not None else 'file missing'}")
+
+        # Check test scores file
+        test_scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}-test_scores_by_epoch.jsonl")
+        count = count_jsonl_entries(test_scores_file)
+        if count != 27:
+            errors.append(f"Requirement 10 failed: Expected 27 entries in {test_scores_file}, found {count if count is not None else 'file missing'}")
+
+        # Check random test scores file
+        random_scores_file = os.path.join(model_path, f"Mar1and2_RandomTest-{type_str}_scores_by_epoch.jsonl")
+        count = count_jsonl_entries(random_scores_file)
+        if count != 27:
+            errors.append(f"Requirement 11 failed: Expected 27 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
+
+        if not fdm:
+            # Check unconditional samples (long)
+            uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
+            error = verify_json_length(uncond_long, 100)
+            if error:
+                errors.append(f"Requirement 12 failed: {error}")
+            # Check if evaluation_metrics.json exists in the same directory as all_levels.json
+            evaluation_metrics_path = os.path.join(os.path.dirname(uncond_long), "evaluation_metrics.json")
+            if not os.path.isfile(evaluation_metrics_path):
+                errors.append(f"Requirement 13 failed: 'evaluation_metrics.json' file is missing in {uncond_long}.")
+                
+            astar_metrics_path = os.path.join(os.path.dirname(uncond_long), "astar_result.jsonl")
+            if not os.path.isfile(astar_metrics_path):
+                errors.append(f"Requirement 14 failed: 'astar_result.jsonl' file is missing in {uncond_long}")
+            astar_metrics_path = os.path.join(os.path.dirname(uncond_long), "astar_result_overall_averages.json")
+            if not os.path.isfile(astar_metrics_path):
+                errors.append(f"Requirement 15 failed: 'astar_result_overall_averages.json' file is missing in {uncond_long}")
+            
+
+            # Check unconditional samples (short)
+            uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
+            error = verify_json_length(uncond_short, 100)
+            if error:
+                errors.append(f"Requirement 16 failed: {error}")
+            # Check if evaluation_metrics.json exists in the same directory as all_levels.json
+            evaluation_metrics_path = os.path.join(os.path.dirname(uncond_short), "evaluation_metrics.json")
+            if not os.path.isfile(evaluation_metrics_path):
+                errors.append(f"Requirement 17 failed: 'evaluation_metrics.json' file is missing in {uncond_short}.")
+                
+            astar_metrics_path = os.path.join(os.path.dirname(uncond_short), "astar_result.jsonl")
+            if not os.path.isfile(astar_metrics_path):
+                errors.append(f"Requirement 18 failed: 'astar_result.jsonl' file is missing in {uncond_short}")
+            astar_metrics_path = os.path.join(os.path.dirname(uncond_short), "astar_result_overall_averages.json")
+            if not os.path.isfile(astar_metrics_path):
+                errors.append(f"Requirement 19 failed: 'astar_result_overall_averages.json' file is missing in {uncond_short}")
+                
+    elif wgan or unconditional:
+        samples = os.path.join(model_path, "all_levels.json")
+        error = verify_json_length(samples, 100)
+        if error:
+            errors.append(f"Requirement 20 failed: {error}")
+        evaluation_metrics_path = os.path.join(os.path.dirname(samples), "evaluation_metrics.json")
+        if not os.path.isfile(evaluation_metrics_path):
+            errors.append(f"Requirement 21 failed: 'evaluation_metrics'.json file is missing in {samples}")
+        astar_metrics_path = os.path.join(os.path.dirname(samples), "astar_result.jsonl")
+        if not os.path.isfile(astar_metrics_path):
+            errors.append(f"Requirement 22 failed: 'astar_result.jsonl' file is missing in {samples}")
+        astar_metrics_path = os.path.join(os.path.dirname(samples), "astar_result_overall_averages.json")
+        if not os.path.isfile(astar_metrics_path):
+            errors.append(f"Requirement 23 failed: 'astar_result_overall_averages.json' is missing in {samples}")
+
+        
     
     return errors
 
@@ -124,21 +174,25 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
     Only includes directories containing '-conditional-' and determines type based on name."""
     numbered_dirs = []
     for item in os.listdir('.'):
-        if not (os.path.isdir(item) and item[-1].isdigit() and ("-conditional-" in item or "-fdm-" in item)):
+        if not os.path.isdir(item):
             continue
             
-        # Get the number at the end of the directory name
-        num = ""
-        for char in reversed(item):
-            if char.isdigit():
-                num = char + num
-            else:
-                break
+        # Match rules
+        is_conditional_with_number = "-conditional-" in item and item[-1].isdigit()
+        contains_fdm = "fdm" in item
+        contains_unconditional_number = re.search(r"unconditional\d+", item)
+        contains_wgan_number_samples = re.search(r"wgan\d+-samples", item)
+
+        if not (is_conditional_with_number or contains_fdm or contains_unconditional_number or contains_wgan_number_samples):
+            continue
         
-        if num:  # If we found a number
-            # Determine type based on directory name
+        
+        # Extract trailing number (last numeric sequence at the end)
+        num_match = re.search(r"(\d+)(?!.*\d)", item)  # last number in string
+        if num_match:
+            num = int(num_match.group(1))
             dir_type = "absence" if "absence" in item.lower() else "regular"
-            numbered_dirs.append((item, int(num), dir_type))
+            numbered_dirs.append((item, num, dir_type))
             
     return sorted(numbered_dirs, key=lambda x: x[1])  # Sort by number
 
@@ -204,12 +258,9 @@ def main():
             #print("last_line:", last_line)
 
 
-            #quit()
-
-            fdm = "fdm" in dir_path.lower()
             # Add evaluate_metrics call ?? 
-            evaluate_metrics(dir_path, "Mar1and2", override=False, fdm=fdm)
-            errors = verify_data_completeness(dir_path, dir_type, fdm)
+            evaluate_metrics(dir_path, "Mar1and2", override=False)
+            errors = verify_data_completeness(dir_path, dir_type)
             if errors:
                 print("Verification failed. Problems found:")
                 for error in errors:
@@ -217,6 +268,8 @@ def main():
             else:
                 print("Verification successful!")
                 success_count += 1
+        
+        
         
         print(f"\nVerification complete. {success_count} out of {len(numbered_dirs)} directories passed verification.")
 
