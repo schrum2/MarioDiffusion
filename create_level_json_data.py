@@ -106,6 +106,7 @@ def pad_and_sample(
     target_height,
     target_width,
     tileset_path,
+    stride=1,
     scan_mode="platformer",
     room_width=11,
     room_height=16,
@@ -143,10 +144,10 @@ def pad_and_sample(
 
         padded_level = [row.ljust(target_width, extra_tile) for row in padded_level]
         samples = []
-        for x in range(width - target_width + 1):
+        for x in range((width - target_width + 1)//stride):
             sample = []
             for y in range(target_height):
-                window_row = padded_level[y][x:x+target_width]
+                window_row = padded_level[y][x*stride:(x*stride)+target_width]
                 sample.append([tile_to_id.get(c, tile_to_id[extra_tile]) for c in window_row])
             samples.append(sample)
         return samples
@@ -163,6 +164,7 @@ def main(
     output_path,
     target_height,
     target_width,
+    stride=1,
     scan_mode="platformer",
     room_width=11,
     room_height=16,
@@ -180,6 +182,7 @@ def main(
             target_height,
             target_width,
             tileset_path,
+            stride=stride,
             scan_mode=scan_mode,
             room_width=room_width,
             room_height=room_height,
@@ -206,6 +209,7 @@ if __name__ == "__main__":
     parser.add_argument('--target_height', type=int, default=common_settings.MARIO_HEIGHT, help='Target output height (e.g., 16 or 14)')
     parser.add_argument('--target_width', type=int, default=common_settings.MARIO_WIDTH, help='Target output width (e.g., 16)')
     parser.add_argument('--extra_tile', default='-', help='Padding tile character (should not be a real tile)')
+    parser.add_argument('--stride', type=int, default=1, help='How many tiles to move over when moving the sliding window')
     parser.add_argument('--scan_mode', default='platformer', choices=['platformer', 'room_cluster'], help='Sampling mode')
     parser.add_argument('--room_width', type=int, default=11, help='Room width (room_cluster mode)')
     parser.add_argument('--room_height', type=int, default=16, help='Room height (room_cluster mode)')
@@ -220,6 +224,7 @@ if __name__ == "__main__":
         args.output,
         args.target_height,
         args.target_width,
+        args.stride,
         scan_mode=args.scan_mode,
         room_width=args.room_width,
         room_height=args.room_height,

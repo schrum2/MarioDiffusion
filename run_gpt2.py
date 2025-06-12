@@ -12,7 +12,7 @@ def parse_args():
     parser.add_argument("--prompt", type=str, default=None, help="A specific prompt to generate if wanted")
     parser.add_argument("--temperature", type=float, default=2.0, help="The temperature (chaos scale) input into the model")
 
-    parser.add_argument("--split_levels", action="store_true", help="Split and pad levels into 16X16 scenes")
+    parser.add_argument("--batch_size", type=int, default=5, help="The number of prompts put into the model at once")
     parser.add_argument("--output_dir", type=str, default="SMB1-gpt-levels", help="The number of vertical collumns to generate")
 
 
@@ -55,33 +55,40 @@ def main():
     else:
         all_prompts.append(args.prompt)   
 
-    #Generate all levels at once
-    generated_levels = mario_lm.sample(
-        prompts=all_prompts,
-        num_steps=args.num_collumns*14,
-        temperature=args.temperature,
-        use_tqdm=True
-    )
 
-    #Save generated levels
+    #Create directories for saving
     img_directory = os.path.join(args.output_dir, "images")
     lvl_directory = os.path.join(args.output_dir, "levels")
 
     os.makedirs(img_directory)
     os.makedirs(lvl_directory)
 
-    for i in range(len(generated_levels)):
-
-        save_location_img=os.path.join(img_directory, all_prompts[i])
-        save_location_lvl=os.path.join(lvl_directory, all_prompts[i])
 
 
+    for i in range(len(all_prompts)//args.batch_size):
+        #Get the subset of all prompts to generate
+        batch=all_prompts[i*args.batch_size:min((i+1)*args.batch_size, len(all_prompts))]
 
-        # save image
-        generated_levels[i].img.save(f"{save_location_img}.png")
+        #Use the subset to generate levels
+        generated_levels = mario_lm.sample(
+            prompts=batch,
+            num_steps=args.num_collumns*14,
+            temperature=args.temperature,
+            use_tqdm=True
+        )
 
-        # save text level to file
-        generated_levels[i].save(f"{save_location_lvl}.txt")
+        for x in range(len(generated_levels)):
+            #The name of the file should match its old prompt
+            save_location_img=os.path.join(img_directory, all_prompts[i*args.batch_size+x])
+            save_location_lvl=os.path.join(lvl_directory, all_prompts[i*args.batch_size+x])
+
+
+
+            # save image
+            generated_levels[x].img.save(f"{save_location_img}.png")
+
+            # save text level to file
+            generated_levels[x].save(f"{save_location_lvl}.txt")
 
 
 
