@@ -194,6 +194,7 @@ def main():
             #print("has_caption_order_tolerance:", has_caption_order_tolerance)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
+                print("A caption_order_tolerance.jsonl is in this directory")
             #print("last_line:", last_line)
 
 
@@ -228,6 +229,7 @@ def main():
             #print("has_caption_order_tolerance:", has_caption_order_tolerance)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
+                print("A caption_order_tolerance.jsonl is in this directory")
             #print("last_line:", last_line)
             #quit()
 
@@ -255,6 +257,7 @@ def main():
             #print("has_caption_order_tolerance:", has_caption_order_tolerance)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
+                print("A caption_order_tolerance.jsonl is in this directory")
             #print("last_line:", last_line)
             #quit()
 
