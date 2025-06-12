@@ -101,7 +101,7 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
         print(f"An unexpected error occurred: {e}")
 
 
-def evaluate_metrics(model_path, game, override):
+def evaluate_metrics(model_path, game, override, fdm):
     """
     Evaluate metrics for the given model path.
 
@@ -109,17 +109,27 @@ def evaluate_metrics(model_path, game, override):
         model_path (str): Path to the model directory.
         game (str): Game prefix name for accessing datasets
     """
+    # Set the correct model path if we are evaluating an fdm model
+    if fdm:
+        model_path = os.path.join(model_path, "final-model")
+    
     if not os.path.exists(model_path):
         print(f"Error: Path does not exist - {model_path}")
         return
     
-    # Define paths for the four expected all_levels.json files
-    paths = {
-        "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
-        "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json"),
-        "short": os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json"),
-        "long": os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json"),
-    }
+    if fdm: # we only have samples from real and random captions for fdm
+        paths = {
+            "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
+            "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json")
+        }
+        
+    else: # Define paths for the four expected all_levels.json files
+        paths = {
+            "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
+            "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json"),
+            "short": os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json"),
+            "long": os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json"),
+        }
 
     for key, json_path in paths.items():
         if os.path.isfile(json_path):
@@ -141,9 +151,10 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the model output directory containing all_levels.json or its subdirectories.")
     parser.add_argument("--game", type=str, default="Mar1and2", help="Game prefix for which to evaluate levels.")
     parser.add_argument("--override", action="store_true", help="Override all previously existing evaluation_metrics.json files and re-run calculations")
+    parser.add_argument("--fdm", action="store_true", help="Indicates fdm directory")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    evaluate_metrics(args.model_path, args.game, args.override)
+    evaluate_metrics(args.model_path, args.game, args.override, args.fdm)
