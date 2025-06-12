@@ -66,14 +66,14 @@ for name in tqdm(os.listdir(root), desc="Scanning model directories"):
             with open(info_path, "r") as f:
                 info = json.load(f)
             best_epoch = info.get("best_epoch")
+            total_epochs = info.get("total_epochs")
             best_val_loss = info.get("best_val_loss")
-            best_caption_score = info.get("best_caption_score")
             final_epoch_val_loss = info.get("final_epoch_val_loss")
             entry = {
                 "directory": name,
                 "best_epoch": best_epoch,
+                "total_epochs": total_epochs,
                 "best_val_loss": best_val_loss,
-                "best_caption_score": best_caption_score,
                 "final_epoch_val_loss": final_epoch_val_loss
             }
             if group not in mlm_info:
@@ -86,11 +86,11 @@ for name in tqdm(os.listdir(root), desc="Scanning model directories"):
         # Directory does not match any expected pattern
         continue
 
-# Helper function to compute stats
-def compute_stats(entries, include_final_epoch_val_loss=False):
-    epochs = [e["best_epoch"] for e in entries if e["best_epoch"] is not None]
-    val_loss = [e["best_val_loss"] for e in entries if e["best_val_loss"] is not None]
-    caption_scores = [e["best_caption_score"] for e in entries if e["best_caption_score"] is not None]
+# Helper function to compute stats for conditional and unconditional models
+def compute_stats(entries):
+    epochs = [e.get("best_epoch") for e in entries if e.get("best_epoch") is not None]
+    val_loss = [e.get("best_val_loss") for e in entries if e.get("best_val_loss") is not None]
+    caption_scores = [e.get("best_caption_score") for e in entries if e.get("best_caption_score") is not None]
     stats = {
         "total_models_of_this_type": len(entries),
         "epoch_avg": mean(epochs) if epochs else None,
@@ -101,10 +101,26 @@ def compute_stats(entries, include_final_epoch_val_loss=False):
         "caption_score_median": median(caption_scores) if caption_scores else None,
         "models": entries
     }
-    if include_final_epoch_val_loss:
-        final_epoch_val_loss = [e["final_epoch_val_loss"] for e in entries if e.get("final_epoch_val_loss") is not None]
-        stats["final_epoch_val_loss_avg"] = mean(final_epoch_val_loss) if final_epoch_val_loss else None
-        stats["final_epoch_val_loss_median"] = median(final_epoch_val_loss) if final_epoch_val_loss else None
+    return stats
+
+# Helper function to compute stats for MLM models
+def compute_mlm_stats(entries):
+    best_epochs = [e.get("best_epoch") for e in entries if e.get("best_epoch") is not None]
+    total_epochs = [e.get("total_epochs") for e in entries if e.get("total_epochs") is not None]
+    best_val_loss = [e.get("best_val_loss") for e in entries if e.get("best_val_loss") is not None]
+    final_epoch_val_loss = [e.get("final_epoch_val_loss") for e in entries if e.get("final_epoch_val_loss") is not None]
+    stats = {
+        "total_models_of_this_type": len(entries),
+        "best_epoch_avg": mean(best_epochs) if best_epochs else None,
+        "best_epoch_median": median(best_epochs) if best_epochs else None,
+        "total_epochs_avg": mean(total_epochs) if total_epochs else None,
+        "total_epochs_median": median(total_epochs) if total_epochs else None,
+        "best_val_loss_avg": mean(best_val_loss) if best_val_loss else None,
+        "best_val_loss_median": median(best_val_loss) if best_val_loss else None,
+        "final_epoch_val_loss_avg": mean(final_epoch_val_loss) if final_epoch_val_loss else None,
+        "final_epoch_val_loss_median": median(final_epoch_val_loss) if final_epoch_val_loss else None,
+        "models": entries
+    }
     return stats
 
 # Write conditional/unconditional stats
@@ -118,7 +134,7 @@ with open(output_cond_uncond, "w") as f:
 with open(output_mlm, "w") as f:
     for group, entries in mlm_info.items():
         group_stats = {"group": group}
-        group_stats.update(compute_stats(entries, include_final_epoch_val_loss=True))
+        group_stats.update(compute_mlm_stats(entries))
         f.write(json.dumps(group_stats) + "\n")
 
 # Write skipped directories
