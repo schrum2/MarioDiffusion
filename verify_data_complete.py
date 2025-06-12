@@ -89,7 +89,7 @@ def verify_data_completeness(model_path, type_str, fdm):
     if count != 27:
         errors.append(f"Requirement 7 failed: Expected 27 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
 
-    if fdm == False:
+    if not fdm:
         # Check unconditional samples (long)
         uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
         error = verify_json_length(uncond_long, 100)
@@ -205,7 +205,7 @@ def main():
 
             #quit()
 
-            fdm = True if "fdm" in dir_path.lower() else False
+            fdm = "fdm" in dir_path.lower()
             # Add evaluate_metrics call ?? 
             evaluate_metrics(dir_path, "Mar1and2", override=False, fdm=fdm)
             errors = verify_data_completeness(dir_path, dir_type, fdm)
@@ -240,7 +240,7 @@ def main():
             #print("last_line:", last_line)
             #quit()
 
-            fdm = True if "fdm" in model_path.lower() else False
+            fdm = "fdm" in model_path.lower()
             errors = verify_data_completeness(model_path, dir_type, fdm)
             if errors:
                 print("Verification failed. Problems found:")
@@ -268,7 +268,7 @@ def main():
             #print("last_line:", last_line)
             #quit()
 
-            fdm = True if "fdm" in model_path.lower() else False
+            fdm = "fdm" in model_path.lower()
             errors = verify_data_completeness(model_path, dir_type, fdm)
             if errors:
                 print("Verification failed. The following problems were found:")
