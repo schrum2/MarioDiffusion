@@ -1,12 +1,19 @@
 cd ..
+set run = 0
+set max_run = 5
+:loop_start
+if !run! GEQ %max_run% goto end
+
 REM Loop through all directories starting with Mar1and2-conditional and ending in 0
 for /D %%D in ("Mar1and2-conditional*0") do (
     set "DIR=%%~nxD"
-    
-    REM Call a subroutine to preserve variable expansion inside the loop
     call :processDir "%%D" "%%~nxD"
 )
-pause
+
+set /a run+=1
+goto loop_start
+
+:end
 exit /b
 
 :processDir
