@@ -14,6 +14,17 @@ def parse_args():
     parser.add_argument("--output", type=str, default="plot.pdf", help="Output plot file name (PDF recommended).")
     parser.add_argument("--plot_type", type=str, choices=["box", "violin", "bar", "scatter"], default="box", help="Type of plot to generate.")
     parser.add_argument("--group_key", type=str, default="group", help="Key to use for grouping models (default: 'group').")
+    parser.add_argument("--x_axis", type=str, required=True, help="Used for both naming the key and labeling the x-axis.")
+    parser.add_argument("--y_axis", type=str, required=True, help="Used for both naming the key and labeling the y-axis.")
+    parser.add_argument("--x_axis_label", type=str, default="", help="Label for the x-axis (default: None).")
+    parser.add_argument("--y_axis_label", type=str, default="", help="Label for the y-axis (default: None).")
+    parser.add_argument("--font_size", type=int, default=22, help="Base font size for the plot (default: 22).")
+    parser.add_argument("--labelsize", type=int, default=24, help="Font size for axes labels (default: 24).")
+    parser.add_argument("--xtick_labelsize", type=int, default=20, help="Font size for x-tick labels (default: 20).")
+    parser.add_argument("--ytick_labelsize", type=int, default=20, help="Font size for y-tick labels (default: 20).")
+    parser.add_argument("--legend_fontsize", type=int, default=20, help="Font size for legend (default: 20).")
+    parser.add_argument("--figsize", type=int, nargs=2, default=(10, 10), help="Figure size as width and height in inches (default: 10x10).")
+
     return parser.parse_args()
 
 def load_data(json_path, group_key):
@@ -73,20 +84,37 @@ def main():
     args = parse_args()
     df = load_data(args.input, args.group_key)
     df, desired_order = rename_and_order_groups(df, args.group_key)
-    df["best_epoch"] = pd.to_numeric(df["best_epoch"], errors="coerce")
-    plt.figure(figsize=(10, 10))
+
+    # Update matplotlib settings for better readability
+    plt.rcParams.update({
+        "font.size": args.font_size,         # Controls default text size
+        "axes.labelsize": args.labelsize,    # Axes label font size
+        "xtick.labelsize": args.xtick_labelsize,   # X tick label font size
+        "ytick.labelsize": args.ytick_labelsize,   # Y tick label font size
+        "legend.fontsize": args.legend_fontsize,   # Legend font size
+    })
+
+    plt.figure(figsize=args.figsize)
+
+    # Only include groups with data for the selected y_axis
+    groups_with_data = [g for g in desired_order if not df[df[args.group_key] == g][args.y_axis].dropna().empty]
+
+    # BOX PLOT
     if args.plot_type == "box":
-        data = [df[df[args.group_key] == g]["best_epoch"].dropna() for g in desired_order]
+        df[args.y_axis] = pd.to_numeric(df[args.y_axis], errors="coerce")
+        data = [df[df[args.group_key] == g][args.y_axis].dropna() for g in groups_with_data]
         plt.boxplot(data)
-        plt.xticks(ticks=range(1, len(desired_order)+1), labels=desired_order, rotation=45, ha='right')
-        plt.xlabel("Model Group")
-        plt.ylabel("Best Epoch")
+        plt.xticks(ticks=range(1, len(groups_with_data)+1), labels=groups_with_data, rotation=45, ha='right')
+        plt.xlabel(args.x_axis_label)
+        plt.ylabel(args.y_axis_label)
+    # VIOLIN PLOT
     elif args.plot_type == "violin":
-        data = [df[df[args.group_key] == g]["best_epoch"].dropna() for g in desired_order]
+        df[args.y_axis] = pd.to_numeric(df[args.y_axis], errors="coerce")
+        data = [df[df[args.group_key] == g][args.y_axis].dropna() for g in groups_with_data]
         parts = plt.violinplot(data, showmeans=True, showmedians=True)
-        plt.xticks(range(1, len(desired_order)+1), desired_order, rotation=45, ha='right')
-        plt.xlabel("Model Group")
-        plt.ylabel("Best Epoch")
+        plt.xticks(range(1, len(groups_with_data)+1), groups_with_data, rotation=45, ha='right')
+        plt.xlabel(args.x_axis_label)
+        plt.ylabel(args.y_axis_label)
         if 'cmedians' in parts:
             parts['cmedians'].set_color('red')
             parts['cmedians'].set_linewidth(1.5)
@@ -96,24 +124,27 @@ def main():
         median_line = mlines.Line2D([], [], color='red', linewidth=3, label='Median')
         mean_line = mlines.Line2D([], [], color='blue', linewidth=3, label='Mean')
         plt.legend(handles=[median_line, mean_line], loc='lower left')
+    # HORIZANTAL BAR PLOT
     elif args.plot_type == "bar":
-        grouped = df.groupby(args.group_key)["best_epoch"].mean()
-        y = range(len(desired_order))
-        plt.barh(y, grouped.reindex(desired_order), height=0.4, color="skyblue")
-        plt.yticks(y, desired_order)
-        plt.xlabel("Best Epoch")
-        plt.ylabel("Model Group")
-        for i, group in enumerate(desired_order):
-            points = df[df[args.group_key] == group]["best_epoch"].dropna()
+        df[args.x_axis] = pd.to_numeric(df[args.x_axis], errors="coerce")
+        grouped = df.groupby(args.group_key, observed=False)[args.x_axis].mean()
+        y = range(len(groups_with_data))
+        plt.barh(y, grouped.reindex(groups_with_data), height=0.4, color="skyblue")
+        plt.yticks(y, groups_with_data)
+        plt.xlabel(args.x_axis_label)
+        plt.ylabel(args.y_axis_label)
+        for i, group in enumerate(groups_with_data):
+            points = df[df[args.group_key] == group][args.x_axis].dropna()
             plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
+    # SCATTER PLOT
     elif args.plot_type == "scatter":
-        color_map = plt.get_cmap('Set2', len(desired_order))
-        for i, g in enumerate(desired_order):
+        color_map = plt.get_cmap('Set2', len(groups_with_data))
+        for i, g in enumerate(groups_with_data):
             subset = df[df[args.group_key] == g]
-            if "best_caption_score" in subset.columns:
-                plt.scatter(subset["best_epoch"], subset["best_caption_score"], label=g, s=80, color=color_map(i))
-        plt.xlabel("Best Epoch")
-        plt.ylabel("Best Caption Score")
+            if args.y_axis in subset.columns:
+                plt.scatter(subset[args.x_axis], subset[args.y_axis], label=g, s=80, color=color_map(i))
+        plt.xlabel(args.x_axis_label)
+        plt.ylabel(args.y_axis_label)
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
     plt.savefig(args.output)
