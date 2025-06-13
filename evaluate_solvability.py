@@ -50,18 +50,12 @@ if __name__ == "__main__":
         unconditional_json = os.path.join(unconditional_dir, "all_levels.json")
         json_jobs.append({"path": unconditional_json, "label": f"unconditional-{suffix}"})
 
-    # # If conditional, add the two conditional JSONs in the model directory
-    # if is_conditional:
-    #     for real_or_rand in ["random", "real"]:
-    #         cond_dir = os.path.join(model_path, f"samples-from-{real_or_rand}-{data}-captions")
-    #         cond_json = os.path.join(cond_dir, "all_levels.json")
-    #         json_jobs.append({"path": cond_json, "label": f"conditional-{real_or_rand}"})
-
-# TEMPORARY!! ONLY the random captions JSON in the model directory
-if is_conditional:
-    cond_dir = os.path.join(model_path, f"samples-from-random-{data}-captions")
-    cond_json = os.path.join(cond_dir, "all_levels.json")
-    json_jobs.append({"path": cond_json, "label": "conditional-random"})
+    # If conditional, add the two conditional JSONs in the model directory
+    if is_conditional:
+        for real_or_rand in ["random", "real"]:
+            cond_dir = os.path.join(model_path, f"samples-from-{real_or_rand}-{data}-captions")
+            cond_json = os.path.join(cond_dir, "all_levels.json")
+            json_jobs.append({"path": cond_json, "label": f"conditional-{real_or_rand}"})
 
     # Process each JSON
     for job in json_jobs:
@@ -71,6 +65,13 @@ if is_conditional:
             raise RuntimeError(f"JSON file not found: {label} JSON not found at {json_path}. Please check the path and try again.")
 
         scene_caption_data = load_scene_caption_data(json_path)
+
+        sample_limit = 100 # TODO: Make 100 a parameter: how much to limit the output
+        if len(scene_caption_data) > sample_limit: 
+            increment = len(scene_caption_data) // (sample_limit + 1)
+            scene_caption_data = [scene_caption_data[(i+1)*increment] for i in range(sample_limit)]
+            if len(scene_caption_data) != sample_limit:
+                raise RuntimeError(f"Sample limit mismatch: Expected {sample_limit} samples, got {len(scene_caption_data)} after sampling.")
 
         try:
             results, overall_averages = astar_metrics(
