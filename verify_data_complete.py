@@ -255,6 +255,16 @@ def main():
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
 
+            # Can put check for caption order tolerance here
+            has_caption_order_tolerance, file = detect_caption_order_tolerance(dir_path)
+            #print("dir_path:", dir_path)
+            #print("has_caption_order_tolerance:", has_caption_order_tolerance)
+            if has_caption_order_tolerance:
+                last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
+                print("A caption_order_tolerance.jsonl is in this directory")
+            #print("last_line:", last_line)
+
+
             # Add evaluate_metrics call ?? 
             evaluate_metrics(dir_path, "Mar1and2", override=False)
             errors = verify_data_completeness(dir_path, dir_type)
@@ -282,6 +292,16 @@ def main():
             print(f"\nChecking model directory: {model_path}")
             dir_type = "absence" if "absence" in model_path.lower() else "regular"
 
+            # Can put check for caption order tolerance here
+            has_caption_order_tolerance, file = detect_caption_order_tolerance(model_path)
+           #print("model_path:", model_path)
+            #print("has_caption_order_tolerance:", has_caption_order_tolerance)
+            if has_caption_order_tolerance:
+                last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
+                print("A caption_order_tolerance.jsonl is in this directory")
+            #print("last_line:", last_line)
+            #quit()
+
             fdm = "fdm" in model_path.lower()
             errors = verify_data_completeness(model_path, dir_type)
             if errors:
@@ -300,6 +320,16 @@ def main():
             model_path = f"{args.prefix}{i}"
             print(f"\nChecking model directory: {model_path}")
             dir_type = "absence" if "absence" in model_path.lower() else "regular"
+
+            # Can put check for caption order tolerance here
+            has_caption_order_tolerance, file = detect_caption_order_tolerance(model_path)
+            #print("model_path:", model_path)
+            #print("has_caption_order_tolerance:", has_caption_order_tolerance)
+            if has_caption_order_tolerance:
+                last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
+                print("A caption_order_tolerance.jsonl is in this directory")
+            #print("last_line:", last_line)
+            #quit()
 
             fdm = "fdm" in model_path.lower()
             errors = verify_data_completeness(model_path, dir_type)

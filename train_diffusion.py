@@ -97,7 +97,7 @@ def parse_args():
     
     # Training args
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
-    parser.add_argument("--num_epochs", type=int, default=1000, help="Number of training epochs")
+    parser.add_argument("--num_epochs", type=int, default=500, help="Number of training epochs")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps")
     parser.add_argument("--lr_warmup_percentage", type=float, default=0.05, help="Learning rate warmup portion") 
     parser.add_argument("--lr_scheduler_cycles", type=float, default=0.5, help="Number of cycles for the cosine learning rate scheduler")
