@@ -50,12 +50,18 @@ if __name__ == "__main__":
         unconditional_json = os.path.join(unconditional_dir, "all_levels.json")
         json_jobs.append({"path": unconditional_json, "label": f"unconditional-{suffix}"})
 
-    # If conditional, add the two conditional JSONs in the model directory
-    if is_conditional:
-        for real_or_rand in ["random", "real"]:
-            cond_dir = os.path.join(model_path, f"samples-from-{real_or_rand}-{data}-captions")
-            cond_json = os.path.join(cond_dir, "all_levels.json")
-            json_jobs.append({"path": cond_json, "label": f"conditional-{real_or_rand}"})
+    # # If conditional, add the two conditional JSONs in the model directory
+    # if is_conditional:
+    #     for real_or_rand in ["random", "real"]:
+    #         cond_dir = os.path.join(model_path, f"samples-from-{real_or_rand}-{data}-captions")
+    #         cond_json = os.path.join(cond_dir, "all_levels.json")
+    #         json_jobs.append({"path": cond_json, "label": f"conditional-{real_or_rand}"})
+
+# TEMPORARY!! ONLY the random captions JSON in the model directory
+if is_conditional:
+    cond_dir = os.path.join(model_path, f"samples-from-random-{data}-captions")
+    cond_json = os.path.join(cond_dir, "all_levels.json")
+    json_jobs.append({"path": cond_json, "label": "conditional-random"})
 
     # Process each JSON
     for job in json_jobs:
