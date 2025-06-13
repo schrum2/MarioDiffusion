@@ -95,14 +95,12 @@ def creation_of_parameters(caption, max_permutations):
         perm_captions = ['.'.join(perm) + '.' for perms in permutations for perm in perms]
     elif isinstance(caption, str):
         # Split caption into phrases and get all permutations
-        phrase = [p.strip() for p in caption.split('.') if p.strip()]
+        phrases = [p.strip() for p in caption.split('.') if p.strip()]
+        #print("phrase: ", phrases)
         permutations_cap = []
-        perms = list(itertools.permutations(phrase))
-        if len(perms) > max_permutations:
-            perms = random.sample(perms, max_permutations)
-        permutations_cap.append(perms)
+        perms = get_random_permutations(phrases, max_permutations)
 
-        perm_captions = ['.'.join(perm) + '.' for perms in permutations_cap for perm in perms]
+        perm_captions = ['.'.join(perm) + '.' for perm in perms]
 
      # Create a list of dicts as expected by LevelDataset
     caption_data = [{"scene": None, "caption": cap} for cap in perm_captions]
@@ -162,6 +160,37 @@ def statistics_of_captions(captions, dataloader, compare_all_scores, count, pipe
 
     return compare_all_scores, avg_score, std_dev_score, min_score, max_score, median_score
 
+
+def get_random_permutations(phrases, max_permutations):
+    seen = set()
+    results = []
+    attempts = 0
+    max_attempts = max_permutations * 10  # avoid infinite loop in small cases
+
+    while len(results) < max_permutations and attempts < max_attempts:
+        perm = tuple(random.sample(phrases, len(phrases)))  # random permutation
+        if perm not in seen:
+            seen.add(perm)
+            results.append(perm)
+        attempts += 1
+
+    return results
+
+# def get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores):
+#     if file is None:
+#         return all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores
+#     with open(output_jsonl_path, "r") as f:
+#         for line in f:
+#             data = json.loads(line)
+
+#             # Append values to each list
+#             all_avg_scores.append(data.get("Average score for all permutations", 0))
+#             all_std_dev_scores.append(data.get("Standard deviation", 0))
+#             all_min_scores.append(data.get("Minimum score", 0))
+#             all_max_scores.append(data.get("Maximum score", 0))
+#             all_median_scores.append(data.get("Median score", 0))
+
+
 def main():
     args = parse_args()
     if args.caption is None or args.caption == "":
@@ -219,6 +248,7 @@ def main():
     file_name = json_name + '_caption_order_tolerance.jsonl'
     #os.makedirs(folder_name,  exist_ok=True)
     output_jsonl_path = os.path.join(args.model_path, file_name)
+    #all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores = get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores)
     with open(output_jsonl_path, letter) as f:
         while(count <= len(all_captions)):
         #for cap in all_captions:
@@ -266,11 +296,12 @@ def main():
         all_min_score = np.min(all_min_scores)
         all_max_score = np.max(all_max_scores)
         all_median_score = np.median(all_median_scores)
+        num_captions = len(all_scores)
         results = {
 
                 "Scores of all captions": {
                 "Scores": all_scores,
-                    "Number of captions": len(all_scores),
+                    "Number of captions": num_captions,
                     "Average of average permutations": all_avg_score,
                     "Average of all permutations": np.mean(just_all_scores),
                     "Standard deviation of all permutations": all_std_dev_score,
