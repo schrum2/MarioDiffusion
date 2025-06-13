@@ -239,10 +239,16 @@ def main():
     parser.add_argument("--prefix", type=str, help="Prefix of the model directory paths")
     parser.add_argument("--start_num", type=int, help="Starting number for model directory range")
     parser.add_argument("--end_num", type=int, help="Ending number for model directory range (inclusive)")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     
     args = parser.parse_args()
+    
+    # Run default case if all other args are None and debug is either True or False
+    arg_values = vars(args)
+    non_debug_values = [v for k, v in arg_values.items() if k != "debug"]
 
-    if not any(vars(args).values()):
+    
+    if all(v is None for v in non_debug_values):
         # Case 1: Automatic discovery mode
         print("Running in automatic directory discovery mode...")
         print("Looking for directories that end in a number...")
@@ -255,18 +261,12 @@ def main():
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
 
-            # Can put check for caption order tolerance here
             has_caption_order_tolerance, file = detect_caption_order_tolerance(dir_path)
-            #print("dir_path:", dir_path)
-            #print("has_caption_order_tolerance:", has_caption_order_tolerance)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
                 print("A caption_order_tolerance.jsonl is in this directory")
-            #print("last_line:", last_line)
 
-
-            # Add evaluate_metrics call ?? 
-            evaluate_metrics(dir_path, "Mar1and2", override=False)
+            evaluate_metrics(dir_path, "Mar1and2", override=False, debug=args.debug)
             errors = verify_data_completeness(dir_path, dir_type)
             if errors:
                 print("Verification failed. Problems found:")
