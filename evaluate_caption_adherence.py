@@ -4,12 +4,16 @@ import torch
 from torch.utils.data import DataLoader
 import random
 import numpy as np
+from datetime import datetime
 from level_dataset import LevelDataset, visualize_samples
 import json
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.fdm_pipeline import FDMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
-from create_ascii_captions import assign_caption, save_level_data, extract_tileset
+from create_ascii_captions import assign_caption, save_level_data
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from LR_create_ascii_captions import save_level_data as lr_save_level_data
+from captions.util import extract_tileset 
 from captions.caption_match import compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
@@ -29,6 +33,7 @@ def parse_args():
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps") # Large reduction from the 500 used during training
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
+    parser.add_argument("--resume", action="store_true", help="Resume an interrupted checkpoint comparison run")
 
     # Used to generate captions when generating images
     parser.add_argument("--tileset", default='..\\TheVGLC\\Super Mario Bros\\smb.json', help="Descriptions of individual tile types")
@@ -49,6 +54,20 @@ def main():
     args = parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
+
+    # Based on the number of tiles, decides which game to run
+    if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Super Mario Bros\\smb.json'
+            height = common_settings.MARIO_HEIGHT
+            width = common_settings.MARIO_WIDTH
+            path_to_json = args.json
+    elif args.num_tiles == common_settings.LR_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+            height = common_settings.LR_HEIGHT
+            width = common_settings.LR_WIDTH
+            path_to_json = "datasets\LR_LevelsAndCaptions-regular.json"
+
+
     if not args.compare_checkpoints:
         args.output_dir = os.path.join(args.model_path, args.output_dir)
         # Check if output directory already exists
@@ -58,7 +77,7 @@ def main():
         # Create output directory
         os.makedirs(args.output_dir)
 
-    _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+    _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset)
         
     # Set seeds for reproducibility
     random.seed(args.seed)
@@ -81,7 +100,7 @@ def main():
 
     # Initialize dataset
     dataset = LevelDataset(
-        json_path=args.json,
+        json_path=path_to_json,
         tokenizer=None,
         shuffle=False,
         mode="text",
@@ -103,7 +122,7 @@ def main():
 
     else:
         # Just run on one model and get samples as well
-        avg_score, all_samples, all_prompts = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=args.height, width=args.width)
+        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
@@ -113,10 +132,25 @@ def main():
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
-            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
+            if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+                save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
+            elif args.num_tiles == common_settings.LR_TILE_COUNT:
+                tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+                lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True):
+
+    if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Super Mario Bros\\smb.json'
+            height = common_settings.MARIO_HEIGHT
+            width = common_settings.MARIO_WIDTH
+            path_to_json = args.json
+    elif args.num_tiles == common_settings.LR_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+            height = common_settings.LR_HEIGHT
+            width = common_settings.LR_WIDTH
+            path_to_json = "datasets\LR_LevelsAndCaptions-regular.json"
 
     checkpoint_dirs = [
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))
@@ -128,16 +162,30 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         checkpoint_dirs.append((checkpoint_dirs[-1][0] + 1, args.model_path))
 
     # Prepare output paths
-    scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_scores_by_epoch.jsonl")
-    plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_caption_scores_plot.png")
+    scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_scores_by_epoch.jsonl")
+    plot_png_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_caption_scores_plot.png")
 
-    # Check if output files already exist
+    # Handle file existence based on resume flag
+    completed_epochs = set()
     if os.path.exists(scores_jsonl_path):
-        print(f"Error: Output file '{scores_jsonl_path}' already exists. Please remove it or move it elsewhere.")
-        exit(1)
-    if os.path.exists(plot_png_path):
-        print(f"Error: Output file '{plot_png_path}' already exists. Please remove it or move it elsewhere.")
-        exit(1)
+        if args.resume:
+            # Create backup files with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            if os.path.exists(scores_jsonl_path):
+                backup_jsonl = scores_jsonl_path.replace('.jsonl', f'_backup_{timestamp}.jsonl')
+                os.rename(scores_jsonl_path, backup_jsonl)
+                # Copy content back to original file
+                with open(backup_jsonl, 'r') as src, open(scores_jsonl_path, 'w') as dst:
+                    for line in src:
+                        entry = json.loads(line)
+                        completed_epochs.add(entry['epoch'])
+                        dst.write(line)
+            if os.path.exists(plot_png_path):
+                backup_png = plot_png_path.replace('.png', f'_backup_{timestamp}.png')
+                os.rename(plot_png_path, backup_png)
+        else:
+            print(f"Error: Output files already exist. Use --resume to continue from previous run.")
+            exit(1)
 
     # Initialize Plotter
     plotter = Plotter(
@@ -156,10 +204,13 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     plot_thread.daemon = True
     plotter.running = True
     plot_thread.start()
-
     scores_by_epoch = []
     with open(scores_jsonl_path, "a") as f:
         for epoch, checkpoint_dir in tqdm(checkpoint_dirs, desc="Evaluating Checkpoints"):
+            if epoch in completed_epochs:
+                print(f"Skipping already evaluated checkpoint: {checkpoint_dir}")
+                continue
+                
             print(f"Evaluating checkpoint: {checkpoint_dir}")
             if using_unet_pipe:
                 pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
@@ -167,8 +218,8 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
                 pipe = FDMPipeline.from_pretrained(checkpoint_dir).to(device)
 
 
-            avg_score, _, _ = calculate_caption_score_and_samples(
-                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=args.width, height=args.height
+            avg_score, _, _, _ = calculate_caption_score_and_samples(
+                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height
             )
 
             print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
@@ -186,7 +237,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True):
     
     #With persistent_workers being set to true at creation, the dataset mode cannot be changed
     #without creating a new dataset, because all of the workers present are working with the old
@@ -244,7 +295,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
             generator = torch.Generator(device).manual_seed(int(random_seed))
             # Generate a batch of samples at once
             samples = pipe(generator=generator, **param_values).images  # (batch_size, ...)
-
+            #print("samples.shape", samples.shape)
             for i in range(len(samples)):
                 if dataloader.dataset.negative_captions:
                     caption = positive_captions[i]
@@ -254,9 +305,15 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 all_prompts.append(caption)
 
                 sample = samples[i].unsqueeze(0)
+                #print("sample.shape", sample.shape)
                 sample_indices = convert_to_level_format(sample)
+                #print("first sample_indices", sample_indices[0])
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
-                actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
+                #quit()
+                if height == common_settings.LR_HEIGHT:
+                    actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
+                elif height == common_settings.MARIO_HEIGHT:
+                    actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
 
                 if output: print(f"\t{caption}")
 
@@ -281,7 +338,9 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
     dataloader.dataset.mode=original_mode
 
-    return (avg_score, all_samples, all_prompts) # , compare_all_scores) # Adding this return value broke code in MANY places. Cannot do this unless you make sure that all calls to this function expect 4 values
+    return (avg_score, all_samples, all_prompts, compare_all_scores) 
+    # Adding this return value broke code in MANY places. Cannot do this unless you make sure that all calls to this function expect 4 values
+    # Found all references of this method and made them all return 4 values
 
 if __name__ == "__main__":
     main()

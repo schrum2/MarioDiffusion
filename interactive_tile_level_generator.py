@@ -84,6 +84,7 @@ class CaptionBuilder(ParentBuilder):
         self.width_label.pack()
         self.width_entry = ttk.Entry(self.caption_frame)
         self.width_entry.pack()
+        #self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
         self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
                 
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
@@ -308,9 +309,11 @@ class CaptionBuilder(ParentBuilder):
 
             sample_tensor = images[0].unsqueeze(0)
             sample_indices = convert_to_level_format(sample_tensor)
+            #print("images:", images)
             scene = sample_indices[0].tolist()
             self.generated_scenes.append(scene)
             #selected_game = self.game_var.get()
+            #actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
            
             pil_img = visualize_samples(images)
@@ -378,6 +381,19 @@ class CaptionBuilder(ParentBuilder):
                     describe_locations=False,
                     describe_absence=False
                 )
+
+            # if len(scene[0]) > common_settings.LR_WIDTH:
+            #     from captions.caption_match import process_scene_segments
+            #     avg_segment_score, _, _ = process_scene_segments(
+            #         scene=scene,
+            #         segment_width=common_settings.LR_WIDTH,
+            #         prompt=prompt,
+            #         id_to_char=self.id_to_char,
+            #         char_to_id=self.char_to_id,
+            #         tile_descriptors=self.tile_descriptors,
+            #         describe_locations=False,
+            #         describe_absence=False
+            #     )
 
             # Update the score label text
             if avg_segment_score is not None:
@@ -561,12 +577,12 @@ Average Segment Score: {avg_segment_score}"""
         if isinstance(idx_or_scene, int):
             tensor = torch.tensor(self.current_levels[idx_or_scene])
             tile_numbers = torch.argmax(tensor, dim=0).numpy()
-            char_grid = scene_to_ascii(tile_numbers, self.id_to_char, False)
+            char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
             # Assume idx_or_scene is a scene (list of lists of tile indices)
-            char_grid = scene_to_ascii(idx_or_scene, self.id_to_char, False)
+            char_grid = scene_to_ascii(idx_or_scene, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
       

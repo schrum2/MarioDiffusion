@@ -16,6 +16,21 @@ def get_files_to_delete(directory):
     for file in glob.iglob(desktop_pattern, recursive=True):
         yield file
 
+    # Find early_stop_state.json files
+    early_stop_pattern = os.path.join(directory, '**', 'early_stop_state.json')
+    for file in glob.iglob(early_stop_pattern, recursive=True):
+        yield file
+
+    # Find lr_scheduler.pt files
+    lr_scheduler_pattern = os.path.join(directory, '**', 'lr_scheduler.pt')
+    for file in glob.iglob(lr_scheduler_pattern, recursive=True):
+        yield file
+
+    # Find optimizer.pt files
+    optimizer_pattern = os.path.join(directory, '**', 'optimizer.pt')
+    for file in glob.iglob(optimizer_pattern, recursive=True):
+        yield file
+
 def delete_file(file_path, permanent=False):
     """Delete a file, either permanently or to recycle bin"""
     try:

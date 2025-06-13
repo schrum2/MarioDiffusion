@@ -2,7 +2,9 @@ import argparse
 from level_dataset import LevelDataset
 import json
 from captions.caption_generator import GrammarGenerator
+from captions.LR_caption_generator import GrammarGenerator as LR_GrammarGenerator
 from captions.caption_match import compare_captions
+from captions.LR_caption_match import compare_captions as lr_compare_captions
 import util.common_settings as common_settings
 
 def parse_args():
@@ -21,11 +23,35 @@ def parse_args():
 
     # Remove upside down pipes from the caption generator
     parser.add_argument("--no_upside_down_pipes", action="store_true", default=False, help="Exclude captions mentioning upside down pipes")
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
     
     return parser.parse_args()
 
 def main():
     args = parse_args()
+
+    if args.game == "Mario":
+        args.num_tiles = common_settings.MARIO_TILE_COUNT
+        args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+        generator = GrammarGenerator(
+            seed = args.seed, 
+            describe_absence=args.describe_absence,
+            no_upside_down_pipes=args.no_upside_down_pipes
+        )
+    elif args.game == "LR":
+        args.num_tiles = common_settings.LR_TILE_COUNT
+        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' 
+        generator = LR_GrammarGenerator(
+            seed = args.seed, 
+            describe_absence=args.describe_absence,
+            no_upside_down_pipes=args.no_upside_down_pipes
+        )
 
     # Initialize dataset
     dataset = LevelDataset(
@@ -37,19 +63,16 @@ def main():
         num_tiles=args.num_tiles
     )
 
-    generator = GrammarGenerator(
-        seed = args.seed, 
-        describe_absence=args.describe_absence,
-        no_upside_down_pipes=args.no_upside_down_pipes
-        )
-
     validation_captions = []
     while len(validation_captions) < args.validation_set_size:
         new_caption = generator.generate_sentence()
         caption_is_new = True
         # Compare against every caption of original dataset
         for caption in dataset:
-            compare_score = compare_captions(caption, new_caption)
+            if args.game == "Mario": 
+                compare_score = compare_captions(caption, new_caption)
+            elif args.game == "LR":
+                compare_score = lr_compare_captions(caption, new_caption)
             caption_is_new = compare_score != 1.0 # Perfect score of 1.0 if captions are the same
             if not caption_is_new:
                 break
