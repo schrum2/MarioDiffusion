@@ -180,7 +180,7 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
         # Match rules
         is_conditional_with_number = "-conditional-" in item and item[-1].isdigit()
         contains_fdm = "fdm" in item
-        contains_unconditional_number = re.search(r"unconditional\d+", item)
+        contains_unconditional_number = re.search(r"unconditional\d+-.*samples", item)
         contains_wgan_number_samples = re.search(r"wgan\d+-samples", item)
 
         if not (is_conditional_with_number or contains_fdm or contains_unconditional_number or contains_wgan_number_samples):
@@ -294,7 +294,7 @@ def main():
             #quit()
 
             fdm = "fdm" in model_path.lower()
-            errors = verify_data_completeness(model_path, dir_type, fdm)
+            errors = verify_data_completeness(model_path, dir_type)
             if errors:
                 print("Verification failed. Problems found:")
                 for error in errors:
@@ -322,7 +322,7 @@ def main():
             #quit()
 
             fdm = "fdm" in model_path.lower()
-            errors = verify_data_completeness(model_path, dir_type, fdm)
+            errors = verify_data_completeness(model_path, dir_type)
             if errors:
                 print("Verification failed. The following problems were found:")
                 for error in errors:
