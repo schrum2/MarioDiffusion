@@ -2,31 +2,32 @@ import json
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.rcParams['pdf.fonttype'] = 42  # Embed TrueType fonts in PDF
-matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.lines as mlines
-import os
 import argparse
+
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Visualize model statistics with customizable plots.")
     parser.add_argument("--input", type=str, required=True, help="Path to input JSONL file.")
     parser.add_argument("--output", type=str, default="plot.pdf", help="Output plot file name (PDF recommended).")
     parser.add_argument("--plot_type", type=str, choices=["box", "violin", "bar", "scatter"], default="box", help="Type of plot to generate.")
+    parser.add_argument("--group_key", type=str, default="group", help="Key to use for grouping models (default: 'group').")
     return parser.parse_args()
 
-def load_data(json_path):
+def load_data(json_path, group_key):
     records = []
     with open(json_path, "r") as f:
         for line in f:
             group_stats = json.loads(line)
-            group = group_stats["group"]
+            group = group_stats[group_key]
             for model in group_stats["models"]:
-                model["group"] = group
+                model[group_key] = group
                 records.append(model)
     return pd.DataFrame(records)
 
-def rename_and_order_groups(df):
+def rename_and_order_groups(df, group_key):
     group_name_map = {
         "Mar1and2-conditional-regular": "MLM-regular",
         "Mar1and2-conditional-absence": "MLM-absence",
@@ -63,37 +64,25 @@ def rename_and_order_groups(df):
         "GTE-multiple-negative",
         "Unconditional"
     ]
-    df["group"] = df["group"].replace(group_name_map)
-    df["group"] = pd.Categorical(df["group"], categories=desired_order, ordered=True)
-    df = df.sort_values("group")
+    df[group_key] = df[group_key].replace(group_name_map)
+    df[group_key] = pd.Categorical(df[group_key], categories=desired_order, ordered=True)
+    df = df.sort_values(group_key)
     return df, desired_order
 
 def main():
     args = parse_args()
-    df = load_data(args.input)
-    df, desired_order = rename_and_order_groups(df)
+    df = load_data(args.input, args.group_key)
+    df, desired_order = rename_and_order_groups(df, args.group_key)
     df["best_epoch"] = pd.to_numeric(df["best_epoch"], errors="coerce")
-
-    # Update matplotlib settings for better readability
-    plt.rcParams.update({
-        "font.size": 22,         # Controls default text size
-        "axes.titlesize": 24,    # Axes title font size
-        "axes.labelsize": 24,    # Axes label font size
-        "xtick.labelsize": 20,   # X tick label font size
-        "ytick.labelsize": 20,   # Y tick label font size
-        "legend.fontsize": 20,   # Legend font size
-        "figure.titlesize": 26   # Figure title font size (if used)
-    })
-
     plt.figure(figsize=(10, 10))
     if args.plot_type == "box":
-        data = [df[df["group"] == g]["best_epoch"].dropna() for g in desired_order]
+        data = [df[df[args.group_key] == g]["best_epoch"].dropna() for g in desired_order]
         plt.boxplot(data)
         plt.xticks(ticks=range(1, len(desired_order)+1), labels=desired_order, rotation=45, ha='right')
         plt.xlabel("Model Group")
         plt.ylabel("Best Epoch")
     elif args.plot_type == "violin":
-        data = [df[df["group"] == g]["best_epoch"].dropna() for g in desired_order]
+        data = [df[df[args.group_key] == g]["best_epoch"].dropna() for g in desired_order]
         parts = plt.violinplot(data, showmeans=True, showmedians=True)
         plt.xticks(range(1, len(desired_order)+1), desired_order, rotation=45, ha='right')
         plt.xlabel("Model Group")
@@ -108,19 +97,19 @@ def main():
         mean_line = mlines.Line2D([], [], color='blue', linewidth=3, label='Mean')
         plt.legend(handles=[median_line, mean_line], loc='lower left')
     elif args.plot_type == "bar":
-        grouped = df.groupby("group")["best_epoch"].mean()
+        grouped = df.groupby(args.group_key)["best_epoch"].mean()
         y = range(len(desired_order))
         plt.barh(y, grouped.reindex(desired_order), height=0.4, color="skyblue")
         plt.yticks(y, desired_order)
         plt.xlabel("Best Epoch")
         plt.ylabel("Model Group")
         for i, group in enumerate(desired_order):
-            points = df[df["group"] == group]["best_epoch"].dropna()
+            points = df[df[args.group_key] == group]["best_epoch"].dropna()
             plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
     elif args.plot_type == "scatter":
         color_map = plt.get_cmap('Set2', len(desired_order))
         for i, g in enumerate(desired_order):
-            subset = df[df["group"] == g]
+            subset = df[df[args.group_key] == g]
             if "best_caption_score" in subset.columns:
                 plt.scatter(subset["best_epoch"], subset["best_caption_score"], label=g, s=80, color=color_map(i))
         plt.xlabel("Best Epoch")
@@ -133,7 +122,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 # # Path to your JSONL results
 # jsonl_path = r"C:\Users\haganb\Documents\GitHub\MarioDiffusion\best_model_statistics.jsonl"
