@@ -58,6 +58,9 @@ def main():
     for prefix, dirs in grouped.items():
         for mode in modes:
             for d in dirs:
+                # Modify to correct model path for fdm (and later for wgan)
+                if "fdm" in d:
+                    d = os.path.join(d, "final-model")
                 metrics_path = get_metrics_path(d, mode)
                 if not os.path.exists(metrics_path):
                     print(f"[SKIP] Missing: {metrics_path}")
@@ -114,6 +117,9 @@ def main():
         'legend.title_fontsize': 14,
         'figure.titlesize': 18
     })
+    
+    # ✅ Embed TrueType fonts in the PDF
+    plt.rcParams['pdf.fonttype'] = 42
 
     plt.figure(figsize=(8, 8))
 

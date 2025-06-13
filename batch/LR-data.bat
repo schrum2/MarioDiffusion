@@ -24,5 +24,5 @@ python create_random_test_captions.py --save_file "datasets\\LR_RandomTest-regul
 python create_random_test_captions.py --save_file "datasets\\LR_RandomTest-absence.json" --json %default_out%-absence.json --seed 0 --describe_absence --game LR
 
 :: Split output files into train/val/test sets
-python split_data.py --json %default_out%-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42
-python split_data.py --json %default_out%-absence.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42
+python split_data.py --json %default_out%-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game loderunner
+python split_data.py --json %default_out%-absence.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game loderunner
