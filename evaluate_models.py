@@ -59,8 +59,7 @@ def main():
         for mode in modes:
             for d in dirs:
                 # Modify to correct model path for fdm (and later for wgan)
-                if "fdm" in d:
-                    d = os.path.join(d, "final-model")
+
                 metrics_path = get_metrics_path(d, mode)
                 if not os.path.exists(metrics_path):
                     print(f"[SKIP] Missing: {metrics_path}")
@@ -83,7 +82,7 @@ def main():
     clean_labels, removed_prefix = strip_common_prefix(model_names)
     print(f"Removed common prefix: '{removed_prefix}'")
 
-    # Step 2: Renaming logic
+    # Step 2: Renaming logic, REPLACE WITH UTIL SCRIPT THAT HAS NAMING CONVENTIONS
     def rename_model_label(label):
         if label in {"regular", "absence", "negative"}:
             return f"MLM-{label}"

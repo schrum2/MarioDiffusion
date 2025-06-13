@@ -109,17 +109,18 @@ def evaluate_metrics(model_path, game, override):
         model_path (str): Path to the model directory.
         game (str): Game prefix name for accessing datasets
     """
+    # Determine the model type from naming convention
     fdm = "fdm" in model_path.lower()
     wgan = "wgan" in model_path.lower()
     unconditional_short = "unconditional-samples-short" in model_path.lower()
     unconditional_long = "unconditional-samples-long" in model_path.lower()
+    conditional = "-conditional-" in model_path.lower()
     
     if not os.path.exists(model_path):
         print(f"Error: Path does not exist - {model_path}")
         return
     
-    if fdm: # we only have samples from real and random captions for fdm
-        model_path = os.path.join(model_path, "final-model")
+    if fdm: 
         paths = {
             "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
             "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json")
@@ -136,7 +137,7 @@ def evaluate_metrics(model_path, game, override):
         paths = {
             "long": os.path.join(model_path, "all_levels.json")
         }
-    else: # Define paths for the four expected all_levels.json files
+    elif conditional: # Define paths for the four expected all_levels.json files for a conditional model
         paths = {
             "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
             "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json"),
@@ -164,9 +165,9 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the model output directory containing all_levels.json or its subdirectories.")
     parser.add_argument("--game", type=str, default="Mar1and2", help="Game prefix for which to evaluate levels.")
     parser.add_argument("--override", action="store_true", help="Override all previously existing evaluation_metrics.json files and re-run calculations")
-    parser.add_argument("--fdm", action="store_true", help="Indicates fdm directory")
-    parser.add_argument("--wgan", action="store_true")
-    parser.add_argument("--unconditional", action="store_true")
+    # parser.add_argument("--fdm", action="store_true", help="Indicates fdm directory")
+    # parser.add_argument("--wgan", action="store_true")
+    # parser.add_argument("--unconditional", action="store_true")
     return parser.parse_args()
 
 
