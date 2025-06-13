@@ -12,7 +12,7 @@ from util.metrics import (
 from captions.caption_match import TOPIC_KEYWORDS
 
 
-def evaluate_all_levels(json_file_path, output_file, game, key):
+def evaluate_all_levels(json_file_path, output_file, game, key, debug):
     """
     Evaluate metrics for a single `all_levels.json` file and save results.
 
@@ -25,13 +25,13 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
     try:
         # Check if evaluation_metrics.json already exists in the same directory
         if os.path.exists(output_file):
-            print(f"Skipping {key}: '{output_file}' already exists.")
+            if debug: print(f"Skipping {key}: '{output_file}' already exists.")
             return
         
         # Load the generated dataset from the path
         with open(json_file_path, "r") as f:
             data = json.load(f)
-        print(f"Successfully loaded data from {json_file_path}")
+        if debug: print(f"Successfully loaded data from {json_file_path}")
 
         # Strip the prompts, scenes, and generated captions from the current all_levels.json
         prompts = [entry["prompt"] for entry in data if "prompt" in entry]
@@ -61,7 +61,7 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
  
         # If prompts was created, meaning that we can do analysis between prompts and captions
         if prompts is not None and (key != "short" and key != "long" and key != "only"):
-            print("Calculating phrase metrics...")
+            if debug: print("Calculating phrase metrics...")
 
             phrase_metrics = {}
             for keyword in TOPIC_KEYWORDS:
@@ -81,7 +81,7 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
 
             metrics["perfect_match_metrics"] = match_metrics
         else: 
-            print(f"Phrase targeting is not performed for {json_file_path} as it is not generated with prompts.")
+            if debug: print(f"Phrase targeting is not performed for {json_file_path} as it is not generated with prompts.")
         
         # # adding phrase metrics
         # phrase_metrics = calculate_phrase_metrics(list(zip(prompts, captions)), target_phrase="pipe",strict=True)
@@ -101,7 +101,7 @@ def evaluate_all_levels(json_file_path, output_file, game, key):
         print(f"An unexpected error occurred: {e}")
 
 
-def evaluate_metrics(model_path, game, override):
+def evaluate_metrics(model_path, game, override, debug):
     """
     Evaluate metrics for the given model path.
 
@@ -121,23 +121,28 @@ def evaluate_metrics(model_path, game, override):
         return
     
     if fdm: 
+        if debug: print("Fdm model detected")
         paths = {
             "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
             "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json")
         }
     elif wgan:
+        if debug: print("Wgan model detected")
         paths = {
-            "only": os.path.join(model_path, "all_levels.json")
+            "short": os.path.join(model_path, "all_levels.json")
         }
     elif unconditional_short:
+        if debug: print("Unconditional model (short samples) detected")
         paths = {
             "short": os.path.join(model_path, "all_levels.json")
         }
     elif unconditional_long:
+        if debug: print("Unconditional model (long samples) detected")
         paths = {
             "long": os.path.join(model_path, "all_levels.json")
         }
     elif conditional: # Define paths for the four expected all_levels.json files for a conditional model
+        if debug: print("Conditional model detected")
         paths = {
             "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
             "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json"),
@@ -153,8 +158,8 @@ def evaluate_metrics(model_path, game, override):
                 print(f"Override enabled: deleting existing {output_file}")
                 os.remove(output_file)
 
-            print(f"Processing {key} metrics...")
-            evaluate_all_levels(json_path, output_file, game, key)
+            if debug: print(f"Processing {key} metrics...")
+            evaluate_all_levels(json_path, output_file, game, key, debug)
         else:
             print(f"Warning: {key} file not found at {json_path}")
         
@@ -165,6 +170,7 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the model output directory containing all_levels.json or its subdirectories.")
     parser.add_argument("--game", type=str, default="Mar1and2", help="Game prefix for which to evaluate levels.")
     parser.add_argument("--override", action="store_true", help="Override all previously existing evaluation_metrics.json files and re-run calculations")
+    parser.add_argument("--debug", action="store_true")
     # parser.add_argument("--fdm", action="store_true", help="Indicates fdm directory")
     # parser.add_argument("--wgan", action="store_true")
     # parser.add_argument("--unconditional", action="store_true")
@@ -173,4 +179,4 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    evaluate_metrics(args.model_path, args.game, args.override)
+    evaluate_metrics(args.model_path, args.game, args.override, args.debug)
