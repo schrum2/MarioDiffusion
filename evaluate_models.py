@@ -1,9 +1,30 @@
 import os
+import re
 import json
 import matplotlib.pyplot as plt
 import argparse
 from collections import defaultdict
 from verify_data_complete import find_numbered_directories
+
+# Which modes are valid for which model types
+VALID_MODES_BY_TYPE = {
+    "conditional": {"real", "random", "short", "long"},
+    "unconditional": {"short", "long"},
+    "wgan": {"short"},
+    "fdm": {"real", "random"},
+}
+
+def detect_model_type(model_name):
+    if "-conditional-" in model_name:
+        return "conditional"
+    elif "-unconditional" in model_name:
+        return "unconditional"
+    elif "-wgan" in model_name:
+        return "wgan"
+    elif "-fdm-" in model_name:
+        return "fdm"
+    return "unknown"
+
 
 def strip_common_prefix(strings):
     if not strings:
@@ -12,17 +33,40 @@ def strip_common_prefix(strings):
     return [s[len(common_prefix):] for s in strings], common_prefix
 
 def extract_prefix(name):
+    if "-unconditional" in name:
+        return re.sub(r"-unconditional\d+", "-unconditional", name)
+    elif "-wgan" in name:
+        return re.sub(r"-wgan\d+", "-wgan", name)
     return name.rstrip("0123456789").rstrip("-_")
 
 def get_metrics_path(base_dir, mode):
-    if mode == "short" or mode == "long":
-        parent_dir = os.path.dirname(base_dir)
-        model_name = os.path.basename(base_dir)
-        uncond_dir = os.path.join(parent_dir, f"{model_name}-unconditional-samples-{mode}")
-        return os.path.join(uncond_dir, "evaluation_metrics.json")
-    else:
+    model_name = os.path.basename(base_dir)
+
+    if "-conditional-" in model_name:
+        if mode in {"short", "long"}:
+            # e.g. Mar1and2-conditional-absence5-conditional-samples-short
+            cond_dir = f"{base_dir}-conditional-samples-{mode}"
+            return os.path.join(cond_dir, "evaluation_metrics.json")
+        else:
+            # e.g. Mar1and2-conditional-absence5/samples-from-real-Mar1and2-captions/evaluation_metrics.json
+            subdir = f"samples-from-{mode}-Mar1and2-captions"
+            return os.path.join(base_dir, subdir, "evaluation_metrics.json")
+
+    elif "-fdm-" in model_name:
+        # fdm case is always subdir
         subdir = f"samples-from-{mode}-Mar1and2-captions"
         return os.path.join(base_dir, subdir, "evaluation_metrics.json")
+
+    elif "-unconditional" in model_name:
+        # e.g. Mar1and2-unconditional29-unconditional-samples-short
+        return os.path.join(base_dir, "evaluation_metrics.json")
+
+    elif "-wgan" in model_name:
+        return os.path.join(base_dir, "evaluation_metrics.json")
+
+    else:
+        print(f"[WARNING] Unknown model type for: {model_name}")
+        return None
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Compare models across modes.")
@@ -56,12 +100,18 @@ def main():
     data = defaultdict(lambda: defaultdict(list))
 
     for prefix, dirs in grouped.items():
+        model_type = detect_model_type(prefix)
+        valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
+    
         for mode in modes:
+            if mode not in valid_modes:
+                continue
+            
             for d in dirs:
                 # Modify to correct model path for fdm (and later for wgan)
 
                 metrics_path = get_metrics_path(d, mode)
-                if not os.path.exists(metrics_path):
+                if not metrics_path or not os.path.exists(metrics_path):
                     print(f"[SKIP] Missing: {metrics_path}")
                     continue
                 try:
