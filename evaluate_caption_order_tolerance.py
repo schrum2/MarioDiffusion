@@ -29,8 +29,8 @@ def parse_args():
     parser.add_argument("--caption", type=str, required=False, default=None, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
     #parser.add_argument("--json", type=str, default="datasets\\Test_for_caption_order_tolerance.json", help="Path to dataset json file")
-    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
-    #parser.add_argument("--json", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="Path to dataset json file")
+    #parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="Path to dataset json file")
     #parser.add_argument("--trials", type=int, default=3, help="Number of times to evaluate each caption permutation")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS)
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE)
@@ -177,12 +177,22 @@ def get_random_permutations(phrases, max_permutations):
 
     return results
 
-def get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores):
+def get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, counts):
     if file is None:
-        return all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores
+        return all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, counts
     with open(output_jsonl_path, "r") as f:
+        print("output_jsonl_path:", output_jsonl_path)
+        print("file:", file)
+        # quit()
         for line in f:
             data = json.loads(line)
+
+             # Find the key that starts with "Caption"
+            caption_text = next((v for k, v in data.items() if k.startswith("Caption")), "")
+            
+            # Split on punctuation like . or ; and remove empty parts
+            phrases = [p.strip() for p in re.split(r"[.;]", caption_text) if p.strip()]
+            counts.append(len(phrases))
 
             # Append values to each list
             all_avg_scores.append(data.get("Average score for all permutations", 0))
@@ -190,6 +200,8 @@ def get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_st
             all_min_scores.append(data.get("Minimum score", 0))
             all_max_scores.append(data.get("Maximum score", 0))
             all_median_scores.append(data.get("Median score", 0))
+
+    return all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, counts
 
 
 def main():
@@ -211,6 +223,7 @@ def main():
     all_max_scores = []
     all_median_scores = []
     just_all_scores = []
+    num_captions = []
     all_captions =  [item.strip() for s in caption for item in s.split(",")]
 
     one_caption = []
@@ -232,27 +245,42 @@ def main():
     #os.makedirs(folder_name,  exist_ok=True)
     output_jsonl_path = os.path.join(args.model_path, file_name)
 
-    all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores = get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores)
+    all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, num_captions = get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, num_captions)
     
+    # Adds old permuations to total amount of permutations
+    for num in num_captions:
+            if num == 1:
+                total_num_perms += 1
+            elif num == 2:
+                total_num_perms += 2
+            else:
+                total_num_perms += 5
+
+
     with open(output_jsonl_path, letter) as f:
         while(count <= len(all_captions)):
         #for cap in all_captions:
             one_caption = all_captions[count - 1]
-
+            # print("length of caption:", len(one_caption))
+            # print("caption:", one_caption)
             # Determines the amount of permutations for a caption
-            if len(one_caption) == 1:
-                num_perms = 1
-            elif len(one_caption) == 2:
-                num_perms = 2
-            else:
-                num_perms = 5
 
             # Initialize dataset
             pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption, caption_data = creation_of_parameters(one_caption, args.max_permutations)
             if not pipe:
                 print("Failed to create pipeline.")
                 return
-            
+            # print("perm_caption:", perm_caption)
+            if len(perm_caption) == 1:
+                num_perms = 1
+            elif len(perm_caption) == 2:
+                num_perms = 2
+            else:
+                num_perms = 5
+
+
+
+
             avg_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=True, height=common_settings.MARIO_HEIGHT, width=common_settings.MARIO_WIDTH)
             scores, avg_score, std_dev_score, min_score, max_score, median_score = statistics_of_captions(perm_caption, dataloader, compare_all_scores, count, pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles)
             caption_variable = 'Caption ' + str(count)
@@ -300,7 +328,7 @@ def main():
         results = {
 
                 "Scores of all captions": {
-                    "Number of captions": count,
+                    "Number of captions": count - 1,
                     "Average of average permutations": all_avg_score,
                     "Average of average permutations": np.mean(just_all_scores),
                     "Standard deviation of average permutations": all_std_dev_score,
@@ -313,6 +341,7 @@ def main():
 
         print(f"Results saved to {output_jsonl_path}")
 
+    print("\nTotal number of permutations:", total_num_perms)
     print(f"\nAverage score across all captions: {avg_score:.4f}")
 
     print("\nAll samples shape:", all_samples.shape)
