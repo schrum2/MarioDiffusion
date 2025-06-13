@@ -18,6 +18,8 @@ def main():
 
     #Move the old
     os.rename(os.path.join(args.model_path, "final-model"), os.path.join(args.model_path, "final-model-old"))
+    os.rename(os.path.join(args.model_path, "samples-from-random-Mar1and2-captions"), os.path.join(args.model_path, "samples-from-random-Mar1and2-captions-old"))
+    os.rename(os.path.join(args.model_path, "samples-from-real-Mar1and2-captions"), os.path.join(args.model_path, "samples-from-real-Mar1and2-old"))
     shutil.copytree(os.path.join(args.model_path, f"checkpoint-{epoch}"), os.path.join(args.model_path, "final-model"))
 
 
