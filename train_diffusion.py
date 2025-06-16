@@ -376,7 +376,6 @@ def main():
                                         negative_prompt_training=args.negative_prompt_training,
                                         block_embeddings=block_embeddings, batch_size=args.batch_size)
 
-    train_dataset = train_dataloader.dataset
 
     first_sample = train_dataloader.dataset[0]
     scene_height = first_sample[0].shape[1]
@@ -797,7 +796,8 @@ def main():
                 # For unconditional generation
                 pipeline = UnconditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler
+                    scheduler=noise_scheduler, 
+                    block_embeddings=block_embeddings
                 )
                 if sprite_scaling_factors is not None:
                     pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
@@ -838,7 +838,8 @@ def main():
             else:
                 pipeline = UnconditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler
+                    scheduler=noise_scheduler,
+                    block_embeddings=block_embeddings
                 )
                 if sprite_scaling_factors is not None:
                     pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
@@ -923,7 +924,8 @@ def main():
         else:
             pipeline = UnconditionalDDPMPipeline(
                 unet=accelerator.unwrap_model(model), 
-                scheduler=noise_scheduler
+                scheduler=noise_scheduler,
+                block_embeddings=block_embeddings
             )
             if sprite_scaling_factors is not None:
                 pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
