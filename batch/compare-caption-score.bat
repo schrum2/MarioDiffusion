@@ -16,7 +16,11 @@ for %%d in (LevelsAndCaptions RandomTest) do (
     "Mar1and2-conditional-GTE-negative:0-4:Mar1and2_%%d-regular_scores_by_epoch.jsonl:GTE-single-negative" ^
     "Mar1and2-conditional-GTEsplit-regular:0:Mar1and2_%%d-regular_scores_by_epoch.jsonl:GTE-multiple-regular" ^
     "Mar1and2-conditional-GTEsplit-absence:0:Mar1and2_%%d-absence_scores_by_epoch.jsonl:GTE-multiple-absence" ^
-    "Mar1and2-conditional-GTEsplit-negative:0:Mar1and2_%%d-regular_scores_by_epoch.jsonl:GTE-multiple-negative" 
+    "Mar1and2-conditional-GTEsplit-negative:0:Mar1and2_%%d-regular_scores_by_epoch.jsonl:GTE-multiple-negative" ^
+    "Mar1and2-fdm-MiniLM-regular:0-29:Mar1and2_%%d-regular_scores_by_epoch.jsonl:FDM-MiniLM-regular" ^
+    "Mar1and2-fdm-MiniLM-absence:0-29:Mar1and2_%%d-absence_scores_by_epoch.jsonl:FDM-MiniLM-absence" ^
+    "Mar1and2-fdm-GTE-regular:0-29:Mar1and2_%%d-regular_scores_by_epoch.jsonl:FDM-GTE-regular" ^
+    "Mar1and2-fdm-GTE-absence:0-29:Mar1and2_%%d-absence_scores_by_epoch.jsonl:FDM-GTE-absence"
 )
 
 
