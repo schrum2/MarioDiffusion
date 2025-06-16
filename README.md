@@ -244,3 +244,11 @@ Interactively evolve level scenes in the latent space of the GAN model:
 ```
 python evolve_interactive_wgan.py --model_path wgan-output\final_models\generator.pth
 ```
+
+## Comparing model results
+
+TODO
+
+## Generating MarioGPT data for comparison
+
+TODO: Olivia
