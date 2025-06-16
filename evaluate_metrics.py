@@ -60,32 +60,25 @@ def evaluate_all_levels(json_file_path, output_file, game, key, debug):
             metrics["percent_perfect_matches"] = metrics["generated_vs_real_perfect_matches"] / len(levels) * 100 # What % of the generated dataset are real levels
  
         # If prompts was created, meaning that we can do analysis between prompts and captions
-        if prompts is not None and (key != "short" and key != "long" and key != "only"):
+        if prompts is not None and (key != "short" and key != "long"):
             if debug: print("Calculating phrase metrics...")
 
             phrase_metrics = {}
             for keyword in TOPIC_KEYWORDS:
-                tp, fp, tn, fn = analyze_phrase_targeting(
+                metrics_dict = calculate_phrase_metrics(
                     list(zip(prompts, captions)), keyword, strict=True
                 )
-                phrase_metrics[keyword] = {
-                    "true_positives": tp,
-                    "false_positives": fp,
-                    "true_negatives": tn,
-                    "false_negatives": fn,
-                }
+                phrase_metrics[keyword] = metrics_dict
+                
             metrics["phrase_targeting"] = phrase_metrics
-
+            
             match_metrics = percent_perfect_match(list(zip(prompts, captions)))
-            #print(f"Perfect match metrics complete!")
 
             metrics["perfect_match_metrics"] = match_metrics
+        
         else: 
             if debug: print(f"Phrase targeting is not performed for {json_file_path} as it is not generated with prompts.")
         
-        # # adding phrase metrics
-        # phrase_metrics = calculate_phrase_metrics(list(zip(prompts, captions)), target_phrase="pipe",strict=True)
-        # metrics["calculate_phrase_metrics"] = phrase_metrics
         
         # Add resulting metrics to a JSON file in the same directory as all_levels.json
         with open(output_file, "w") as f:
@@ -101,7 +94,7 @@ def evaluate_all_levels(json_file_path, output_file, game, key, debug):
         print(f"An unexpected error occurred: {e}")
 
 
-def evaluate_metrics(model_path, game, override, debug):
+def evaluate_metrics(model_path, game, override, debug=False):
     """
     Evaluate metrics for the given model path.
 
@@ -111,7 +104,7 @@ def evaluate_metrics(model_path, game, override, debug):
     """
     # Determine the model type from naming convention
     fdm = "fdm" in model_path.lower()
-    wgan = "wgan" in model_path.lower()
+    wgan = "wgan" in model_path.lower() and "samples" in model_path.lower()
     unconditional_short = "unconditional-samples-short" in model_path.lower()
     unconditional_long = "unconditional-samples-long" in model_path.lower()
     conditional = "-conditional-" in model_path.lower()
@@ -161,7 +154,7 @@ def evaluate_metrics(model_path, game, override, debug):
             if debug: print(f"Processing {key} metrics...")
             evaluate_all_levels(json_path, output_file, game, key, debug)
         else:
-            print(f"Warning: {key} file not found at {json_path}")
+            if debug: print(f"Warning: {key} file not found at {json_path}")
         
 
 
@@ -171,9 +164,7 @@ def parse_args():
     parser.add_argument("--game", type=str, default="Mar1and2", help="Game prefix for which to evaluate levels.")
     parser.add_argument("--override", action="store_true", help="Override all previously existing evaluation_metrics.json files and re-run calculations")
     parser.add_argument("--debug", action="store_true")
-    # parser.add_argument("--fdm", action="store_true", help="Indicates fdm directory")
-    # parser.add_argument("--wgan", action="store_true")
-    # parser.add_argument("--unconditional", action="store_true")
+
     return parser.parse_args()
 
 
