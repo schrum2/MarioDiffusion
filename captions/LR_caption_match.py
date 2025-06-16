@@ -230,8 +230,8 @@ def process_scene_segments(scene, segment_width, prompt, id_to_char, char_to_id,
 
 if __name__ == '__main__':
 
-    ref = "floor with one gap. two enemies. one platform. one tower."
-    gen = "giant gap with one chunk of floor. two enemies. one platform. one tower."
+    ref = "floor with one gap. two enemies. one platform."
+    gen = "giant gap with one chunk of floor. two enemies. one platform."
 
     score = compare_captions(ref, gen, debug=True)
     print(f"Should be: {ref}")

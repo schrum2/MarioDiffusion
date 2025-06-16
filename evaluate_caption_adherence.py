@@ -15,6 +15,7 @@ from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from LR_create_ascii_captions import save_level_data as lr_save_level_data
 from captions.util import extract_tileset 
 from captions.caption_match import compare_captions
+from captions.LR_caption_match import compare_captions as lr_compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
 from models.fdm_pipeline import FDMPipeline
@@ -316,8 +317,10 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
 
                 if output: print(f"\t{caption}")
-
-                compare_score = compare_captions(caption, actual_caption)
+                if height == common_settings.LR_HEIGHT:
+                    compare_score = lr_compare_captions(caption, actual_caption)
+                elif height == common_settings.MARIO_HEIGHT:
+                    compare_score = compare_captions(caption, actual_caption)
 
                 if output: print(f"\tcompare_score: {compare_score}")
                 compare_all_scores.append(compare_score)
