@@ -15,13 +15,15 @@ def recreate_caption_order_stats_from_jsonl(directory):
     min_scores = []
     max_scores = []
     median_scores = []
+    total_captions = 0
     num_captions = 0
 
     for fname in os.listdir(directory):
         if fname.endswith("_caption_order_tolerance.jsonl"):
             path = os.path.join(directory, fname)
             with open(path, "r", encoding="utf-8") as f:
-                file_name = f
+                file_name = os.path.basename(directory)
+                file_name = re.sub(r'\d+$', '', file_name)  # Remove trailing digits
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -30,6 +32,8 @@ def recreate_caption_order_stats_from_jsonl(directory):
                         data = json.loads(line)
                     except json.JSONDecodeError:
                         continue  # skip lines that are not valid JSON
+                    if not isinstance(data, dict):
+                        continue  # skip lines that are not JSON objects
                     avg = data.get("Average score for all permutations", None)
                     std = data.get("Standard deviation", None)
                     min_ = data.get("Minimum score", None)
@@ -46,12 +50,14 @@ def recreate_caption_order_stats_from_jsonl(directory):
                     if median is not None:
                         median_scores.append(median)
                     num_captions += 1
-                    total_captions = data.get("Number of captions", None)
-                    avg_of_avg = data.get("Average of average permutations", None)
-                    std_of_avg = data.get("Standard deviation of average permutations", None)
-                    min_of_avg = data.get("Min score of average permutations", None)
-                    max_of_avg = data.get("Max score of average permutations", None)
-                    median_of_avg = data.get("Median score of average permutations", None)
+                output_jsonl_path = os.path.join(args.dir, "caption_order_stats1.jsonl")
+                with open(output_jsonl_path, "a") as f:
+                    result_entry = {
+                        "group": fname,
+                        "Number of captions": num_captions,
+                        "List of average scores": avg_scores
+                    }
+                    f.write(json.dumps(result_entry) + "\n") 
 
     if not avg_scores:
         print("No caption order tolerance data found.")
@@ -64,18 +70,29 @@ def recreate_caption_order_stats_from_jsonl(directory):
     print(f"Max of averages: {np.max(avg_scores):.4f}")
     print(f"Median of averages: {np.median(avg_scores):.4f}")
 
+    return file_name, num_captions, avg_scores, std_scores, min_scores, max_scores, median_scores
+
+def write_caption_order_stats_to_jsonl(file_name, total_captions, avg_of_avg, std_of_avg, min_of_avg, max_of_avg, median_of_avg):
+    """
+    Writes the caption order statistics to a JSONL file.
+    """
     output_jsonl_path = os.path.join(args.dir, "caption_order_stats1.json")
-    with open(output_jsonl_path, "a") as f:
+    with open("caption_order_stats1.jsonl", "a") as f:
         result_entry = {
-                        "group": file_name,
-                        "Number of captions": total_captions,
-                        "Average of average permutations": avg_of_avg,
-                        "Standard deviation of average permutations": std_of_avg,
-                        "Min score of average permutations": min_of_avg,
-                        "Max score of average permutations": max_of_avg,
-                        "Median score of average permutations": median_of_avg
-                    }
-        f.write(json.dumps(result_entry) + "\n") 
+            "group": file_name,
+            "Number of captions": total_captions,
+            "Average of average permutations": np.mean(avg_of_avg),
+            "Standard deviation of average permutations": np.std(avg_of_avg),
+            "Min score of average permutations": np.min(avg_of_avg),
+            "Max score of average permutations": np.max(avg_of_avg),
+            "Median score of average permutations": np.median(avg_of_avg),
+            "Lists of average scores": avg_of_avg,
+            # "Lists of standard deviation scores": std_of_avg,
+            # "Lists of minimum scores": min_of_avg,
+            # "Lists of maximum scores": max_of_avg,
+            # "Lists of median scores": median_of_avg
+        }
+        f.write(json.dumps(result_entry) + "\n")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Recreate caption order stats from JSONL files.")
@@ -84,4 +101,4 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    recreate_caption_order_stats_from_jsonl(args.dir)
+    write_caption_order_stats_to_jsonl(*recreate_caption_order_stats_from_jsonl(args.dir))
