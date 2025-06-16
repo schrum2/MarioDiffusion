@@ -39,6 +39,12 @@ python calculate_execution_time.py Mar1and2-MLM-regular 0 9
 :: WGAN Models
 python calculate_execution_time.py Mar1and2-wgan 0 29
 
+:: Five Dollar Models
+python calculate_execution_time.py Mar1and2-fdm-GTE-absence 0 29
+python calculate_execution_time.py Mar1and2-fdm-GTE-regular 0 29
+python calculate_execution_time.py Mar1and2-fdm-MiniLM-absence 0 29
+python calculate_execution_time.py Mar1and2-fdm-MiniLM-regular 0 29
+
 
 
 REM TODO: FDM, WGAN
