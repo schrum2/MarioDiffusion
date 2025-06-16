@@ -33,7 +33,9 @@ for %%d in (LevelsAndCaptions RandomTest) do (
       "Mar1and2-conditional-MiniLM-%%t:0-9:Mar1and2_%%d-%DATA%_scores_by_epoch.jsonl:MiniLM-single-%%t" ^
       "Mar1and2-conditional-MiniLMsplit-%%t:0-4:Mar1and2_%%d-%DATA%_scores_by_epoch.jsonl:MiniLM-multiple-%%t" ^
       "Mar1and2-conditional-GTE-%%t:0-4:Mar1and2_%%d-%DATA%_scores_by_epoch.jsonl:GTE-single-%%t" ^
-      "Mar1and2-conditional-GTEsplit-%%t:0:Mar1and2_%%d-%DATA%_scores_by_epoch.jsonl:GTE-multiple-%%t" 
+      "Mar1and2-conditional-GTEsplit-%%t:0:Mar1and2_%%d-%DATA%_scores_by_epoch.jsonl:GTE-multiple-%%t" ^
+      "Mar1and2-fdm-MiniLM-%DATA%:0-29:Mar1and2_%%d-%DATA%_scores_by_epoch.jsonl:FDM-MiniLM-%DATA%" ^
+      "Mar1and2-fdm-GTE-%DATA%:0-29:Mar1and2_%%d-%DATA%_scores_by_epoch.jsonl:FDM-GTE-%DATA%" 
   )
 )
 
