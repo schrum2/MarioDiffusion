@@ -181,8 +181,8 @@ def get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_st
     if file is None or not os.path.exists(output_jsonl_path):
         return all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, counts
     with open(output_jsonl_path, "r") as f:
-        print("output_jsonl_path:", output_jsonl_path)
-        print("file:", file)
+        # print("output_jsonl_path:", output_jsonl_path)
+        # print("file:", file)
         # quit()
         for line in f:
             data = json.loads(line)
