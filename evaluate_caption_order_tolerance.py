@@ -178,7 +178,7 @@ def get_random_permutations(phrases, max_permutations):
     return results
 
 def get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, counts):
-    if file is None:
+    if file is None or not os.path.exists(output_jsonl_path):
         return all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, counts
     with open(output_jsonl_path, "r") as f:
         print("output_jsonl_path:", output_jsonl_path)
@@ -239,6 +239,8 @@ def main():
         # if last_line <= 0 then the file is empty
         # else it is the number of the last caption in the jsonl file
         last_line = find_last_line_caption_order_tolerance(args.model_path, file, key="Caption")
+        #all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, num_captions = get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, num_captions)
+    
         count = last_line + 1
 
     file_name = json_name + '_caption_order_tolerance.jsonl'
