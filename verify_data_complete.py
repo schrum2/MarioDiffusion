@@ -197,7 +197,6 @@ def verify_data_completeness(model_path, type_str):
     elif unconditional:
         # Check unconditional-samples-short 
         uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
-        if args.debug: print("Checking unconditional-samples-short:", uncond_short)
         error = verify_json_length(uncond_short, 100)
         if error:
             errors.append(f"Requirement 24 failed: {error}")
@@ -220,7 +219,6 @@ def verify_data_completeness(model_path, type_str):
         
         # Check unconditional-samples-long
         uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
-        if args.debug: print("Checking unconditional-samples-long:", uncond_long)
         error = verify_json_length(uncond_long, 100)
         if error:
             errors.append(f"Requirement 24 failed: {error}")
