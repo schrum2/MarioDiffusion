@@ -24,19 +24,53 @@ def parse_args():
     parser.add_argument("--ytick_labelsize", type=int, default=20, help="Font size for y-tick labels (default: 20).")
     parser.add_argument("--legend_fontsize", type=int, default=20, help="Font size for legend (default: 20).")
     parser.add_argument("--figsize", type=int, nargs=2, default=(10, 10), help="Figure size as width and height in inches (default: 10x10).")
+    parser.add_argument("--x_tick_rotation", type=int, default=45, help="Rotation angle for axis labels (default: 45)")
 
     return parser.parse_args()
 
+# GPT-4.1 suggested a more robust JSON loading function that can handle both JSON arrays and JSONL files.
+# This function attempts to load data from a JSON file, and if it fails, it tries to read it as a JSONL file.
 def load_data(json_path, group_key):
     records = []
-    with open(json_path, "r") as f:
-        for line in f:
-            group_stats = json.loads(line)
-            group = group_stats[group_key]
-            for model in group_stats["models"]:
-                model[group_key] = group
-                records.append(model)
-    return pd.DataFrame(records)
+    try:
+        with open(json_path, "r") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            # Check for nested 'models' or 'individual_times'
+            for group_stats in data:
+                group = group_stats.get(group_key)
+                # Case 1: 'models' is a list of dicts
+                if "models" in group_stats and isinstance(group_stats["models"], list):
+                    for model in group_stats["models"]:
+                        model[group_key] = group
+                        records.append(model)
+                # Case 2: 'individual_times' is a list of numbers
+                elif "individual_times" in group_stats and isinstance(group_stats["individual_times"], list):
+                    for val in group_stats["individual_times"]:
+                        records.append({group_key: group, "individual_times": val, **{k: v for k, v in group_stats.items() if k not in [group_key, "individual_times"]}})
+                else:
+                    records.append(group_stats)
+            return pd.DataFrame(records)
+        elif isinstance(data, dict):
+            return pd.DataFrame([data])
+    except Exception:
+        # Fallback: try JSONL
+        with open(json_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    group_stats = json.loads(line)
+                    group = group_stats.get(group_key)
+                    if "models" in group_stats and isinstance(group_stats["models"], list):
+                        for model in group_stats["models"]:
+                            model[group_key] = group
+                            records.append(model)
+                    elif "individual_times" in group_stats and isinstance(group_stats["individual_times"], list):
+                        for val in group_stats["individual_times"]:
+                            records.append({group_key: group, "individual_times": val, **{k: v for k, v in group_stats.items() if k not in [group_key, "individual_times"]}})
+                    else:
+                        records.append(group_stats)
+        return pd.DataFrame(records)
 
 def rename_and_order_groups(df, group_key):
     group_name_map = {
@@ -104,7 +138,7 @@ def main():
         df[args.y_axis] = pd.to_numeric(df[args.y_axis], errors="coerce")
         data = [df[df[args.group_key] == g][args.y_axis].dropna() for g in groups_with_data]
         plt.boxplot(data)
-        plt.xticks(ticks=range(1, len(groups_with_data)+1), labels=groups_with_data, rotation=45, ha='right')
+        plt.xticks(ticks=range(1, len(groups_with_data)+1), labels=groups_with_data, rotation=args.x_tick_rotation, ha='right')
         plt.xlabel(args.x_axis_label)
         plt.ylabel(args.y_axis_label)
     # VIOLIN PLOT
@@ -112,7 +146,7 @@ def main():
         df[args.y_axis] = pd.to_numeric(df[args.y_axis], errors="coerce")
         data = [df[df[args.group_key] == g][args.y_axis].dropna() for g in groups_with_data]
         parts = plt.violinplot(data, showmeans=True, showmedians=True)
-        plt.xticks(range(1, len(groups_with_data)+1), groups_with_data, rotation=45, ha='right')
+        plt.xticks(range(1, len(groups_with_data)+1), groups_with_data, rotation=args.x_tick_rotation, ha='right')
         plt.xlabel(args.x_axis_label)
         plt.ylabel(args.y_axis_label)
         if 'cmedians' in parts:
@@ -133,6 +167,7 @@ def main():
         plt.yticks(y, groups_with_data)
         plt.xlabel(args.x_axis_label)
         plt.ylabel(args.y_axis_label)
+        plt.xticks(rotation=args.x_tick_rotation)
         for i, group in enumerate(groups_with_data):
             points = df[df[args.group_key] == group][args.x_axis].dropna()
             plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
@@ -145,6 +180,7 @@ def main():
                 plt.scatter(subset[args.x_axis], subset[args.y_axis], label=g, s=80, color=color_map(i))
         plt.xlabel(args.x_axis_label)
         plt.ylabel(args.y_axis_label)
+        plt.xticks(rotation=args.x_tick_rotation)
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
     plt.savefig(args.output)

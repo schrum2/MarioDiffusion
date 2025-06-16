@@ -12,6 +12,7 @@ def main():
     runtime_jsons = glob.glob(os.path.join(ROOT_DIR, '*-runtime.json'))
 
     groupings = []
+    group_lookup = {}
     for runtime_json in runtime_jsons:
         if not os.path.isfile(runtime_json):
             print(f"Skipping {runtime_json}, not a real file.")
@@ -47,11 +48,51 @@ def main():
             "individual_times": raw_data.get("individual_times", [])
         }
         groupings.append(group_data)
+        group_lookup[group_name] = group_data
 
-    # Write the output JSON
+    # Write the detailed output JSON
     output_path = os.path.join(OUTPUT_DIR, "all_grouped_runtimes.json")
     with open(output_path, "w") as f:
         json.dump(groupings, f, indent=2)
+
+    # Prepare the mean summary output
+    mean_entries = []
+    # Define the pairs to combine
+    combine_pairs = [
+        ("Mar1and2-conditional-regular", "Mar1and2-MLM-regular", "MLM-regular"),
+        ("Mar1and2-conditional-absence", "Mar1and2-MLM-absence", "MLM-absence"),
+        ("Mar1and2-conditional-negative", "Mar1and2-MLM-negative", "MLM-negative"),
+    ]
+    # Track all groups that are part of a combined pair
+    combined_groups = set()
+    for cond, mlm, _ in combine_pairs:
+        combined_groups.add(cond)
+        combined_groups.add(mlm)
+    # Add all individual means, skipping those in combined pairs
+    for group in groupings:
+        if group["group"] not in combined_groups:
+            mean_entries.append({"group": group["group"], 
+                                 "mean": group["mean"], 
+                                 "individual_times": group["individual_times"]})
+    # Add only the combined means for the pairs
+    for cond, mlm, combined_name in combine_pairs:
+        if cond in group_lookup and mlm in group_lookup:
+            combined_mean = group_lookup[cond]["mean"] + group_lookup[mlm]["mean"]
+            combined_individual_times = [
+                a + b for a, b in zip(group_lookup[cond]["individual_times"], group_lookup[mlm]["individual_times"])
+            ]
+            mean_entries.append({"group": combined_name,
+                                 "mlm_mean": group_lookup[mlm]["mean"],
+                                 "cond_mean": group_lookup[cond]["mean"],
+                                 "mean": combined_mean,
+                                 "individual_times": combined_individual_times})
+        else:
+            print(f"Warning: Could not find both {cond} and {mlm} for combined mean.")
+
+    # Write the mean summary output JSON
+    mean_output_path = os.path.join(OUTPUT_DIR, "mean_grouped_runtimes.json")
+    with open(mean_output_path, "w") as f:
+        json.dump(mean_entries, f, indent=2)
 
 if __name__ == "__main__":
     main()

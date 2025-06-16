@@ -10,13 +10,12 @@ Sorts the tile characters and assigns each a unique integer ID.
 Adds a special "extra tile" (default %) for padding, if not already present.
 Returns a mapping from tile character to integer ID.
 """
-def load_tileset(tileset_path):
+def load_tileset(tileset_path, extra_tile='%'):
     with open(tileset_path, 'r') as f:
         tileset_data = json.load(f)
     tile_chars = sorted(tileset_data['tiles'].keys())
     # ! is used to indicate the outside of actual level
     # and is not a tile in the tileset
-    global extra_tile
     #extra_tile = '-'
     if extra_tile not in tile_chars:
         tile_chars.append(extra_tile)
@@ -49,7 +48,8 @@ def room_cluster_samples(
     room_width=11,
     room_height=16,
     window_rooms_w=2,
-    window_rooms_h=2
+    window_rooms_h=2,
+    extra_tile='-'
 ):
     # Split the level into a grid of rooms
     dungeon_rows = len(level) // room_height
@@ -105,11 +105,14 @@ def pad_and_sample(
     tile_to_id,
     target_height,
     target_width,
+    tileset_path,
+    stride=1,
     scan_mode="platformer",
     room_width=11,
     room_height=16,
     window_rooms_w=2,
-    window_rooms_h=2
+    window_rooms_h=2,
+    extra_tile='-',
 ):
     if scan_mode == "room_cluster":
         return room_cluster_samples(
@@ -118,7 +121,8 @@ def pad_and_sample(
             room_width=room_width,
             room_height=room_height,
             window_rooms_w=window_rooms_w,
-            window_rooms_h=window_rooms_h
+            window_rooms_h=window_rooms_h,
+            extra_tile=extra_tile,
         )
     else:
         # Platformer: original sliding window
@@ -128,7 +132,7 @@ def pad_and_sample(
         padded_level = [extra_tile * width] * pad_rows + level
 
         # Special case for SMB2 upside down pipes that extend into the sky
-        _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset) # partially duplicates the work of load_tileset, except for the extra_tile
+        _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path) # partially duplicates the work of load_tileset, except for the extra_tile
         for i in range(width): # Scan top row
             descriptors = tile_descriptors.get(level[0][i], [])
             if "pipe" in descriptors:
@@ -140,10 +144,10 @@ def pad_and_sample(
 
         padded_level = [row.ljust(target_width, extra_tile) for row in padded_level]
         samples = []
-        for x in range(width - target_width + 1):
+        for x in range((width - target_width + 1)//stride):
             sample = []
             for y in range(target_height):
-                window_row = padded_level[y][x:x+target_width]
+                window_row = padded_level[y][x*stride:(x*stride)+target_width]
                 sample.append([tile_to_id.get(c, tile_to_id[extra_tile]) for c in window_row])
             samples.append(sample)
         return samples
@@ -160,13 +164,15 @@ def main(
     output_path,
     target_height,
     target_width,
+    stride=1,
     scan_mode="platformer",
     room_width=11,
     room_height=16,
     window_rooms_w=2,
-    window_rooms_h=2
+    window_rooms_h=2, 
+    extra_tile='-'
 ):
-    tile_to_id = load_tileset(tileset_path)
+    tile_to_id = load_tileset(tileset_path, extra_tile=extra_tile)
     levels = load_levels(levels_dir)
     dataset = []
     for level in levels:
@@ -175,11 +181,14 @@ def main(
             tile_to_id,
             target_height,
             target_width,
+            tileset_path,
+            stride=stride,
             scan_mode=scan_mode,
             room_width=room_width,
             room_height=room_height,
             window_rooms_w=window_rooms_w,
-            window_rooms_h=window_rooms_h
+            window_rooms_h=window_rooms_h,
+            extra_tile=extra_tile
         )
         dataset.extend(samples)
     with open(output_path, 'w') as f:
@@ -200,6 +209,7 @@ if __name__ == "__main__":
     parser.add_argument('--target_height', type=int, default=common_settings.MARIO_HEIGHT, help='Target output height (e.g., 16 or 14)')
     parser.add_argument('--target_width', type=int, default=common_settings.MARIO_WIDTH, help='Target output width (e.g., 16)')
     parser.add_argument('--extra_tile', default='-', help='Padding tile character (should not be a real tile)')
+    parser.add_argument('--stride', type=int, default=1, help='How many tiles to move over when moving the sliding window')
     parser.add_argument('--scan_mode', default='platformer', choices=['platformer', 'room_cluster'], help='Sampling mode')
     parser.add_argument('--room_width', type=int, default=11, help='Room width (room_cluster mode)')
     parser.add_argument('--room_height', type=int, default=16, help='Room height (room_cluster mode)')
@@ -207,17 +217,18 @@ if __name__ == "__main__":
     parser.add_argument('--window_rooms_h', type=int, default=2, help='Window height = total number of vert rooms in window vertically (room_cluster mode)')
 
     args = parser.parse_args()
-    global extra_tile
-    extra_tile = args.extra_tile
+    
     main(
         args.tileset,
         args.levels,
         args.output,
         args.target_height,
         args.target_width,
+        args.stride,
         scan_mode=args.scan_mode,
         room_width=args.room_width,
         room_height=args.room_height,
         window_rooms_w=args.window_rooms_w,
-        window_rooms_h=args.window_rooms_h
+        window_rooms_h=args.window_rooms_h,
+        extra_tile=args.extra_tile
     )

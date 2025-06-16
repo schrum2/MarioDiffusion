@@ -20,40 +20,25 @@ class Block2Vec(nn.Module):
         self.embedding_dim = embedding_dim
         
         # Two embedding layers - one for target tiles, one for context tiles
-        self.in_embed = nn.Embedding(vocab_size, embedding_dim)
-        self.out_embed = nn.Embedding(vocab_size, embedding_dim)
+        self.embeddings = nn.Embedding(vocab_size, embedding_dim)
+        self.linear = nn.Linear(embedding_dim, vocab_size)
 
-    def forward(self, center_ids, context_ids):
+    def forward(self, context_ids):
         """
-        Forward pass computing loss for predicting context tiles given center tile
+        Forward pass computing output for predicting context tiles given center tile
         
         Args:
-            center_ids: Tensor of shape (batch_size) containing target tile IDs
             context_ids: Tensor of shape (batch_size, context_size) containing context tile IDs
         Returns:
-            Tensor containing loss value
+            The output of the model
         """
-        # Flatten context_ids to shape (batch * context_len)
-        #print("\n\n Next Scene:")
-        batch_size, context_len = context_ids.shape
-        #print(f"center_ids: {center_ids}", f"context_ids: {context_ids}", f"batch_size: {batch_size}", f"context_len: {context_len}")
-        center_ids_expanded = center_ids.unsqueeze(1).expand(-1, context_len).reshape(-1)
-        context_ids_flat = context_ids.reshape(-1)
-        #print(f"center_ids: {center_ids_expanded}", f"context_ids: {context_ids_flat}", f"batch_size: {batch_size}", f"context_len: {context_len}")
-        center_vec = self.in_embed(center_ids_expanded)  # (batch * context_len, dim)
-        context_vec = self.out_embed(context_ids_flat)   # (batch * context_len, dim)
-
-        scores = (center_vec * context_vec).sum(dim=1)  # dot product
-        #print(scores.shape, center_vec.shape, context_vec.shape)
-
-        #print("\nOutput:\n", f"center_vec: {center_vec}", f"context_vec: {context_vec}", f"scores: {scores}")
-        loss = F.binary_cross_entropy_with_logits(scores, torch.ones_like(scores))  # positive pairs
-        #print(f"loss: {loss}")
-        return loss
+        center_vec = self.embeddings(context_ids)  # (batch * context_len, dim)
+        output = self.linear(center_vec)   # (batch * context_len, dim)
+        return output
 
     def get_embeddings(self):
         """Returns the learned embeddings for all tiles"""
-        return self.in_embed.weight.detach()
+        return self.embeddings.weight.detach()
 
     def save_pretrained(self, save_directory):
         """Save model in HuggingFace format"""
@@ -94,3 +79,33 @@ class Block2Vec(nn.Module):
         model.load_state_dict(state_dict)
 
         return model
+
+
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn import init
+
+
+class SkipGramModel(nn.Module):
+    def __init__(self, emb_size: int, emb_dimension: int):
+        super().__init__()
+        self.emb_size = emb_size
+        self.emb_dimension = emb_dimension
+        self.target_embeddings = nn.Embedding(emb_size, emb_dimension)
+        self.output = nn.Linear(emb_dimension, emb_size)
+
+        initrange = 1.0 / self.emb_dimension
+        init.uniform_(self.target_embeddings.weight.data, -
+                      initrange, initrange)
+
+    def forward(self, target, context):
+        emb_target = self.target_embeddings(target)
+
+        score = self.output(emb_target)
+        score = F.log_softmax(score, dim=-1)
+
+        losses = torch.stack([F.nll_loss(score, context_word)
+                              for context_word in context.transpose(0, 1)])
+        return losses.mean()
