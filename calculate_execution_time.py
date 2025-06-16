@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 
 def find_training_log(model_path):
     # Look for files matching the training log pattern
-    log_files = glob.glob(os.path.join(model_path, "training_log_*.jsonl"))
+    log_files = glob.glob(os.path.join(model_path, "*training_log_*.jsonl"))
     
     if not log_files:
         raise FileNotFoundError(f"No training log files found in {model_path}")

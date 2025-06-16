@@ -422,7 +422,7 @@ def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> Dict[s
 
 def astar_metrics(
     levels: list[dict],  # Each dict should have "scene" and "caption"
-    num_runs: int = 3,
+    num_runs: int = 1,
     simulator_kwargs: dict = None,
     output_json_path: str = None,
     save_name: str = "astar_result.jsonl"
@@ -495,13 +495,14 @@ def astar_metrics(
                             else:
                                 value = int(value)
                         metrics[key] = value
-                    if metrics:
-                        run_metrics.append(metrics)
-                    else:
-                        print(
-                            f"Warning: No metrics parsed for level {idx}, run {run} (caption: {caption}). Skipping this run."
-                        )
-                        continue
+                        
+                if metrics:
+                    run_metrics.append(metrics)
+                else:
+                    print(
+                        f"Warning: No metrics parsed for level {idx}, run {run} (caption: {caption}). Skipping this run."
+                    )
+                    continue
 
             # Compute averages and medians
             averages = {}

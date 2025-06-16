@@ -66,6 +66,13 @@ if __name__ == "__main__":
 
         scene_caption_data = load_scene_caption_data(json_path)
 
+        sample_limit = 100 # TODO: Make 100 a parameter: how much to limit the output
+        if len(scene_caption_data) > sample_limit: 
+            increment = len(scene_caption_data) // (sample_limit + 1)
+            scene_caption_data = [scene_caption_data[(i+1)*increment] for i in range(sample_limit)]
+            if len(scene_caption_data) != sample_limit:
+                raise RuntimeError(f"Sample limit mismatch: Expected {sample_limit} samples, got {len(scene_caption_data)} after sampling.")
+
         try:
             results, overall_averages = astar_metrics(
                 levels = scene_caption_data,

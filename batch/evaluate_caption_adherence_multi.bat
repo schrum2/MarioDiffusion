@@ -19,7 +19,7 @@ set NUM_TILES=
 if /I "%GAME%"=="" set GAME=Mar1and2
 if /I "%GAME%"=="LR" set NUM_TILES=--num_tiles=8
 
-if "%NUM_TILES%"=="" set NUM_TILES=13
+if "%NUM_TILES%"=="" set NUM_TILES=--num_tiles=13
 
 REM Add --describe_absence flag if TYPE is absence
 set DESCRIBE_ABSENCE_FLAG=
