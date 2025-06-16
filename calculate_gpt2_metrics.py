@@ -9,6 +9,9 @@ def parse_args():
 
     parser.add_argument("--generated_levels", type=str, default="datasets\\MarioGPT_LevelsAndCaptions-regular.json", help="The filepath of the LevelsAndCaptions format for MarioGPT generated data")
     parser.add_argument("--training_levels", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="The filepath of the LevelsAndCaptions format for default data")
+
+    parser.add_argument("--full_levels_dir", type=str, default="MarioGPT_Levels//levels", help="The directory containing the raw output txt files of MarioGPT")
+
     parser.add_argument("--output_dir", type=str, default="MarioGPT_metrics", help="The output directory for the created json data")
 
 
@@ -35,18 +38,27 @@ def main():
     find_metrics_of_samples(samples_json, real_json, args.output_dir)
     
     print("Finding astar metrics")
-    create_astar_metrics(allsamples_json, args.output_dir)
+    create_astar_metrics(allsamples_json, args.full_levels_dir, args.output_dir)
 
 
 
-def create_astar_metrics(allsamples_json, output_dir):
+def create_astar_metrics(allsamples_json, full_levels_dir, output_dir):
     # Load generated levels and real levels
     with open(allsamples_json, "r") as f:
         generated_data = json.load(f)
+    
+    all_levels = []
+    for level in os.listdir(full_levels_dir):
+        with open(os.path.join(full_levels_dir, level), 'r') as t:
+            all_levels.append(t.readlines())
 
     generated_scenes = [entry for entry in generated_data if "scene" in entry and entry['scene']]
 
-    metrics.astar_metrics(generated_scenes, output_json_path=output_dir, save_name="MarioGPT_astar_metrics.jsonl")
+    # Annoyingly this doesn't get saved properly if we don't provide a path inside the folder, instead of the folder itself
+    output_path = os.path.join(output_dir, "MarioGPT_metrics_summary.json")
+
+    metrics.astar_metrics(generated_scenes, output_json_path=output_path, save_name="MarioGPT_astar_metrics_samples.jsonl")
+    metrics.astar_metrics(all_levels, output_json_path=output_path, save_name="MarioGPT_astar_metrics_samples.jsonl")    
     print(f"Astar metrics saved to {output_dir}")
 
 
