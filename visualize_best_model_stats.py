@@ -24,7 +24,7 @@ def parse_args():
     parser.add_argument("--ytick_labelsize", type=int, default=20, help="Font size for y-tick labels (default: 20).")
     parser.add_argument("--legend_fontsize", type=int, default=20, help="Font size for legend (default: 20).")
     parser.add_argument("--figsize", type=int, nargs=2, default=(10, 10), help="Figure size as width and height in inches (default: 10x10).")
-    parser.add_argument("--x_tick_rotation", type=int, default=45, help="Rotation angle for axis labels (default: 45)")
+    parser.add_argument("--x_tick_rotation", type=int, default=0, help="Rotation angle for axis labels (default: 0)")
 
     return parser.parse_args()
 
@@ -36,20 +36,24 @@ def load_data(json_path, group_key):
         with open(json_path, "r") as f:
             data = json.load(f)
         if isinstance(data, list):
-            # Check for nested 'models' or 'individual_times'
             for group_stats in data:
                 group = group_stats.get(group_key)
-                # Case 1: 'models' is a list of dicts
                 if "models" in group_stats and isinstance(group_stats["models"], list):
                     for model in group_stats["models"]:
                         model[group_key] = group
                         records.append(model)
-                # Case 2: 'individual_times' is a list of numbers
                 elif "individual_times" in group_stats and isinstance(group_stats["individual_times"], list):
                     for val in group_stats["individual_times"]:
                         records.append({group_key: group, "individual_times": val, **{k: v for k, v in group_stats.items() if k not in [group_key, "individual_times"]}})
                 else:
-                    records.append(group_stats)
+                    # Generic: flatten any list-of-numbers key (except 'models')
+                    for k, v in group_stats.items():
+                        if k != "models" and isinstance(v, list) and v and all(isinstance(x, (int, float)) for x in v):
+                            for val in v:
+                                records.append({group_key: group, k: val, **{kk: vv for kk, vv in group_stats.items() if kk not in [group_key, k]}})
+                            break
+                    else:
+                        records.append(group_stats)
             return pd.DataFrame(records)
         elif isinstance(data, dict):
             return pd.DataFrame([data])
@@ -69,7 +73,14 @@ def load_data(json_path, group_key):
                         for val in group_stats["individual_times"]:
                             records.append({group_key: group, "individual_times": val, **{k: v for k, v in group_stats.items() if k not in [group_key, "individual_times"]}})
                     else:
-                        records.append(group_stats)
+                        # Generic: flatten any list-of-numbers key (except 'models')
+                        for k, v in group_stats.items():
+                            if k != "models" and isinstance(v, list) and v and all(isinstance(x, (int, float)) for x in v):
+                                for val in v:
+                                    records.append({group_key: group, k: val, **{kk: vv for kk, vv in group_stats.items() if kk not in [group_key, k]}})
+                                break
+                        else:
+                            records.append(group_stats)
         return pd.DataFrame(records)
 
 def rename_and_order_groups(df, group_key):
@@ -162,13 +173,14 @@ def main():
     elif args.plot_type == "bar":
         df[args.x_axis] = pd.to_numeric(df[args.x_axis], errors="coerce")
         grouped = df.groupby(args.group_key, observed=False)[args.x_axis].mean()
-        y = range(len(groups_with_data))
-        plt.barh(y, grouped.reindex(groups_with_data), height=0.4, color="skyblue")
-        plt.yticks(y, groups_with_data)
+        groups_reversed = groups_with_data[::-1]
+        y = range(len(groups_reversed))
+        plt.barh(y, grouped.reindex(groups_reversed), height=0.4, color="skyblue")
+        plt.yticks(y, groups_reversed)
         plt.xlabel(args.x_axis_label)
         plt.ylabel(args.y_axis_label)
         plt.xticks(rotation=args.x_tick_rotation)
-        for i, group in enumerate(groups_with_data):
+        for i, group in enumerate(groups_reversed):
             points = df[df[args.group_key] == group][args.x_axis].dropna()
             plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
     # SCATTER PLOT
