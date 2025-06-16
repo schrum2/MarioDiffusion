@@ -345,23 +345,27 @@ def main():
         
         success_count = 0
         for dir_path, num, dir_type in numbered_dirs:
-            if not args.show_successes and not args.show_errors: 
+            evaluate_metrics(dir_path, "Mar1and2", override=False)
+            errors = verify_data_completeness(dir_path, dir_type)
+            
+            show_model = (
+                (errors and not args.show_successes) or
+                (not errors and not args.show_errors)
+            )
+
+            if show_model:
                 print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
 
             has_caption_order_tolerance, file = detect_caption_order_tolerance(dir_path)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
 
-            evaluate_metrics(dir_path, "Mar1and2", override=False)
-            errors = verify_data_completeness(dir_path, dir_type)
-            
+
             if errors and not args.show_successes:
-                if args.show_errors: print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
                 print("Verification failed. Problems found:")
                 for error in errors:
                     print(error)
             elif not errors and not args.show_errors:
-                if args.show_successes: print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
                 print("Verification successful!")
                 success_count += 1
         
