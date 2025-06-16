@@ -29,14 +29,23 @@ def parse_args():
 
 def load_data(json_path, group_key):
     records = []
-    with open(json_path, "r") as f:
-        for line in f:
-            group_stats = json.loads(line)
-            group = group_stats[group_key]
-            for model in group_stats["models"]:
-                model[group_key] = group
-                records.append(model)
-    return pd.DataFrame(records)
+    try:
+        with open(json_path, "r") as f:
+            data = json.load(f)
+        # If it's a list, return as DataFrame
+        if isinstance(data, list):
+            return pd.DataFrame(data)
+        # If it's a dict, wrap in a list
+        elif isinstance(data, dict):
+            return pd.DataFrame([data])
+    except Exception:
+        # Fallback: try JSONL
+        with open(json_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    records.append(json.loads(line))
+        return pd.DataFrame(records)
 
 def rename_and_order_groups(df, group_key):
     group_name_map = {
