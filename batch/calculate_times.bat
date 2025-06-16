@@ -1,6 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
 
+cd ..
+
 :: Mar1and2-conditional models (MLM)
 python calculate_execution_time.py Mar1and2-conditional-regular 0 9
 python calculate_execution_time.py Mar1and2-conditional-absence 0 9
@@ -19,7 +21,7 @@ python calculate_execution_time.py Mar1and2-conditional-MiniLMsplit-negative 0 4
 :: Mar1and2-conditional-GTE models (single sentence)
 python calculate_execution_time.py Mar1and2-conditional-GTE-regular 0 4
 python calculate_execution_time.py Mar1and2-conditional-GTE-absence 0 4
-python calculate_execution_time.py Mar1and2-conditional-GTE-negative 0 4
+python calculate_execution_time.py Mar1and2-conditional-GTE-negative 0 4 
 
 :: Mar1and2-conditional-GTEsplit models (multiple sentences)
 python calculate_execution_time.py Mar1and2-conditional-GTEsplit-regular 0 0
@@ -28,6 +30,14 @@ python calculate_execution_time.py Mar1and2-conditional-GTEsplit-negative 0 0
 
 :: Mar1and2-unconditional models 
 python calculate_execution_time.py Mar1and2-unconditional 0 29
+
+:: MLM Models
+python calculate_execution_time.py Mar1and2-MLM-absence 0 9
+python calculate_execution_time.py Mar1and2-MLM-negative 0 9
+python calculate_execution_time.py Mar1and2-MLM-regular 0 9
+
+:: WGAN Models
+python calculate_execution_time.py Mar1and2-wgan 0 29
 
 
 
