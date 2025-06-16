@@ -9,16 +9,14 @@ cd ..
 set SEED=%1
 if "%SEED%"=="" set SEED=0
 
-set GAME=%2
-
-set TYPE=%3
+set TYPE=%2
 if "%TYPE%"=="" set TYPE=regular
 
 REM Add --describe_absence flag if TYPE is absence
 set DESCRIBE_ABSENCE_FLAG=
 if /I "%TYPE%"=="absence" set DESCRIBE_ABSENCE_FLAG=--describe_absence
 
-set MODEL=%4
+set MODEL=%3
 if /I "%MODEL%"=="" set MODEL=MiniLM
 if /I "%MODEL%"=="MiniLM" (
     set MODEL_NAME=sentence-transformers/multi-qa-MiniLM-L6-cos-v1
@@ -30,8 +28,10 @@ if /I "%MODEL%"=="GTE" (
 )
 
 REM Default values for fdm model output and extra flags
-set DIFF_OUTPUT=%GAME%-fdm-%MODEL%-%TYPE%%SEED%
+set DIFF_OUTPUT=Mar1and2-fdm-%MODEL%-%TYPE%%SEED%
 
 
-python train_fdm.py --augment --output_dir "%DIFF_OUTPUT%" --num_epochs 100 --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-train.json --val_json datasets\%GAME%_LevelsAndCaptions-%TYPE%-validate.json --pretrained_language_model "%MODEL_NAME%" --plot_validation_caption_score --embedding_dim "%EMBED_DIM%" --seed %SEED% %DESCRIBE_ABSENCE_FLAG%
-call batch\evaluate_caption_adherence_multi.bat "%DIFF_OUTPUT%" %TYPE% %GAME%
+python temp_find_best_adherance_score_for_fdm.py --model_path %DIFF_OUTPUT%
+python evaluate_caption_adherence.py --model_path %DIFF_OUTPUT% --save_as_json --json datasets\Mar1and2_RandomTest-%TYPE%.json --output_dir samples-from-random-Mar1and2-captions %DESCRIBE_ABSENCE_FLAG%
+python evaluate_caption_adherence.py --model_path %DIFF_OUTPUT% --save_as_json --json datasets\Mar1and2_LevelsAndCaptions-%TYPE%.json --output_dir samples-from-real-Mar1and2-captions %DESCRIBE_ABSENCE_FLAG%
+
