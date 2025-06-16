@@ -174,7 +174,11 @@ def verify_data_completeness(model_path, type_str):
                     errors.append(f"Requirement 19 failed: 'astar_result_overall_averages.json' file is missing in {uncond_short}")
                 
     elif wgan:
-        samples = os.path.join(f"{model_path}-samples", "all_levels.json")
+        if not "samples" in model_path.lower(): 
+            samples = os.path.join(f"{model_path}-samples", "all_levels.json")
+        else:
+            samples = model_path
+            
         error = verify_json_length(samples, 100)
         if error:
             errors.append(f"Requirement 20 failed: {error}")
@@ -196,7 +200,11 @@ def verify_data_completeness(model_path, type_str):
                 
     elif unconditional:
         # Check unconditional-samples-short 
-        uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
+        if not is_valid_unconditional_sample(model_path): 
+            uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
+        else:
+            uncond_short = model_path
+            
         error = verify_json_length(uncond_short, 100)
         if error:
             errors.append(f"Requirement 24 failed: {error}")
@@ -218,7 +226,11 @@ def verify_data_completeness(model_path, type_str):
                 
         
         # Check unconditional-samples-long
-        uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
+        if not is_valid_unconditional_sample(model_path): 
+            uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
+        else: 
+            uncond_long = model_path
+            
         error = verify_json_length(uncond_long, 100)
         if error:
             errors.append(f"Requirement 24 failed: {error}")
