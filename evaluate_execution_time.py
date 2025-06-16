@@ -71,15 +71,21 @@ def main():
     # Add all individual means, skipping those in combined pairs
     for group in groupings:
         if group["group"] not in combined_groups:
-            mean_entries.append({"group": group["group"], "mean": group["mean"]})
+            mean_entries.append({"group": group["group"], 
+                                 "mean": group["mean"], 
+                                 "individual_times": group["individual_times"]})
     # Add only the combined means for the pairs
     for cond, mlm, combined_name in combine_pairs:
         if cond in group_lookup and mlm in group_lookup:
             combined_mean = group_lookup[cond]["mean"] + group_lookup[mlm]["mean"]
+            combined_individual_times = [
+                a + b for a, b in zip(group_lookup[cond]["individual_times"], group_lookup[mlm]["individual_times"])
+            ]
             mean_entries.append({"group": combined_name,
                                  "mlm_mean": group_lookup[mlm]["mean"],
                                  "cond_mean": group_lookup[cond]["mean"],
-                                 "mean": combined_mean})
+                                 "mean": combined_mean,
+                                 "individual_times": combined_individual_times})
         else:
             print(f"Warning: Could not find both {cond} and {mlm} for combined mean.")
 
