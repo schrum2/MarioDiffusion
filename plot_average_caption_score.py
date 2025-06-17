@@ -226,12 +226,13 @@ def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95
             
             plt.fill_between(epochs, ci_lower, ci_upper,
                             alpha=0.15, color=color)
-    
-    # Formatting
+      # Formatting
     plt.xlabel('Epoch', fontsize=18)
     plt.ylabel('Caption Score', fontsize=18)
     
-    # Set title if provided
+    # Make axis numbers larger
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)# Set title if provided
     # if title is not None:
     #     plt.title(title, fontsize=14)
     # else:
@@ -239,7 +240,7 @@ def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95
     
     plt.grid(True, alpha=0.3)
     # Set y-axis limit to 1.0, bottom to -0.2
-    plt.ylim(top=1.0, bottom=-0.2)
+    #plt.ylim(top=1.0, bottom=-0.2)
     
     # Legend with specified location
     if legend_loc.startswith('bbox_to_anchor'):
