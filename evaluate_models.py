@@ -136,23 +136,15 @@ def main():
     print(f"Removed common prefix: '{removed_prefix}'")
 
 
-    from util.naming_conventions import models as model_naming_map
-    # Step 2: Use naming conventions from util/naming_conventions.py
-    def get_naming_convention(original_name):
-        # Try full match first
-        if original_name in model_naming_map:
-            return model_naming_map[original_name]
-        # Try prefix match (for numbered dirs)
-        for key in model_naming_map:
-            if original_name.startswith(key):
-                return model_naming_map[key]
-        # Fallback to cleaned label
-        print(f"[WARNING] No naming convention found for: {original_name}")
-        return original_name
+    from util.naming_conventions import model_name_map as model_list, get_model_name_map_and_order
 
-    model_label_map = {original: get_naming_convention(original) for original in model_names}
-    sorted_models = sorted(model_names)
-    clean_labels_sorted = [model_label_map[m] for m in sorted_models]
+    model_label_map, clean_labels_sorted = get_model_name_map_and_order()
+    
+    sorted_models = list(map(lambda x : x[0], model_list))
+    sorted_models = list(reversed(sorted_models))
+    clean_labels_sorted = list(reversed(clean_labels_sorted))
+    
+    #clean_labels_sorted = [model_label_map[m] for m in sorted_models]
 
     # Plotting
     bar_width = 0.35
