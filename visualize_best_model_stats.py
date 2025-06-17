@@ -228,7 +228,7 @@ def main():
         plt.xticks(rotation=args.x_tick_rotation)
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig(args.output)
+    plt.savefig('figure.pdf', bbox_inches='tight', pad_inches=0)
     plt.close()
     print(f"Plot saved to {args.output}")
 
