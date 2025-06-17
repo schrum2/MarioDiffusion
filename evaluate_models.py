@@ -88,6 +88,12 @@ def parse_args():
     parser.add_argument("--plot_label", type=str, default=None, help="Label for the outputted plot")
     return parser.parse_args()
 
+def get_bar_color(model_name, mode, mode_list, colors):
+    print(f"Determining color for model: {model_name}")  # Debug print
+    if "MarioGPT" in model_name:
+        return 'red'
+    return colors[mode_list.index(mode) % len(colors)]
+
 def main():
     args = parse_args()
     modes = list(reversed(args.modes))  # Reverse to control legend/bar order
@@ -172,6 +178,7 @@ def main():
     plt.figure(figsize=(12, 12))
 
     colors = ['#66c2a5', '#fc8d62', '#8da0cb']  # Colorblind-friendly, light colors
+    has_added_mode_to_legend = {mode: False for mode in modes}  # Track which modes are in legend
 
     for i, mode in enumerate(modes):
         means = []
@@ -181,26 +188,39 @@ def main():
             means.append(mean_val)
 
         bar_positions = [xi + offsets[i] for xi in x]
-        plt.barh(
-            bar_positions,
-            means,
-            height=bar_width,
-            color='red' if "MarioGPT" in model else colors[i % len(colors)],
-            edgecolor='black',
-            label=None if "MarioGPT" in model else mode,
-            alpha=0.6
-        )
 
+        # Plot bars for each model
         for j, model in enumerate(sorted_models):
-            values = data[model][mode]
-            y_positions = [x[j] + offsets[i]] * len(values)
-            plt.scatter(
-                values,
-                y_positions,
-                color='black',
-                marker='x',
-                zorder=10
+            print(f"Processing model {model} in mode {mode}")  # Debug print
+            color = get_bar_color(model, mode, modes, colors)
+            is_mariogpt = "MarioGPT" in model
+            
+            # Add mode to legend only once per mode, and never for MarioGPT
+            should_add_to_legend = not has_added_mode_to_legend[mode] and not is_mariogpt
+            if should_add_to_legend:
+                has_added_mode_to_legend[mode] = True
+            
+            plt.barh(
+                bar_positions[j],
+                means[j],
+                height=bar_width,
+                color=color,
+                edgecolor='black',
+                label=mode if should_add_to_legend else None,
+                alpha=0.6
             )
+
+            # Scatter plot for individual values
+            values = data[model][mode]
+            if values:  # Only plot if we have values
+                y_position = x[j] + offsets[i]
+                plt.scatter(
+                    values,
+                    [y_position] * len(values),
+                    color='black',
+                    marker='x',
+                    zorder=10
+                )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)
     
