@@ -12,7 +12,7 @@ VALID_MODES_BY_TYPE = {
     "unconditional": {"short", "long"},
     "wgan": {"short"},
     "fdm": {"real", "random"},
-    "MarioGPT": {"MarioGPT"}
+    "MarioGPT": {"short"},
 }
 
 def detect_model_type(model_name):
@@ -29,11 +29,11 @@ def detect_model_type(model_name):
     return "unknown"
 
 
-def strip_common_prefix(strings):
-    if not strings:
-        return strings
-    common_prefix = os.path.commonprefix(strings)
-    return [s[len(common_prefix):] for s in strings], common_prefix
+# def strip_common_prefix(strings):
+#     if not strings:
+#         return strings
+#     common_prefix = os.path.commonprefix(strings)
+#     return [s[len(common_prefix):] for s in strings], common_prefix
 
 def extract_prefix(name):
     if "-unconditional" in name:
@@ -42,37 +42,37 @@ def extract_prefix(name):
     elif "-wgan" in name:
         # return re.sub(r"-wgan\d+", "-wgan", name)
         return "Mar1and2-wgan"
-    elif -"MarioGPT" in name:
+    elif "MarioGPT" in name:
         return "MarioGPT_metrics"
     return name.rstrip("0123456789").rstrip("-_")
 
-def get_metrics_path(base_dir, mode):
+def get_metrics_path(base_dir, mode, plot_file):
     model_name = os.path.basename(base_dir)
 
     if "-conditional-" in model_name:
         if mode in {"short", "long"}:
             # e.g. Mar1and2-conditional-absence5-conditional-samples-short
             cond_dir = f"{base_dir}-unconditional-samples-{mode}"
-            return os.path.join(cond_dir, "evaluation_metrics.json")
+            return os.path.join(cond_dir, plot_file)
         elif mode in {"real", "random"}:
             # e.g. Mar1and2-conditional-absence5/samples-from-real-Mar1and2-captions/evaluation_metrics.json
             subdir = f"samples-from-{mode}-Mar1and2-captions"
-            return os.path.join(base_dir, subdir, "evaluation_metrics.json")
+            return os.path.join(base_dir, subdir, plot_file)
 
     elif "-fdm-" in model_name:
         # fdm case is always subdir
         subdir = f"samples-from-{mode}-Mar1and2-captions"
-        return os.path.join(base_dir, subdir, "evaluation_metrics.json")
+        return os.path.join(base_dir, subdir, plot_file)
 
     elif "-unconditional-samples" in model_name:
         # e.g. Mar1and2-unconditional29-unconditional-samples-short
-        return os.path.join(base_dir, "evaluation_metrics.json")
+        return os.path.join(base_dir, plot_file)
 
     elif "-wgan" in model_name:
-        return os.path.join(base_dir, "evaluation_metrics.json")
+        return os.path.join(base_dir, plot_file)
 
     elif "MarioGPT" in model_name:
-        return os.path.join(base_dir, "short_samples", "evaluation_metrics.json")
+        return os.path.join(base_dir, f"{mode}_levels", plot_file)
     else:
         print(f"[WARNING] Unknown model type for: {model_name}")
         return None
@@ -83,6 +83,7 @@ def parse_args():
                         help="List of modes to compare (e.g., real random short)")
     parser.add_argument("--metric", type=str, default="average_min_edit_distance",
                         help="Metric key in evaluation_metrics.json to plot")
+    parser.add_argument("--plot_file", type=str, default="evaluation_metrics.json", help="File with metrics to plot")
     parser.add_argument("--save", action="store_true", help="Stores resulting pdfs in a folder named comparison_plots")
     parser.add_argument("--plot_label", type=str, default=None, help="Label for the outputted plot")
     return parser.parse_args()
@@ -119,7 +120,7 @@ def main():
                 continue
             
             for d in dirs:
-                metrics_path = get_metrics_path(d, mode)
+                metrics_path = get_metrics_path(d, mode, args.plot_file)
                 if not metrics_path or not os.path.exists(metrics_path):
                     print(f"[SKIP] Missing: {metrics_path}")
                     continue
@@ -137,12 +138,6 @@ def main():
                     print(f"[SKIP] {metric_key} missing in: {metrics_path}")
 
     model_names = list(data.keys())
-
-    # Step 1: Strip common prefix
-    clean_labels, removed_prefix = strip_common_prefix(model_names)
-    print(f"Removed common prefix: '{removed_prefix}'")
-    
-    print(f"printing data: ", data)
 
 
     from util.naming_conventions import model_name_map as model_list, get_model_name_map_and_order
@@ -174,7 +169,7 @@ def main():
     # ✅ Embed TrueType fonts in the PDF
     plt.rcParams['pdf.fonttype'] = 42
 
-    plt.figure(figsize=(8, 8))
+    plt.figure(figsize=(12, 12))
 
     colors = ['#66c2a5', '#fc8d62', '#8da0cb']  # Colorblind-friendly, light colors
 
@@ -190,9 +185,9 @@ def main():
             bar_positions,
             means,
             height=bar_width,
-            color=colors[i % len(colors)],
+            color='red' if "MarioGPT" in model else colors[i % len(colors)],
             edgecolor='black',
-            label=mode,
+            label=None if "MarioGPT" in model else mode,
             alpha=0.6
         )
 
@@ -235,7 +230,7 @@ def main():
         if os.path.exists(save_path):
             os.remove(save_path)
             
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+        plt.savefig(save_path, bbox_inches='tight', dpi=300, pad_inches=0)
         print(f"Plot saved as: {save_path}")
     else:
         plt.show()
