@@ -86,9 +86,19 @@ def verify_data_completeness(model_path, type_str):
 
         # Check real caption samples
         real_samples = os.path.join(model_path, "samples-from-real-Mar1and2-captions", "all_levels.json")
+        
+        # TODO: Change this to resample to 100 samples. First, this should change the existing evalmetrics file (7867) to have a different name, then it should resample and save to a file called evaluation_metrics.json
+        # sample_limit = 100 
+        # if len(scene_caption_data) > sample_limit: 
+        #     increment = len(scene_caption_data) // (sample_limit + 1)
+        #     scene_caption_data = [scene_caption_data[(i+1)*increment] for i in range(sample_limit)]
+        #     if len(scene_caption_data) != sample_limit:
+        #         raise RuntimeError(f"Sample limit mismatch: Expected {sample_limit} samples, got {len(scene_caption_data)} after sampling.")
         error = verify_json_length(real_samples, 7687, check_prompts=True)
         if error:
             errors.append(f"Requirement 5 failed: {error}")
+        
+        
         # Check if evaluation_metrics.json exists in the same directory as all_levels.json
         evaluation_metrics_path = os.path.join(os.path.dirname(real_samples), "evaluation_metrics.json")
         if not os.path.isfile(evaluation_metrics_path):
