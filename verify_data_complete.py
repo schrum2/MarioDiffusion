@@ -279,12 +279,13 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
             continue
             
         # Match rules
+        MarioGPT = "MarioGPT" in item
         is_conditional_with_number = "-conditional-" in item and item[-1].isdigit()
         contains_fdm = "fdm" in item
         contains_unconditional_number = re.search(r"unconditional\d+-.*samples", item)
         contains_wgan_number_samples = re.search(r"wgan\d+-samples", item)
 
-        if not (is_conditional_with_number or contains_fdm or contains_unconditional_number or contains_wgan_number_samples):
+        if not (MarioGPT or is_conditional_with_number or contains_fdm or contains_unconditional_number or contains_wgan_number_samples):
             continue
         
         
@@ -294,6 +295,8 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
             num = int(num_match.group(1))
             dir_type = "absence" if "absence" in item.lower() else "regular"
             numbered_dirs.append((item, num, dir_type))
+        else: # This means we are in the MarioGPT case
+            numbered_dirs.append((item, 0, "regular"))
             
     return sorted(numbered_dirs, key=lambda x: x[1])  # Sort by number
 
@@ -335,12 +338,13 @@ def main():
     parser.add_argument("--end_num", type=int, help="Ending number for model directory range (inclusive)")
     parser.add_argument("--show_successes", default=False, action="store_true", help="Only prints information on complete models")
     parser.add_argument("--show_errors", default=False, action="store_true", help="Only prints information on incomplete models")
+    parser.add_argument("--override_metrics", action="store_true", help="Recalculates all metrics if set")
     
     args = parser.parse_args()
     
     # Run default case if all other args are None and debug is either True or False
     arg_values = vars(args)
-    non_display_args = [v for k, v in vars(args).items() if k not in {"show_successes", "show_errors"}]
+    non_display_args = [v for k, v in vars(args).items() if k not in {"show_successes", "show_errors", "override_metrics"}]
 
     
     if all(v is False or v is None for v in non_display_args):
@@ -354,16 +358,18 @@ def main():
         
         success_count = 0
         for dir_path, num, dir_type in numbered_dirs:
-            evaluate_metrics(dir_path, "Mar1and2", override=False)
+            print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
+            
+            evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
             errors = verify_data_completeness(dir_path, dir_type)
             
-            show_model = (
-                (errors and not args.show_successes) or
-                (not errors and not args.show_errors)
-            )
+            # show_model = (
+            #     (errors and not args.show_successes) or
+            #     (not errors and not args.show_errors)
+            # )
 
-            if show_model:
-                print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
+            # if show_model:
+            #     print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
 
             has_caption_order_tolerance, file = detect_caption_order_tolerance(dir_path)
             if has_caption_order_tolerance:

@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import argparse
 from collections import defaultdict
 from verify_data_complete import find_numbered_directories
-# from util.naming_conventions import models as model_naming_map
 
 # Which modes are valid for which model types
 VALID_MODES_BY_TYPE = {
@@ -13,6 +12,7 @@ VALID_MODES_BY_TYPE = {
     "unconditional": {"short", "long"},
     "wgan": {"short"},
     "fdm": {"real", "random"},
+    "MarioGPT": {"MarioGPT"}
 }
 
 def detect_model_type(model_name):
@@ -24,6 +24,8 @@ def detect_model_type(model_name):
         return "wgan"
     elif "-fdm-" in model_name:
         return "fdm"
+    elif "MarioGPT" in model_name:
+        return "MarioGPT"
     return "unknown"
 
 
@@ -35,9 +37,13 @@ def strip_common_prefix(strings):
 
 def extract_prefix(name):
     if "-unconditional" in name:
-        return re.sub(r"-unconditional\d+", "-unconditional", name)
+        # return re.sub(r"-unconditional\d+", "-unconditional", name)
+        return "Mar1and2-unconditional"
     elif "-wgan" in name:
-        return re.sub(r"-wgan\d+", "-wgan", name)
+        # return re.sub(r"-wgan\d+", "-wgan", name)
+        return "Mar1and2-wgan"
+    elif -"MarioGPT" in name:
+        return "MarioGPT_metrics"
     return name.rstrip("0123456789").rstrip("-_")
 
 def get_metrics_path(base_dir, mode):
@@ -66,7 +72,7 @@ def get_metrics_path(base_dir, mode):
         return os.path.join(base_dir, "evaluation_metrics.json")
 
     elif "MarioGPT" in model_name:
-        return os.path.join(base_dir, "MarioGPT_metrics_summary.json")
+        return os.path.join(base_dir, "short_samples", "evaluation_metrics.json")
     else:
         print(f"[WARNING] Unknown model type for: {model_name}")
         return None
@@ -78,6 +84,7 @@ def parse_args():
     parser.add_argument("--metric", type=str, default="average_min_edit_distance",
                         help="Metric key in evaluation_metrics.json to plot")
     parser.add_argument("--save", action="store_true", help="Stores resulting pdfs in a folder named comparison_plots")
+    parser.add_argument("--plot_label", type=str, default=None, help="Label for the outputted plot")
     return parser.parse_args()
 
 def main():
@@ -87,6 +94,7 @@ def main():
     print(f"Comparing modes: {modes}")
 
     numbered_dirs = find_numbered_directories()
+
     if not numbered_dirs:
         print("No matching directories found.")
         return
@@ -111,8 +119,6 @@ def main():
                 continue
             
             for d in dirs:
-                # Modify to correct model path for fdm (and later for wgan)
-
                 metrics_path = get_metrics_path(d, mode)
                 if not metrics_path or not os.path.exists(metrics_path):
                     print(f"[SKIP] Missing: {metrics_path}")
@@ -126,6 +132,7 @@ def main():
                 val = metrics.get(metric_key)
                 if val is not None:
                     data[prefix][mode].append(val)
+                    print(f"Adding a value to prefix {prefix}")
                 else:
                     print(f"[SKIP] {metric_key} missing in: {metrics_path}")
 
@@ -134,6 +141,8 @@ def main():
     # Step 1: Strip common prefix
     clean_labels, removed_prefix = strip_common_prefix(model_names)
     print(f"Removed common prefix: '{removed_prefix}'")
+    
+    print(f"printing data: ", data)
 
 
     from util.naming_conventions import model_name_map as model_list, get_model_name_map_and_order
@@ -144,8 +153,6 @@ def main():
     sorted_models = list(reversed(sorted_models))
     clean_labels_sorted = list(reversed(clean_labels_sorted))
     
-    #clean_labels_sorted = [model_label_map[m] for m in sorted_models]
-
     # Plotting
     bar_width = 0.35
     num_models = len(sorted_models)
@@ -154,14 +161,14 @@ def main():
     offsets = [(i - (num_modes - 1) / 2) * bar_width for i in range(num_modes)]
 
     plt.rcParams.update({
-        'font.size': 14,
-        'axes.labelsize': 16,
-        'axes.titlesize': 16,
-        'xtick.labelsize': 14,
-        'ytick.labelsize': 12,
-        'legend.fontsize': 12,
-        'legend.title_fontsize': 14,
-        'figure.titlesize': 18
+        'font.size': 22,
+        'axes.labelsize': 22,
+        'axes.titlesize': 22,
+        'xtick.labelsize': 22,
+        'ytick.labelsize': 22,
+        'legend.fontsize': 22,
+        'legend.title_fontsize': 22,
+        'figure.titlesize': 22
     })
     
     # ✅ Embed TrueType fonts in the PDF
@@ -201,7 +208,11 @@ def main():
             )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)
-    plt.xlabel(metric_key.replace("_", " ").capitalize(), labelpad=10)
+    
+    if args.plot_label:
+        plt.xlabel(args.plot_label, labelpad=10)
+    else:
+        plt.xlabel(metric_key.replace("_", " ").capitalize(), labelpad=10)
 
     handles, labels = plt.gca().get_legend_handles_labels()
     plt.legend(

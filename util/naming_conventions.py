@@ -20,6 +20,7 @@ model_name_map = [
     ("Mar1and2-fdm-GTE-absence", "FDM-GTE-absence"),
     ("Mar1and2-wgan", "WGAN"),
     ("Mar1and2-unconditional", "Unconditional"),
+    ("MarioGPT_metrics", "MarioGPT"),
 ]
 
 def get_model_name_map_and_order():
