@@ -89,10 +89,6 @@ def find_metrics_of_samples(samples_json, real_json, output_dir):
     avg_min_edit_distance_from_real, perfect_matches = None, None
 
     #We should only call edit distance from real if the scenes are 16 blocks across
-    print(len(generated_scenes), len(real_scenes))
-    print(len(generated_scenes[0]), len(real_scenes[0]))
-    print(len(generated_scenes[0][0]), len(real_scenes[0][0]))
-
     if len(generated_scenes[0][0])==len(real_scenes[0][0]):
         # Average min edit distance from generated to real levels
         avg_min_edit_distance_from_real, perfect_matches = metrics.average_min_edit_distance_from_real(generated_scenes, real_scenes)
