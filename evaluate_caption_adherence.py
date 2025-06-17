@@ -95,6 +95,7 @@ def main():
         pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
     else:
         #Get the FDM pipeline if "unet" doesn't exist
+        #TODO: This doesn't work with our new saving system
         pipe = FDMPipeline.from_pretrained(os.path.join(args.model_path, "final-model")).to(device)
 
     assert(pipe.tokenizer is not None)

@@ -421,7 +421,7 @@ def percent_perfect_match(prompt_caption_pairs: List[tuple[str, str]]) -> Dict[s
     }
 
 def astar_metrics(
-    levels: list[dict],  # Each dict should have "scene" and "caption"
+    levels: list[dict]|list[list[str]],  # Each dict should have "scene" and "caption", each list of lists should be in ascii format
     num_runs: int = 1,
     simulator_kwargs: dict = None,
     output_json_path: str = None,
@@ -430,7 +430,7 @@ def astar_metrics(
     """
     Runs the SNES A* algorithm on each level multiple times and saves results in JSONL format.
     Args:
-        levels: List of dicts, each with "scene" (2D int list) and "caption" (str)
+        levels: List of dicts (one-hot encoded json data) or list of lists of strings (raw ascii chars)
         num_runs: Number of runs per level
         simulator_kwargs: kwargs for MMNEATSimulator
         output_json_path: Path to input JSON file (saves in root directory if None)
@@ -455,11 +455,18 @@ def astar_metrics(
     # Open the file ONCE in write mode to clear and write all results
     with open(out_file, "w") as f:
         for idx, entry in enumerate(tqdm(levels, desc="A* metrics", unit="level")):
+            # Most calls should be a dict, but we should allow for calling this function with just an ascii level, so we add support here
+            if isinstance(entry, dict):
+                scene = entry.get("scene")
+                caption = entry.get("caption", None)
 
-            scene = entry.get("scene")
-            caption = entry.get("caption", None)
+                ascii_level = scene_to_ascii(scene, id_to_char, True)
+            else:
+                scene=entry
+                ascii_level = entry
+                caption="This level has no caption"
+            
 
-            ascii_level = scene_to_ascii(scene, id_to_char, True)
             run_metrics = []
             for run in range(num_runs):
                 try:
