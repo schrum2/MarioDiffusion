@@ -100,6 +100,14 @@ def main():
     metric_key = args.metric
     print(f"Comparing modes: {modes}")
 
+    # Add mode name mapping for legend labels
+    mode_display_names = {
+        "short": "unconditional",
+        "real": "real",
+        "random": "random",
+        "long": "long"
+    }
+
     numbered_dirs = find_numbered_directories()
 
     if not numbered_dirs:
@@ -167,7 +175,7 @@ def main():
         'axes.titlesize': 22,
         'xtick.labelsize': 22,
         'ytick.labelsize': 22,
-        'legend.fontsize': 22,
+        'legend.fontsize': 19,
         'legend.title_fontsize': 22,
         'figure.titlesize': 22
     })
@@ -206,7 +214,7 @@ def main():
                 height=bar_width,
                 color=color,
                 edgecolor='black',
-                label=mode if should_add_to_legend else None,
+                label=mode_display_names[mode] if should_add_to_legend else None,
                 alpha=0.6
             )
 
@@ -233,7 +241,7 @@ def main():
     plt.legend(
         handles[::-1],
         labels[::-1],
-        title="Mode",
+        #title="Mode",
         loc='best',
         frameon=True,
         edgecolor='black'
