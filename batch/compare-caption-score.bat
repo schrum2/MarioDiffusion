@@ -9,7 +9,7 @@ for %%d in (LevelsAndCaptions RandomTest) do (
   set YMAX=1.0
   if /I "%%d"=="RandomTest" (
     set YMIN=-0.2
-    set YMAX=0.45
+    set YMAX=0.47
   )
 
   python plot_average_caption_score.py ^
@@ -42,7 +42,7 @@ for %%d in (LevelsAndCaptions RandomTest) do (
   set YMAX=1.0
   if /I "%%d"=="RandomTest" (
       set YMIN=-0.2
-      set YMAX=0.45
+      set YMAX=0.47
   )
 
   for %%t in (regular absence negative) do (
