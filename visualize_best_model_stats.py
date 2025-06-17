@@ -10,25 +10,26 @@ matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Visualize model statistics with customizable plots.")
-    parser.add_argument("--input", type=str, required=True, help="Path to input JSONL file.")
-    parser.add_argument("--output", type=str, default="plot.pdf", help="Output plot file name (PDF recommended).")
-    parser.add_argument("--plot_type", type=str, choices=["box", "violin", "bar", "scatter"], default="box", help="Type of plot to generate.")
-    parser.add_argument("--group_key", type=str, default="group", help="Key to use for grouping models (default: 'group').")
-    parser.add_argument("--x_axis", type=str, required=True, help="Used for both naming the key and labeling the x-axis.")
-    parser.add_argument("--y_axis", type=str, required=True, help="Used for both naming the key and labeling the y-axis.")
-    parser.add_argument("--x_axis_label", type=str, default="", help="Label for the x-axis (default: None).")
-    parser.add_argument("--y_axis_label", type=str, default="", help="Label for the y-axis (default: None).")
-    parser.add_argument("--font_size", type=int, default=22, help="Base font size for the plot (default: 22).")
-    parser.add_argument("--labelsize", type=int, default=24, help="Font size for axes labels (default: 24).")
-    parser.add_argument("--xtick_labelsize", type=int, default=20, help="Font size for x-tick labels (default: 20).")
-    parser.add_argument("--ytick_labelsize", type=int, default=20, help="Font size for y-tick labels (default: 20).")
-    parser.add_argument("--legend_fontsize", type=int, default=20, help="Font size for legend (default: 20).")
-    parser.add_argument("--figsize", type=int, nargs=2, default=(10, 10), help="Figure size as width and height in inches (default: 10x10).")
-    parser.add_argument("--x_tick_rotation", type=int, default=0, help="Rotation angle for axis labels (default: 0)")
-    parser.add_argument("--x_markers_on_bar_plot", action='store_true', help="If set, scatter points will be plotted on top of the bar plot.")
-    parser.add_argument("--stacked_bar_for_mlm", action='store_true', help="If set, MLM groups with mlm_mean/cond_mean will be shown as stacked bars.")
-    parser.add_argument("--convert_time_to_hours", action='store_true', help="If set, time values will be converted to hours.")
+    parser = argparse.ArgumentParser(description="Visualize model statistics with customizable plots.\n")
+    parser.add_argument("--input", type=str, required=True, help="Path to input JSONL file.\n")
+    parser.add_argument("--output", type=str, default="plot.pdf", help="Output plot file name (PDF recommended).\n")
+    parser.add_argument("--plot_type", type=str, choices=["box", "violin", "bar", "scatter"], default="box", help="Type of plot to generate.\n")
+    parser.add_argument("--group_key", type=str, default="group", help="Key to use for grouping models (default: 'group').\n")
+    parser.add_argument("--x_axis", type=str, required=True, help="Used for both naming the key and labeling the x-axis.\n")
+    parser.add_argument("--y_axis", type=str, required=True, help="Used for both naming the key and labeling the y-axis.\n")
+    parser.add_argument("--x_axis_label", type=str, default="", help="Label for the x-axis (default: None).\n")
+    parser.add_argument("--y_axis_label", type=str, default="", help="Label for the y-axis (default: None).\n")
+    parser.add_argument("--font_size", type=int, default=22, help="Base font size for the plot (default: 22).\n")
+    parser.add_argument("--labelsize", type=int, default=24, help="Font size for axes labels (default: 24).\n")
+    parser.add_argument("--xtick_labelsize", type=int, default=20, help="Font size for x-tick labels (default: 20).\n")
+    parser.add_argument("--ytick_labelsize", type=int, default=20, help="Font size for y-tick labels (default: 20).\n")
+    parser.add_argument("--legend_fontsize", type=int, default=20, help="Font size for legend (default: 20).\n")
+    parser.add_argument("--figsize", type=int, nargs=2, default=(10, 10), help="Figure size as width and height in inches (default: 10x10).\n")
+    parser.add_argument("--x_tick_rotation", type=int, default=0, help="Rotation angle for axis labels (default: 0).\n")
+    parser.add_argument("--x_markers_on_bar_plot", action='store_true', help="If set, scatter points will be plotted on top of the bar plot.\n")
+    parser.add_argument("--x_marker_data_on_bar_plot", type=str, default=None, help="Choose data other than that provided for the required --x_axis arg.\n")
+    parser.add_argument("--stacked_bar_for_mlm", action='store_true', help="If set, MLM groups with mlm_mean/cond_mean will be shown as stacked bars.\n")
+    parser.add_argument("--convert_time_to_hours", action='store_true', help="If set, time values will be converted to hours.\n")
     return parser.parse_args()
 
 # GPT-4.1 suggested a more robust JSON loading function that can handle both JSON arrays and JSONL files.
@@ -176,6 +177,7 @@ def main():
             # Plot stacked bars for MLM groups
             plt.barh(bar_positions, mlm_means, height=0.4, color="red", label="Language Model")
             plt.barh(bar_positions, cond_means, height=0.4, left=mlm_means, color="skyblue", label="Level Model")
+            plt.grid(axis='x', which='both', linestyle='--', alpha=0.5)
             # Plot single bars for other groups
             plt.barh(single_positions, single_means, height=0.4, color="skyblue")
             plt.yticks(y, groups_reversed)
@@ -184,10 +186,17 @@ def main():
             plt.xticks(rotation=args.x_tick_rotation)
             plt.legend()
             if args.x_markers_on_bar_plot:
-                plt.gca().set_xlim(left=0)
-                for i, group in enumerate(groups_reversed):
-                    points = df[df[args.group_key] == group][args.x_axis].dropna()
-                    plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
+                if args.x_marker_data_on_bar_plot:
+                    x_marker_data = df[args.x_marker_data_on_bar_plot].dropna()
+                    for i, group in enumerate(groups_reversed):
+                        points = df[df[args.group_key] == group][args.x_marker_data_on_bar_plot].dropna()
+                        plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
+                        
+                else:
+                    plt.gca().set_xlim(left=0)
+                    for i, group in enumerate(groups_reversed):
+                        points = df[df[args.group_key] == group][args.x_axis].dropna()
+                        plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
         else:
             plt.barh(y, grouped.reindex(groups_reversed), height=0.4, color="skyblue")
             plt.yticks(y, groups_reversed)
@@ -195,10 +204,16 @@ def main():
             plt.ylabel(args.y_axis_label)
             plt.xticks(rotation=args.x_tick_rotation)
             if args.x_markers_on_bar_plot:
-                plt.gca().set_xlim(left=0)
-                for i, group in enumerate(groups_reversed):
-                    points = df[df[args.group_key] == group][args.x_axis].dropna()
-                    plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
+                if args.x_marker_data_on_bar_plot:
+                    x_marker_data = df[args.x_marker_data_on_bar_plot].dropna()
+                    for i, group in enumerate(groups_reversed):
+                        points = df[df[args.group_key] == group][args.x_marker_data_on_bar_plot].dropna()
+                        plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
+                else:
+                    plt.gca().set_xlim(left=0)
+                    for i, group in enumerate(groups_reversed):
+                        points = df[df[args.group_key] == group][args.x_axis].dropna()
+                        plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
     # SCATTER PLOT
     elif args.plot_type == "scatter":
         color_map = plt.get_cmap('Set2', len(groups_with_data))
