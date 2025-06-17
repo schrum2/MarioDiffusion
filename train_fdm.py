@@ -22,6 +22,7 @@ from models.fdm_pipeline import FDMPipeline
 import util.common_settings as common_settings
 import models.general_training_helper as gen_train_help
 import models.sentence_transformers_helper as st_helper
+import shutil
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
@@ -52,7 +53,7 @@ def parse_args():
     parser.add_argument("--save_model_epochs", type=int, default=10, help="Save model every N epochs")
     parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help="Mixed precision type")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--validate_epochs", type=int, default=5, help="Calculate validation loss every N epochs")
+    parser.add_argument("--validate_epochs", type=int, default=10, help="Calculate validation loss every N epochs")
     
     # Output args
     parser.add_argument("--output_dir", type=str, default="level-fdm-output", help="Output directory")
@@ -246,7 +247,11 @@ def main():
 
     global_step = 0
 
-    loss_metric_train = torch.zeros(args.num_epochs).to(accelerator.device)
+    #Used for finding the best model to save
+    best_model_epoch=0
+    best_caption_score=-1
+
+
     for epoch in range(args.num_epochs):
         model.train()
         train_loss = 0.0
@@ -302,6 +307,10 @@ def main():
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, 
                     describe_absence=args.describe_absence, output=False, height=16, width=16
                 )
+
+                if avg_caption_score>best_caption_score:
+                    best_model_epoch=epoch
+                    best_caption_score=avg_caption_score
             else:
                 # Is this how this should behave in the unconditional case?
                 # Or should I justs use 0 or -1?
@@ -374,12 +383,11 @@ def main():
         # Close progress bar and TensorBoard writer
         progress_bar.close()
 
-        # Final model save
-        pipeline = FDMPipeline(
-        tokenizer, text_encoder, model, accelerator.device
-        ).to(accelerator.device)
-            
-        pipeline.save_pretrained(os.path.join(args.output_dir, f"final-model"))
+        print(f"Saving the best model at epoch {best_model_epoch}")
+        #Copy the best model into the main directory
+        shutil.copytree(os.path.join(args.output_dir, f"checkpoint-{best_model_epoch}"), args.output_dir, dirs_exist_ok=True)
+
+        
 
 
 
