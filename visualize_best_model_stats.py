@@ -30,6 +30,7 @@ def parse_args():
     parser.add_argument("--x_marker_data_on_bar_plot", type=str, default=None, help="Choose data other than that provided for the required --x_axis arg.\n")
     parser.add_argument("--stacked_bar_for_mlm", action='store_true', help="If set, MLM groups with mlm_mean/cond_mean will be shown as stacked bars.\n")
     parser.add_argument("--convert_time_to_hours", action='store_true', help="If set, time values will be converted to hours.\n")
+    parser.add_argument("--font", type=str, default="Courier New", help="Font family for the plo e.g. \"Times New Roman\", \"Palatino\", \"Garamond\" (default: 'Courier New').\n")
     return parser.parse_args()
 
 # GPT-4.1 suggested a more robust JSON loading function that can handle both JSON arrays and JSONL files.
@@ -116,6 +117,7 @@ def main():
         "xtick.labelsize": args.xtick_labelsize,   # X tick label font size
         "ytick.labelsize": args.ytick_labelsize,   # Y tick label font size
         "legend.fontsize": args.legend_fontsize,   # Legend font size
+        "font.family": args.font, # Use a monospaced font for better alignment
     })
 
     plt.figure(figsize=args.figsize)
