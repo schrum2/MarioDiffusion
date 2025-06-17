@@ -48,15 +48,15 @@ for %%d in (LevelsAndCaptions RandomTest) do (  for %%t in (regular absence nega
     set /a FDM_MINILN_STYLE=!STYLE_INDEX!+15
     set /a FDM_GTE_STYLE=!STYLE_INDEX!+17
     
-    python plot_average_caption_score.py ^      
-      "Mar1and2-conditional-%%t:0-9:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:MLM-%%t:!MLM_STYLE!" ^
-      "Mar1and2-conditional-MiniLM-%%t:0-9:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:MiniLM-single-%%t:!MINILN_SINGLE_STYLE!" ^
-      "Mar1and2-conditional-MiniLMsplit-%%t:0-4:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:MiniLM-multiple-%%t:!MINILN_MULTI_STYLE!" ^
-      "Mar1and2-conditional-GTE-%%t:0-4:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:GTE-single-%%t:!GTE_SINGLE_STYLE!" ^
-      "Mar1and2-conditional-GTEsplit-%%t:0:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:GTE-multiple-%%t:!GTE_MULTI_STYLE!" ^
-      "Mar1and2-fdm-MiniLM-!DATA!:0-29:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:FDM-MiniLM-!DATA!:!FDM_MINILN_STYLE!" ^
-      "Mar1and2-fdm-GTE-!DATA!:0-29:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:FDM-GTE-!DATA!:!FDM_GTE_STYLE!" ^
-      --ci
+    python plot_average_caption_score.py ^
+        "Mar1and2-conditional-%%t:0-9:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:MLM-%%t:!MLM_STYLE!" ^
+        "Mar1and2-conditional-MiniLM-%%t:0-9:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:MiniLM-single-%%t:!MINILN_SINGLE_STYLE!" ^
+        "Mar1and2-conditional-MiniLMsplit-%%t:0-4:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:MiniLM-multiple-%%t:!MINILN_MULTI_STYLE!" ^
+        "Mar1and2-conditional-GTE-%%t:0-4:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:GTE-single-%%t:!GTE_SINGLE_STYLE!" ^
+        "Mar1and2-conditional-GTEsplit-%%t:0:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:GTE-multiple-%%t:!GTE_MULTI_STYLE!" ^
+        "Mar1and2-fdm-MiniLM-!DATA!:0-29:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:FDM-MiniLM-!DATA!:!FDM_MINILN_STYLE!" ^
+        "Mar1and2-fdm-GTE-!DATA!:0-29:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:FDM-GTE-!DATA!:!FDM_GTE_STYLE!" ^
+        --ci
   )
 )
 
