@@ -24,7 +24,7 @@ for %%d in (LevelsAndCaptions RandomTest) do (
     "Mar1and2-fdm-MiniLM-absence:0-29:Mar1and2_%%d-absence_scores_by_epoch.jsonl:FDM-MiniLM-absence:16" ^
     "Mar1and2-fdm-GTE-regular:0-29:Mar1and2_%%d-regular_scores_by_epoch.jsonl:FDM-GTE-regular:17" ^
     "Mar1and2-fdm-GTE-absence:0-29:Mar1and2_%%d-absence_scores_by_epoch.jsonl:FDM-GTE-absence:18" ^
-    --ci
+    --ci --pdf "CaptionAdherence-%%d.pdf"
 )
 
 REM Compare by caption strategy
@@ -56,7 +56,7 @@ for %%d in (LevelsAndCaptions RandomTest) do (  for %%t in (regular absence nega
         "Mar1and2-conditional-GTEsplit-%%t:0:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:GTE-multiple-%%t:!GTE_MULTI_STYLE!" ^
         "Mar1and2-fdm-MiniLM-!DATA!:0-29:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:FDM-MiniLM-!DATA!:!FDM_MINILN_STYLE!" ^
         "Mar1and2-fdm-GTE-!DATA!:0-29:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:FDM-GTE-!DATA!:!FDM_GTE_STYLE!" ^
-        --ci
+        --ci --pdf "CaptionAdherence-%%d-%%t.pdf"
   )
 )
 
