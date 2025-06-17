@@ -14,6 +14,7 @@ import random
 import colorsys
 from util.sampler import scene_to_ascii
 from util.sampler import SampleOutput
+from models.pipeline_loader import get_pipeline
 #from LodeRunner.loderunner.graphics import *
 
 
@@ -276,8 +277,7 @@ class TileViewer(tk.Tk):
         if model_path:
             try:
                 self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
-                self.pipeline = TextConditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
+                self.pipeline = get_pipeline(model_path).to(self.device)
                 print(f"Model loaded from {model_path}")
                 self.generate_button.config(state=tk.NORMAL)  # Enable the generate button
                 self.steps_entry.config(state=tk.NORMAL)  # Enable the steps entry

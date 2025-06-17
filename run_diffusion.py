@@ -3,12 +3,12 @@ import argparse
 import os
 import torch
 import numpy as np
-from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from level_dataset import visualize_samples, samples_to_scenes
 import random
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from create_ascii_captions import save_level_data
 import util.common_settings as common_settings
+from models.pipeline_loader import get_pipeline
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")
@@ -59,10 +59,9 @@ def generate_levels(args):
     
     # Load the pipeline
     print(f"Loading model from {args.model_path}...")
-    if args.text_conditional:
-        pipeline = TextConditionalDDPMPipeline.from_pretrained(args.model_path)
-    else:
-        pipeline = UnconditionalDDPMPipeline.from_pretrained(args.model_path)
+    
+    pipeline = get_pipeline(args.model_path)
+
     pipeline.to(device)
 
     # Determine number of tiles from model

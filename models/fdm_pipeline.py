@@ -14,6 +14,8 @@ import util.common_settings as common_settings
 from safetensors.torch import save_file, load_file
 from models.fdm import Gen
 import models.sentence_transformers_helper as st_helper
+from models.pipeline_loader import get_pipeline
+
 
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
@@ -207,7 +209,7 @@ if __name__ == "__main__":
 
     # Example usage
     model_path = "SMB1-conditional-fdm-test"
-    pipe = FDMPipeline.from_pretrained(model_path)
+    pipe = get_pipeline(model_path)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pipe = pipe.to(device)

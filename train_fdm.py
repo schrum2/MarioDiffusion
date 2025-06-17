@@ -1,19 +1,15 @@
 import argparse
 import os
 import torch
-from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 import random
 import numpy as np
 from accelerate import Accelerator
-from level_dataset import LevelDataset, visualize_samples
+from level_dataset import visualize_samples
 from tokenizer import Tokenizer 
 import json
-import threading
 from datetime import datetime
-from util.plotter import Plotter
-from models.text_model import TransformerModel
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from create_ascii_captions import extract_tileset
 from transformers import AutoTokenizer, AutoModel

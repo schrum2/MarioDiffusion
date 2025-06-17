@@ -1,11 +1,11 @@
 from interactive_generation import InteractiveGeneration
 import torch
-from models.fdm_pipeline import FDMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from captions.caption_match import compare_captions, process_scene_segments
 from create_ascii_captions import assign_caption, extract_tileset
 import argparse
 import util.common_settings as common_settings
+from models.pipeline_loader import get_pipeline
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained fdm model")    
@@ -33,7 +33,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         )
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.pipe = FDMPipeline.from_pretrained(args.model_path).to(self.device)
+        self.pipe = get_pipeline(args.model_path).to(self.device)
 
         if args.tileset:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(args.tileset)

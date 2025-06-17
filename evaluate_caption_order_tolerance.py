@@ -20,8 +20,9 @@ import numpy as np
 import torch
 #from tqdm import tqdm
 
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from captions.util import extract_tileset
+from models.pipeline_loader import get_pipeline
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption order tolerance for a diffusion model.")
@@ -75,7 +76,7 @@ def creation_of_parameters(caption, max_permutations):
         raise ValueError(f"Unknown game: {args.game}")
 
     # Load pipeline
-    pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
+    pipe = get_pipeline(args.model_path).to(device)
 
     # Load tile metadata
     # Just once

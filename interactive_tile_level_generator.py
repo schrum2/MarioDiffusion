@@ -8,7 +8,6 @@ import gc
 from PIL import ImageTk
 import sys
 from util.gui_shared import ParentBuilder
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
@@ -17,6 +16,8 @@ from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.sampler import scene_to_ascii
+from models.pipeline_loader import get_pipeline
+
 
 # Add the parent directory to sys.path so sibling folders can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -228,7 +229,7 @@ class CaptionBuilder(ParentBuilder):
                 model = os.path.dirname(model)
         if model:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.pipe = TextConditionalDDPMPipeline.from_pretrained(model).to(self.device)
+            self.pipe = get_pipeline(model).to(self.device)
 
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"

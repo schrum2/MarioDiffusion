@@ -7,7 +7,6 @@ import numpy as np
 from datetime import datetime
 from level_dataset import LevelDataset, visualize_samples
 import json
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.fdm_pipeline import FDMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
 from create_ascii_captions import assign_caption, save_level_data
@@ -18,8 +17,8 @@ from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
-from models.fdm_pipeline import FDMPipeline
 from util.plotter import Plotter  
+from models.pipeline_loader import get_pipeline
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
@@ -87,16 +86,8 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
-    using_unet_pipe = False
-    # TODO: This won't work if training terminated early, but there are still valid checkpoints I want to evaluate
-    if(os.path.exists(os.path.join(args.model_path, "unet"))):
-        #Default to getting the Diffusion pipeline
-        using_unet_pipe = True
-        pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
-    else:
-        #Get the FDM pipeline if "unet" doesn't exist
-        #TODO: This doesn't work with our new saving system
-        pipe = FDMPipeline.from_pretrained(os.path.join(args.model_path, "final-model")).to(device)
+
+    pipe = get_pipeline(args.model_path).to(device)
 
     assert(pipe.tokenizer is not None)
 
@@ -214,10 +205,8 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
                 continue
                 
             print(f"Evaluating checkpoint: {checkpoint_dir}")
-            if using_unet_pipe:
-                pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
-            else:
-                pipe = FDMPipeline.from_pretrained(checkpoint_dir).to(device)
+            
+            pipe = get_pipeline(checkpoint_dir).to(device)
 
 
             avg_score, _, _, _ = calculate_caption_score_and_samples(
