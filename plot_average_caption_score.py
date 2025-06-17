@@ -176,7 +176,7 @@ def get_line_styles(n):
     
     return styles
 
-def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95, title=None, legend_loc='lower right'):
+def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95, title=None, legend_loc='lower right', ymin=-0.2, ymax=1.0):
     """Create the matplotlib plot with multiple experiment batches."""
     plt.figure(figsize=(12, 8))
     
@@ -232,15 +232,10 @@ def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95
     
     # Make axis numbers larger
     plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)# Set title if provided
-    # if title is not None:
-    #     plt.title(title, fontsize=14)
-    # else:
-    #     plt.title('Caption Score vs Epoch (Averaged Across Runs)', fontsize=14)    
+    plt.yticks(fontsize=16)
     
-    plt.grid(True, alpha=0.3)
-    # Set y-axis limit to 1.0, bottom to -0.2
-    #plt.ylim(top=1.0, bottom=-0.2)
+    # Set y-axis limits
+    plt.ylim(bottom=ymin, top=ymax)
     
     # Legend with specified location
     if legend_loc.startswith('bbox_to_anchor'):
@@ -248,14 +243,6 @@ def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95
         legend = plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 16}, handlelength=2.5, handletextpad=1.5)
     else:
         legend = plt.legend(loc=legend_loc, prop={'size': 16}, handlelength=2.5, handletextpad=1.5, ncol=2)
-    
-    # Add error type to legend title if applicable
-    # if error_type == 'std':
-        # legend.set_title('Experiments (± 1 std)', prop={'size': 20})
-    # elif error_type == 'ci':
-        # legend.set_title(f'Experiments ({int(confidence*100)}% CI)', prop={'size': 20})
-    # else:
-        # legend.set_title('Experiments', prop={'size': 20})
     
     # Add info about runs at bottom
     info_lines = []
@@ -267,10 +254,7 @@ def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95
                 info_lines.append(f"{exp_name}: {num_runs} runs")
             else:
                 info_lines.append(f"{exp_name}: {min_runs}-{num_runs} runs")
-    
-    #if info_lines:
-    #    plt.figtext(0.02, 0.02, ' | '.join(info_lines), fontsize=8, wrap=True)
-    
+        
     plt.tight_layout()
     return plt.gcf()
 
@@ -360,6 +344,10 @@ File patterns support wildcards:
                        help='Confidence level for CI (default: 0.95)')    
     parser.add_argument('--output', '-o', type=str,
                        help='Output filename (default: show plot)')
+    parser.add_argument('--ymin', type=float, default=-0.2,
+                       help='Minimum value for y-axis (default: -0.2)')
+    parser.add_argument('--ymax', type=float, default=1.0,
+                       help='Maximum value for y-axis (default: 1.0)')
     parser.add_argument('--pdf', type=str,
                        help='Save plot as PDF with embedded fonts (e.g., "plot.pdf")')
     
@@ -445,7 +433,7 @@ File patterns support wildcards:
     legend_loc = 'bbox_to_anchor=(1.05, 1), loc=upper left' if args.legend_loc == 'outside' else args.legend_loc
     
     # Create plot
-    fig = create_plot(experiment_data, style_indices, error_type, args.confidence, legend_loc)
+    fig = create_plot(experiment_data, style_indices, error_type, args.confidence, legend_loc, args.ymin, args.ymax)
       # Save and/or show plot
     if args.pdf:
         # Save PDF with embedded fonts
