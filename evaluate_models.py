@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import argparse
 from collections import defaultdict
 from verify_data_complete import find_numbered_directories
+# from util.naming_conventions import models as model_naming_map
 
 # Which modes are valid for which model types
 VALID_MODES_BY_TYPE = {
@@ -45,9 +46,9 @@ def get_metrics_path(base_dir, mode):
     if "-conditional-" in model_name:
         if mode in {"short", "long"}:
             # e.g. Mar1and2-conditional-absence5-conditional-samples-short
-            cond_dir = f"{base_dir}-conditional-samples-{mode}"
+            cond_dir = f"{base_dir}-unconditional-samples-{mode}"
             return os.path.join(cond_dir, "evaluation_metrics.json")
-        else:
+        elif mode in {"real", "random"}:
             # e.g. Mar1and2-conditional-absence5/samples-from-real-Mar1and2-captions/evaluation_metrics.json
             subdir = f"samples-from-{mode}-Mar1and2-captions"
             return os.path.join(base_dir, subdir, "evaluation_metrics.json")
@@ -57,13 +58,15 @@ def get_metrics_path(base_dir, mode):
         subdir = f"samples-from-{mode}-Mar1and2-captions"
         return os.path.join(base_dir, subdir, "evaluation_metrics.json")
 
-    elif "-unconditional" in model_name:
+    elif "-unconditional-samples" in model_name:
         # e.g. Mar1and2-unconditional29-unconditional-samples-short
         return os.path.join(base_dir, "evaluation_metrics.json")
 
     elif "-wgan" in model_name:
         return os.path.join(base_dir, "evaluation_metrics.json")
 
+    elif "MarioGPT" in model_name:
+        return os.path.join(base_dir, "MarioGPT_metrics_summary.json")
     else:
         print(f"[WARNING] Unknown model type for: {model_name}")
         return None
@@ -132,20 +135,22 @@ def main():
     clean_labels, removed_prefix = strip_common_prefix(model_names)
     print(f"Removed common prefix: '{removed_prefix}'")
 
-    # Step 2: Renaming logic, REPLACE WITH UTIL SCRIPT THAT HAS NAMING CONVENTIONS
-    def rename_model_label(label):
-        if label in {"regular", "absence", "negative"}:
-            return f"MLM-{label}"
-        elif "split" in label:
-            return label.replace("split", "multiple")
-        else:
-            parts = label.split("-")
-            if len(parts) == 2:
-                return f"{parts[0]}-single-{parts[1]}"
-            else:
-                return f"{label}-single"
 
-    model_label_map = {original: rename_model_label(cleaned) for original, cleaned in zip(model_names, clean_labels)}
+    from util.naming_conventions import models as model_naming_map
+    # Step 2: Use naming conventions from util/naming_conventions.py
+    def get_naming_convention(original_name):
+        # Try full match first
+        if original_name in model_naming_map:
+            return model_naming_map[original_name]
+        # Try prefix match (for numbered dirs)
+        for key in model_naming_map:
+            if original_name.startswith(key):
+                return model_naming_map[key]
+        # Fallback to cleaned label
+        print(f"[WARNING] No naming convention found for: {original_name}")
+        return original_name
+
+    model_label_map = {original: get_naming_convention(original) for original in model_names}
     sorted_models = sorted(model_names)
     clean_labels_sorted = [model_label_map[m] for m in sorted_models]
 
