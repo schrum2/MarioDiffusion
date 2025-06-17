@@ -110,20 +110,29 @@ def verify_data_completeness(model_path, type_str):
         # Check main scores file
         scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}_scores_by_epoch.jsonl")
         count = count_jsonl_entries(scores_file)
-        if count != 27:
+        if count != 27 and not fdm:
             errors.append(f"Requirement 9 failed: Expected 27 entries in {scores_file}, found {count if count is not None else 'file missing'}")
+        elif fdm:
+            if count != 11:
+                errors.append(f"Requirement 9 failed: Expected 11 entries in {scores_file}, found {count if count is not None else 'file missing'}")
 
         # Check test scores file
         test_scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}-test_scores_by_epoch.jsonl")
         count = count_jsonl_entries(test_scores_file)
-        if count != 27:
+        if count != 27 and not fdm:
             errors.append(f"Requirement 10 failed: Expected 27 entries in {test_scores_file}, found {count if count is not None else 'file missing'}")
+        elif fdm:
+            if count != 11:
+                errors.append(f"Requirement 10 failed: Expected 11 entries in {test_scores_file}, found {count if count is not None else 'file missing'}")
 
         # Check random test scores file
         random_scores_file = os.path.join(model_path, f"Mar1and2_RandomTest-{type_str}_scores_by_epoch.jsonl")
         count = count_jsonl_entries(random_scores_file)
-        if count != 27:
+        if count != 27 and not fdm:
             errors.append(f"Requirement 11 failed: Expected 27 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
+        elif fdm:
+            if count != 11:
+                errors.append(f"Requirement 11 failed: Expected 11 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
 
         if not fdm:
             # Check unconditional samples (long)
@@ -174,7 +183,11 @@ def verify_data_completeness(model_path, type_str):
                     errors.append(f"Requirement 19 failed: 'astar_result_overall_averages.json' file is missing in {uncond_short}")
                 
     elif wgan:
-        samples = os.path.join(f"{model_path}-samples", "all_levels.json")
+        if not "samples" in model_path.lower(): 
+            samples = os.path.join(f"{model_path}-samples", "all_levels.json")
+        else:
+            samples = os.path.join(model_path, "all_levels.json")
+            
         error = verify_json_length(samples, 100)
         if error:
             errors.append(f"Requirement 20 failed: {error}")
@@ -196,8 +209,11 @@ def verify_data_completeness(model_path, type_str):
                 
     elif unconditional:
         # Check unconditional-samples-short 
-        uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
-        if args.debug: print("Checking unconditional-samples-short:", uncond_short)
+        if not is_valid_unconditional_sample(model_path): 
+            uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
+        else:
+            uncond_short = os.path.join(model_path, "all_levels.json")
+            
         error = verify_json_length(uncond_short, 100)
         if error:
             errors.append(f"Requirement 24 failed: {error}")
@@ -219,8 +235,11 @@ def verify_data_completeness(model_path, type_str):
                 
         
         # Check unconditional-samples-long
-        uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
-        if args.debug: print("Checking unconditional-samples-long:", uncond_long)
+        if not is_valid_unconditional_sample(model_path): 
+            uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
+        else: 
+            uncond_long = os.path.join(model_path, "all_levels.json")
+            
         error = verify_json_length(uncond_long, 100)
         if error:
             errors.append(f"Requirement 24 failed: {error}")
@@ -260,12 +279,13 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
             continue
             
         # Match rules
+        MarioGPT = "MarioGPT" in item
         is_conditional_with_number = "-conditional-" in item and item[-1].isdigit()
         contains_fdm = "fdm" in item
         contains_unconditional_number = re.search(r"unconditional\d+-.*samples", item)
         contains_wgan_number_samples = re.search(r"wgan\d+-samples", item)
 
-        if not (is_conditional_with_number or contains_fdm or contains_unconditional_number or contains_wgan_number_samples):
+        if not (MarioGPT or is_conditional_with_number or contains_fdm or contains_unconditional_number or contains_wgan_number_samples):
             continue
         
         
@@ -275,6 +295,8 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
             num = int(num_match.group(1))
             dir_type = "absence" if "absence" in item.lower() else "regular"
             numbered_dirs.append((item, num, dir_type))
+        else: # This means we are in the MarioGPT case
+            numbered_dirs.append((item, 0, "regular"))
             
     return sorted(numbered_dirs, key=lambda x: x[1])  # Sort by number
 
@@ -314,16 +336,18 @@ def main():
     parser.add_argument("--prefix", type=str, help="Prefix of the model directory paths")
     parser.add_argument("--start_num", type=int, help="Starting number for model directory range")
     parser.add_argument("--end_num", type=int, help="Ending number for model directory range (inclusive)")
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--show_successes", default=False, action="store_true", help="Only prints information on complete models")
+    parser.add_argument("--show_errors", default=False, action="store_true", help="Only prints information on incomplete models")
+    parser.add_argument("--override_metrics", action="store_true", help="Recalculates all metrics if set")
     
     args = parser.parse_args()
     
     # Run default case if all other args are None and debug is either True or False
     arg_values = vars(args)
-    non_debug_values = [v for k, v in arg_values.items() if k != "debug"]
+    non_display_args = [v for k, v in vars(args).items() if k not in {"show_successes", "show_errors", "override_metrics"}]
 
     
-    if all(v is None for v in non_debug_values):
+    if all(v is False or v is None for v in non_display_args):
         # Case 1: Automatic discovery mode
         print("Running in automatic directory discovery mode...")
         print("Looking for directories that end in a number...")
@@ -335,19 +359,28 @@ def main():
         success_count = 0
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
+            
+            evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
+            errors = verify_data_completeness(dir_path, dir_type)
+            
+            # show_model = (
+            #     (errors and not args.show_successes) or
+            #     (not errors and not args.show_errors)
+            # )
+
+            # if show_model:
+            #     print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
 
             has_caption_order_tolerance, file = detect_caption_order_tolerance(dir_path)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
-                if args.debug: print("A caption_order_tolerance.jsonl is in this directory")
 
-            evaluate_metrics(dir_path, "Mar1and2", override=False, debug=args.debug)
-            errors = verify_data_completeness(dir_path, dir_type)
-            if errors:
+
+            if errors and not args.show_successes:
                 print("Verification failed. Problems found:")
                 for error in errors:
                     print(error)
-            else:
+            elif not errors and not args.show_errors:
                 print("Verification successful!")
                 success_count += 1
         
@@ -364,21 +397,22 @@ def main():
             return
         
         for model_path in matched_dirs:
-            print(f"\nChecking model directory: {model_path}")
+            if not args.show_successes and not args.show_errors: print(f"\nChecking model directory: {model_path}")
             dir_type = "absence" if "absence" in model_path.lower() else "regular"
 
             has_caption_order_tolerance, file = detect_caption_order_tolerance(model_path)
 
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(model_path, file, key="Caption")
-                if args.debug: print("A caption_order_tolerance.jsonl is in this directory")
 
             errors = verify_data_completeness(model_path, dir_type)
-            if errors:
+            if errors and not args.show_successes:
+                if args.show_errors: print(f"\nChecking directory: {model_path} (Type: {dir_type})")
                 print("Verification failed. Problems found:")
                 for error in errors:
                     print(error)
-            else:
+            elif not errors and not args.show_errors:
+                if args.show_successes: print(f"\nChecking directory: {model_path} (Type: {dir_type})")
                 print("Verification successful!")
 
     elif args.prefix and args.start_num is not None and args.end_num is not None:
@@ -388,23 +422,23 @@ def main():
 
         for i in range(args.start_num, args.end_num + 1):
             model_path = f"{args.prefix}{i}"
-            print(f"\nChecking model directory: {model_path}")
+            if not args.show_successes and not args.show_errors: print(f"\nChecking model directory: {model_path}")
             dir_type = "absence" if "absence" in model_path.lower() else "regular"
 
             # Can put check for caption order tolerance here
             has_caption_order_tolerance, file = detect_caption_order_tolerance(model_path)
-
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(model_path, file, key="Caption")
-                if args.debug: print("A caption_order_tolerance.jsonl is in this directory")
 
             errors = verify_data_completeness(model_path, dir_type)
-            if errors:
-                print("Verification failed. The following problems were found:")
+            if errors and not args.show_successes:
+                if args.show_errors: print(f"\nChecking directory: {model_path} (Type: {dir_type})")
+                print("Verification failed. Problems found:")
                 for error in errors:
                     print(error)
-            else:
-                print("All requirements verified successfully!")
+            elif not errors and not args.show_errors:
+                if args.show_successes: print(f"\nChecking directory: {model_path} (Type: {dir_type})")
+                print("Verification successful!")
 
     else:
         # Invalid combination
