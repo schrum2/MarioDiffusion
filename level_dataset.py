@@ -41,17 +41,20 @@ def convert_to_level_format(sample, block_embeddings=None):
     if block_embeddings is not None:
         # Reshape sample to [batch_size * height * width, embedding_dim]
         batch_size, embedding_dim, height, width = sample.shape
+        
         flat_samples = sample.permute(0, 2, 3, 1).reshape(-1, embedding_dim)
         
         # Normalize vectors for cosine similarity
         flat_samples = F.normalize(flat_samples, p=2, dim=1)
         block_embeddings = F.normalize(block_embeddings, p=2, dim=1)
         
+
         # Calculate cosine similarity between each position and all tile embeddings
         similarities = torch.matmul(flat_samples, block_embeddings.t())
         
         # Get indices of most similar tiles
         indices = torch.argmax(similarities, dim=1)
+        
         
         # Reshape back to [batch_size, height, width]
         indices = indices.reshape(batch_size, height, width)
@@ -554,20 +557,27 @@ class LevelDataset(Dataset):
     
         # return scene_list
 
+
+
+
+
+
+from models.block2vec_model import Block2Vec
+
 if __name__ == "__main__":
 
     random.seed(0)
     torch.manual_seed(0)  # Add PyTorch seed for DataLoader determinism
 
     tokenizer = Tokenizer()
-    tokenizer.load('SMB1AND2_Tokenizer-absence.pkl')
+    tokenizer.load('datasets\Mar1and2_Tokenizer-regular.pkl')
 
     # Load block embeddings
-    block_embeddings = torch.load('SMB1-block2vec-embeddings/embeddings.pt')
-
+    block2vec = Block2Vec.from_pretrained("SMB1-block2vec-embeddings")
+    block_embeddings = block2vec.get_embeddings()
     # Create Diffusion dataset
     diffusion_dataset = LevelDataset(
-        'SMB1_LevelsAndCaptions-regular.json',
+        'datasets/Mar1and2_LevelsAndCaptions-regular.json',
         tokenizer, 
         mode="diff_text", 
         shuffle=False,
@@ -578,18 +588,19 @@ if __name__ == "__main__":
         print(f"Tile {i}: {emb}")
 
     scene, caption = diffusion_dataset[0]
-    print("Diffusion Sample Shapes:", scene.shape, caption.shape) 
+    print(caption)
+    print("Diffusion Sample Shapes:", scene.shape, caption) 
     print(scene)
     print(torch.tensor(diffusion_dataset.decode_scene(scene)))
-    print(diffusion_dataset.tokenizer.decode(caption.tolist()))
+    print(caption)
 
     diffusion_dataloader = DataLoader(diffusion_dataset, batch_size=16, shuffle=False)
     scenes, captions = next(iter(diffusion_dataloader))
-    print("Diffusion Batch Shapes:", scenes.shape, captions.shape) 
+    print("Diffusion Batch Shapes:", scenes.shape, captions) 
 
-    print(scenes[10])
-    print(torch.tensor(diffusion_dataset.decode_scene(scenes[10])))
-    print(diffusion_dataset.tokenizer.decode(captions[10].tolist()))
+    print(f"raw scene: {scenes[10]}")
+    print(f"proccesed scene: {torch.tensor(diffusion_dataset.decode_scene(scenes[10]))}")
+    print(captions[10])
 
     print(scenes.shape)
     image = visualize_samples(scenes, output_dir="TEMP", use_tiles=True, start_index=0, block_embeddings=block_embeddings)

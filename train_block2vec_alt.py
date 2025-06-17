@@ -9,7 +9,7 @@ import threading
 from util.plotter import Plotter  # Import the Plotter class
 from patch_dataset import PatchDataset
 import torch.nn.functional as F
-from models.block2vec_model import Block2Vec
+from models.block2vec_model_alt import Block2Vec, SkipGramModel
 import util.common_settings as common_settings
 
 # ====== Defaults, but overridden by params ======
@@ -20,7 +20,8 @@ LR = 1e-3
 VOCAB_SIZE = common_settings.MARIO_TILE_COUNT 
 
 def print_nearest_neighbors(model, tile_id, k=5):
-    emb = model.in_embed.weight
+    emb = model.embeddings.weight
+    #emb = model.target_embeddings.weight
     norm_emb = F.normalize(emb, dim=1)
     target = norm_emb[tile_id].unsqueeze(0)
     sims = F.cosine_similarity(target, norm_emb)
@@ -70,7 +71,9 @@ def main():
 
     # Model, optimizer
     model = Block2Vec(vocab_size=vocab_size, embedding_dim=args.embedding_dim)
+    #model = SkipGramModel(emb_size=vocab_size, emb_dimension=args.embedding_dim)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    loss_function = nn.CrossEntropyLoss() # calculates the error rate between the predicted value and the original value
 
     # Initialize Plotter
     log_file = os.path.join(args.output_dir, 'training_log.jsonl')
@@ -85,8 +88,16 @@ def main():
     for epoch in range(args.epochs):
         total_loss = 0
         for center, context in dataloader:
-            loss = model(center, context)
+            center_ids_expanded = center.unsqueeze(1).expand(-1, len(context[0]))#.reshape(-1)
+            #context_compressed = context.reshape(-1)
             optimizer.zero_grad()
+            output = model(context)
+            output = output.permute(0, 2, 1)
+            #output = output.argmax(dim=2)
+            #center_ids_expanded = F.one_hot(center_ids_expanded)
+            #print(f"Output size: {output.size()}")
+            #print(f"Center size: {center_ids_expanded.size()}")
+            loss = loss_function(output, center_ids_expanded)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
