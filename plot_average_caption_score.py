@@ -357,9 +357,11 @@ File patterns support wildcards:
     parser.add_argument('--ci', action='store_true',
                        help='Show confidence intervals as error region')
     parser.add_argument('--confidence', type=float, default=0.95,
-                       help='Confidence level for CI (default: 0.95)')
+                       help='Confidence level for CI (default: 0.95)')    
     parser.add_argument('--output', '-o', type=str,
                        help='Output filename (default: show plot)')
+    parser.add_argument('--pdf', type=str,
+                       help='Save plot as PDF with embedded fonts (e.g., "plot.pdf")')
     
     args = parser.parse_args()
     
@@ -444,12 +446,20 @@ File patterns support wildcards:
     
     # Create plot
     fig = create_plot(experiment_data, style_indices, error_type, args.confidence, legend_loc)
+      # Save and/or show plot
+    if args.pdf:
+        # Save PDF with embedded fonts
+        from matplotlib.backends.backend_pdf import PdfPages
+        with PdfPages(args.pdf) as pdf:
+            pdf.savefig(fig, bbox_inches='tight')
+        print(f"Plot saved as PDF to {args.pdf}")
     
-    # Save or show plot
     if args.output:
+        # Save in other format (e.g., PNG)
         fig.savefig(args.output, dpi=300, bbox_inches='tight')
         print(f"Plot saved to {args.output}")
-    else:
+    
+    if not (args.output or args.pdf):
         plt.show()
 
 if __name__ == '__main__':
