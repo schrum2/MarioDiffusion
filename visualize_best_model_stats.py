@@ -13,7 +13,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Visualize model statistics with customizable plots.\n")
     parser.add_argument("--input", type=str, required=True, help="Path to input JSONL file.\n")
     parser.add_argument("--output", type=str, default="plot.pdf", help="Output plot file name (PDF recommended).\n")
-    parser.add_argument("--plot_type", type=str, choices=["box", "violin", "bar", "scatter"], default="box", help="Type of plot to generate.\n")
+    parser.add_argument("--plot_type", type=str, choices=["box", "violin", "bar", "scatter", "horizontal_box"], default="horizontal_box", help="Type of plot to generate.\n")
     parser.add_argument("--group_key", type=str, default="group", help="Key to use for grouping models (default: 'group').\n")
     parser.add_argument("--x_axis", type=str, required=True, help="Used for both naming the key and labeling the x-axis.\n")
     parser.add_argument("--y_axis", type=str, required=True, help="Used for both naming the key and labeling the y-axis.\n")
@@ -125,7 +125,7 @@ def main():
     # Only include groups with data for the selected y_axis
     groups_with_data = [g for g in desired_order if not df[df[args.group_key] == g][args.y_axis].dropna().empty]
 
-    # BOX PLOT
+    # VERTICAL BOX PLOT
     if args.plot_type == "box":
         df[args.y_axis] = pd.to_numeric(df[args.y_axis], errors="coerce")
         data = [df[df[args.group_key] == g][args.y_axis].dropna() for g in groups_with_data]
@@ -133,6 +133,17 @@ def main():
         plt.xticks(ticks=range(1, len(groups_with_data)+1), labels=groups_with_data, rotation=args.x_tick_rotation, ha='right')
         plt.xlabel(args.x_axis_label)
         plt.ylabel(args.y_axis_label)
+    # HORIZONTAL BOX PLOT
+    elif args.plot_type == "horizontal_box":
+        df[args.x_axis] = pd.to_numeric(df[args.x_axis], errors="coerce")
+        data = [df[df[args.group_key] == g][args.x_axis].dropna() for g in groups_with_data]
+        groups_reversed = groups_with_data[::-1]
+        y = range(len(groups_reversed))
+        y = [i + 1 for i in y]  # Adjust y-ticks to start from 1 for horizontal box plot
+        plt.boxplot(data, vert=False)
+        plt.yticks(y, labels=groups_reversed, rotation=args.x_tick_rotation, ha='right')
+        plt.ylabel(args.y_axis_label)
+        plt.xlabel(args.x_axis_label)
     # VIOLIN PLOT
     elif args.plot_type == "violin":
         df[args.y_axis] = pd.to_numeric(df[args.y_axis], errors="coerce")
