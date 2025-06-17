@@ -9,12 +9,10 @@ import json
 import glob
 import os
 import sys
-from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
-import matplotlib.colors as mcolors
 
 def find_jsonl_file(directory, file_pattern="caption_score_log_*.jsonl"):
     """Find the JSONL file matching the pattern in the given directory."""
@@ -132,7 +130,8 @@ def parse_experiment_spec(spec, default_pattern="caption_score_log_*.jsonl"):
     parts = spec.split(':')
     if len(parts) < 2:
         raise ValueError(f"Invalid experiment spec '{spec}'. Format should be 'prefix:run_ids' or 'prefix:run_ids:file_pattern' or 'prefix:run_ids:file_pattern:label' or 'prefix:run_ids:file_pattern:label:style_index'")
-      prefix = parts[0]
+      
+    prefix = parts[0]
     run_ids_str = parts[1]
     file_pattern = parts[2] if len(parts) > 2 else default_pattern
     label = parts[3] if len(parts) > 3 else None
@@ -198,7 +197,8 @@ def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95
             continue
             
         epochs = [d['epoch'] for d in aggregated_data]
-        means = [d['mean'] for d in aggregated_data]        color = colors[style_idx]
+        means = [d['mean'] for d in aggregated_data]        
+        color = colors[style_idx]
         line_style, marker = line_styles[style_idx]
         
         all_epochs.extend(epochs)
@@ -235,9 +235,11 @@ def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95
     # if title is not None:
     #     plt.title(title, fontsize=14)
     # else:
-    #     plt.title('Caption Score vs Epoch (Averaged Across Runs)', fontsize=14)
+    #     plt.title('Caption Score vs Epoch (Averaged Across Runs)', fontsize=14)    
     
     plt.grid(True, alpha=0.3)
+    # Set y-axis limit to 1.0, bottom to -0.2
+    plt.ylim(top=1.0, bottom=-0.2)
     
     # Legend with specified location
     if legend_loc.startswith('bbox_to_anchor'):
