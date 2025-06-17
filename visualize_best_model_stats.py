@@ -139,8 +139,9 @@ def main():
         data = [df[df[args.group_key] == g][args.x_axis].dropna() for g in groups_with_data]
         groups_reversed = groups_with_data[::-1]
         y = range(len(groups_reversed))
+        data_reversed = data[::-1]  # Reverse data to match reversed groups
         y = [i + 1 for i in y]  # Adjust y-ticks to start from 1 for horizontal box plot
-        plt.boxplot(data, vert=False)
+        plt.boxplot(data_reversed, vert=False)
         plt.yticks(y, labels=groups_reversed, rotation=args.x_tick_rotation, ha='right')
         plt.ylabel(args.y_axis_label)
         plt.xlabel(args.x_axis_label)
