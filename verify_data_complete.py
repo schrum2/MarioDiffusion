@@ -46,6 +46,10 @@ def is_zero_iteration(model_path: str) -> bool:
     """Return True if the model path ends with exactly '-0' (not -10, -20, etc.)."""
     return bool(re.search(r'[^0-9]-0$', model_path))
 
+def is_valid_unconditional_sample(path: str) -> bool:
+    pattern = r"unconditional\d+-unconditional-samples-(short|long)$"
+    return bool(re.search(pattern, path.lower()))
+
 def verify_data_completeness(model_path, type_str):
     """Verify all data requirements for a given model path and type.
     Returns a list of error messages, or an empty list if verification succeeded."""
@@ -53,7 +57,7 @@ def verify_data_completeness(model_path, type_str):
     
     conditional = "-conditional-" in model_path.lower()
     fdm = "fdm" in model_path.lower()
-    wgan = "wgan" in model_path.lower()
+    wgan = "wgan" in model_path.lower() #and "samples" in model_path.lower()
     unconditional = "unconditional" in model_path.lower()
     
     if fdm or conditional:
@@ -72,6 +76,10 @@ def verify_data_completeness(model_path, type_str):
             astar_metrics_path = os.path.join(os.path.dirname(random_samples), "astar_result.jsonl")
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 3 failed: 'astar_result.jsonl' file is missing in {random_samples}")
+            else:
+                error = verify_json_length(astar_metrics_path, 100, check_prompts=False)
+                if error:
+                    errors.append(f"Requirement 3 failed: {error}")
             astar_metrics_path = os.path.join(os.path.dirname(random_samples), "astar_result_overall_averages.json")
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 4 failed: 'astar_result_overall_averages.json' file is missing in {random_samples}")
@@ -90,6 +98,11 @@ def verify_data_completeness(model_path, type_str):
             astar_metrics_path = os.path.join(os.path.dirname(real_samples), "astar_result.jsonl")
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 7 failed: 'astar_result.jsonl' file is missing in {real_samples}")
+            else:
+                error = verify_json_length(astar_metrics_path, 100, check_prompts=False)
+                if error: 
+                    errors.append(f"Requirement 7 failed: {error}")
+                
             astar_metrics_path = os.path.join(os.path.dirname(real_samples), "astar_result_overall_averages.json")
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 8 failed: 'astar_result_overall_averages.json' file is missing in {real_samples}")
@@ -127,6 +140,11 @@ def verify_data_completeness(model_path, type_str):
                 astar_metrics_path = os.path.join(os.path.dirname(uncond_long), "astar_result.jsonl")
                 if not os.path.isfile(astar_metrics_path):
                     errors.append(f"Requirement 14 failed: 'astar_result.jsonl' file is missing in {uncond_long}")
+                else:
+                    error = verify_json_length(astar_metrics_path, 100, check_prompts=False)
+                    if error:
+                        errors.append(f"Requirement 14 failed: {error}")
+                        
                 astar_metrics_path = os.path.join(os.path.dirname(uncond_long), "astar_result_overall_averages.json")
                 if not os.path.isfile(astar_metrics_path):
                     errors.append(f"Requirement 15 failed: 'astar_result_overall_averages.json' file is missing in {uncond_long}")
@@ -146,12 +164,21 @@ def verify_data_completeness(model_path, type_str):
                 astar_metrics_path = os.path.join(os.path.dirname(uncond_short), "astar_result.jsonl")
                 if not os.path.isfile(astar_metrics_path):
                     errors.append(f"Requirement 18 failed: 'astar_result.jsonl' file is missing in {uncond_short}")
+                else:
+                    error = verify_json_length(astar_metrics_path, 100, check_prompts=False)
+                    if error:
+                        errors.append(f"Requirement 18 failed: {error}")
+                        
                 astar_metrics_path = os.path.join(os.path.dirname(uncond_short), "astar_result_overall_averages.json")
                 if not os.path.isfile(astar_metrics_path):
                     errors.append(f"Requirement 19 failed: 'astar_result_overall_averages.json' file is missing in {uncond_short}")
                 
-    elif wgan or unconditional:
-        samples = os.path.join(model_path, "all_levels.json")
+    elif wgan:
+        if not "samples" in model_path.lower(): 
+            samples = os.path.join(f"{model_path}-samples", "all_levels.json")
+        else:
+            samples = os.path.join(model_path, "all_levels.json")
+            
         error = verify_json_length(samples, 100)
         if error:
             errors.append(f"Requirement 20 failed: {error}")
@@ -163,17 +190,75 @@ def verify_data_completeness(model_path, type_str):
         if is_zero_iteration(model_path):
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 22 failed: 'astar_result.jsonl' file is missing in {samples}")
+            else:
+                error = verify_json_length(astar_metrics_path, 100, check_prompts=False)
+                if error:
+                    errors.append(f"Requirement 22 failed: {error}")
             astar_metrics_path = os.path.join(os.path.dirname(samples), "astar_result_overall_averages.json")
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 23 failed: 'astar_result_overall_averages.json' is missing in {samples}")
+                
+    elif unconditional:
+        # Check unconditional-samples-short 
+        if not is_valid_unconditional_sample(model_path): 
+            uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
+        else:
+            uncond_short = os.path.join(model_path, "all_levels.json")
+            
+        error = verify_json_length(uncond_short, 100)
+        if error:
+            errors.append(f"Requirement 24 failed: {error}")
+        evaluation_metrics_path = os.path.join(os.path.dirname(uncond_short), "evaluation_metrics.json")
+        if not os.path.isfile(evaluation_metrics_path):
+            errors.append(f"Requirement 25 failed: 'evaluation_metrics.json' file is missing in {uncond_short}.")
+        if is_zero_iteration(model_path):
+            astar_metrics_path = os.path.join(os.path.dirname(uncond_short), "astar_result.jsonl")
+            if not os.path.isfile(astar_metrics_path):
+                errors.append(f"Requirement 26 failed: 'astar_result.jsonl' file is missing in {uncond_short}")
+            else:
+                error = verify_json_length(astar_metrics_path, 100, check_prompts=False)
+                if error:
+                    errors.append(f"Requirement 26 failed: {error}")
+            
+            astar_metrics_path = os.path.join(os.path.dirname(uncond_short), "astar_result_overall_averages.json")
+            if not os.path.isfile(astar_metrics_path):
+                errors.append(f"Requirement 27 failed: 'astar_result_overall_averages.json' file is missing in {uncond_short}")
+                
+        
+        # Check unconditional-samples-long
+        if not is_valid_unconditional_sample(model_path): 
+            uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
+        else: 
+            uncond_long = os.path.join(model_path, "all_levels.json")
+            
+        error = verify_json_length(uncond_long, 100)
+        if error:
+            errors.append(f"Requirement 24 failed: {error}")
+        evaluation_metrics_path = os.path.join(os.path.dirname(uncond_long), "evaluation_metrics.json")
+        if not os.path.isfile(evaluation_metrics_path):
+            errors.append(f"Requirement 25 failed: 'evaluation_metrics.json' file is missing in {uncond_long}.")
+        if is_zero_iteration(model_path):
+            astar_metrics_path = os.path.join(os.path.dirname(uncond_long), "astar_result.jsonl")
+            if not os.path.isfile(astar_metrics_path):
+                errors.append(f"Requirement 26 failed: 'astar_result.jsonl' file is missing in {uncond_long}")
+            else:
+                error = verify_json_length(astar_metrics_path, 100, check_prompts=False)
+                if error:
+                    errors.append(f"Requirement 26 failed: {error}")
+            astar_metrics_path = os.path.join(os.path.dirname(uncond_long), "astar_result_overall_averages.json")
+            if not os.path.isfile(astar_metrics_path):
+                errors.append(f"Requirement 27 failed: 'astar_result_overall_averages.json' file is missing in {uncond_long}")
+        
 
     return errors
 
 
 def find_directories_with_prefix(prefix):
-    """Find directories that start with the given prefix and end in a number."""
-    pattern = re.compile(f"^{re.escape(prefix)}(\\d+)$")
-    return [d for d in os.listdir() if os.path.isdir(d) and pattern.match(d)]
+    """Find directories that start with the given prefix and do NOT contain 'samples'."""
+    return [
+        d for d in os.listdir()
+        if os.path.isdir(d) and d.startswith(prefix) and "samples" not in d.lower()
+    ]
 
 def find_numbered_directories() -> List[Tuple[str, int, str]]:
     """Find all conditional model directories in current path that end with a number.
@@ -239,16 +324,17 @@ def main():
     parser.add_argument("--prefix", type=str, help="Prefix of the model directory paths")
     parser.add_argument("--start_num", type=int, help="Starting number for model directory range")
     parser.add_argument("--end_num", type=int, help="Ending number for model directory range (inclusive)")
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--show_successes", default=False, action="store_true", help="Only prints information on complete models")
+    parser.add_argument("--show_errors", default=False, action="store_true", help="Only prints information on incomplete models")
     
     args = parser.parse_args()
     
     # Run default case if all other args are None and debug is either True or False
     arg_values = vars(args)
-    non_debug_values = [v for k, v in arg_values.items() if k != "debug"]
+    non_display_args = [v for k, v in vars(args).items() if k not in {"show_successes", "show_errors"}]
 
     
-    if all(v is None for v in non_debug_values):
+    if all(v is False or v is None for v in non_display_args):
         # Case 1: Automatic discovery mode
         print("Running in automatic directory discovery mode...")
         print("Looking for directories that end in a number...")
@@ -259,20 +345,27 @@ def main():
         
         success_count = 0
         for dir_path, num, dir_type in numbered_dirs:
-            print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
+            evaluate_metrics(dir_path, "Mar1and2", override=False)
+            errors = verify_data_completeness(dir_path, dir_type)
+            
+            show_model = (
+                (errors and not args.show_successes) or
+                (not errors and not args.show_errors)
+            )
+
+            if show_model:
+                print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
 
             has_caption_order_tolerance, file = detect_caption_order_tolerance(dir_path)
             if has_caption_order_tolerance:
                 last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
-                print("A caption_order_tolerance.jsonl is in this directory")
 
-            evaluate_metrics(dir_path, "Mar1and2", override=False, debug=args.debug)
-            errors = verify_data_completeness(dir_path, dir_type)
-            if errors:
+
+            if errors and not args.show_successes:
                 print("Verification failed. Problems found:")
                 for error in errors:
                     print(error)
-            else:
+            elif not errors and not args.show_errors:
                 print("Verification successful!")
                 success_count += 1
         
@@ -289,26 +382,22 @@ def main():
             return
         
         for model_path in matched_dirs:
-            print(f"\nChecking model directory: {model_path}")
+            if not args.show_successes and not args.show_errors: print(f"\nChecking model directory: {model_path}")
             dir_type = "absence" if "absence" in model_path.lower() else "regular"
 
-            # Can put check for caption order tolerance here
             has_caption_order_tolerance, file = detect_caption_order_tolerance(model_path)
-           #print("model_path:", model_path)
-            #print("has_caption_order_tolerance:", has_caption_order_tolerance)
-            if has_caption_order_tolerance:
-                last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
-                print("A caption_order_tolerance.jsonl is in this directory")
-            #print("last_line:", last_line)
-            #quit()
 
-            fdm = "fdm" in model_path.lower()
+            if has_caption_order_tolerance:
+                last_line = find_last_line_caption_order_tolerance(model_path, file, key="Caption")
+
             errors = verify_data_completeness(model_path, dir_type)
-            if errors:
+            if errors and not args.show_successes:
+                if args.show_errors: print(f"\nChecking directory: {model_path} (Type: {dir_type})")
                 print("Verification failed. Problems found:")
                 for error in errors:
                     print(error)
-            else:
+            elif not errors and not args.show_errors:
+                if args.show_successes: print(f"\nChecking directory: {model_path} (Type: {dir_type})")
                 print("Verification successful!")
 
     elif args.prefix and args.start_num is not None and args.end_num is not None:
@@ -318,27 +407,23 @@ def main():
 
         for i in range(args.start_num, args.end_num + 1):
             model_path = f"{args.prefix}{i}"
-            print(f"\nChecking model directory: {model_path}")
+            if not args.show_successes and not args.show_errors: print(f"\nChecking model directory: {model_path}")
             dir_type = "absence" if "absence" in model_path.lower() else "regular"
 
             # Can put check for caption order tolerance here
             has_caption_order_tolerance, file = detect_caption_order_tolerance(model_path)
-            #print("model_path:", model_path)
-            #print("has_caption_order_tolerance:", has_caption_order_tolerance)
             if has_caption_order_tolerance:
-                last_line = find_last_line_caption_order_tolerance(dir_path, file, key="Caption")
-                print("A caption_order_tolerance.jsonl is in this directory")
-            #print("last_line:", last_line)
-            #quit()
+                last_line = find_last_line_caption_order_tolerance(model_path, file, key="Caption")
 
-            fdm = "fdm" in model_path.lower()
             errors = verify_data_completeness(model_path, dir_type)
-            if errors:
-                print("Verification failed. The following problems were found:")
+            if errors and not args.show_successes:
+                if args.show_errors: print(f"\nChecking directory: {model_path} (Type: {dir_type})")
+                print("Verification failed. Problems found:")
                 for error in errors:
                     print(error)
-            else:
-                print("All requirements verified successfully!")
+            elif not errors and not args.show_errors:
+                if args.show_successes: print(f"\nChecking directory: {model_path} (Type: {dir_type})")
+                print("Verification successful!")
 
     else:
         # Invalid combination

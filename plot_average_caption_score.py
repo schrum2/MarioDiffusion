@@ -237,7 +237,7 @@ def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, l
         # Handle outside legend placement
         legend = plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 16}, handlelength=2.5, handletextpad=1.5)
     else:
-        legend = plt.legend(loc=legend_loc, prop={'size': 16}, handlelength=2.5, handletextpad=1.5)
+        legend = plt.legend(loc=legend_loc, prop={'size': 16}, handlelength=2.5, handletextpad=1.5, ncol=2)
     
     # Add error type to legend title if applicable
     # if error_type == 'std':
