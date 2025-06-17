@@ -110,20 +110,29 @@ def verify_data_completeness(model_path, type_str):
         # Check main scores file
         scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}_scores_by_epoch.jsonl")
         count = count_jsonl_entries(scores_file)
-        if count != 27:
+        if count != 27 and not fdm:
             errors.append(f"Requirement 9 failed: Expected 27 entries in {scores_file}, found {count if count is not None else 'file missing'}")
+        elif fdm:
+            if count != 11:
+                errors.append(f"Requirement 9 failed: Expected 11 entries in {scores_file}, found {count if count is not None else 'file missing'}")
 
         # Check test scores file
         test_scores_file = os.path.join(model_path, f"Mar1and2_LevelsAndCaptions-{type_str}-test_scores_by_epoch.jsonl")
         count = count_jsonl_entries(test_scores_file)
-        if count != 27:
+        if count != 27 and not fdm:
             errors.append(f"Requirement 10 failed: Expected 27 entries in {test_scores_file}, found {count if count is not None else 'file missing'}")
+        elif fdm:
+            if count != 11:
+                errors.append(f"Requirement 10 failed: Expected 11 entries in {test_scores_file}, found {count if count is not None else 'file missing'}")
 
         # Check random test scores file
         random_scores_file = os.path.join(model_path, f"Mar1and2_RandomTest-{type_str}_scores_by_epoch.jsonl")
         count = count_jsonl_entries(random_scores_file)
-        if count != 27:
+        if count != 27 and not fdm:
             errors.append(f"Requirement 11 failed: Expected 27 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
+        elif fdm:
+            if count != 11:
+                errors.append(f"Requirement 11 failed: Expected 11 entries in {random_scores_file}, found {count if count is not None else 'file missing'}")
 
         if not fdm:
             # Check unconditional samples (long)
