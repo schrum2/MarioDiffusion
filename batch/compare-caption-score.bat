@@ -4,6 +4,14 @@ setlocal enabledelayedexpansion
 
 REM Compare all
 for %%d in (LevelsAndCaptions RandomTest) do (
+  REM Set y-axis limits based on dataset
+  set YMIN=0.0
+  set YMAX=1.0
+  if /I "%%d"=="RandomTest" (
+    set YMIN=-0.2
+    set YMAX=0.45
+  )
+
   python plot_average_caption_score.py ^
     "Mar1and2-conditional-regular:0-9:Mar1and2_%%d-regular_scores_by_epoch.jsonl:MLM-regular:0" ^
     "Mar1and2-conditional-absence:0-9:Mar1and2_%%d-absence_scores_by_epoch.jsonl:MLM-absence:1" ^
@@ -24,11 +32,20 @@ for %%d in (LevelsAndCaptions RandomTest) do (
     "Mar1and2-fdm-MiniLM-absence:0-29:Mar1and2_%%d-absence_scores_by_epoch.jsonl:FDM-MiniLM-absence:16" ^
     "Mar1and2-fdm-GTE-regular:0-29:Mar1and2_%%d-regular_scores_by_epoch.jsonl:FDM-GTE-regular:17" ^
     "Mar1and2-fdm-GTE-absence:0-29:Mar1and2_%%d-absence_scores_by_epoch.jsonl:FDM-GTE-absence:18" ^
-    --ci --pdf "CaptionAdherence-%%d.pdf" --ymin 0.0 --ymax 1.0
+    --ci --pdf "CaptionAdherence-%%d.pdf" --ymin !YMIN! --ymax !YMAX!
 )
 
 REM Compare by caption strategy
-for %%d in (LevelsAndCaptions RandomTest) do (  for %%t in (regular absence negative) do (
+for %%d in (LevelsAndCaptions RandomTest) do (
+  REM Set y-axis limits based on dataset
+  set YMIN=0.0
+  set YMAX=1.0
+  if /I "%%d"=="RandomTest" (
+      set YMIN=-0.2
+      set YMAX=0.45
+  )
+
+  for %%t in (regular absence negative) do (
     REM Set base variables
     set DATA=%%t
     if /I "!DATA!"=="negative" set DATA=regular
@@ -56,7 +73,7 @@ for %%d in (LevelsAndCaptions RandomTest) do (  for %%t in (regular absence nega
         "Mar1and2-conditional-GTEsplit-%%t:0:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:GTE-multiple-%%t:!GTE_MULTI_STYLE!" ^
         "Mar1and2-fdm-MiniLM-!DATA!:0-29:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:FDM-MiniLM-!DATA!:!FDM_MINILN_STYLE!" ^
         "Mar1and2-fdm-GTE-!DATA!:0-29:Mar1and2_%%d-!DATA!_scores_by_epoch.jsonl:FDM-GTE-!DATA!:!FDM_GTE_STYLE!" ^
-        --ci --pdf "CaptionAdherence-%%d-%%t.pdf" --ymin -0.2 --ymax 0.45
+        --ci --pdf "CaptionAdherence-%%d-%%t.pdf" --ymin !YMIN! --ymax !YMAX!
   )
 )
 
