@@ -125,15 +125,21 @@ def calculate_confidence_interval(scores, confidence=0.95):
     return ci[0] - mean, ci[1] - mean  # return as offsets from mean
 
 def parse_experiment_spec(spec, default_pattern="caption_score_log_*.jsonl"):
-    """Parse experiment specification in format 'prefix:run_ids' or 'prefix:run_ids:file_pattern' or 'prefix:run_ids:file_pattern:label'."""
+    """Parse experiment specification in format:
+    'prefix:run_ids[:file_pattern][:label][:style_index]'
+    style_index determines the color and line style (optional, default: auto-assigned)
+    """
     parts = spec.split(':')
     if len(parts) < 2:
-        raise ValueError(f"Invalid experiment spec '{spec}'. Format should be 'prefix:run_ids' or 'prefix:run_ids:file_pattern' or 'prefix:run_ids:file_pattern:label'")
-    
-    prefix = parts[0]
+        raise ValueError(f"Invalid experiment spec '{spec}'. Format should be 'prefix:run_ids' or 'prefix:run_ids:file_pattern' or 'prefix:run_ids:file_pattern:label' or 'prefix:run_ids:file_pattern:label:style_index'")
+      prefix = parts[0]
     run_ids_str = parts[1]
     file_pattern = parts[2] if len(parts) > 2 else default_pattern
     label = parts[3] if len(parts) > 3 else None
+    try:
+        style_index = int(parts[4]) if len(parts) > 4 else None
+    except (IndexError, ValueError):
+        style_index = None
     
     # Parse run IDs
     try:
@@ -145,7 +151,7 @@ def parse_experiment_spec(spec, default_pattern="caption_score_log_*.jsonl"):
     except ValueError:
         raise ValueError(f"Invalid run_ids format '{run_ids_str}'. Use 'start-end' or 'id1,id2,id3'")
     
-    return prefix, run_ids, file_pattern, label
+    return prefix, run_ids, file_pattern, label, style_index
 
 def get_color_palette(n):
     """Get a color palette with n distinct colors."""
@@ -171,28 +177,29 @@ def get_line_styles(n):
     
     return styles
 
-def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, legend_loc='lower right'):
+def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95, title=None, legend_loc='lower right'):
     """Create the matplotlib plot with multiple experiment batches."""
     plt.figure(figsize=(12, 8))
     
-    # Get colors and line styles for each experiment
-    colors = get_color_palette(len(experiment_data))
-    line_styles = get_line_styles(len(experiment_data))
+    # Get colors and line styles - use max index + 1 to ensure we have enough styles
+    max_style_index = max(style_indices.values()) if style_indices else len(experiment_data) - 1
+    colors = get_color_palette(max_style_index + 1)
+    line_styles = get_line_styles(max_style_index + 1)
     
     # Track all data for consistent axis limits
     all_epochs = []
     all_scores = []
     
     # Plot each experiment batch
-    for i, (exp_name, aggregated_data) in enumerate(experiment_data.items()):
+    for exp_name, aggregated_data in experiment_data.items():
+        style_idx = style_indices.get(exp_name, 0)  # Use style index 0 if none specified
         if not aggregated_data:
             print(f"Warning: No data to plot for experiment '{exp_name}'")
             continue
             
         epochs = [d['epoch'] for d in aggregated_data]
-        means = [d['mean'] for d in aggregated_data]
-        color = colors[i]
-        line_style, marker = line_styles[i]
+        means = [d['mean'] for d in aggregated_data]        color = colors[style_idx]
+        line_style, marker = line_styles[style_idx]
         
         all_epochs.extend(epochs)
         all_scores.extend(means)
@@ -267,8 +274,7 @@ def create_plot(experiment_data, error_type=None, confidence=0.95, title=None, l
 def main():
     parser = argparse.ArgumentParser(
         description='Plot averaged caption scores across multiple runs and experiment batches',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        formatter_class=argparse.RawDescriptionHelpFormatter,        epilog="""
 Examples:
   # Single experiment batch (default pattern)
   %(prog)s "SMB1-conditional-MiniLM-regular:0-4"
@@ -279,40 +285,51 @@ Examples:
   # Compare same experiments with different file patterns
   %(prog)s "SMB1-regular:0-4:SMB1_LevelsAndCaptions-*_scores_by_epoch.jsonl" "SMB1-regular:0-4:SMB1_ValidationCaptions-*_scores_by_epoch.jsonl"
   
+  # Using style indices to maintain consistent colors across conditions
+  %(prog)s "model1-regular:0-4::Regular:0" "model1-absence:0-4::Absence:1" "model1-negative:0-4::Negative:2" \\
+          "model2-regular:0-4::Regular v2:0" "model2-absence:0-4::Absence v2:1" "model2-negative:0-4::Negative v2:2"
+  
   # Mix of default and custom patterns
   %(prog)s "SMB1-regular:0-4" "SMB1-regular:0-4:*ValidationCaptions*_scores_by_epoch.jsonl"
   
   # Using global file pattern (applies to all experiments without specific pattern)
   %(prog)s "SMB1-regular:0-4" "experiment2:0-4" -f "*_scores_by_epoch.jsonl"
   
-  # Custom labels and title
-  %(prog)s "exp1:0-3::Training Data" "exp1:0-3:validation_*.jsonl:Validation Data" --title "Training vs Validation Performance"
+  # Custom labels and style indices
+  %(prog)s "exp1:0-3:pattern1.jsonl:Training:0" "exp1:0-3:pattern2.jsonl:Validation:1"
   
   # No title and custom legend location
   %(prog)s "SMB1-regular:0-4" --title none --legend-loc "upper left"
   
   # With error bars comparing training vs validation (only epochs in all runs)
-  %(prog)s "SMB1-regular:0-4:*LevelsAndCaptions*_scores_by_epoch.jsonl" "SMB1-regular:0-4:*ValidationCaptions*_scores_by_epoch.jsonl" --std
+  %(prog)s "SMB1-regular:0-4:*LevelsAndCaptions*_scores_by_epoch.jsonl:Train:0" \\
+          "SMB1-regular:0-4:*ValidationCaptions*_scores_by_epoch.jsonl:Val:1" --std
   
   # Include partial epochs (epochs not present in all runs)
   %(prog)s "SMB1-regular:0-4" --allow-partial
   
-  # Save comparison plot
-  %(prog)s "run1:0-4:pattern1.jsonl" "run1:0-4:pattern2.jsonl" --output comparison.png
+  # Save comparison plot with consistent styling
+  %(prog)s "run1:0-4:pattern1.jsonl:Regular:0" "run1:0-4:pattern2.jsonl:Modified:1" --output comparison.png
 
-  # Actual example
-  %(prog)s "SMB1-conditional-MiniLM-regular:0-3:SMB1_RandomTest-regular_scores_by_epoch.jsonl:Random Captions" "SMB1-conditional-MiniLM-regular:0-3:SMB1_LevelsAndCaptions-regular_scores_by_epoch.jsonl:Real Captions" --title "Caption Score Using MiniLM"
+  # Real example with style indices for consistent colors
+  %(prog)s "SMB1-conditional-MiniLM-regular:0-3:SMB1_RandomTest-regular_scores_by_epoch.jsonl:Random:0" \\
+          "SMB1-conditional-MiniLM-regular:0-3:SMB1_LevelsAndCaptions-regular_scores_by_epoch.jsonl:Real:1" \\
+          --ci
 
 Format for experiment specification: 
   - "prefix:run_ids" (uses global --file-pattern)
   - "prefix:run_ids:file_pattern" (uses specific pattern)
   - "prefix:run_ids:file_pattern:label" (uses specific pattern and custom label)
+  - "prefix:run_ids:file_pattern:label:style_index" (specifies color/style to use)
   
   Where:
   - prefix: Directory name prefix
   - run_ids: "start-end" for range or "id1,id2,id3" for list
   - file_pattern: File pattern with wildcards (optional)
   - label: Custom label for legend (optional)
+  - style_index: Number determining color/style (optional, auto-assigned if not specified)
+    - Same index = same color/style, useful for grouping related conditions
+    - Indices can be any non-negative integer and don't need to be consecutive
 
 File patterns support wildcards:
   - "caption_score_log_*.jsonl" (default)
@@ -350,11 +367,15 @@ File patterns support wildcards:
     
     # Parse experiment specifications
     experiment_configs = {}
+    style_indices = {}
     try:
-        for i, exp_spec in enumerate(args.experiments):
-            prefix, run_ids, file_pattern, label = parse_experiment_spec(exp_spec, args.file_pattern)
-            
-            # Create experiment name - use custom label if provided
+        # Track manually specified style indices
+        used_style_indices = set()
+        auto_index = 0
+        
+        for exp_spec in args.experiments:
+            prefix, run_ids, file_pattern, label, style_index = parse_experiment_spec(exp_spec, args.file_pattern)
+              # Create experiment name - use custom label if provided
             if label:
                 exp_name = label
             elif file_pattern != args.file_pattern:
@@ -364,9 +385,23 @@ File patterns support wildcards:
                 if pattern_key:
                     exp_name = f"{prefix}:{pattern_key}"
                 else:
-                    exp_name = f"{prefix}:exp{i+1}"
+                    exp_name = prefix
             else:
                 exp_name = prefix
+                
+            # Handle style index
+            if style_index is not None:
+                if style_index in used_style_indices:
+                    print(f"Warning: Style index {style_index} used multiple times")
+                used_style_indices.add(style_index)
+                style_indices[exp_name] = style_index
+            else:
+                # Find next unused auto-index
+                while auto_index in used_style_indices:
+                    auto_index += 1
+                style_indices[exp_name] = auto_index
+                used_style_indices.add(auto_index)
+                auto_index += 1
             
             # Handle duplicate experiment names by adding suffix
             original_name = exp_name
@@ -405,7 +440,7 @@ File patterns support wildcards:
     legend_loc = 'bbox_to_anchor=(1.05, 1), loc=upper left' if args.legend_loc == 'outside' else args.legend_loc
     
     # Create plot
-    fig = create_plot(experiment_data, error_type, args.confidence, legend_loc)
+    fig = create_plot(experiment_data, style_indices, error_type, args.confidence, legend_loc)
     
     # Save or show plot
     if args.output:
