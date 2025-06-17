@@ -436,7 +436,7 @@ def astar_metrics(
         output_json_path: Path to input JSON file (saves in root directory if None)
         save_name: Filename for output JSONL
     Returns:
-        List of dicts as described in the prompt
+        A tuple: A list of dicts as results and a dict of overall averages.
     """
     simulator_kwargs = simulator_kwargs or {}
     results = []
