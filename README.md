@@ -245,6 +245,24 @@ Interactively evolve level scenes in the latent space of the GAN model:
 python evolve_interactive_wgan.py --model_path wgan-output\final_models\generator.pth
 ```
 
+## Train Five Dollar Model (FDM)
+The five-dollar-model is a lightweight feedforward network that trains fast, but has a pretty small maximum performance. They can be trained with a call to the batch file, which will run metrics for you
+```
+cd batch
+train-fdm.bat 0 Mar1and2 regular MiniLM
+```
+Alternatively, it can be trained individually like so
+```
+python train_fdm.py --augment --output_dir Mar1and2-fdm-MiniLM-regular0 --num_epochs 100 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --pretrained_language_model sentence-transformers/multi-qa-MiniLM-L6-cos-v1 --plot_validation_caption_score --embedding_dim 384 --seed 0
+```
+
+## Generate levels from FDM
+
+Create samples from an FDM with this command
+```
+python text_to_level_fdm.py --model_path Mar1and2-fdm-MiniLM-regular0
+```
+
 ## Comparing model results
 
 TODO
