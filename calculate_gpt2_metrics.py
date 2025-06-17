@@ -57,7 +57,7 @@ def create_astar_metrics(allsamples_json, full_levels_dir, output_dir, find_long
 
 
     # Annoyingly this doesn't get saved properly if we don't provide a path inside the folder, instead of the folder itself
-    output_path = os.path.join(output_dir, "MarioGPT_metrics_summary.json")
+    output_path = os.path.join(output_dir, "evaluation_metrics.json")
     generated_scenes = [entry for entry in generated_data if "scene" in entry and entry['scene']]
     metrics.astar_metrics(generated_scenes, output_json_path=output_path, save_name="MarioGPT_astar_metrics_level_scenes.jsonl")
 
@@ -86,8 +86,16 @@ def find_metrics_of_samples(samples_json, real_json, output_dir):
     # Average min edit distance among generated levels
     avg_min_edit_distance = metrics.average_min_edit_distance(generated_scenes)
 
-    # Average min edit distance from generated to real levels
-    avg_min_edit_distance_from_real, perfect_matches = metrics.average_min_edit_distance_from_real(generated_scenes, real_scenes)
+    avg_min_edit_distance_from_real, perfect_matches = None, None
+
+    #We should only call edit distance from real if the scenes are 16 blocks across
+    print(len(generated_scenes), len(real_scenes))
+    print(len(generated_scenes[0]), len(real_scenes[0]))
+    print(len(generated_scenes[0][0]), len(real_scenes[0][0]))
+
+    if len(generated_scenes[0][0])==len(real_scenes[0][0]):
+        # Average min edit distance from generated to real levels
+        avg_min_edit_distance_from_real, perfect_matches = metrics.average_min_edit_distance_from_real(generated_scenes, real_scenes)
 
     # Broken pipe calculations (as percent of scenes with broken pipes)
     broken_pipe_percent = metrics.analyze_broken_pipes(generated_data, as_instance_of_feature=False)
@@ -117,25 +125,31 @@ def create_100_samples(json_path):
     with open(json_path, 'r') as f:
         data = json.load(f)
     total=len(data)
-    percentage_for_100=100/total
-    remainder=.9-percentage_for_100
 
-    #Split the dataset to find 100 samples
-    train, val, test = split_data.split_dataset(json_path, remainder, .1, percentage_for_100)
+    #Case where we need to prune samples
+    if total>100:
+        percentage_for_100=100/total
+        remainder=.9-percentage_for_100
 
-    #remove json files for data we don't care about, not 100 samples
-    os.remove(train)
-    os.remove(val)
+        #Split the dataset to find 100 samples
+        train, val, test = split_data.split_dataset(json_path, remainder, .1, percentage_for_100)
 
-    directory = os.path.dirname(test)
-    new_name=os.path.join(directory, "MarioGPT_LevelsAndCaptions-100-samples.json")
-    if os.path.exists(new_name):
-        print(f"Warning: file name {new_name} already exists. Loading previously made file for metrics creation, this may lead to unexpected behavior or results. Delete this file to ensure metrics work as expected.")
-        os.remove(test)
-    else:
-        os.rename(test, new_name)
+        #remove json files for data we don't care about, not 100 samples
+        os.remove(train)
+        os.remove(val)
 
-    return new_name
+        directory = os.path.dirname(test)
+        new_name=os.path.join(directory, "MarioGPT_LevelsAndCaptions-100-samples.json")
+        if os.path.exists(new_name):
+            print(f"Warning: file name {new_name} already exists. Loading previously made file for metrics creation, this may lead to unexpected behavior or results. Delete this file to ensure metrics work as expected.")
+            os.remove(test)
+        else:
+            os.rename(test, new_name)
+        return new_name
+
+    #Assume we can do everything just fine with 96
+    return json_path
+
 
 
 if __name__ == "__main__":
