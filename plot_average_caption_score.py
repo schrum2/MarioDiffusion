@@ -176,7 +176,7 @@ def get_line_styles(n):
     
     return styles
 
-def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95, title=None, legend_loc='lower right', ymin=-0.2, ymax=1.0):
+def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95, legend_loc='lower right', ymin=-0.2, ymax=1.0, title=None):
     """Create the matplotlib plot with multiple experiment batches."""
     plt.figure(figsize=(12, 8))
     
@@ -433,7 +433,7 @@ File patterns support wildcards:
     legend_loc = 'bbox_to_anchor=(1.05, 1), loc=upper left' if args.legend_loc == 'outside' else args.legend_loc
     
     # Create plot
-    fig = create_plot(experiment_data, style_indices, error_type, args.confidence, legend_loc, args.ymin, args.ymax)
+    fig = create_plot(experiment_data, style_indices, error_type, args.confidence, legend_loc, args.ymin, args.ymax, None)
       # Save and/or show plot
     if args.pdf:
         # Save PDF with embedded fonts
