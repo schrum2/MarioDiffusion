@@ -251,4 +251,28 @@ TODO
 
 ## Generating MarioGPT data for comparison
 
-TODO: Olivia
+Most of the MarioGPT data is taken care of in this batch file, which can be run like this
+```
+cd batch
+MarioGPT-data.bat
+```
+This batch file generates 96 levels of size 128 using MarioGPT, stores, pads and captions them in the same format as our unconditional models, and then runs metrics on both sliced 16x16 level samples, as well as the full 16x128 generated levels.  
+
+If you'd like to do each of these steps seperatly, that can be done with this series of commands:
+
+First, the level generation can be done with this command, which saves generated levels in a new folder called MarioGPT_Levels, in both text and image format.
+```
+python run_gpt2.py --output_dir "MarioGPT_Levels" --num_collumns 128
+```
+Afterwards, this command will take those levels, pad them, and store them in new files in the datasets directory. (The stride variable controls how long individual segments are, the batch file runs this twice to get levels of length 128 and 16)
+```
+python create_level_json_data.py --output "datasets\\MarioGPT_Levels.json" --levels "MarioGPT_Levels\levels" --stride 16
+```
+Afterwards, we use this command to give captions to these levels
+```
+python create_ascii_captions.py --dataset "datasets\\MarioGPT_Levels.json" --output "datasets\\MarioGPT_LevelsAndCaptions-regular.json"
+```
+And then, lastly, we can use this command to get metrics on the generated levels
+```
+python calculate_gpt2_metrics.py --generated_levels "datasets\\MarioGPT_LevelsAndCaptions-regular.json" --training_levels "datasets\\Mar1and2_LevelsAndCaptions-regular.json" --output_dir "MarioGPT_metrics"
+```
