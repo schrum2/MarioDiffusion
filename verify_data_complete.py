@@ -90,31 +90,15 @@ def verify_data_completeness(model_path, type_str):
         real_samples = os.path.join(model_path, "samples-from-real-Mar1and2-captions", "all_levels.json")
         
         # TODO: Change this to resample to 100 samples. First, this should change the existing evalmetrics file (7867) to have a different name, then it should resample and save to a file called evaluation_metrics.json
-        error = verify_json_length(real_samples, 7687, check_prompts=True)
+        error = verify_json_length(real_samples, 100, check_prompts=True)
         if error:
             errors.append(f"Requirement 5 failed: {error}")
-        else: # We know we have a full 7687 samples real all_levels.json file, so resample it to a length of 100
-            print("RESAMPLING all_levels.json to 100 SAMPLES")
-            eval_dir = os.path.dirname(real_samples)
-                
-            # Load and resample real_samples
-            with open(real_samples, "r") as f:
-                full_data = json.load(f)
-                
-            if len(full_data) > 100:
-                increment = len(full_data) // (100 + 1)
-                reduced_data = [full_data[(i + 1) * increment] for i in range(100)]
-            
-                if len(reduced_data) != 100:
-                    raise RuntimeError(f"Sample limit mismatched: Expected 100 samples, got {len(reduced_data)} after sampling.")
-
-                # Save the full version as all_levels_full.json
-                full_output_path = os.path.join(eval_dir, "all_levels_full.json")
-                shutil.copyfile(real_samples, full_output_path)
-                    
-                # Save the reduced version as all_levels.json (overwrite)
-                with open(real_samples, "w") as f:
-                    json.dump(reduced_data, f, indent=2)
+        
+        # Check that the all_levels_full file exists and is correct
+        real_samples_full = os.path.join(os.path.dirname(real_samples), "all_levels_full.json")
+        error = verify_json_length(real_samples_full, 7687, check_prompts=True)
+        if error:
+            errors.append(f"Requirement 5 failed: {error}")
         
         # Check if evaluation_metrics.json exists in the same directory as all_levels.json
         evaluation_metrics_path = os.path.join(os.path.dirname(real_samples), "evaluation_metrics.json")
@@ -387,7 +371,7 @@ def main():
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
             
-            #evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
+            evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
             errors = verify_data_completeness(dir_path, dir_type)
             
             # show_model = (
