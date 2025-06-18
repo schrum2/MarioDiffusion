@@ -39,7 +39,9 @@ if __name__ == "__main__":
     model_parts = os.path.basename(model_path).split('-')
     data = model_parts[0] if len(model_parts) > 0 else ""
     model_type = model_parts[1] if len(model_parts) > 1 else ""
+    is_conditional = False
     is_conditional = (model_type == "conditional")
+    
 
     # Prepare list of JSONs to evaluate
     json_jobs = []
