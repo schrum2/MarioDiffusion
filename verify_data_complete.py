@@ -20,36 +20,55 @@ def count_jsonl_entries(file_path):
     
 
 def verify_json_length(file_path, expected_length, check_prompts=False):
-    """Verify that a JSON file exists and contains a list of expected length.
+    """Verify that a JSON or JSONL file exists and contains a list/number of expected length.
     Optionally verify that the first entry has a non-None prompt field."""
     if not os.path.exists(file_path):
         return f"File does not exist: {file_path}"
-    
+
     try:
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-            if not isinstance(data, list):
-                return f"JSON content is not a list in {file_path}"
-            if len(data) != expected_length:
-                return f"Expected length {expected_length}, but found length {len(data)} in {file_path}"
-            
-            if check_prompts and data:
-                if "prompt" not in data[0]:
+        if file_path.endswith('astar_result.jsonl'):
+            count = 0
+            first_entry = None
+            with open(file_path, 'r') as f:
+                for i, line in enumerate(f):
+                    if i == 0:
+                        try:
+                            first_entry = json.loads(line)
+                        except Exception:
+                            return f"First line is not valid JSON in {file_path}"
+                    count += 1
+            if count != expected_length:
+                return f"Expected length {expected_length}, but found length {count} in {file_path}"
+            if check_prompts and first_entry is not None:
+                if "prompt" not in first_entry:
                     return f"First entry missing 'prompt' field in {file_path}"
-                if data[0]["prompt"] is None:
+                if first_entry["prompt"] is None:
                     return f"First entry has None value for 'prompt' in {file_path}"
-                
+        elif not file_path.endswith('.jsonl'): # Only json at this point
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+                if not isinstance(data, list):
+                    return f"JSON content is not a list in {file_path}"
+                if len(data) != expected_length:
+                    return f"Expected length {expected_length}, but found length {len(data)} in {file_path}"
+                if check_prompts and data:
+                    if "prompt" not in data[0]:
+                        return f"First entry missing 'prompt' field in {file_path}"
+                    if data[0]["prompt"] is None:
+                        return f"First entry has None value for 'prompt' in {file_path}"
     except json.JSONDecodeError:
         return f"Invalid JSON format in {file_path}"
-    
+    except Exception as e:
+        return f"Error reading {file_path}: {e}"
     return None
 
 def is_zero_iteration(model_path: str) -> bool:
-    """Return True if the model path ends with exactly '-0' (not -10, -20, etc.)."""
-    return bool(re.search(r'[^0-9]-0$', model_path))
+    """Return True if the model path ends with exactly '0' (not -10, -20, etc.)."""
+    #return bool(re.search(r'[^0-9]-0$', model_path))
+    return bool(re.search(r'[^0-9]0$', model_path))
 
 def is_valid_unconditional_sample(path: str) -> bool:
-    pattern = r"unconditional\d+-unconditional-samples-(short|long)$"
+    pattern = r"unconditional\d+$"
     return bool(re.search(pattern, path.lower()))
 
 def verify_data_completeness(model_path, type_str):
@@ -75,6 +94,7 @@ def verify_data_completeness(model_path, type_str):
             errors.append(f"Requirement 2 failed: 'evaluation_metrics.json' file is missing in {random_samples}.")
         
         if is_zero_iteration(model_path):
+            print("ZERO!")
             astar_metrics_path = os.path.join(os.path.dirname(random_samples), "astar_result.jsonl")
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 3 failed: 'astar_result.jsonl' file is missing in {random_samples}")
@@ -208,10 +228,12 @@ def verify_data_completeness(model_path, type_str):
         astar_metrics_path = os.path.join(os.path.dirname(samples), "astar_result.jsonl")
         
         if is_zero_iteration(model_path):
+            print("ZERO! WGAN")
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 22 failed: 'astar_result.jsonl' file is missing in {samples}")
             else:
                 error = verify_json_length(astar_metrics_path, 100, check_prompts=False)
+                print("WGAN 0 ", error)
                 if error:
                     errors.append(f"Requirement 22 failed: {error}")
             astar_metrics_path = os.path.join(os.path.dirname(samples), "astar_result_overall_averages.json")
@@ -221,9 +243,9 @@ def verify_data_completeness(model_path, type_str):
     elif unconditional:
         # Check unconditional-samples-short 
         if not is_valid_unconditional_sample(model_path): 
-            uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
-        else:
-            uncond_short = os.path.join(model_path, "all_levels.json")
+            raise ValueError(f"Model path {model_path} does not match unconditional sample pattern.")
+        
+        uncond_short = os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json")
             
         error = verify_json_length(uncond_short, 100)
         if error:
@@ -246,10 +268,7 @@ def verify_data_completeness(model_path, type_str):
                 
         
         # Check unconditional-samples-long
-        if not is_valid_unconditional_sample(model_path): 
-            uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
-        else: 
-            uncond_long = os.path.join(model_path, "all_levels.json")
+        uncond_long = os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json")
             
         error = verify_json_length(uncond_long, 100)
         if error:
@@ -293,8 +312,10 @@ def find_numbered_directories() -> List[Tuple[str, int, str]]:
         MarioGPT = "MarioGPT" in item
         is_conditional_with_number = "-conditional-" in item and item[-1].isdigit()
         contains_fdm = "fdm" in item
-        contains_unconditional_number = re.search(r"unconditional\d+-.*samples", item)
-        contains_wgan_number_samples = re.search(r"wgan\d+-samples", item)
+        #contains_unconditional_number = re.search(r"unconditional\d+-.*samples", item)
+        #contains_wgan_number_samples = re.search(r"wgan\d+-samples", item)
+        contains_unconditional_number = re.search(r"unconditional\d+$", item)
+        contains_wgan_number_samples = re.search(r"wgan\d+$", item)
 
         if not (MarioGPT or is_conditional_with_number or contains_fdm or contains_unconditional_number or contains_wgan_number_samples):
             continue
@@ -371,7 +392,8 @@ def main():
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
             
-            evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
+            # if "MarioGPT" not in dir_path: 
+            #     evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
             errors = verify_data_completeness(dir_path, dir_type)
             
             # show_model = (
