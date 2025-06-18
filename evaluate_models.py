@@ -100,6 +100,7 @@ def parse_args():
     parser.add_argument("--save", action="store_true", help="Stores resulting pdfs in a folder named comparison_plots")
     parser.add_argument("--plot_label", type=str, default=None, help="Label for the outputted plot")
     parser.add_argument("--full_metrics", action="store_true", help="Flag that indicates we will be plotting real_full")
+    parser.add_argument("--output_name", type=str, help="Name of outputted pdf file")
     return parser.parse_args()
 
 def get_bar_color(model_name, mode, mode_list=None, colors=None):
@@ -193,7 +194,7 @@ def main():
                 val = metrics.get(metric_key)
                 if val is not None:
                     data[prefix][mode].append(val)
-                    print(f"Adding a value to prefix {prefix}")
+                    #print(f"Adding a value to prefix {prefix}")
                 else:
                     print(f"[SKIP] {metric_key} missing in: {metrics_path}")
 
@@ -248,7 +249,7 @@ def main():
 
         # Plot bars for each model
         for j, model in enumerate(sorted_models):
-            print(f"Processing model {model} in mode {mode}")  # Debug print
+            #print(f"Processing model {model} in mode {mode}")  # Debug print
             color = get_bar_color(model, mode, modes, colors)
             is_mariogpt = "MarioGPT" in model
             
@@ -300,6 +301,7 @@ def main():
             handles[::-1],
             labels[::-1],
             loc='best',
+            bbox_to_anchor=(1.0, 0.1),  # Move up slightly
             frameon=True,
             edgecolor='black',
         )
@@ -315,7 +317,10 @@ def main():
             for m in modes
         ]
                 
-        filename = f"comparison_{'_'.join(reversed(renamed_modes))}_{metric_key}.pdf"
+        if args.output_name:
+            filename = f"{args.output_name}.pdf"
+        else:
+            filename = f"comparison_{'_'.join(reversed(renamed_modes))}_{metric_key}.pdf"
         save_path = os.path.join(save_dir, filename)
         
         # Delete existing file if it exists
