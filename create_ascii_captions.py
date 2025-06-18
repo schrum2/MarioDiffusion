@@ -476,12 +476,12 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
 #    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
 #    return words[n - 1] if 1 <= n <= 10 else str(n)
 
-def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence, exclude_upside_down_pipes=False):
+def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence, exclude_upside_down_pipes=False, exclude_broken=True):
     """Processes the dataset and generates captions for each level scene."""
     # Load dataset
     with open(dataset_path, "r") as f:
         dataset = json.load(f)
-    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_upside_down_pipes=exclude_upside_down_pipes)
+    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_upside_down_pipes=exclude_upside_down_pipes, exclude_broken=exclude_broken)
     print(f"Captioned dataset saved to {output_path}")
 
 def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True, exclude_upside_down_pipes=False, prompts=None):
@@ -719,8 +719,11 @@ if __name__ == "__main__":
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--exclude_upside_down_pipes", action="store_true", default=False, help="Whether any mention of upside down pipes should be in captions")
+    parser.add_argument("--include_broken", action='store_true', default=False, help="Whether any mention of upside down pipes should be in captions")
     global args
     args = parser.parse_args()
+
+    exclude_broken = not args.include_broken
 
     dataset_file = args.dataset
     tileset_file = args.tileset
@@ -730,4 +733,4 @@ if __name__ == "__main__":
         print("Error: One or more input files do not exist.")
         sys.exit(1)
 
-    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence, args.exclude_upside_down_pipes)
+    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence, args.exclude_upside_down_pipes, exclude_broken=exclude_broken)

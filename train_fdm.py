@@ -126,7 +126,7 @@ def main():
         tokenizer = AutoTokenizer.from_pretrained(args.pretrained_language_model)
         print(f"Loaded text encoder from {args.pretrained_language_model}")
     else:
-        raise ValueError("You must provice a pretrained text embedding model!")
+        raise ValueError("You must provide a pretrained text embedding model!")
     
 
     # Load block embedding model if specified

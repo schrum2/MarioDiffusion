@@ -46,11 +46,14 @@ def main():
     find_metrics_of_samples(samples_json, real_json, args.output_dir)
     
     print("Finding astar metrics")
-    create_astar_metrics(allsamples_json, args.full_levels_dir, args.output_dir, args.find_long_astar_data)
+    #Do the full dataset instead of just 100 if we have more
+    if(samples_json!=allsamples_json):
+        create_astar_metrics(allsamples_json, args.full_levels_dir, args.output_dir, args.find_long_astar_data, fullsamples=True)
+    create_astar_metrics(samples_json, args.full_levels_dir, args.output_dir, args.find_long_astar_data)
 
 
 
-def create_astar_metrics(allsamples_json, full_levels_dir, output_dir, find_long_astar_data):
+def create_astar_metrics(allsamples_json, full_levels_dir, output_dir, find_long_astar_data, fullsamples=False):
     # Load generated levels and real levels
     with open(allsamples_json, "r") as f:
         generated_data = json.load(f)
@@ -66,7 +69,12 @@ def create_astar_metrics(allsamples_json, full_levels_dir, output_dir, find_long
         for level in os.listdir(full_levels_dir):
             with open(os.path.join(full_levels_dir, level), 'r') as t:
                 all_levels.append(t.readlines())
-        metrics.astar_metrics(all_levels, output_json_path=output_path, save_name="astar_result_full_levels.jsonl")    
+        
+        #Done to allow for saving metrics on 100 samples and all 760
+        savename="astar_result_full_levels.jsonl"
+        if fullsamples:
+            savename = "full_"+savename
+        metrics.astar_metrics(all_levels, output_json_path=output_path, save_name=savename)    
     
 
     print(f"Astar metrics saved to {output_dir}")
@@ -137,10 +145,9 @@ def create_100_samples(json_path):
         directory = os.path.dirname(test)
         new_name=os.path.join(directory, "MarioGPT_LevelsAndCaptions-100-samples.json")
         if os.path.exists(new_name):
-            print(f"Warning: file name {new_name} already exists. Loading previously made file for metrics creation, this may lead to unexpected behavior or results. Delete this file to ensure metrics work as expected.")
-            os.remove(test)
-        else:
-            os.rename(test, new_name)
+            print(f"Warning: file name {new_name} already exists. This file will automatically be deleted")
+            os.remove(new_name)
+        os.rename(test, new_name)
         return new_name
 
     #Assume we can do everything just fine with 96
