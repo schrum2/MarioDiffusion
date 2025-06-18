@@ -46,10 +46,12 @@ def extract_prefix(name):
         return "MarioGPT_metrics"
     return name.rstrip("0123456789").rstrip("-_")
 
+# TODO: Add a commandline flag that when set, will indicate that we want to compute metrics with all 7687 real samples. That should reflect here
+# Instead of returning evaluation_metrics.json, return evaluation_metrics_full.json
 def get_metrics_path(base_dir, mode, plot_file):
     model_name = os.path.basename(base_dir)
 
-    if "-conditional-" in model_name:
+    if "-conditional-" in model_name: # TODO: handle full case
         if mode in {"short", "long"}:
             # e.g. Mar1and2-conditional-absence5-conditional-samples-short
             cond_dir = f"{base_dir}-unconditional-samples-{mode}"
@@ -59,7 +61,7 @@ def get_metrics_path(base_dir, mode, plot_file):
             subdir = f"samples-from-{mode}-Mar1and2-captions"
             return os.path.join(base_dir, subdir, plot_file)
 
-    elif "-fdm-" in model_name:
+    elif "-fdm-" in model_name: # TODO: handle full case
         # fdm case is always subdir
         subdir = f"samples-from-{mode}-Mar1and2-captions"
         return os.path.join(base_dir, subdir, plot_file)
@@ -175,7 +177,7 @@ def main():
         'axes.titlesize': 22,
         'xtick.labelsize': 22,
         'ytick.labelsize': 22,
-        'legend.fontsize': 19,
+        'legend.fontsize': 16,
         'legend.title_fontsize': 22,
         'figure.titlesize': 22
     })
@@ -219,16 +221,17 @@ def main():
             )
 
             # Scatter plot for individual values
-            values = data[model][mode]
-            if values:  # Only plot if we have values
-                y_position = x[j] + offsets[i]
-                plt.scatter(
-                    values,
-                    [y_position] * len(values),
-                    color='black',
-                    marker='x',
-                    zorder=10
-                )
+            if args.plot_file == "evaluation_metrics.json":
+                values = data[model][mode]
+                if values:  # Only plot if we have values
+                    y_position = x[j] + offsets[i]
+                    plt.scatter(
+                        values,
+                        [y_position] * len(values),
+                        color='black',
+                        marker='x',
+                        zorder=10
+                    )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)
     
@@ -244,7 +247,7 @@ def main():
         #title="Mode",
         loc='best',
         frameon=True,
-        edgecolor='black'
+        edgecolor='black',
     )
 
     plt.grid(True, axis='x', linestyle='--', alpha=0.5)
