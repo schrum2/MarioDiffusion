@@ -59,14 +59,14 @@ def create_astar_metrics(allsamples_json, full_levels_dir, output_dir, find_long
     # Annoyingly this doesn't get saved properly if we don't provide a path inside the folder, instead of the folder itself
     output_path = os.path.join(output_dir, "evaluation_metrics.json")
     generated_scenes = [entry for entry in generated_data if "scene" in entry and entry['scene']]
-    metrics.astar_metrics(generated_scenes, output_json_path=output_path, save_name="MarioGPT_astar_metrics_level_scenes.jsonl")
+    metrics.astar_metrics(generated_scenes, output_json_path=output_path, save_name="astar_result.jsonl")
 
     if find_long_astar_data:
         all_levels = []
         for level in os.listdir(full_levels_dir):
             with open(os.path.join(full_levels_dir, level), 'r') as t:
                 all_levels.append(t.readlines())
-        metrics.astar_metrics(all_levels, output_json_path=output_path, save_name="MarioGPT_astar_metrics_full_levels.jsonl")    
+        metrics.astar_metrics(all_levels, output_json_path=output_path, save_name="astar_result_full_levels.jsonl")    
     
 
     print(f"Astar metrics saved to {output_dir}")
