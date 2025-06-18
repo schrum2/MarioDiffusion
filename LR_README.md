@@ -1,23 +1,23 @@
 ## Can I also get Lode Runner Data? (TODO)
 
-This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username:
+This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username. This should create a folder with the MarioDiffusion folder that contains all needed Lode Runner items:
 ```
-git clone https://github.com/<username>/LodeRunner.git
+git clone --branch Reid --single-branch https://github.com/williamsr03/LodeRunner.git
 ```
 Next, enter the `LodeRunner` respository.
 ```
 cd LodeRunner
 ```
-Then install Lode Runner repository as a library so it can be used with the MarioDiffusion data:
+<!-- Then install Lode Runner repository as a library so it can be used with the MarioDiffusion data:
 ```
 pip install -e ./LodeRunner
-```
-Extract a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this (top 10 rows are filled with blank space):
+``` -->
+Extract a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this (top 10 rows are filled with blank space to make a perfect square):
 ```
 python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json" --target_height 32 --target_width 32 --extra_tile .
 ```
 
-These files only contains the level scenes. Create captions for all level scenes with commands like this (no longer blank but still needs some work):
+These files only contains the level scenes. Create captions for all level scenes with a command like this:
 ```
 python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-regular.json
 ```
@@ -27,7 +27,7 @@ You can also make the captions explicitly mention things that are absent from ea
 python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-absence.json --describe_absence
 ```
 
-Browse LR data with ascii browser and be able to play some of the Lode Runner levels
+Browse LR data with ascii browser and be able to play some of the Lode Runner levels:
 ```
 python ascii_data_browser.py LR_LevelsAndCaptions-regular.json "..\\TheVGLC\\Lode Runner\\Loderunner.json"
 ```
