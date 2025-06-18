@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import matplotlib.pyplot as plt
 import argparse
@@ -103,12 +102,20 @@ def main():
     print(f"Comparing modes: {modes}")
 
     # Add mode name mapping for legend labels
-    mode_display_names = {
-        "short": "unconditional",
-        "real": "real",
-        "random": "random",
-        "long": "long"
-    }
+    if args.metric == "beaten" and set(args.modes) == {"real", "random", "short", "long"}:
+        mode_display_names = {
+            "short": "unconditional short",
+            "real": "real",
+            "random": "random",
+            "long": "unconditional long"
+        }
+    else:
+        mode_display_names = {
+            "short": "unconditional",
+            "real": "real",
+            "random": "random",
+            "long": "long"
+        }
 
     numbered_dirs = find_numbered_directories()
 
@@ -187,7 +194,10 @@ def main():
 
     plt.figure(figsize=(12, 12))
 
-    colors = ['#66c2a5', '#fc8d62', '#8da0cb']  # Colorblind-friendly, light colors
+    if args.metric == "beaten" and set(args.modes) == {"real", "random", "short", "long"}:
+        colors = ['#66c2a5', '#fc8d62', '#8da0cb', "#d383dd"]  # Add a distinct color for 'long'
+    else:
+        colors = ['#66c2a5', '#fc8d62', '#8da0cb'] # Colorblind-friendly, light colors
     has_added_mode_to_legend = {mode: False for mode in modes}  # Track which modes are in legend
 
     for i, mode in enumerate(modes):
@@ -241,14 +251,21 @@ def main():
         plt.xlabel(metric_key.replace("_", " ").capitalize(), labelpad=10)
 
     handles, labels = plt.gca().get_legend_handles_labels()
-    plt.legend(
-        handles[::-1],
-        labels[::-1],
-        #title="Mode",
-        loc='best',
-        frameon=True,
-        edgecolor='black',
-    )
+    if args.metric == "beaten":
+        plt.legend(
+            loc='lower left',
+            bbox_to_anchor=(1.0, 0.0),
+            frameon=True,
+            edgecolor='black',
+        )
+    else:
+        plt.legend(
+            handles[::-1],
+            labels[::-1],
+            loc='best',
+            frameon=True,
+            edgecolor='black',
+        )
 
     plt.grid(True, axis='x', linestyle='--', alpha=0.5)
     plt.tight_layout(pad=2)
