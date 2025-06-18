@@ -75,12 +75,15 @@ def get_metrics_path(base_dir, mode, plot_file, full_metrics=False):
             else: 
                 None
 
-    elif "-unconditional-samples" in model_name:
+    elif "unconditional" in model_name:
+        if mode == "short":
+            return os.path.join(f"{base_dir}-unconditional-samples-short", plot_file)
         # e.g. Mar1and2-unconditional29-unconditional-samples-short
-        return os.path.join(base_dir, plot_file)
+        elif mode == "long":
+            return os.path.join(f"{base_dir}-unconditional-samples-long", plot_file)
 
     elif "-wgan" in model_name:
-        return os.path.join(base_dir, plot_file)
+        return os.path.join(f"{base_dir}-samples", plot_file)
 
     elif "MarioGPT" in model_name:
         return os.path.join(base_dir, f"{mode}_levels", plot_file)
@@ -111,7 +114,7 @@ MODE_ORDER = ["real_full", "real", "random", "short"]
 # Add mode name mapping for legend labels
 MODE_DISPLAY_NAMES = {
     "short": "unconditional",
-    "real": "real",
+    "real": "real (100)",
     "random": "random",
     "long": "long",
     "real_full": "real (full)",
