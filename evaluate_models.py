@@ -254,7 +254,7 @@ def main():
     if args.metric == "beaten":
         plt.legend(
             loc='lower left',
-            bbox_to_anchor=(1.0, 0.0),
+            bbox_to_anchor=(-0.45, -0.075),  # Move legend outside to the bottom left
             frameon=True,
             edgecolor='black',
         )
