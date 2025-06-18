@@ -39,18 +39,18 @@ if __name__ == "__main__":
     model_parts = os.path.basename(model_path).split('-')
     data = model_parts[0] if len(model_parts) > 0 else ""
     model_type = model_parts[1] if len(model_parts) > 1 else ""
-    is_conditional = False
-    is_conditional = (model_type == "conditional")
+    is_fdm = (model_type == "fdm")
+    is_conditional = (model_type == "conditional") or (model_type == "fdm")
     
-
     # Prepare list of JSONs to evaluate
     json_jobs = []
 
     # Always add the two unconditional JSONs in the root directory
-    for suffix in ["long", "short"]:
-        unconditional_dir = f"{model_path}-unconditional-samples-{suffix}"
-        unconditional_json = os.path.join(unconditional_dir, "all_levels.json")
-        json_jobs.append({"path": unconditional_json, "label": f"unconditional-{suffix}"})
+    if not is_fdm:
+        for suffix in ["long", "short"]:
+            unconditional_dir = f"{model_path}-unconditional-samples-{suffix}"
+            unconditional_json = os.path.join(unconditional_dir, "all_levels.json")
+            json_jobs.append({"path": unconditional_json, "label": f"unconditional-{suffix}"})
 
     # If conditional, add the two conditional JSONs in the model directory
     if is_conditional:

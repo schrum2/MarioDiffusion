@@ -21,3 +21,5 @@ python visualize_best_model_stats.py --input best_model_statistics.jsonl --outpu
 :: SCATTER caption x epoch
 python visualize_best_model_stats.py --input best_model_statistics.jsonl --output test_scatter_plot.pdf --plot_type scatter --y_axis "best_caption_score" --x_axis "best_epoch" --y_axis_label "BEST CAPTION SCORE" --x_axis_label "BEST EPOCH" 
 
+:: Visualize A* Solvability
+python evaluate_models.py --plot_file astar_result_overall_averages.json --modes real random short --metric "beaten" --plot_label "Percent Beatable Levels" --save
