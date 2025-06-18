@@ -371,7 +371,8 @@ def main():
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
             
-            evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
+            if "MarioGPT" not in dir_path: 
+                evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
             errors = verify_data_completeness(dir_path, dir_type)
             
             # show_model = (
