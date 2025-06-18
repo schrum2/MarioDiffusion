@@ -177,7 +177,7 @@ def main():
         'axes.titlesize': 22,
         'xtick.labelsize': 22,
         'ytick.labelsize': 22,
-        'legend.fontsize': 19,
+        'legend.fontsize': 16,
         'legend.title_fontsize': 22,
         'figure.titlesize': 22
     })
@@ -221,16 +221,17 @@ def main():
             )
 
             # Scatter plot for individual values
-            values = data[model][mode]
-            if values:  # Only plot if we have values
-                y_position = x[j] + offsets[i]
-                plt.scatter(
-                    values,
-                    [y_position] * len(values),
-                    color='black',
-                    marker='x',
-                    zorder=10
-                )
+            if args.plot_file == "evaluation_metrics.json":
+                values = data[model][mode]
+                if values:  # Only plot if we have values
+                    y_position = x[j] + offsets[i]
+                    plt.scatter(
+                        values,
+                        [y_position] * len(values),
+                        color='black',
+                        marker='x',
+                        zorder=10
+                    )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)
     
@@ -246,7 +247,7 @@ def main():
         #title="Mode",
         loc='best',
         frameon=True,
-        edgecolor='black'
+        edgecolor='black',
     )
 
     plt.grid(True, axis='x', linestyle='--', alpha=0.5)
