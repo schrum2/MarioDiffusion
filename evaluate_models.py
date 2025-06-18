@@ -12,6 +12,7 @@ VALID_MODES_BY_TYPE = {
     "unconditional": {"short", "long"},
     "wgan": {"short"},
     "fdm": {"real", "random"},
+    "MarioGPT": {"short"},
 }
 
 def detect_model_type(model_name):
@@ -23,47 +24,55 @@ def detect_model_type(model_name):
         return "wgan"
     elif "-fdm-" in model_name:
         return "fdm"
+    elif "MarioGPT" in model_name:
+        return "MarioGPT"
     return "unknown"
 
 
-def strip_common_prefix(strings):
-    if not strings:
-        return strings
-    common_prefix = os.path.commonprefix(strings)
-    return [s[len(common_prefix):] for s in strings], common_prefix
+# def strip_common_prefix(strings):
+#     if not strings:
+#         return strings
+#     common_prefix = os.path.commonprefix(strings)
+#     return [s[len(common_prefix):] for s in strings], common_prefix
 
 def extract_prefix(name):
     if "-unconditional" in name:
-        return re.sub(r"-unconditional\d+", "-unconditional", name)
+        # return re.sub(r"-unconditional\d+", "-unconditional", name)
+        return "Mar1and2-unconditional"
     elif "-wgan" in name:
-        return re.sub(r"-wgan\d+", "-wgan", name)
+        # return re.sub(r"-wgan\d+", "-wgan", name)
+        return "Mar1and2-wgan"
+    elif "MarioGPT" in name:
+        return "MarioGPT_metrics"
     return name.rstrip("0123456789").rstrip("-_")
 
-def get_metrics_path(base_dir, mode):
+def get_metrics_path(base_dir, mode, plot_file):
     model_name = os.path.basename(base_dir)
 
     if "-conditional-" in model_name:
         if mode in {"short", "long"}:
             # e.g. Mar1and2-conditional-absence5-conditional-samples-short
-            cond_dir = f"{base_dir}-conditional-samples-{mode}"
-            return os.path.join(cond_dir, "evaluation_metrics.json")
-        else:
+            cond_dir = f"{base_dir}-unconditional-samples-{mode}"
+            return os.path.join(cond_dir, plot_file)
+        elif mode in {"real", "random"}:
             # e.g. Mar1and2-conditional-absence5/samples-from-real-Mar1and2-captions/evaluation_metrics.json
             subdir = f"samples-from-{mode}-Mar1and2-captions"
-            return os.path.join(base_dir, subdir, "evaluation_metrics.json")
+            return os.path.join(base_dir, subdir, plot_file)
 
     elif "-fdm-" in model_name:
         # fdm case is always subdir
         subdir = f"samples-from-{mode}-Mar1and2-captions"
-        return os.path.join(base_dir, subdir, "evaluation_metrics.json")
+        return os.path.join(base_dir, subdir, plot_file)
 
-    elif "-unconditional" in model_name:
+    elif "-unconditional-samples" in model_name:
         # e.g. Mar1and2-unconditional29-unconditional-samples-short
-        return os.path.join(base_dir, "evaluation_metrics.json")
+        return os.path.join(base_dir, plot_file)
 
     elif "-wgan" in model_name:
-        return os.path.join(base_dir, "evaluation_metrics.json")
+        return os.path.join(base_dir, plot_file)
 
+    elif "MarioGPT" in model_name:
+        return os.path.join(base_dir, f"{mode}_levels", plot_file)
     else:
         print(f"[WARNING] Unknown model type for: {model_name}")
         return None
@@ -74,8 +83,16 @@ def parse_args():
                         help="List of modes to compare (e.g., real random short)")
     parser.add_argument("--metric", type=str, default="average_min_edit_distance",
                         help="Metric key in evaluation_metrics.json to plot")
+    parser.add_argument("--plot_file", type=str, default="evaluation_metrics.json", help="File with metrics to plot")
     parser.add_argument("--save", action="store_true", help="Stores resulting pdfs in a folder named comparison_plots")
+    parser.add_argument("--plot_label", type=str, default=None, help="Label for the outputted plot")
     return parser.parse_args()
+
+def get_bar_color(model_name, mode, mode_list, colors):
+    print(f"Determining color for model: {model_name}")  # Debug print
+    if "MarioGPT" in model_name:
+        return 'red'
+    return colors[mode_list.index(mode) % len(colors)]
 
 def main():
     args = parse_args()
@@ -83,7 +100,16 @@ def main():
     metric_key = args.metric
     print(f"Comparing modes: {modes}")
 
+    # Add mode name mapping for legend labels
+    mode_display_names = {
+        "short": "unconditional",
+        "real": "real",
+        "random": "random",
+        "long": "long"
+    }
+
     numbered_dirs = find_numbered_directories()
+
     if not numbered_dirs:
         print("No matching directories found.")
         return
@@ -108,9 +134,7 @@ def main():
                 continue
             
             for d in dirs:
-                # Modify to correct model path for fdm (and later for wgan)
-
-                metrics_path = get_metrics_path(d, mode)
+                metrics_path = get_metrics_path(d, mode, args.plot_file)
                 if not metrics_path or not os.path.exists(metrics_path):
                     print(f"[SKIP] Missing: {metrics_path}")
                     continue
@@ -123,32 +147,21 @@ def main():
                 val = metrics.get(metric_key)
                 if val is not None:
                     data[prefix][mode].append(val)
+                    print(f"Adding a value to prefix {prefix}")
                 else:
                     print(f"[SKIP] {metric_key} missing in: {metrics_path}")
 
     model_names = list(data.keys())
 
-    # Step 1: Strip common prefix
-    clean_labels, removed_prefix = strip_common_prefix(model_names)
-    print(f"Removed common prefix: '{removed_prefix}'")
 
-    # Step 2: Renaming logic, REPLACE WITH UTIL SCRIPT THAT HAS NAMING CONVENTIONS
-    def rename_model_label(label):
-        if label in {"regular", "absence", "negative"}:
-            return f"MLM-{label}"
-        elif "split" in label:
-            return label.replace("split", "multiple")
-        else:
-            parts = label.split("-")
-            if len(parts) == 2:
-                return f"{parts[0]}-single-{parts[1]}"
-            else:
-                return f"{label}-single"
+    from util.naming_conventions import model_name_map as model_list, get_model_name_map_and_order
 
-    model_label_map = {original: rename_model_label(cleaned) for original, cleaned in zip(model_names, clean_labels)}
-    sorted_models = sorted(model_names)
-    clean_labels_sorted = [model_label_map[m] for m in sorted_models]
-
+    model_label_map, clean_labels_sorted = get_model_name_map_and_order()
+    
+    sorted_models = list(map(lambda x : x[0], model_list))
+    sorted_models = list(reversed(sorted_models))
+    clean_labels_sorted = list(reversed(clean_labels_sorted))
+    
     # Plotting
     bar_width = 0.35
     num_models = len(sorted_models)
@@ -157,22 +170,23 @@ def main():
     offsets = [(i - (num_modes - 1) / 2) * bar_width for i in range(num_modes)]
 
     plt.rcParams.update({
-        'font.size': 14,
-        'axes.labelsize': 16,
-        'axes.titlesize': 16,
-        'xtick.labelsize': 14,
-        'ytick.labelsize': 12,
-        'legend.fontsize': 12,
-        'legend.title_fontsize': 14,
-        'figure.titlesize': 18
+        'font.size': 22,
+        'axes.labelsize': 22,
+        'axes.titlesize': 22,
+        'xtick.labelsize': 22,
+        'ytick.labelsize': 22,
+        'legend.fontsize': 19,
+        'legend.title_fontsize': 22,
+        'figure.titlesize': 22
     })
     
     # ✅ Embed TrueType fonts in the PDF
     plt.rcParams['pdf.fonttype'] = 42
 
-    plt.figure(figsize=(8, 8))
+    plt.figure(figsize=(12, 12))
 
     colors = ['#66c2a5', '#fc8d62', '#8da0cb']  # Colorblind-friendly, light colors
+    has_added_mode_to_legend = {mode: False for mode in modes}  # Track which modes are in legend
 
     for i, mode in enumerate(modes):
         means = []
@@ -182,35 +196,52 @@ def main():
             means.append(mean_val)
 
         bar_positions = [xi + offsets[i] for xi in x]
-        plt.barh(
-            bar_positions,
-            means,
-            height=bar_width,
-            color=colors[i % len(colors)],
-            edgecolor='black',
-            label=mode,
-            alpha=0.6
-        )
 
+        # Plot bars for each model
         for j, model in enumerate(sorted_models):
-            values = data[model][mode]
-            y_positions = [x[j] + offsets[i]] * len(values)
-            plt.scatter(
-                values,
-                y_positions,
-                color='black',
-                marker='x',
-                zorder=10
+            print(f"Processing model {model} in mode {mode}")  # Debug print
+            color = get_bar_color(model, mode, modes, colors)
+            is_mariogpt = "MarioGPT" in model
+            
+            # Add mode to legend only once per mode, and never for MarioGPT
+            should_add_to_legend = not has_added_mode_to_legend[mode] and not is_mariogpt
+            if should_add_to_legend:
+                has_added_mode_to_legend[mode] = True
+            
+            plt.barh(
+                bar_positions[j],
+                means[j],
+                height=bar_width,
+                color=color,
+                edgecolor='black',
+                label=mode_display_names[mode] if should_add_to_legend else None,
+                alpha=0.6
             )
 
+            # Scatter plot for individual values
+            values = data[model][mode]
+            if values:  # Only plot if we have values
+                y_position = x[j] + offsets[i]
+                plt.scatter(
+                    values,
+                    [y_position] * len(values),
+                    color='black',
+                    marker='x',
+                    zorder=10
+                )
+
     plt.yticks(ticks=x, labels=clean_labels_sorted)
-    plt.xlabel(metric_key.replace("_", " ").capitalize(), labelpad=10)
+    
+    if args.plot_label:
+        plt.xlabel(args.plot_label, labelpad=10)
+    else:
+        plt.xlabel(metric_key.replace("_", " ").capitalize(), labelpad=10)
 
     handles, labels = plt.gca().get_legend_handles_labels()
     plt.legend(
         handles[::-1],
         labels[::-1],
-        title="Mode",
+        #title="Mode",
         loc='best',
         frameon=True,
         edgecolor='black'
@@ -227,7 +258,7 @@ def main():
         if os.path.exists(save_path):
             os.remove(save_path)
             
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+        plt.savefig(save_path, bbox_inches='tight', dpi=300, pad_inches=0)
         print(f"Plot saved as: {save_path}")
     else:
         plt.show()
