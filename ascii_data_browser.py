@@ -167,7 +167,13 @@ class TileViewer(tk.Tk):
         self.caption_text = tk.Text(self, height=3, width=int(self.window_size / 8), wrap=tk.WORD)
         self.caption_text.pack(pady=2)
         self.caption_text.tag_configure("center", justify="center")
-        self.caption_text.configure(state="disabled")  # Make it read-only
+        # Make it read-only but selectable/copyable
+        self.caption_text.bind("<Key>", lambda e: "break")
+        self.caption_text.bind("<Button-2>", lambda e: "break")  # Middle click paste
+        self.caption_text.bind("<Control-v>", lambda e: "break")
+        self.caption_text.bind("<Control-V>", lambda e: "break")
+        self.caption_text.bind("<Delete>", lambda e: "break")
+        self.caption_text.bind("<BackSpace>", lambda e: "break")
 
         # Combined navigation and info frame
         nav_info_frame = tk.Frame(self)
@@ -554,10 +560,8 @@ class TileViewer(tk.Tk):
         # Update caption text widget
         self.caption_text.configure(state="normal")
         self.caption_text.delete("1.0", tk.END)
-        
         caption_text = sample['caption']
         caption_parts = caption_text.split('.')
-        
         for part in caption_parts:
             part = part.strip()
             if part:
@@ -566,8 +570,8 @@ class TileViewer(tk.Tk):
                 part = part + " " # Add space for readability
                 self.caption_text.tag_configure(color, foreground=color)
                 self.caption_text.insert(tk.END, part, (color, "center"))
-        
-        self.caption_text.configure(state="disabled")
+        # Do not set state to disabled, so user can select/copy
+        # self.caption_text.configure(state="disabled")
 
         self.sample_label.config(
             text=f"Sample: {self.current_sample_idx + 1} / {len(self.dataset)}"
