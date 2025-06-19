@@ -1,4 +1,3 @@
-import argparse
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -613,21 +612,28 @@ Average Segment Score: {avg_segment_score}"""
         console_output = level.run_astar()
         print(console_output)
   
-root = tk.Tk()
-app = CaptionBuilder(root)
-
-global tileset_path
-tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
-#tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
-
-if len(sys.argv) > 3:
-    tileset_path = sys.argv[3]
-
 if __name__ == "__main__":
+    root = tk.Tk()
+    app = CaptionBuilder(root)
+
+    # Example usage:
+    # python interactive_tile_level_generator.py Mar1and2-conditional-regular0
+    # python interactive_tile_level_generator.py Mar1and2-conditional-regular0 datasets\Mar1and2_LevelsAndCaptions-regular.json
+    # python interactive_tile_level_generator.py Mar1and2-conditional-regular0 datasets\Mar1and2_LevelsAndCaptions-regular.json ..\TheVGLC\Super Mario Bros\smb.json
+
+    global tileset_path
+    tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+    #tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+
+    if len(sys.argv) > 3:
+        tileset_path = sys.argv[3]
+
+    if len(sys.argv) > 2:
+        app.load_data(sys.argv[2])
+    else:
+        app.load_data('datasets\Mar1and2_LevelsAndCaptions-regular.json')
+
     if len(sys.argv) > 1:
-        app.load_data(sys.argv[1])
+        app.load_model(sys.argv[1])
 
-if len(sys.argv) > 2:
-    app.load_model(sys.argv[2])
-
-root.mainloop()
+    root.mainloop()
