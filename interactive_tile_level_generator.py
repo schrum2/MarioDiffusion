@@ -208,7 +208,7 @@ class CaptionBuilder(ParentBuilder):
                 ("All files", "*.*")
             ],
             title="Save Image As",
-            initialfilename=default_filename
+            initialfile=default_filename  # Changed from initialfilename to initialfile
         )
         
         if file_path:
