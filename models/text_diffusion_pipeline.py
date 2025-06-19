@@ -6,11 +6,13 @@ from diffusers import DDPMPipeline, UNet2DConditionModel, DDPMScheduler
 import json
 # Running the main at the end of this requires messing with this import
 from models.text_model import TransformerModel  
+import torch
+import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 import models.sentence_transformers_helper as st_helper
 import models.text_model as text_model
-
+            
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
     
@@ -333,44 +335,4 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             print(self.text_encoder)
         else:
             print("No text encoder is set.")
-            
-    def save_unet_architecture_pdf(self, height, width, filename="unet_architecture.pdf", batch_size=1, device=None):
-        """
-        Have to separately install GraphViz for this to work
 
-        Saves a visualization of the UNet architecture as a PDF using torchviz.
-        Args:
-            height: Height of the dummy input.
-            width: Width of the dummy input.
-            filename: Output PDF filename.
-            batch_size: Batch size for dummy input.
-            device: Device to run the dummy input on (defaults to pipeline device).
-        """
-        from torchviz import make_dot
-
-        if device is None:
-            device = self.device if hasattr(self, 'device') else 'cpu'
-        in_channels = self.unet.config.in_channels if hasattr(self.unet, 'config') else 1
-        sample_shape = tuple([batch_size, in_channels, height, width])
-
-        dummy_x = torch.randn(size=sample_shape, device=device)
-        dummy_t = torch.tensor([0] * batch_size, dtype=torch.long, device=device)
-
-        # Prepare dummy text embedding (match what your UNet expects)
-        if hasattr(self.unet, 'config') and hasattr(self.unet.config, 'cross_attention_dim'):
-            cross_attention_dim = self.unet.config.cross_attention_dim
-        else:
-            cross_attention_dim = 128  # fallback
-        encoder_hidden_states = torch.randn(batch_size, 1, cross_attention_dim, device=device)
-
-        # Forward pass through UNet (as in your pipeline)
-        self.unet.eval()
-        with torch.no_grad():
-            try:
-                output = self.unet(dummy_x, dummy_t, encoder_hidden_states=encoder_hidden_states)
-            except Exception as e:
-                raise RuntimeError(f"Failed to run UNet forward pass for visualization: {e}")
-        dot = make_dot(output.sample, params=dict(self.unet.named_parameters()))
-        dot.format = 'pdf'
-        dot.render(filename, cleanup=True)
-        print(f"UNet architecture saved to {filename}")
