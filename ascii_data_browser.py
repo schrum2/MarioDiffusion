@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox  # Add messagebox for feedback
+from PIL import Image  # Ensure PIL.Image is imported
+import PIL.ImageTk  # Ensure PIL.ImageTk is imported
 import json
 import sys
 import os
@@ -51,6 +53,43 @@ class TileViewer(tk.Tk):
         # Lists to added level segments to the composed level
         self.added_sample_indexes = []
         self.composed_thumbnails = []
+        self.current_pil_image = None  # Store the current PIL image for saving
+        self.canvas_context_menu = tk.Menu(self, tearoff=0)
+        self.canvas_context_menu.add_command(
+            label="Save Image As...",
+            command=self.save_current_image_as
+        )
+        self.canvas.bind("<Button-3>", self.show_canvas_context_menu)
+        self.canvas.bind("<Control-Button-1>", self.show_canvas_context_menu)  # For macOS
+
+    def show_canvas_context_menu(self, event):
+        if getattr(self, 'show_images', False) and self.current_pil_image is not None:
+            try:
+                self.canvas_context_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.canvas_context_menu.grab_release()
+
+    def save_current_image_as(self):
+        if self.current_pil_image is None:
+            messagebox.showerror("Error", "No image to save.")
+            return
+        default_filename = f"scene_{self.current_sample_idx + 1}.png"
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[
+                ("PNG files", "*.png"),
+                ("JPEG files", "*.jpg"),
+                ("All files", "*.*")
+            ],
+            title="Save Image As",
+            initialfile=default_filename
+        )
+        if file_path:
+            try:
+                self.current_pil_image.save(file_path)
+                messagebox.showinfo("Success", f"Image saved successfully to:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save image:\n{str(e)}")
 
     def regenerate_caption(self):
         print("Regenerating caption...")
@@ -440,22 +479,26 @@ class TileViewer(tk.Tk):
             image = visualize_samples(one_hot_scene)
             if isinstance(image, list):
                 image = image[0]  # Handle list case by taking the first element
-
+            # Convert to PIL Image if needed
+            if not isinstance(image, Image.Image):
+                image = Image.fromarray(image)
+            self.current_pil_image = image  # Store for saving
             # --- Resize image to fit canvas ---
             canvas_width = int(self.canvas['width'])
             canvas_height = int(self.canvas['height'])
             img_width, img_height = image.size
             scale = min(canvas_width / img_width, canvas_height / img_height, 1.0)
+            display_image = image
             if scale < 1.0:
                 new_size = (int(img_width * scale), int(img_height * scale))
-                image = image.resize(new_size, PIL.Image.NEAREST)
-
-            photo_image = PIL.ImageTk.PhotoImage(image)
+                display_image = image.resize(new_size, Image.Resampling.NEAREST)
+            photo_image = PIL.ImageTk.PhotoImage(display_image)
             self.canvas.create_image(
                 canvas_width // 2, canvas_height // 2, image=photo_image, anchor="center"
             )
             self.photo_image = photo_image  # Keep a reference to avoid garbage collection
         else:
+            self.current_pil_image = None  # No image to save in non-image mode
             # Display as numeric/character grid
             font = ("Courier", self.font_size)
             colors = level_dataset.colors()
@@ -557,7 +600,6 @@ class TileViewer(tk.Tk):
         self.added_sample_indexes.append(idx)
         # Create a thumbnail for the scene
         from level_dataset import visualize_samples
-        import PIL.ImageTk
         scene = self.dataset[idx]['scene']
         one_hot_scene = torch.nn.functional.one_hot(
             torch.tensor(scene, dtype=torch.long),
@@ -566,8 +608,11 @@ class TileViewer(tk.Tk):
         image = visualize_samples(one_hot_scene)
         if isinstance(image, list):
             image = image[0]
+        # Convert to PIL Image if needed
+        if not isinstance(image, Image.Image):
+            image = Image.fromarray(image)
         thumb = image.copy()
-        thumb.thumbnail((64, 64))
+        thumb.thumbnail((64, 64), Image.Resampling.NEAREST)
         photo = PIL.ImageTk.PhotoImage(thumb)
         self.composed_thumbnails.append(photo)  # Prevent GC
         self.redraw_composed_thumbnails()  # Use new redraw method
