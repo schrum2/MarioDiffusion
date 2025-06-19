@@ -174,6 +174,16 @@ class TileViewer(tk.Tk):
         self.caption_text.bind("<Control-V>", lambda e: "break")
         self.caption_text.bind("<Delete>", lambda e: "break")
         self.caption_text.bind("<BackSpace>", lambda e: "break")
+        # Add copy support
+        self.caption_text.bind("<Control-c>", self.copy_caption_text)
+        self.caption_text.bind("<Control-C>", self.copy_caption_text)
+        self.caption_text.bind("<Command-c>", self.copy_caption_text)
+        self.caption_text.bind("<Command-C>", self.copy_caption_text)
+        # Add right-click context menu for copy
+        self.caption_context_menu = tk.Menu(self, tearoff=0)
+        self.caption_context_menu.add_command(label="Copy", command=self.copy_caption_text)
+        self.caption_text.bind("<Button-3>", self.show_caption_context_menu)
+        self.caption_text.bind("<Control-Button-1>", self.show_caption_context_menu)  # For Mac
 
         # Combined navigation and info frame
         nav_info_frame = tk.Frame(self)
@@ -746,6 +756,22 @@ class TileViewer(tk.Tk):
     def get_sample_output(self, scene, use_snes_graphics=False):
         char_grid = scene_to_ascii(scene, self.id_to_char)
         return SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+
+    def show_caption_context_menu(self, event):
+        try:
+            self.caption_context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.caption_context_menu.grab_release()
+
+    def copy_caption_text(self, event=None):
+        try:
+            selection = self.caption_text.get(tk.SEL_FIRST, tk.SEL_LAST)
+        except tk.TclError:
+            # No selection, copy all
+            selection = self.caption_text.get("1.0", tk.END)
+        self.clipboard_clear()
+        self.clipboard_append(selection)
+        return "break"
 
 if __name__ == "__main__":
     # Command-line argument parsing
