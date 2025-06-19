@@ -2,6 +2,7 @@
 torch
 torchvision
 torchaudio
+torchviz
 
 --extra-index-url https://pypi.org/simple
 numpy
