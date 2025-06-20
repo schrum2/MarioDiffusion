@@ -15,8 +15,6 @@ python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-fdm-MiniLM-ab
 python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-fdm-GTE-regular0"
 python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-fdm-GTE-absence0"
 
-:: GTE Models
-python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-conditional-GTEsplit-negative0"
 
 :: WGAN Models : Mar1and2-wgan0-samples (evaluate_solvability.py can't handle this, temp script in google drive)
 
