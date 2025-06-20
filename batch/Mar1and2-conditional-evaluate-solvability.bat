@@ -17,5 +17,5 @@ python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-fdm-GTE-absen
 
 
 :: WGAN Models : Mar1and2-wgan0-samples (evaluate_solvability.py can't handle this, temp script in google drive)
-
+python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-wgan0"
 :: MarioGPT Models : Ask Olivia
