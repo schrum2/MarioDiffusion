@@ -207,7 +207,8 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    evaluate_metrics(args.model_path, args.game, args.override, args.debug)
-    
     if args.real_data:
         real_data()
+    else:
+        evaluate_metrics(args.model_path, args.game, args.override, args.debug)
+    

@@ -101,6 +101,9 @@ def parse_args():
     parser.add_argument("--plot_label", type=str, default=None, help="Label for the outputted plot")
     parser.add_argument("--full_metrics", action="store_true", help="Flag that indicates we will be plotting real_full")
     parser.add_argument("--output_name", type=str, help="Name of outputted pdf file")
+    parser.add_argument("--legend_cols", type=int, default=1, help="Number of columns for the legend")
+    parser.add_argument("--loc", type=str, default="best", help="Where the legend is displayed")
+    #parser.add_argument("--bbox_to_anchor", type=)
     return parser.parse_args()
 
 def get_bar_color(model_name, mode, mode_list=None, colors=None):
@@ -209,6 +212,24 @@ def main():
     sorted_models = list(reversed(sorted_models))
     clean_labels_sorted = list(reversed(clean_labels_sorted))
     
+    # Special case: Add "Full data" as a fake model with two bars if metric is average_min_edit_distance
+    if metric_key == "average_min_edit_distance":
+        real_data_path = os.path.join("real_data", "real_data_metrics.json")
+        if os.path.exists(real_data_path):
+            with open(real_data_path, "r") as f:
+                real_metrics = json.load(f)
+            # Add a fake model "Full data" with two bars: real (100) and real (full)
+            data["Full data"] = {
+                "real": [real_metrics["average_min_edit_distance_100"]],
+                "real_full": [real_metrics["average_min_edit_distance_full"]],
+            }
+            # Insert at the END so it appears at the top (since y-axis is reversed)
+            sorted_models.append("Full data")
+            clean_labels_sorted.append("Full data")
+        else:
+            print(f"[WARNING] Could not find {real_data_path} for Full data bars.")
+    
+    
     # Plotting
     bar_width = 0.35
     num_models = len(sorted_models)
@@ -241,7 +262,8 @@ def main():
     for i, mode in enumerate(modes):
         means = []
         for model in sorted_models:
-            values = data[model][mode]
+            # values = data[model][mode]
+            values = data[model].get(mode, [])
             mean_val = sum(values) / len(values) if values else 0
             means.append(mean_val)
 
@@ -270,7 +292,8 @@ def main():
 
             # Scatter plot for individual values
             if args.plot_file == "evaluation_metrics.json":
-                values = data[model][mode]
+                #values = data[model][mode]
+                values = data[model].get(mode, [])
                 if values:  # Only plot if we have values
                     y_position = x[j] + offsets[i]
                     plt.scatter(
@@ -300,8 +323,9 @@ def main():
         plt.legend(
             handles[::-1],
             labels[::-1],
-            loc='best',
-            bbox_to_anchor=(1.0, 0.1),  # Move up slightly
+            loc=args.loc,
+            ncol=args.legend_cols,
+            #bbox_to_anchor=(1.0, 0.1),  # Move up slightly
             frameon=True,
             edgecolor='black',
         )

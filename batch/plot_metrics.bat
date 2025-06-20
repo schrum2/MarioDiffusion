@@ -7,9 +7,12 @@ python evaluate_models.py --modes real random short --metric average_min_edit_di
 
 
 REM AMED SELF
-python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(full)_real(100)_random_unconditional"
+REM Create the dataset needed to do this. Call evaluate_metrics.py with the --real_data flag set
+python evaluate_metrics --real_data --model_path None
 
-python evaluate_models.py --modes real random short --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(full)_real(100)_random_unconditional" --loc "lower right"
+
+python evaluate_models.py --modes real random short --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(100)_random_unconditional" --loc "lower right"
 
 
 REM Pipe Metrics
