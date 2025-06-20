@@ -8,34 +8,47 @@ OUTPUT_DIR = os.path.join(ROOT_DIR, "training_runtimes")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def main():
-    # Find all JSON files ending in -runtime-plus-best.json using glob for robustness
-    runtime_jsons = glob.glob(os.path.join(ROOT_DIR, '*-runtime-plus-best.json'))
+    # Find all possible group names by looking for both file types
+    plus_best_files = glob.glob(os.path.join(ROOT_DIR, '*-runtime-plus-best.json'))
+    old_files = glob.glob(os.path.join(ROOT_DIR, '*-runtime.json'))
+
+    # Extract group names from both file types
+    group_names = set()
+    for f in plus_best_files:
+        m = re.match(r"^(.*)-runtime-plus-best\.json$", os.path.basename(f))
+        if m:
+            group_names.add(m.group(1))
+    for f in old_files:
+        m = re.match(r"^(.*)-runtime\.json$", os.path.basename(f))
+        if m:
+            group_names.add(m.group(1))
 
     groupings = []
     group_lookup = {}
-    for runtime_json in runtime_jsons:
-        if not os.path.isfile(runtime_json):
-            print(f"Skipping {runtime_json}, not a real file.")
-            continue
+    for group_name in sorted(group_names):
+        plus_best_path = os.path.join(ROOT_DIR, f"{group_name}-runtime-plus-best.json")
+        old_path = os.path.join(ROOT_DIR, f"{group_name}-runtime.json")
+        data = None
+        used_old = False
 
-        filename = os.path.basename(runtime_json)
-        match = re.match(r"^(.*)-runtime-plus-best\.json$", filename)
-        if not match:
-            print(f"Skipping {filename}, doesn't match expected pattern.")
-            continue
-
-        group_name = match.group(1)
-        print(f"Processing {runtime_json} for group: {group_name}")
-
-        try:
-            with open(runtime_json, "r") as f:
+        if os.path.isfile(plus_best_path):
+            with open(plus_best_path, "r") as f:
                 data = json.load(f)
-        except Exception as e:
-            print(f"Skipping {runtime_json}, could not open/read: {e}")
+        elif os.path.isfile(old_path):
+            with open(old_path, "r") as f:
+                data = json.load(f)
+            used_old = True
+        else:
+            print(f"Warning: No runtime file found for group {group_name}")
             continue
 
-        overall_raw = data.get("overall_runtime", {}).get("raw", {})
-        best_epoch_raw = data.get("time_to_best_epoch", {}).get("raw", {})
+        if not used_old:
+            overall_raw = data.get("overall_runtime", {}).get("raw", {})
+            best_epoch_raw = data.get("time_to_best_epoch", {}).get("raw", {})
+        else:
+            overall_raw = data.get("raw", {})
+            best_epoch_raw = None
+
         group_data = {
             "group": group_name,
             "overall_runtime": {
@@ -49,7 +62,7 @@ def main():
                 "max": overall_raw.get("max"),
                 "individual_times": overall_raw.get("individual_times", [])
             },
-            "time_to_best_epoch": {
+            "time_to_best_epoch": None if used_old else {
                 "mean": best_epoch_raw.get("mean"),
                 "std": best_epoch_raw.get("std"),
                 "stderr": best_epoch_raw.get("stderr"),
@@ -91,30 +104,47 @@ def main():
                 "group": group["group"], 
                 "overall_runtime_mean": group["overall_runtime"]["mean"], 
                 "overall_runtime_individual_times": group["overall_runtime"]["individual_times"],
-                "time_to_best_epoch_mean": group["time_to_best_epoch"]["mean"],
-                "time_to_best_epoch_individual_times": group["time_to_best_epoch"]["individual_times"]
+                "time_to_best_epoch_mean": group["time_to_best_epoch"]["mean"] if group["time_to_best_epoch"] else None,
+                "time_to_best_epoch_individual_times": group["time_to_best_epoch"]["individual_times"] if group["time_to_best_epoch"] else None
             })
     # Add only the combined means for the pairs
     for cond, mlm, combined_name in combine_pairs:
         if cond in group_lookup and mlm in group_lookup:
-            if len(group_lookup[cond]["overall_runtime"]["individual_times"]) != len(group_lookup[mlm]["overall_runtime"]["individual_times"]):
+            cond_times = group_lookup[cond]["overall_runtime"]["individual_times"]
+            mlm_times = group_lookup[mlm]["overall_runtime"]["individual_times"]
+            if len(cond_times) != len(mlm_times):
                 print(f"Warning: Individual times length mismatch for {cond} and {mlm}")
-            combined_overall_mean = group_lookup[cond]["overall_runtime"]["mean"] + group_lookup[mlm]["overall_runtime"]["mean"]
+            combined_overall_mean = (
+                (group_lookup[cond]["overall_runtime"]["mean"] or 0) +
+                (group_lookup[mlm]["overall_runtime"]["mean"] or 0)
+            )
             combined_overall_individual_times = [
-                a + b for a, b in zip(group_lookup[cond]["overall_runtime"]["individual_times"], group_lookup[mlm]["overall_runtime"]["individual_times"])
+                a + b for a, b in zip(cond_times, mlm_times)
             ]
-            combined_best_mean = group_lookup[cond]["time_to_best_epoch"]["mean"] + group_lookup[mlm]["time_to_best_epoch"]["mean"]
-            combined_best_individual_times = [
-                a + b for a, b in zip(group_lookup[cond]["time_to_best_epoch"]["individual_times"], group_lookup[mlm]["time_to_best_epoch"]["individual_times"])
-            ]
+            # Handle time_to_best_epoch, which may be None for MLM
+            cond_best = group_lookup[cond]["time_to_best_epoch"]
+            mlm_best = group_lookup[mlm]["time_to_best_epoch"]
+            # If MLM has no time_to_best_epoch, use its overall_runtime for best
+            if mlm_best is None:
+                mlm_best = group_lookup[mlm]["overall_runtime"]
+            if cond_best and mlm_best:
+                cond_best_times = cond_best["individual_times"]
+                mlm_best_times = mlm_best["individual_times"]
+                combined_best_mean = (cond_best["mean"] or 0) + (mlm_best["mean"] or 0)
+                combined_best_individual_times = [
+                    a + b for a, b in zip(cond_best_times, mlm_best_times)
+                ]
+            else:
+                combined_best_mean = None
+                combined_best_individual_times = None
             mean_entries.append({
                 "group": combined_name,
                 "mlm_overall_runtime_mean": group_lookup[mlm]["overall_runtime"]["mean"],
                 "cond_overall_runtime_mean": group_lookup[cond]["overall_runtime"]["mean"],
                 "overall_runtime_mean": combined_overall_mean,
                 "overall_runtime_individual_times": combined_overall_individual_times,
-                "mlm_time_to_best_epoch_mean": group_lookup[mlm]["time_to_best_epoch"]["mean"],
-                "cond_time_to_best_epoch_mean": group_lookup[cond]["time_to_best_epoch"]["mean"],
+                "mlm_time_to_best_epoch_mean": mlm_best["mean"] if mlm_best else None,
+                "cond_time_to_best_epoch_mean": cond_best["mean"] if cond_best else None,
                 "time_to_best_epoch_mean": combined_best_mean,
                 "time_to_best_epoch_individual_times": combined_best_individual_times
             })
