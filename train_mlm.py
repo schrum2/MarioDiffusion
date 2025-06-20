@@ -228,7 +228,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=500, help="Number of training epochs")
+    parser.add_argument("--epochs", type=int, default=300, help="Number of training epochs")
     parser.add_argument("--lr", type=float, default=5e-5, help="Learning rate")
     parser.add_argument("--pkl", type=str, default="SMB1_Tokenizer.pkl", help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")

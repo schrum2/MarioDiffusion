@@ -175,6 +175,13 @@ def compare_captions(correct_caption, generated_caption, debug=False, return_mat
                 if debug:
                     print(f"[Topic: {topic}] Partial match (topic overlap) — score: 0.1\n")
 
+        if debug:
+            print(f"[Topic: {topic}] Current total score: {total_score:.4f}\n")
+
+    if debug:
+        print("total_score before normalization:", total_score)
+        print(f"Number of topics: {num_topics}")
+        
     final_score = total_score / num_topics
     if debug:
         print(f"--- Final score: {final_score:.4f} ---\n")
