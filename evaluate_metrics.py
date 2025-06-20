@@ -49,7 +49,7 @@ def evaluate_all_levels(json_file_path, output_file, game, key, debug):
             "broken_cannons_percentage_of_cannons":count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True),
         }
         
-        if key == "real" or key == "short" or key == "random": 
+        if key == "real" or key == "short" or key == "random" or key == "real_full": 
             # With the original dataset, calculate average_min_edit_distance_from_real
             original_dataset_path = os.path.join("datasets", f"{game}_LevelsAndCaptions-regular.json")
             with open(original_dataset_path, "r") as original_file:
@@ -141,11 +141,16 @@ def evaluate_metrics(model_path, game, override, debug=False):
             "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json"),
             "short": os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json"),
             "long": os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json"),
+            "real_full": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels_full.json"),
         }
 
     for key, json_path in paths.items():
         if os.path.isfile(json_path):
-            output_file = os.path.join(os.path.dirname(json_path), "evaluation_metrics.json")
+            
+            if key == "real_full":
+                output_file = os.path.join(os.path.dirname(json_path), "evaluation_metrics_full.json")
+            else:
+                output_file = os.path.join(os.path.dirname(json_path), "evaluation_metrics.json")
             
             if override and os.path.exists(output_file):
                 print(f"Override enabled: deleting existing {output_file}")

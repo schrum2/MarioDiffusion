@@ -23,6 +23,9 @@ def recreate_caption_order_stats_from_jsonl(directory):
             path = os.path.join(directory, fname)
             with open(path, "r", encoding="utf-8") as f:
                 file_name = os.path.basename(directory)
+                group_num = re.search(r'(\d+)$', file_name)
+                if group_num:
+                    number = group_num.group(1)
                 file_name = re.sub(r'\d+$', '', file_name)  # Remove trailing digits
                 for line in f:
                     line = line.strip()
@@ -50,7 +53,7 @@ def recreate_caption_order_stats_from_jsonl(directory):
                     if median is not None:
                         median_scores.append(median)
                     num_captions += 1
-                output_jsonl_path = os.path.join(args.dir, "caption_order_stats1.jsonl")
+                output_jsonl_path = os.path.join(args.dir, f"caption_order_stats{number}.jsonl")
                 with open(output_jsonl_path, "a") as f:
                     result_entry = {
                         "group": fname,
@@ -70,14 +73,14 @@ def recreate_caption_order_stats_from_jsonl(directory):
     print(f"Max of averages: {np.max(avg_scores):.4f}")
     print(f"Median of averages: {np.median(avg_scores):.4f}")
 
-    return file_name, num_captions, avg_scores, std_scores, min_scores, max_scores, median_scores
+    return file_name, num_captions, avg_scores, std_scores, min_scores, max_scores, median_scores, number
 
-def write_caption_order_stats_to_jsonl(file_name, total_captions, avg_of_avg, std_of_avg, min_of_avg, max_of_avg, median_of_avg):
+def write_caption_order_stats_to_jsonl(file_name, total_captions, avg_of_avg, std_of_avg, min_of_avg, max_of_avg, median_of_avg, number):
     """
     Writes the caption order statistics to a JSONL file.
     """
-    output_jsonl_path = os.path.join(args.dir, "caption_order_stats1.json")
-    with open("caption_order_stats1.jsonl", "a") as f:
+    output_jsonl_path = os.path.join(args.dir, f"caption_order_stats{number}.jsonl")
+    with open(f"caption_order_stats{number}.jsonl", "a") as f:
         result_entry = {
             "group": file_name,
             "Number of captions": total_captions,

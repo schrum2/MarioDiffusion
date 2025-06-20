@@ -20,7 +20,12 @@ import numpy as np
 import torch
 #from tqdm import tqdm
 
+from models.fdm_pipeline import FDMPipeline
 from captions.util import extract_tileset
+
+global model_type
+global unet_path
+global model_path
 from models.pipeline_loader import get_pipeline
 
 
@@ -130,7 +135,7 @@ def creation_of_parameters(caption, max_permutations):
     )
 
 
-    return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_captions, caption_data
+    return pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_captions, caption_data, model_type
 
 def statistics_of_captions(captions, dataloader, compare_all_scores, count, pipe=None, device=None, id_to_char=None, char_to_id=None, tile_descriptors=None, num_tiles=None):
     """
@@ -182,8 +187,8 @@ def get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_st
     if file is None or not os.path.exists(output_jsonl_path):
         return all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, counts
     with open(output_jsonl_path, "r") as f:
-        # print("output_jsonl_path:", output_jsonl_path)
-        # print("file:", file)
+        print("output_jsonl_path:", output_jsonl_path)
+        print("file:", file)
         # quit()
         for line in f:
             data = json.loads(line)
@@ -240,11 +245,16 @@ def main():
         # if last_line <= 0 then the file is empty
         # else it is the number of the last caption in the jsonl file
         last_line = find_last_line_caption_order_tolerance(args.model_path, file, key="Caption")
-        #all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, num_captions = get_old_captions(output_jsonl_path, file, all_scores, all_avg_scores, all_std_dev_scores, all_min_scores, all_max_scores, all_median_scores, num_captions)
-    
         count = last_line + 1
 
-    file_name = json_name + '_caption_order_tolerance.jsonl'
+    model_path = os.path.abspath(args.model_path)
+    unet_path = os.path.join(model_path, "unet")
+    if os.path.exists(unet_path):
+        model_type = "conditional"
+    else:
+        model_type = "fdm"
+
+    file_name = json_name + '_'+ model_type +'_caption_order_tolerance.jsonl'
     #os.makedirs(folder_name,  exist_ok=True)
     output_jsonl_path = os.path.join(args.model_path, file_name)
 
@@ -269,7 +279,7 @@ def main():
             # Determines the amount of permutations for a caption
 
             # Initialize dataset
-            pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption, caption_data = creation_of_parameters(one_caption, args.max_permutations)
+            pipe, device, id_to_char, char_to_id, tile_descriptors, num_tiles, dataloader, perm_caption, caption_data, model_type = creation_of_parameters(one_caption, args.max_permutations)
             if not pipe:
                 print("Failed to create pipeline.")
                 return
