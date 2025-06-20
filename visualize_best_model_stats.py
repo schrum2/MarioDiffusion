@@ -107,7 +107,7 @@ def main():
             if pd.api.types.is_numeric_dtype(df[col]):
                 df[col] = df[col] / 3600.0
             # Convert columns with lists of numbers
-            elif df[col].apply(lambda x: isinstance(x, list) and all(isinstance(i, (int, float)) for i in x) if pd.notnull(x) else False).any():
+            elif df[col].apply(lambda x: isinstance(x, list) and all(isinstance(i, (int, float)) for i in x) if x is not None else False).any():
                 df[col] = df[col].apply(lambda x: [i / 3600.0 for i in x] if isinstance(x, list) and all(isinstance(i, (int, float)) for i in x) else x)
 
     # Update matplotlib settings for better readability
