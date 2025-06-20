@@ -8,10 +8,12 @@ Next, enter the `LodeRunner` respository.
 ```
 cd LodeRunner
 ```
-<!-- Then install Lode Runner repository as a library so it can be used with the MarioDiffusion data:
+Then install Lode Runner repository as a library so it can be used with the MarioDiffusion data:
 ```
-pip install -e ./LodeRunner
-``` -->
+pip install -e .
+```
+Then go back to the MarioDiffusion directory to be able to run the following.
+
 Extract a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this (top 10 rows are filled with blank space to make a perfect square):
 ```
 python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json" --target_height 32 --target_width 32 --extra_tile .
