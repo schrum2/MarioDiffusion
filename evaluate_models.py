@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import matplotlib.pyplot as plt
 import argparse
@@ -8,7 +7,7 @@ from verify_data_complete import find_numbered_directories
 
 # Which modes are valid for which model types
 VALID_MODES_BY_TYPE = {
-    "conditional": {"real", "random", "short", "long"},
+    "conditional": {"real", "random", "short", "long", "real_full"},
     "unconditional": {"short", "long"},
     "wgan": {"short"},
     "fdm": {"real", "random"},
@@ -29,12 +28,6 @@ def detect_model_type(model_name):
     return "unknown"
 
 
-# def strip_common_prefix(strings):
-#     if not strings:
-#         return strings
-#     common_prefix = os.path.commonprefix(strings)
-#     return [s[len(common_prefix):] for s in strings], common_prefix
-
 def extract_prefix(name):
     if "-unconditional" in name:
         # return re.sub(r"-unconditional\d+", "-unconditional", name)
@@ -48,7 +41,7 @@ def extract_prefix(name):
 
 # TODO: Add a commandline flag that when set, will indicate that we want to compute metrics with all 7687 real samples. That should reflect here
 # Instead of returning evaluation_metrics.json, return evaluation_metrics_full.json
-def get_metrics_path(base_dir, mode, plot_file):
+def get_metrics_path(base_dir, mode, plot_file, full_metrics=False):
     model_name = os.path.basename(base_dir)
 
     if "-conditional-" in model_name: # TODO: handle full case
@@ -60,18 +53,36 @@ def get_metrics_path(base_dir, mode, plot_file):
             # e.g. Mar1and2-conditional-absence5/samples-from-real-Mar1and2-captions/evaluation_metrics.json
             subdir = f"samples-from-{mode}-Mar1and2-captions"
             return os.path.join(base_dir, subdir, plot_file)
+        
+        elif mode in {"real_full"}:
+            if full_metrics:
+                subdir = f"samples-from-real-Mar1and2-captions"
+                return os.path.join(base_dir,subdir, "evaluation_metrics_full.json")
+            else: 
+                return None
+ 
 
     elif "-fdm-" in model_name: # TODO: handle full case
         # fdm case is always subdir
-        subdir = f"samples-from-{mode}-Mar1and2-captions"
-        return os.path.join(base_dir, subdir, plot_file)
+        if mode in {"real", "random"}:
+            subdir = f"samples-from-{mode}-Mar1and2-captions"
+            return os.path.join(base_dir, subdir, plot_file)
+        elif mode in {"real_full"}:
+            if full_metrics:
+                subdir = f"samples-from-real-Mar1and2-captions"
+                return os.path.join(base_dir,subdir, "evaluation_metrics_full.json")
+            else: 
+                None
 
-    elif "-unconditional-samples" in model_name:
+    elif "unconditional" in model_name:
+        if mode == "short":
+            return os.path.join(f"{base_dir}-unconditional-samples-short", plot_file)
         # e.g. Mar1and2-unconditional29-unconditional-samples-short
-        return os.path.join(base_dir, plot_file)
+        elif mode == "long":
+            return os.path.join(f"{base_dir}-unconditional-samples-long", plot_file)
 
     elif "-wgan" in model_name:
-        return os.path.join(base_dir, plot_file)
+        return os.path.join(f"{base_dir}-samples", plot_file)
 
     elif "MarioGPT" in model_name:
         return os.path.join(base_dir, f"{mode}_levels", plot_file)
@@ -88,27 +99,59 @@ def parse_args():
     parser.add_argument("--plot_file", type=str, default="evaluation_metrics.json", help="File with metrics to plot")
     parser.add_argument("--save", action="store_true", help="Stores resulting pdfs in a folder named comparison_plots")
     parser.add_argument("--plot_label", type=str, default=None, help="Label for the outputted plot")
+    parser.add_argument("--full_metrics", action="store_true", help="Flag that indicates we will be plotting real_full")
+    parser.add_argument("--output_name", type=str, help="Name of outputted pdf file")
     return parser.parse_args()
 
-def get_bar_color(model_name, mode, mode_list, colors):
-    print(f"Determining color for model: {model_name}")  # Debug print
+def get_bar_color(model_name, mode, mode_list=None, colors=None):
     if "MarioGPT" in model_name:
         return 'red'
-    return colors[mode_list.index(mode) % len(colors)]
+    return MODE_COLORS.get(mode, "#cccccc")
+
+# Desired plotting order
+MODE_ORDER = ["real_full", "real", "random", "short"]
+
+# Add mode name mapping for legend labels
+MODE_DISPLAY_NAMES = {
+    "short": "unconditional",
+    "real": "real (100)",
+    "random": "random",
+    "long": "long",
+    "real_full": "real (full)",
+}
+
+MODE_COLORS = {
+    "real_full": "#e78ac3",   # pink
+    "real": "#fc8d62",        # orange
+    "random": "#8da0cb",      # blue
+    "short": "#66c2a5",       # greenish
+}
 
 def main():
     args = parse_args()
-    modes = list(reversed(args.modes))  # Reverse to control legend/bar order
+    
     metric_key = args.metric
+
+    # Ensure modes are in the desired order and present in the input
+    modes = [m for m in MODE_ORDER if m in args.modes or (m == "real_full" and args.full_metrics)]
+    modes = list(reversed(modes))  # Reverse to control legend/bar order
     print(f"Comparing modes: {modes}")
 
     # Add mode name mapping for legend labels
-    mode_display_names = {
-        "short": "unconditional",
-        "real": "real",
-        "random": "random",
-        "long": "long"
-    }
+    if args.metric == "beaten" and set(args.modes) == {"real", "random", "short", "long"}:
+        mode_display_names = {
+            "short": "unconditional short",
+            "real": "real",
+            "random": "random",
+            "long": "unconditional long"
+        }
+    else:
+        mode_display_names = {
+            "short": "unconditional",
+            "real": "real",
+            "random": "random",
+            "long": "long"
+        }
 
     numbered_dirs = find_numbered_directories()
 
@@ -132,11 +175,13 @@ def main():
         valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
     
         for mode in modes:
-            if mode not in valid_modes:
+            if mode == "real_full" and model_type not in {"conditional", "fdm"}:
+                continue
+            if mode not in valid_modes and mode != "real_full":
                 continue
             
             for d in dirs:
-                metrics_path = get_metrics_path(d, mode, args.plot_file)
+                metrics_path = get_metrics_path(d, mode, args.plot_file, args.full_metrics)
                 if not metrics_path or not os.path.exists(metrics_path):
                     print(f"[SKIP] Missing: {metrics_path}")
                     continue
@@ -149,7 +194,7 @@ def main():
                 val = metrics.get(metric_key)
                 if val is not None:
                     data[prefix][mode].append(val)
-                    print(f"Adding a value to prefix {prefix}")
+                    #print(f"Adding a value to prefix {prefix}")
                 else:
                     print(f"[SKIP] {metric_key} missing in: {metrics_path}")
 
@@ -187,7 +232,10 @@ def main():
 
     plt.figure(figsize=(12, 12))
 
-    colors = ['#66c2a5', '#fc8d62', '#8da0cb']  # Colorblind-friendly, light colors
+    if args.metric == "beaten" and set(args.modes) == {"real", "random", "short", "long"}:
+        colors = ['#66c2a5', '#fc8d62', '#8da0cb', "#d383dd"]  # Add a distinct color for 'long'
+    else:
+        colors = ['#66c2a5', '#fc8d62', '#8da0cb'] # Colorblind-friendly, light colors
     has_added_mode_to_legend = {mode: False for mode in modes}  # Track which modes are in legend
 
     for i, mode in enumerate(modes):
@@ -201,7 +249,7 @@ def main():
 
         # Plot bars for each model
         for j, model in enumerate(sorted_models):
-            print(f"Processing model {model} in mode {mode}")  # Debug print
+            #print(f"Processing model {model} in mode {mode}")  # Debug print
             color = get_bar_color(model, mode, modes, colors)
             is_mariogpt = "MarioGPT" in model
             
@@ -216,7 +264,7 @@ def main():
                 height=bar_width,
                 color=color,
                 edgecolor='black',
-                label=mode_display_names[mode] if should_add_to_legend else None,
+                label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
                 alpha=0.6
             )
 
@@ -241,20 +289,38 @@ def main():
         plt.xlabel(metric_key.replace("_", " ").capitalize(), labelpad=10)
 
     handles, labels = plt.gca().get_legend_handles_labels()
-    plt.legend(
-        handles[::-1],
-        labels[::-1],
-        #title="Mode",
-        loc='best',
-        frameon=True,
-        edgecolor='black',
-    )
+    if args.metric == "beaten":
+        plt.legend(
+            loc='lower left',
+            bbox_to_anchor=(-0.45, -0.075),  # Move legend outside to the bottom left
+            frameon=True,
+            edgecolor='black',
+        )
+    else:
+        plt.legend(
+            handles[::-1],
+            labels[::-1],
+            loc='best',
+            bbox_to_anchor=(1.0, 0.1),  # Move up slightly
+            frameon=True,
+            edgecolor='black',
+        )
 
     plt.grid(True, axis='x', linestyle='--', alpha=0.5)
     plt.tight_layout(pad=2)
 
     if args.save:
-        filename = f"comparison_{'_'.join(reversed(modes))}_{metric_key}.pdf"
+        renamed_modes = [
+            "unconditional" if m == "short"
+            else "full real samples" if m == "real_full"
+            else m
+            for m in modes
+        ]
+                
+        if args.output_name:
+            filename = f"{args.output_name}.pdf"
+        else:
+            filename = f"comparison_{'_'.join(reversed(renamed_modes))}_{metric_key}.pdf"
         save_path = os.path.join(save_dir, filename)
         
         # Delete existing file if it exists

@@ -4,6 +4,8 @@ import argparse
 from typing import List, Tuple
 from evaluate_metrics import *
 import re
+import shutil
+from evaluate_solvability import load_scene_caption_data
 
 def count_jsonl_entries(file_path):
     """Count the number of entries in a JSONL file."""
@@ -88,16 +90,15 @@ def verify_data_completeness(model_path, type_str):
         real_samples = os.path.join(model_path, "samples-from-real-Mar1and2-captions", "all_levels.json")
         
         # TODO: Change this to resample to 100 samples. First, this should change the existing evalmetrics file (7867) to have a different name, then it should resample and save to a file called evaluation_metrics.json
-        # sample_limit = 100 
-        # if len(scene_caption_data) > sample_limit: 
-        #     increment = len(scene_caption_data) // (sample_limit + 1)
-        #     scene_caption_data = [scene_caption_data[(i+1)*increment] for i in range(sample_limit)]
-        #     if len(scene_caption_data) != sample_limit:
-        #         raise RuntimeError(f"Sample limit mismatch: Expected {sample_limit} samples, got {len(scene_caption_data)} after sampling.")
-        error = verify_json_length(real_samples, 7687, check_prompts=True)
+        error = verify_json_length(real_samples, 100, check_prompts=True)
         if error:
             errors.append(f"Requirement 5 failed: {error}")
         
+        # Check that the all_levels_full file exists and is correct
+        real_samples_full = os.path.join(os.path.dirname(real_samples), "all_levels_full.json")
+        error = verify_json_length(real_samples_full, 7687, check_prompts=True)
+        if error:
+            errors.append(f"Requirement 5 failed: {error}")
         
         # Check if evaluation_metrics.json exists in the same directory as all_levels.json
         evaluation_metrics_path = os.path.join(os.path.dirname(real_samples), "evaluation_metrics.json")
@@ -370,7 +371,8 @@ def main():
         for dir_path, num, dir_type in numbered_dirs:
             print(f"\nChecking directory: {dir_path} (Type: {dir_type})")
             
-            evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
+            if "MarioGPT" not in dir_path: 
+                evaluate_metrics(dir_path, "Mar1and2", override=args.override_metrics)
             errors = verify_data_completeness(dir_path, dir_type)
             
             # show_model = (
@@ -393,8 +395,6 @@ def main():
             elif not errors and not args.show_errors:
                 print("Verification successful!")
                 success_count += 1
-        
-        
         
         print(f"\nVerification complete. {success_count} out of {len(numbered_dirs)} directories passed verification.")
 
