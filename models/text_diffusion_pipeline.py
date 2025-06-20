@@ -367,20 +367,32 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         encoder_hidden_states = torch.randn(batch_size, 1, cross_attention_dim, device=device)
 
         self.unet.eval()
-        # Use torchview to draw the graph
-        # with torch.no_grad():
-        #     try:
-        #         output = self.unet(dummy_x, dummy_t, encoder_hidden_states=encoder_hidden_states)
-        #     except Exception as e:
-        #         raise RuntimeError(f"Failed to run UNet forward pass for visualization: {e}")
-            
+        inputs = (dummy_x, dummy_t, encoder_hidden_states)
+        #self.unet.down_blocks = self.unet.down_blocks[:2]
+
         graph = draw_graph(
-            self.unet,
-            input_data=(dummy_x, dummy_t, encoder_hidden_states),
+            model=self.unet,
+            input_data=inputs,
             expand_nested=False,
-            depth=4
+            #enable_output_shape=True,   
+            #roll_out="nested",
+            depth=1
         )
+        #graph.visual_graph.engine = "neato"
+        graph.visual_graph.attr(#rankdir="LR",
+                                nodesep="0.1",      # decrease space between nodes in the same rank (default ~0.25)
+                                ranksep="0.2",       # decrease space between ranks (default ~0.5)
+                                concentrate="true"  # merge edges between nodes in the same rank
+                            )
+        graph.visual_graph.node_attr.update(
+            shape="rectangle",
+            width="1.5",   # narrow width
+            height="0.5"  # taller height to make vertical rectangles
+            #fixedsize="true"
+        )
+        
         graph.visual_graph.render(filename, format='pdf', cleanup=False)  # Cleanup removes intermediate files
+
         # Save the graph to a PDF file
         print(f"UNet architecture saved to {filename}")
 
