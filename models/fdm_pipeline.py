@@ -15,6 +15,7 @@ from safetensors.torch import save_file, load_file
 from models.fdm import Gen
 import models.sentence_transformers_helper as st_helper
 
+
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
 
@@ -62,13 +63,17 @@ class FDMPipeline():
             json.dump(config, f)
 
 
-        # Save custom text encoder
-        if self.text_encoder is not None:
-            self.text_encoder.save_pretrained(os.path.join(save_directory, "text_encoder"))
-        if self.tokenizer is not None and hasattr(self.tokenizer, 'save_pretrained'):
-            # Save tokenizer if it has a save_pretrained method.
-            # Otherwise, we presume the tokenizer was saved by the text encoder.
-            self.tokenizer.save_pretrained(os.path.join(save_directory, "text_encoder"))
+        #Save tokenizer by name, so we can load from huggingface instead of saving a giant local model
+        text_encoder_info = {
+            "text_encoder_name": self.text_encoder.config.name_or_path,
+            "tokenizer_name": self.tokenizer.name_or_path,
+        }
+
+        text_encoder_directory = os.path.join(save_directory, "text_encoder")
+        os.makedirs(text_encoder_directory, exist_ok=True)
+
+        with open(os.path.join(text_encoder_directory, "loading_info.json"), "w") as f:
+            json.dump(text_encoder_info, f)
             
     
 
@@ -76,11 +81,24 @@ class FDMPipeline():
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
 
+        
         tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
+
         if os.path.exists(text_encoder_path): #Should always be a pretrained model
-            text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
-            tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
+
+            #Test for the new saving system, where we save a simple config file
+            if os.path.exists(os.path.join(text_encoder_path, "loading_info.json")):
+                with open(os.path.join(text_encoder_path, "loading_info.json"), "r") as f:
+                    encoder_config = json.load(f)
+
+                text_encoder = AutoModel.from_pretrained(encoder_config['text_encoder_name'], trust_remote_code=True)
+                tokenizer = AutoTokenizer.from_pretrained(encoder_config['tokenizer_name'])
+            
+            #Legacy loading system, loads models directly if the whole thing is saved in the directory
+            else:
+                text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
+                tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
         else:
             text_encoder = None
 

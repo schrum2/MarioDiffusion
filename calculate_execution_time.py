@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 
 def find_training_log(model_path):
     # Look for files matching the training log pattern
-    log_files = glob.glob(os.path.join(model_path, "*training_log_*.jsonl"))
+    log_files = glob.glob(os.path.join(model_path, "training_log_*.jsonl"))
     
     if not log_files:
         raise FileNotFoundError(f"No training log files found in {model_path}")
@@ -17,21 +17,24 @@ def find_training_log(model_path):
     
     return log_files[0]
 
-def get_timestamps(log_file):
-    # Get first entry
+def get_timestamps(log_file, best_epoch=None):
+    """
+    Returns (start_time, end_time, best_epoch_time) where best_epoch_time is None if not requested.
+    """
+    best_epoch_time = None
     with open(log_file, 'r') as f:
         first_entry = json.loads(f.readline().strip())
-        
-        # Read through file to get to the last entry
         last_entry = None
         for line in f:
-            if line.strip():  # Skip empty lines
-                last_entry = json.loads(line.strip())
-    
+            if line.strip():
+                entry = json.loads(line.strip())
+                last_entry = entry
+                if best_epoch is not None and best_epoch_time is None:
+                    if entry.get("epoch") == best_epoch:
+                        best_epoch_time = entry["timestamp"]
     if not last_entry:
         raise ValueError(f"Training log file {log_file} appears to be empty or malformed")
-    
-    return first_entry['timestamp'], last_entry['timestamp']
+    return first_entry['timestamp'], last_entry['timestamp'], best_epoch_time
 
 def calculate_duration(start_time, end_time):
     # Parse timestamps and calculate difference
@@ -84,7 +87,7 @@ def calculate_statistics(durations: List[float]) -> Dict:
 
 def save_statistics(stats: Dict, prefix: str):
     """Save statistics to a JSON file"""
-    output_file = f"{prefix}-runtime.json"
+    output_file = f"{prefix}-runtime-plus-best.json"
     with open(output_file, 'w') as f:
         json.dump(stats, f, indent=2)
     return output_file
@@ -98,6 +101,7 @@ def main():
     args = parser.parse_args()
     
     durations_seconds = []
+    best_epoch_durations_seconds = []
     failed_runs = []
     
     for run_num in range(args.start_num, args.end_num + 1):
@@ -106,15 +110,26 @@ def main():
         
         try:
             log_file = find_training_log(model_path)
-            start_time, end_time = get_timestamps(log_file)
+            # Load best_epoch from best_model_info.json
+            best_model_info_path = os.path.join(model_path, "best_model_info.json")
+            if not os.path.exists(best_model_info_path):
+                raise FileNotFoundError(f"No best_model_info.json found in {model_path}")
+            with open(best_model_info_path, 'r') as f:
+                best_model_info = json.load(f)
+            best_epoch = best_model_info.get("best_epoch")
+            start_time, end_time, best_epoch_time = get_timestamps(log_file, best_epoch=best_epoch)
             duration = calculate_duration(start_time, end_time)
-            
+            if best_epoch_time is not None:
+                duration_to_best = calculate_duration(start_time, best_epoch_time)
+            else:
+                duration_to_best = None
             print(f"  Training started at: {start_time}")
             print(f"  Training ended at:   {end_time}")
             print(f"  Training time:       {duration}")
-            
+            if duration_to_best is not None:
+                print(f"  Time to best epoch ({best_epoch}): {duration_to_best}")
             durations_seconds.append(duration.total_seconds())
-            
+            best_epoch_durations_seconds.append(duration_to_best.total_seconds() if duration_to_best is not None else None)
         except Exception as e:
             print(f"  Error: {str(e)}")
             failed_runs.append(run_num)
@@ -125,17 +140,24 @@ def main():
         exit(1)
     
     # Calculate and save statistics
-    stats = calculate_statistics(durations_seconds)
+    # Filter out None values for best_epoch_durations_seconds
+    filtered_best_epoch_durations = [d for d in best_epoch_durations_seconds if d is not None]
+    stats = {
+        "overall_runtime": calculate_statistics(durations_seconds),
+        "time_to_best_epoch": calculate_statistics(filtered_best_epoch_durations) if filtered_best_epoch_durations else None
+    }
     output_file = save_statistics(stats, args.prefix)
-      # Print summary    print("\nSummary Statistics:")
-    print(f"  Average runtime: {stats['formatted']['mean']}")
-    print(f"  Std deviation:  {stats['formatted']['std']}")
-    print(f"  Std error:     {stats['formatted']['stderr']}")
-    print(f"  Q1 (25th):     {stats['formatted']['q1']}")
-    print(f"  Median:        {stats['formatted']['median']}")
-    print(f"  Q3 (75th):     {stats['formatted']['q3']}")
-    print(f"  Min:           {stats['formatted']['min']}")
-    print(f"  Max:           {stats['formatted']['max']}")
+    # Print summary
+    print("\nSummary Statistics:")
+    print(f"  Average runtime: {stats['overall_runtime']['formatted']['mean']}")
+    print(f"  Average time to best epoch: {stats['time_to_best_epoch']['formatted']['mean'] if stats['time_to_best_epoch'] else 'N/A'}")
+    print(f"  Std deviation:  {stats['overall_runtime']['formatted']['std']}")
+    print(f"  Std error:     {stats['overall_runtime']['formatted']['stderr']}")
+    print(f"  Q1 (25th):     {stats['overall_runtime']['formatted']['q1']}")
+    print(f"  Median:        {stats['overall_runtime']['formatted']['median']}")
+    print(f"  Q3 (75th):     {stats['overall_runtime']['formatted']['q3']}")
+    print(f"  Min:           {stats['overall_runtime']['formatted']['min']}")
+    print(f"  Max:           {stats['overall_runtime']['formatted']['max']}")
     print(f"\nStatistics saved to: {output_file}")
     
     if failed_runs:

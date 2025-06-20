@@ -10,12 +10,13 @@ from cmaes import CMA
 import argparse
 import torch
 
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from captions.caption_match import process_scene_segments
 from create_ascii_captions import extract_tileset
 import os
 import util.common_settings as common_settings
+from models.pipeline_loader import get_pipeline
+
 
 def caption_fitness(x):
     """
@@ -160,7 +161,7 @@ if __name__ == "__main__":
     C = args.num_tiles
 
     global pipe
-    pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to("cuda")
+    pipe = get_pipeline(args.model_path).to("cuda")
 
     global id_to_char, char_to_id, tile_descriptors
     _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)

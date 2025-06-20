@@ -54,14 +54,6 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         os.makedirs(save_directory, exist_ok=True)
         super().save_pretrained(save_directory)  # saves UNet and scheduler
 
-        # Save custom text encoder
-        if self.text_encoder is not None:
-            self.text_encoder.save_pretrained(os.path.join(save_directory, "text_encoder"))
-        if self.tokenizer is not None and hasattr(self.tokenizer, 'save_pretrained'):
-            # Save tokenizer if it has a save_pretrained method.
-            # Otherwise, we presume the tokenizer was saved by the text encoder.
-            self.tokenizer.save_pretrained(os.path.join(save_directory, "text_encoder"))
-            
         # Save supports_negative_prompt and supports_pretrained_split flags
         with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
             json.dump({
@@ -69,6 +61,31 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 "supports_pretrained_split": self.supports_pretrained_split,
                 "text_encoder_type": type(self.text_encoder).__name__   
             }, f)
+
+
+        #Text encoder/tokenizer saving is different depending on if we're using a larger pretrained model
+        if isinstance(self.text_encoder, TransformerModel):
+            # Save custom text encoder
+            if self.text_encoder is not None:
+                self.text_encoder.save_pretrained(os.path.join(save_directory, "text_encoder"))
+            if self.tokenizer is not None and hasattr(self.tokenizer, 'save_pretrained'):
+                # Save tokenizer if it has a save_pretrained method.
+                # Otherwise, we presume the tokenizer was saved by the text encoder.
+                self.tokenizer.save_pretrained(os.path.join(save_directory, "text_encoder"))
+        else:
+            #Save pretrained tokenizer by name, so we can load from huggingface instead of saving a giant local model
+            text_encoder_info = {
+                "text_encoder_name": self.text_encoder.config.name_or_path,
+                "tokenizer_name": self.tokenizer.name_or_path,
+            }
+
+            text_encoder_directory = os.path.join(save_directory, "text_encoder")
+            os.makedirs(text_encoder_directory, exist_ok=True)
+
+            with open(os.path.join(text_encoder_directory, "loading_info.json"), "w") as f:
+                json.dump(text_encoder_info, f)
+            
+
 
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
@@ -86,13 +103,24 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
         tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
+        
         if os.path.exists(text_encoder_path):
-            try:
-                text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
-                tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
-            except (ValueError, KeyError):
-                text_encoder = TransformerModel.from_pretrained(text_encoder_path)
-                tokenizer = text_encoder.tokenizer
+            #Test for the new saving system, where we save a simple config file
+            if os.path.exists(os.path.join(text_encoder_path, "loading_info.json")):
+                with open(os.path.join(text_encoder_path, "loading_info.json"), "r") as f:
+                    encoder_config = json.load(f)
+
+                text_encoder = AutoModel.from_pretrained(encoder_config['text_encoder_name'], trust_remote_code=True)
+                tokenizer = AutoTokenizer.from_pretrained(encoder_config['tokenizer_name'])
+            
+            #Legacy loading system, loads models directly if the whole thing is saved in the directory
+            else:
+                try:
+                    text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
+                    tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
+                except (ValueError, KeyError):
+                    text_encoder = TransformerModel.from_pretrained(text_encoder_path)
+                    tokenizer = text_encoder.tokenizer
         else:
             text_encoder = None
 

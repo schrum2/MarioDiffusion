@@ -1,4 +1,3 @@
-import argparse
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -8,7 +7,6 @@ import gc
 from PIL import ImageTk
 import sys
 from util.gui_shared import ParentBuilder
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
@@ -17,6 +15,8 @@ from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.sampler import scene_to_ascii
+from models.pipeline_loader import get_pipeline
+
 
 # Add the parent directory to sys.path so sibling folders can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -121,6 +121,10 @@ class CaptionBuilder(ParentBuilder):
         self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet")
         self.loaded_model_label.pack()
 
+        self.debug_caption = tk.BooleanVar(value=False)
+        self.debug_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Debug Caption Match", variable=self.debug_caption)
+        self.debug_caption_checkbox.pack()
+
         # Frame for composed level controls
         self.composed_frame = ttk.Frame(self.caption_frame)
         self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
@@ -179,6 +183,47 @@ class CaptionBuilder(ParentBuilder):
         self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner"], state="readonly")
         self.game_dropdown.pack()
 
+    def create_image_context_menu(self, pil_image, image_index):
+        """Create a context menu for right-clicking on images"""
+        context_menu = tk.Menu(self.master, tearoff=0)
+        context_menu.add_command(
+            label="Save Image As...", 
+            command=lambda: self.save_image_as(pil_image, image_index)
+        )
+        return context_menu
+
+    def show_context_menu(self, event, context_menu):
+        """Show the context menu at the cursor position"""
+        try:
+            context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            context_menu.grab_release()
+
+    def save_image_as(self, pil_image, image_index):
+        """Save the PIL image to a file chosen by the user"""
+        # Create default filename
+        default_filename = f"generated_level_{image_index + 1}.png"
+        
+        # Open save dialog
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[
+                ("PNG files", "*.png"),
+                ("JPEG files", "*.jpg"),
+                ("All files", "*.*")
+            ],
+            title="Save Image As",
+            initialfile=default_filename  # Changed from initialfilename to initialfile
+        )
+        
+        if file_path:
+            try:
+                # Save the image
+                pil_image.save(file_path)
+                messagebox.showinfo("Success", f"Image saved successfully to:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save image:\n{str(e)}")
+
     def get_patterns(self):
         # Different for LoRA and tile diffusion
         patterns = [
@@ -228,7 +273,7 @@ class CaptionBuilder(ParentBuilder):
                 model = os.path.dirname(model)
         if model:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.pipe = TextConditionalDDPMPipeline.from_pretrained(model).to(self.device)
+            self.pipe = get_pipeline(model).to(self.device)
 
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"
@@ -320,7 +365,7 @@ class CaptionBuilder(ParentBuilder):
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
 
-            compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True)
+            compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
@@ -339,6 +384,14 @@ class CaptionBuilder(ParentBuilder):
             label = ttk.Label(img_frame, image=img_tk)
             label.image = img_tk
             label.pack()
+
+            # Create context menu for this image
+            context_menu = self.create_image_context_menu(pil_img, i)
+
+            # Bind right-click to show context menu
+            label.bind("<Button-3>", lambda event, menu=context_menu: self.show_context_menu(event, menu))
+            # For macOS compatibility, also bind Control+Click
+            label.bind("<Control-Button-1>", lambda event, menu=context_menu: self.show_context_menu(event, menu))
 
             # Create a Text widget to allow colored text
             caption_text = tk.Text(img_frame, wrap=tk.WORD, width=40, height=5, state=tk.DISABLED)
@@ -613,21 +666,28 @@ Average Segment Score: {avg_segment_score}"""
         console_output = level.run_astar()
         print(console_output)
   
-root = tk.Tk()
-app = CaptionBuilder(root)
-
-global tileset_path
-tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
-#tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
-
-if len(sys.argv) > 3:
-    tileset_path = sys.argv[3]
-
 if __name__ == "__main__":
+    root = tk.Tk()
+    app = CaptionBuilder(root)
+
+    # Example usage:
+    # python interactive_tile_level_generator.py Mar1and2-conditional-regular0
+    # python interactive_tile_level_generator.py Mar1and2-conditional-regular0 datasets\Mar1and2_LevelsAndCaptions-regular.json
+    # python interactive_tile_level_generator.py Mar1and2-conditional-regular0 datasets\Mar1and2_LevelsAndCaptions-regular.json ..\TheVGLC\Super Mario Bros\smb.json
+
+    global tileset_path
+    tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+    #tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+
+    if len(sys.argv) > 3:
+        tileset_path = sys.argv[3]
+
+    if len(sys.argv) > 2:
+        app.load_data(sys.argv[2])
+    else:
+        app.load_data('datasets\Mar1and2_LevelsAndCaptions-regular.json')
+
     if len(sys.argv) > 1:
-        app.load_data(sys.argv[1])
+        app.load_model(sys.argv[1])
 
-if len(sys.argv) > 2:
-    app.load_model(sys.argv[2])
-
-root.mainloop()
+    root.mainloop()

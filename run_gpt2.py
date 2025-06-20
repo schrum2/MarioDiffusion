@@ -64,8 +64,8 @@ def main():
     os.makedirs(lvl_directory)
 
 
-
-    for i in range(len(all_prompts)//args.batch_size):
+    #Get a batch of things to generate at once
+    for i in range((len(all_prompts)+args.batch_size-1)//args.batch_size):
         #Get the subset of all prompts to generate
         batch=all_prompts[i*args.batch_size:min((i+1)*args.batch_size, len(all_prompts))]
 
@@ -76,6 +76,10 @@ def main():
             temperature=args.temperature,
             use_tqdm=True
         )
+
+        #We treat all of these like lists later, so we need to convert it to one if it isn't yet
+        if not isinstance(generated_levels, list):
+            generated_levels=[generated_levels]
 
         for x in range(len(generated_levels)):
             #The name of the file should match its old prompt
