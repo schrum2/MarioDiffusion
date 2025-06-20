@@ -11,6 +11,37 @@ from util.metrics import (
 )
 from captions.caption_match import TOPIC_KEYWORDS
 
+def real_data():
+    real_levels_file_path = "datasets\\Mar1and2_LevelsAndCaptions-regular.json"
+    # Open full dataset
+    with open(real_levels_file_path, "r") as game_levels_file:
+        game_data = json.load(game_levels_file)
+        game_levels = [entry["scene"] for entry in game_data if "scene" in entry]
+        
+    avg_edit_distance_full = average_min_edit_distance(game_levels)
+    
+    # Resample levels to 100 samples
+    if len(game_levels) > 100:
+        increment = len(game_levels) // (100 + 1)
+        reduced_data = [game_levels[(i + 1) * increment] for i in range(100)]
+    
+        if len(reduced_data) != 100:
+            raise RuntimeError(f"Sample limit mismatched: Expected 100 samples, got {len(reduced_data)} after sampling.")
+    # calculate avg min edit distance self on this
+    avg_edit_distance_100 = average_min_edit_distance(reduced_data)
+
+    results = {
+        "average_min_edit_distance_full": avg_edit_distance_full,
+        "average_min_edit_distance_100": avg_edit_distance_100
+    }
+    # Save to a json file in a folder above datasets called "real_data"
+    datasets_dir = os.path.dirname(real_levels_file_path)
+    parent_dir = os.path.dirname(datasets_dir)
+    output_dir = os.path.join(parent_dir, "real_data")
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, "real_data_metrics.json")
+    with open(output_path, "w") as f:
+        json.dump(results, f, indent=2)
 
 def evaluate_all_levels(json_file_path, output_file, game, key, debug):
     """
@@ -169,6 +200,7 @@ def parse_args():
     parser.add_argument("--game", type=str, default="Mar1and2", help="Game prefix for which to evaluate levels.")
     parser.add_argument("--override", action="store_true", help="Override all previously existing evaluation_metrics.json files and re-run calculations")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--real_data", action="store_true", help="Will create real data for avg min edit distance self when set")
 
     return parser.parse_args()
 
@@ -176,3 +208,6 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     evaluate_metrics(args.model_path, args.game, args.override, args.debug)
+    
+    if args.real_data:
+        real_data()
