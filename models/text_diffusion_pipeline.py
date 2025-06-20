@@ -336,3 +336,51 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         else:
             print("No text encoder is set.")
 
+    def save_unet_architecture_pdf(self, height, width, filename="unet_architecture", batch_size=1, device=None):
+        """
+        Have to separately install torchview for this to work
+
+        Saves a visualization of the UNet architecture as a PDF using torchview.
+        Args:
+            height: Height of the dummy input.
+            width: Width of the dummy input.
+            filename: Output PDF filename.
+            batch_size: Batch size for dummy input.
+            device: Device to run the dummy input on (defaults to pipeline device).
+        """
+        from torchview import draw_graph
+        import graphviz
+        
+        if device is None:
+            device = self.device if hasattr(self, 'device') else 'cpu'
+        in_channels = self.unet.config.in_channels if hasattr(self.unet, 'config') else 1
+        sample_shape = tuple([batch_size, in_channels, height, width])
+
+        dummy_x = torch.randn(size=sample_shape, device=device)
+        dummy_t = torch.tensor([0] * batch_size, dtype=torch.long, device=device)
+
+        # Prepare dummy text embedding (match what your UNet expects)
+        if hasattr(self.unet, 'config') and hasattr(self.unet.config, 'cross_attention_dim'):
+            cross_attention_dim = self.unet.config.cross_attention_dim
+        else:
+            cross_attention_dim = 128  # fallback
+        encoder_hidden_states = torch.randn(batch_size, 1, cross_attention_dim, device=device)
+
+        self.unet.eval()
+        # Use torchview to draw the graph
+        # with torch.no_grad():
+        #     try:
+        #         output = self.unet(dummy_x, dummy_t, encoder_hidden_states=encoder_hidden_states)
+        #     except Exception as e:
+        #         raise RuntimeError(f"Failed to run UNet forward pass for visualization: {e}")
+            
+        graph = draw_graph(
+            self.unet,
+            input_data=(dummy_x, dummy_t, encoder_hidden_states),
+            expand_nested=False,
+            depth=4
+        )
+        graph.visual_graph.render(filename, format='pdf', cleanup=False)  # Cleanup removes intermediate files
+        # Save the graph to a PDF file
+        print(f"UNet architecture saved to {filename}")
+
