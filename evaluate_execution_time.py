@@ -102,10 +102,10 @@ def main():
         if group["group"] not in combined_groups:
             mean_entries.append({
                 "group": group["group"], 
-                "overall_runtime_mean": group["overall_runtime"]["mean"], 
-                "overall_runtime_individual_times": group["overall_runtime"]["individual_times"],
-                "time_to_best_epoch_mean": group["time_to_best_epoch"]["mean"] if group["time_to_best_epoch"] else None,
-                "time_to_best_epoch_individual_times": group["time_to_best_epoch"]["individual_times"] if group["time_to_best_epoch"] else None
+                "mean": group["overall_runtime"]["mean"], 
+                "individual_times": group["overall_runtime"]["individual_times"],
+                "mean2": group["time_to_best_epoch"]["mean"] if group["time_to_best_epoch"] else None,
+                "individual_times2": group["time_to_best_epoch"]["individual_times"] if group["time_to_best_epoch"] else None
             })
     # Add only the combined means for the pairs
     for cond, mlm, combined_name in combine_pairs:
@@ -139,14 +139,14 @@ def main():
                 combined_best_individual_times = None
             mean_entries.append({
                 "group": combined_name,
-                "mlm_overall_runtime_mean": group_lookup[mlm]["overall_runtime"]["mean"],
-                "cond_overall_runtime_mean": group_lookup[cond]["overall_runtime"]["mean"],
-                "overall_runtime_mean": combined_overall_mean,
-                "overall_runtime_individual_times": combined_overall_individual_times,
-                "mlm_time_to_best_epoch_mean": mlm_best["mean"] if mlm_best else None,
-                "cond_time_to_best_epoch_mean": cond_best["mean"] if cond_best else None,
-                "time_to_best_epoch_mean": combined_best_mean,
-                "time_to_best_epoch_individual_times": combined_best_individual_times
+                "mlm_mean": group_lookup[mlm]["overall_runtime"]["mean"],
+                "cond_mean": group_lookup[cond]["overall_runtime"]["mean"],
+                "mean": combined_overall_mean,
+                "individual_times": combined_overall_individual_times,
+                "mlm_mean2": mlm_best["mean"] if mlm_best else None,
+                "cond_mean2": cond_best["mean"] if cond_best else None,
+                "mean2": combined_best_mean,
+                "individual_times2": combined_best_individual_times
             })
         else:
             print(f"Warning: Could not find both {cond} and {mlm} for combined mean.")
