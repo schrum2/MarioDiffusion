@@ -103,7 +103,7 @@ def parse_args():
     parser.add_argument("--output_name", type=str, help="Name of outputted pdf file")
     parser.add_argument("--legend_cols", type=int, default=1, help="Number of columns for the legend")
     parser.add_argument("--loc", type=str, default="best", help="Where the legend is displayed")
-    #parser.add_argument("--bbox_to_anchor", type=)
+    parser.add_argument("--bbox", nargs="+", default=None, help="bbox parameters for the legend")
     return parser.parse_args()
 
 def get_bar_color(model_name, mode, mode_list=None, colors=None):
@@ -218,14 +218,14 @@ def main():
         if os.path.exists(real_data_path):
             with open(real_data_path, "r") as f:
                 real_metrics = json.load(f)
-            # Add a fake model "Full data" with two bars: real (100) and real (full)
-            data["Full data"] = {
+            # Add a fake model "Real data" with two bars: real (100) and real (full)
+            data["Real data"] = {
                 "real": [real_metrics["average_min_edit_distance_100"]],
                 "real_full": [real_metrics["average_min_edit_distance_full"]],
             }
             # Insert at the END so it appears at the top (since y-axis is reversed)
-            sorted_models.append("Full data")
-            clean_labels_sorted.append("Full data")
+            sorted_models.append("Real data")
+            clean_labels_sorted.append("Real data")
         else:
             print(f"[WARNING] Could not find {real_data_path} for Full data bars.")
     
@@ -320,15 +320,17 @@ def main():
             edgecolor='black',
         )
     else:
-        plt.legend(
-            handles[::-1],
-            labels[::-1],
-            loc=args.loc,
-            ncol=args.legend_cols,
-            #bbox_to_anchor=(1.0, 0.1),  # Move up slightly
-            frameon=True,
-            edgecolor='black',
-        )
+        legend_kwargs = {
+            "handles": handles[::-1],
+            "labels": labels[::-1],
+            "loc": args.loc,
+            "ncol": args.legend_cols,
+            "frameon": True,
+            "edgecolor": 'black',
+        }
+        if args.bbox is not None:
+            legend_kwargs["bbox_to_anchor"] = tuple(float(x) for x in args.bbox)
+        plt.legend(**legend_kwargs)
 
     plt.grid(True, axis='x', linestyle='--', alpha=0.5)
     plt.tight_layout(pad=2)

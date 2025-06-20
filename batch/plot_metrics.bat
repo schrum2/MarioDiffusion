@@ -1,35 +1,35 @@
 cd ..
 
 REM AMED REAL
-python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance_from_real --plot_label "Edit Distance" --save --output_name "AMED-REAL_real(full)_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance_from_real --plot_label "Edit Distance" --save --output_name "AMED-REAL_real(full)_real(100)_random_unconditional" --loc "best" --legend_cols 1
 
-python evaluate_models.py --modes real random short --metric average_min_edit_distance_from_real --plot_label "Edit Distance" --save --output_name "AMED-REAL_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short --metric average_min_edit_distance_from_real --plot_label "Edit Distance" --save --output_name "AMED-REAL_real(100)_random_unconditional" --loc "best" --legend_cols 1
 
 
 REM AMED SELF
 REM Create the dataset needed to do this. Call evaluate_metrics.py with the --real_data flag set
-python evaluate_metrics --real_data --model_path None
+python evaluate_metrics.py --real_data --model_path None
 
-python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(full)_real(100)_random_unconditional" --loc "lower right"
+python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(full)_real(100)_random_unconditional" --loc "lower right" --bbox 1.0 0.1
 
-python evaluate_models.py --modes real random short --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(100)_random_unconditional" --loc "lower right"
+python evaluate_models.py --modes real random short --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(100)_random_unconditional" --loc "lower right" --bbox 1.0 0.1
 
 
 REM Pipe Metrics
-python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_pipes_percentage_in_dataset --plot_label "Percent Broken Pipes" --save --output_name "BPPDataset_real(full)_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_pipes_percentage_in_dataset --plot_label "Percent Broken Pipes" --save --output_name "BPPDataset_real(full)_real(100)_random_unconditional" --loc "lower right" --legend_cols 2
 
-python evaluate_models.py --modes real random short --metric broken_pipes_percentage_in_dataset --plot_label "Percent Broken Pipes" --save --output_name "BPPDataset_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short --metric broken_pipes_percentage_in_dataset --plot_label "Percent Broken Pipes" --save --output_name "BPPDataset_real(100)_random_unconditional" --loc "lower right" --legend_cols 2
 
-python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_pipes_percentage_of_pipes --plot_label "Percent Broken Pipes" --save --output_name "BPPPipes_real(full)_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_pipes_percentage_of_pipes --plot_label "Percent Broken Pipes" --save --output_name "BPPPipes_real(full)_real(100)_random_unconditional" --loc "lower right" --legend_cols 2
 
-python evaluate_models.py --modes real random short --metric broken_pipes_percentage_of_pipes --plot_label "Percent Broken Pipes" --save --output_name "BPPPipes_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short --metric broken_pipes_percentage_of_pipes --plot_label "Percent Broken Pipes" --save --output_name "BPPPipes_real(100)_random_unconditional" --loc "lower right" --legend_cols 2
 
 
 REM Cannon Metrics
-python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_cannons_percentage_in_dataset --plot_label "Percent Broken Cannons" --save --output_name "BCPDataset_real(full)_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_cannons_percentage_in_dataset --plot_label "Percent Broken Cannons" --save --output_name "BCPDataset_real(full)_real(100)_random_unconditional" --loc "lower right"
 
-python evaluate_models.py --modes real random short --metric broken_cannons_percentage_in_dataset --plot_label "Percent Broken Cannons" --save --output_name "BCPDataset_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short --metric broken_cannons_percentage_in_dataset --plot_label "Percent Broken Cannons" --save --output_name "BCPDataset_real(100)_random_unconditional" --loc "lower right"
 
-python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_cannons_percentage_of_cannons --plot_label "Percent Broken Cannons" --save --output_name "BCPCannons_real(full)_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_cannons_percentage_of_cannons --plot_label "Percent Broken Cannons" --save --output_name "BCPCannons_real(full)_real(100)_random_unconditional" --loc "lower right"
 
-python evaluate_models.py --modes real random short --metric broken_cannons_percentage_of_cannons --plot_label "Percent Broken Cannons" --save --output_name "BCPCannons_real(100)_random_unconditional"
+python evaluate_models.py --modes real random short --metric broken_cannons_percentage_of_cannons --plot_label "Percent Broken Cannons" --save --output_name "BCPCannons_real(100)_random_unconditional" --loc "lower right"
