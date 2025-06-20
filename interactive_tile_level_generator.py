@@ -120,6 +120,10 @@ class CaptionBuilder(ParentBuilder):
         self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet")
         self.loaded_model_label.pack()
 
+        self.debug_caption = tk.BooleanVar(value=False)
+        self.debug_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Debug Caption Match", variable=self.debug_caption)
+        self.debug_caption_checkbox.pack()
+
         # Frame for composed level controls
         self.composed_frame = ttk.Frame(self.caption_frame)
         self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
@@ -360,7 +364,7 @@ class CaptionBuilder(ParentBuilder):
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
 
-            compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True)
+            compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
