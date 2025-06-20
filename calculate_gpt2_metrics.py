@@ -10,10 +10,6 @@ def parse_args():
     parser.add_argument("--generated_levels", type=str, default="datasets\\MarioGPT_LevelsAndCaptions-regular.json", help="The filepath of the LevelsAndCaptions format for MarioGPT generated data")
     parser.add_argument("--training_levels", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="The filepath of the LevelsAndCaptions format for default data")
 
-    #These should only be used if you are finding metrics for 16x16 level samples, but want A* info for the full levels as well
-    parser.add_argument("--find_long_astar_data", action="store_true", help="Calculates astar metrics on full GPT data")
-    parser.add_argument("--full_levels_dir", type=str, default=None, help="The directory containing the raw output txt files of MarioGPT")
-
     parser.add_argument("--output_dir", type=str, default="MarioGPT_metrics", help="The output directory for the created json data")
 
 
@@ -23,8 +19,6 @@ def main():
 
     args = parse_args()
 
-    if (args.find_long_astar_data) and (args.full_levels_dir is None):
-        raise ValueError("Cannot find long level astar data as a directory containing the raw files was not provided")
 
 
 
@@ -48,12 +42,12 @@ def main():
     print("Finding astar metrics")
     #Do the full dataset instead of just 100 if we have more
     if(samples_json!=allsamples_json):
-        create_astar_metrics(allsamples_json, args.full_levels_dir, args.output_dir, args.find_long_astar_data, fullsamples=True)
-    create_astar_metrics(samples_json, args.full_levels_dir, args.output_dir, args.find_long_astar_data)
+        create_astar_metrics(allsamples_json, args.output_dir, fullsamples=True)
+    create_astar_metrics(samples_json, args.output_dir)
 
 
 
-def create_astar_metrics(allsamples_json, full_levels_dir, output_dir, find_long_astar_data, fullsamples=False):
+def create_astar_metrics(allsamples_json, output_dir, fullsamples=False):
     # Load generated levels and real levels
     with open(allsamples_json, "r") as f:
         generated_data = json.load(f)
@@ -62,19 +56,12 @@ def create_astar_metrics(allsamples_json, full_levels_dir, output_dir, find_long
     # Annoyingly this doesn't get saved properly if we don't provide a path inside the folder, instead of the folder itself
     output_path = os.path.join(output_dir, "evaluation_metrics.json")
     generated_scenes = [entry for entry in generated_data if "scene" in entry and entry['scene']]
-    metrics.astar_metrics(generated_scenes, output_json_path=output_path, save_name="astar_result.jsonl")
 
-    if find_long_astar_data:
-        all_levels = []
-        for level in os.listdir(full_levels_dir):
-            with open(os.path.join(full_levels_dir, level), 'r') as t:
-                all_levels.append(t.readlines())
-        
-        #Done to allow for saving metrics on 100 samples and all 760
-        savename="astar_result_full_levels.jsonl"
-        if fullsamples:
-            savename = "full_"+savename
-        metrics.astar_metrics(all_levels, output_json_path=output_path, save_name=savename)    
+    savename="astar_result.jsonl"
+    if fullsamples:
+        savename = "full_"+savename
+
+    metrics.astar_metrics(generated_scenes, output_json_path=output_path, save_name=savename)  
     
 
     print(f"Astar metrics saved to {output_dir}")
@@ -104,8 +91,14 @@ def find_metrics_of_samples(samples_json, real_json, output_dir):
     # Broken pipe calculations (as percent of scenes with broken pipes)
     broken_pipe_percent = metrics.analyze_broken_pipes(generated_data, as_instance_of_feature=False)
 
+    # Broken pipe calculations (as percent of all pipes)
+    broken_pipes_percentage_of_pipes = metrics.analyze_broken_pipes(generated_data, as_instance_of_feature=True)
+
     # Broken cannon calculations (as percent of scenes with broken cannons)
     broken_cannon_percent = metrics.analyze_broken_cannons(generated_data, as_instance_of_feature=False)
+
+    # Broken cannon calculations (as percent of all cannons)
+    broken_cannons_percentage_of_cannons = metrics.analyze_broken_cannons(generated_data, as_instance_of_feature=True)
 
     
 
@@ -114,8 +107,10 @@ def find_metrics_of_samples(samples_json, real_json, output_dir):
         "average_min_edit_distance_generated": avg_min_edit_distance,
         "average_min_edit_distance_from_real": avg_min_edit_distance_from_real,
         "perfect_matches_to_real": perfect_matches,
-        "broken_pipe_percent": broken_pipe_percent,
-        "broken_cannon_percent": broken_cannon_percent
+        "broken_pipes_percentage_in_dataset": broken_pipe_percent,
+        "broken_pipes_percentage_of_pipes": broken_pipes_percentage_of_pipes,
+        "broken_cannons_percentage_in_dataset": broken_cannon_percent,
+        "broken_cannons_percentage_of_cannons": broken_cannons_percentage_of_cannons
     }
 
     output_path = os.path.join(output_dir, "MarioGPT_metrics_summary.json")
