@@ -159,19 +159,19 @@ class SampleOutput:
             main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
         else:
             if self.use_snes_graphics:
-                simulator = MMNEATSimulator(level=self.level)
+                simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
             else:
-                simulator = Simulator(level=self.level)
+                simulator = CustomSimulator(level=self.level)
             simulator.interactive()
 
     def run_astar(self, render=True):
         if self.use_snes_graphics:
-            simulator = MMNEATSimulator(level=self.level)
+            simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
         else:
-            simulator = Simulator(level=self.level)
+            simulator = CustomSimulator(level=self.level)
         return simulator.astar(render)
 
-class MMNEATSimulator:
+class CustomSimulator:
     """
         The classic Mario simulator used by MarioGPT is generally,
         better, but it doesn't return any information about
@@ -181,14 +181,14 @@ class MMNEATSimulator:
         to caption and return that information)
     """
 
-    def __init__(self, level):
+    def __init__(self, level, jar_path="NESMarioEval.jar"):
         while len(level) > 15:
             level.pop(0)
         # For some reason, my older A* agent
         # crashes on Mario levels with 16 rows or more
 
         self.level = level
-        self.jar_path = "MarioEval.jar"
+        self.jar_path = jar_path
 
     def interactive(self):
         t = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)

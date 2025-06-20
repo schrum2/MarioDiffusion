@@ -11,7 +11,7 @@ import sys
 import os
 import numpy as np
 import json
-from util.sampler import MMNEATSimulator
+from util.sampler import CustomSimulator
 from captions.caption_match import compare_captions
 from util.sampler import scene_to_ascii
 from tqdm import tqdm
@@ -470,7 +470,7 @@ def astar_metrics(
             run_metrics = []
             for run in range(num_runs):
                 try:
-                    sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
+                    sim = CustomSimulator(ascii_level, **simulator_kwargs)
                     output = sim.astar(render=False)
                     # # Enable rendering if needed (for debugging)
                     # output = sim.astar()
