@@ -20,13 +20,22 @@ def parse_args():
     parser.add_argument("--start_index", type=int, default=12, help="The start location of the astar testing")
     parser.add_argument("--only_play_unbeaten", action='store_true', help="If true, only play levels that have not been beaten before")
     parser.add_argument("--num_trials", type=int, default=1, help="Number of trials to run for each level")
-    parser.add_argument("--evaluation_jar", type=str, default="NESMarioEval.jar", help="jar file that launches Mario evaluation")
+    parser.add_argument("--visualization", type=str, choices=["NES", "SNES"], default="NES", help="[NES|SNES] determines jar file that launches Mario evaluation")
+    parser.add_argument("--agent", type=str, choices=["astar", "human"], default="astar", help="[astar|human] which agent plays the level")
 
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+
+    if args.visualization == "NES":
+        jar_file = "NESMarioEval.jar"
+    elif args.visualization == "SNES":
+        jar_file = "MarioEval.jar"
+    else:
+        raise ValueError("Invalid visualization type. Choose either 'NES' or 'SNES'.")
+
     # Load generated levels and real levels
     with open(args.generated_levels, "r") as f:
         if args.generated_levels.endswith('json'):
@@ -55,8 +64,11 @@ def main():
 
         for t in range(args.num_trials):
             print(f"Trial {t + 1} for level {idx + args.start_index}")
-            sim = CustomSimulator(ascii_level, jar_path=args.evaluation_jar)
-            output = sim.astar(render=True)
+            sim = CustomSimulator(ascii_level, jar_path=jar_file)
+            if args.agent == "astar":
+                output = sim.astar(render=True)
+            elif args.agent == "human":
+                output = sim.interactive()
 
             print(f"Level {idx + args.start_index}")
             print(output)
