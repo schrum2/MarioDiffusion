@@ -18,6 +18,8 @@ def parse_args():
 
     parser.add_argument("--generated_levels", type=str, default="datasets\\MarioGPT_LevelsAndCaptions-regular-long.json", help="The filepath of the LevelsAndCaptions format for MarioGPT generated data")
     parser.add_argument("--start_index", type=int, default=12, help="The start location of the astar testing")
+    parser.add_argument("--only_play_unbeaten", action='store_true', help="If true, only play levels that have not been beaten before")
+    parser.add_argument("--num_trials", type=int, default=1, help="Number of trials to run for each level")
 
     return parser.parse_args()
 
@@ -40,14 +42,23 @@ def main():
 
 
     for idx, entry in enumerate(tqdm(generated_scenes, desc="A* metrics", unit="level")):
+        if args.only_play_unbeaten and entry.get("averages", {}).get("beaten", 0.0) == 1.0:
+            print(f"Skipping level {idx + args.start_index} as it has been beaten before.")
+            continue
+        elif "averages" in entry and "beaten" in entry["averages"]:
+            print(f"Previous beaten score: {entry['averages']['beaten']}")
+
         scene = entry.get("scene")
 
         ascii_level = scene_to_ascii(scene, id_to_char, True)
 
-        sim = CustomSimulator(ascii_level)
-        output = sim.astar(render=True)
+        for t in range(args.num_trials):
+            print(f"Trial {t + 1} for level {idx + args.start_index}")
+            sim = CustomSimulator(ascii_level)
+            output = sim.astar(render=True)
 
-
+            print(f"Level {idx + args.start_index}")
+            print(output)
 
 if __name__ == "__main__":
     main()
