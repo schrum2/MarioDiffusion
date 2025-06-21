@@ -1,7 +1,5 @@
-import util.metrics as metrics
 import json
 import split_data as split_data
-import os
 import argparse
 from util.sampler import scene_to_ascii, CustomSimulator
 from tqdm import tqdm
@@ -28,8 +26,12 @@ def main():
     args = parse_args()
     # Load generated levels and real levels
     with open(args.generated_levels, "r") as f:
-        generated_data = json.load(f)
-
+        if args.generated_levels.endswith('json'):
+            generated_data = json.load(f)
+        elif args.generated_levels.endswith('jsonl'):
+            generated_data = [json.loads(line) for line in f]
+        else:
+            raise ValueError("Unsupported file format. Please provide a JSON or JSONL file.")
 
     generated_scenes = [entry for entry in generated_data if "scene" in entry and entry['scene']]
     
