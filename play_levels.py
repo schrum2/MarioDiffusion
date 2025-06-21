@@ -20,6 +20,7 @@ def parse_args():
     parser.add_argument("--start_index", type=int, default=12, help="The start location of the astar testing")
     parser.add_argument("--only_play_unbeaten", action='store_true', help="If true, only play levels that have not been beaten before")
     parser.add_argument("--num_trials", type=int, default=1, help="Number of trials to run for each level")
+    parser.add_argument("--evaluation_jar", type=str, default="NESMarioEval.jar", help="jar file that launches Mario evaluation")
 
     return parser.parse_args()
 
@@ -54,7 +55,7 @@ def main():
 
         for t in range(args.num_trials):
             print(f"Trial {t + 1} for level {idx + args.start_index}")
-            sim = CustomSimulator(ascii_level)
+            sim = CustomSimulator(ascii_level, jar_path=args.evaluation_jar)
             output = sim.astar(render=True)
 
             print(f"Level {idx + args.start_index}")
