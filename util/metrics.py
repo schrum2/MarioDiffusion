@@ -428,11 +428,11 @@ def astar_metrics(
     save_name: str = "astar_result.jsonl"
 ) -> tuple[List[dict], dict]:
     """
-    Runs the SNES A* algorithm on each level multiple times and saves results in JSONL format.
+    Runs the A* algorithm on each level multiple times and saves results in JSONL format.
     Args:
         levels: List of dicts (one-hot encoded json data) or list of lists of strings (raw ascii chars)
         num_runs: Number of runs per level
-        simulator_kwargs: kwargs for MMNEATSimulator
+        simulator_kwargs: kwargs for CustomSimulator
         output_json_path: Path to input JSON file (saves in root directory if None)
         save_name: Filename for output JSONL
     Returns:
