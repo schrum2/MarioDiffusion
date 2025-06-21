@@ -152,7 +152,7 @@ class SampleOutput:
                 json.dump(lr_json, tmp)
                 tmp_path = tmp.name
             import sys, os
-            sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+            #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
             from LodeRunner.loderunner import main
             tmp_path = tmp_path if dataset_path is None else dataset_path
             print(f"Playing Lode Runner level interactively -- {tmp_path}!")
