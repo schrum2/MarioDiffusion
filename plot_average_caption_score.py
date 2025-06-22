@@ -240,9 +240,9 @@ def create_plot(experiment_data, style_indices, error_type=None, confidence=0.95
     # Legend with specified location
     if legend_loc.startswith('bbox_to_anchor'):
         # Handle outside legend placement
-        legend = plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 26}, handlelength=2.5, handletextpad=1.5)
+        legend = plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', prop={'size': 20}, handlelength=2.5, handletextpad=1.5)
     else:
-        legend = plt.legend(loc=legend_loc, prop={'size': 26}, handlelength=2.5, handletextpad=1.5, ncol=2)
+        legend = plt.legend(loc=legend_loc, prop={'size': 20}, handlelength=2.5, handletextpad=1.5, ncol=2)
     
     # Add info about runs at bottom
     info_lines = []
