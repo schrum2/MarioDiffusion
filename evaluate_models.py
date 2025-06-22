@@ -313,7 +313,7 @@ def main():
                     alpha=0.6,
                     hatch=hatch,
                     xerr=std_errs[j],
-                    error_kw={'elinewidth': 2, 'capthick': 2, 'capsize': 8, 'ecolor': 'black'}
+                    error_kw={'elinewidth': 1, 'capthick': 1, 'capsize': 4, 'ecolor': 'black'}
                 )
             else:
                 plt.barh(
@@ -337,7 +337,9 @@ def main():
                         [y_position] * len(values),
                         color='black',
                         marker='x',
-                        zorder=10
+                        zorder=10,
+                        s=10,           # smaller marker size
+                        linewidths=1    # thinner x-marks
                     )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)
