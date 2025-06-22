@@ -274,12 +274,24 @@ def main():
             #print(f"Processing model {model} in mode {mode}")  # Debug print
             color = get_bar_color(model, mode, modes, colors)
             is_mariogpt = "MarioGPT" in model
-            
+
+            # Define hatching patterns for each mode for B&W printing
+            MODE_HATCHES = {
+                "real_full": "////",
+                "real": "\\\\\\\\",
+                "random": "....",
+                "short": "xxxx",
+                "long": "++",
+            }
+            hatch = MODE_HATCHES.get(mode, "")
+            if is_mariogpt:
+                hatch = "xx" # Override
+
             # Add mode to legend only once per mode, and never for MarioGPT
             should_add_to_legend = not has_added_mode_to_legend[mode] and not is_mariogpt
             if should_add_to_legend:
                 has_added_mode_to_legend[mode] = True
-            
+
             plt.barh(
                 bar_positions[j],
                 means[j],
@@ -287,7 +299,8 @@ def main():
                 color=color,
                 edgecolor='black',
                 label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
-                alpha=0.6
+                alpha=0.6,
+                hatch=hatch
             )
 
             # Scatter plot for individual values
