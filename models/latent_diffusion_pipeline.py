@@ -108,7 +108,6 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
                 # Normalize vectors for cosine similarity
                 flat_samples = F.normalize(flat_samples, p=2, dim=1).cpu()
                 block_embeddings = F.normalize(self.block_embeddings, p=2, dim=1)
-                
 
                 # Calculate cosine similarity between each position and all tile embeddings
                 similarities = torch.matmul(flat_samples, block_embeddings.t())
@@ -118,9 +117,10 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
                 
                 
                 # Reshape back to [batch_size, height, width]
-                indices = indices.reshape(batch_size, height, width)
+                indices = indices.reshape(batch_size, height, width, 13)
+                indices = indices.permute(0, 3, 1, 2)
 
-                image=indices.cpu().numpy()
+                image=indices.detach().cpu()
             else:
                 image = F.softmax(image, dim=1)
                 image = image.detach().cpu() 
