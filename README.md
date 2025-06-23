@@ -197,9 +197,6 @@ Create samples from an FDM with this command
 python text_to_level_fdm.py --model_path Mar1and2-fdm-MiniLM-regular0
 ```
 
-## Comparing model results
-
-TODO
 
 ## Generating MarioGPT data for comparison
 
@@ -228,3 +225,43 @@ And then, lastly, we can use this command to get metrics on the generated levels
 ```
 python calculate_gpt2_metrics.py --generated_levels "datasets\\MarioGPT_LevelsAndCaptions-regular.json" --training_levels "datasets\\Mar1and2_LevelsAndCaptions-regular.json" --output_dir "MarioGPT_metrics"
 ```
+
+## Comparing model results
+
+Average minimum edit distance (amed) calculates the edit distance for each level in a levelset against a levelset. We calculate amed self, where the min edit distance is calculated for each level against the remaining levels in the set, and amed real, where the min edit distance is calculated for each level in a levelset against the entire real levelset that was used to generate the level.
+
+All amed plots and calculations - as well as broken feature generatsion plots - can be run like this
+```
+cd batch
+plot_metrics.bat
+```
+This batch file will generate the following plots at once
+
+```
+python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance_from_real --plot_label "Edit Distance" --save --output_name "AMED-REAL_real(full)_real(100)_random_unconditional" --loc "best" --legend_cols 1 --errorbar
+```
+This saves an amed real plot between generated levels against the real dataset
+```
+python evaluate_metrics.py --real_data --model_path None
+```
+Resample the original dataset that levels were created on to 100 samples for a fair comparison
+```
+python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(full)_real(100)_random_unconditional" --loc "lower right" --bbox 1.0 0.1 --errorbar
+```
+Plots comparison of the amed between generated levels themselves against different models
+```
+python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_pipes_percentage_in_dataset --plot_label "Percent Broken Pipes" --save --output_name "BPPDataset_real(full)_real(100)_random_unconditional" --loc "lower right" --legend_cols 2 --errorbar
+```
+Plots and compares broken pipes as a percentage of the full generated dataset
+```
+python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_pipes_percentage_of_pipes --plot_label "Percent Broken Pipes" --save --output_name "BPPPipes_real(full)_real(100)_random_unconditional" --loc "lower right" --legend_cols 2 --errorbar
+```
+Plots and compares broken pipes as a percentage of total pipe mentions
+```
+python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_cannons_percentage_in_dataset --plot_label "Percent Broken Cannons" --save --output_name "BCPDataset_real(full)_real(100)_random_unconditional" --loc "lower right" --errorbar
+```
+Plots and compares broken cannons as a percentage of the full generated dataset
+```
+python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_cannons_percentage_of_cannons --plot_label "Percent Broken Cannons" --save --output_name "BCPCannons_real(full)_real(100)_random_unconditional" --loc "lower right" --errorbar
+```
+Plots and compares broken cannons as a percentage of total cannon mentions
