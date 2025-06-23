@@ -262,20 +262,26 @@ def main():
         colors = ['#66c2a5', '#fc8d62', '#8da0cb'] # Colorblind-friendly, light colors
     has_added_mode_to_legend = {mode: False for mode in modes}  # Track which modes are in legend
 
+    from scipy.stats import t
     for i, mode in enumerate(modes):
         means = []
-        std_errs = []
+        conf_intervals = []
+
         for model in sorted_models:
             values = data[model].get(mode, [])
             mean_val = sum(values) / len(values) if values else 0
             means.append(mean_val)
-            # Standard error: std / sqrt(n)
-            if values and len(values) > 1:
-                std = (sum((v - mean_val) ** 2 for v in values) / (len(values) - 1)) ** 0.5
-                std_err = std / (len(values) ** 0.5)
+
+            # 95% Confidence Interval: mean ± t * (std / sqrt(n))
+            n = len(values)
+            if values and n > 1:
+                std = (sum((v - mean_val) ** 2 for v in values) / (n - 1)) ** 0.5
+                t_score = t.ppf(0.975, df=n - 1)  # two-tailed 95% CI
+                conf_interval = t_score * std / (n ** 0.5)
             else:
-                std_err = 0
-            std_errs.append(std_err)
+                conf_interval = 0
+
+            conf_intervals.append(conf_interval)
 
         bar_positions = [xi + offsets[i] for xi in x]
 
@@ -312,7 +318,7 @@ def main():
                     label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
                     alpha=0.6,
                     hatch=hatch,
-                    xerr=std_errs[j],
+                    xerr=conf_intervals[j],
                     error_kw={'elinewidth': 1, 'capthick': 1, 'capsize': 4, 'ecolor': 'black'}
                 )
             else:
