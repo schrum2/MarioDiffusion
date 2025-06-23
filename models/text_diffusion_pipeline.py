@@ -364,3 +364,63 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         else:
             print("No text encoder is set.")
 
+    def save_unet_architecture_pdf(self, height, width, filename="unet_architecture", batch_size=1, device=None):
+        """
+        Have to separately install torchview for this to work
+
+        Saves a visualization of the UNet architecture as a PDF using torchview.
+        Args:
+            height: Height of the dummy input.
+            width: Width of the dummy input.
+            filename: Output PDF filename.
+            batch_size: Batch size for dummy input.
+            device: Device to run the dummy input on (defaults to pipeline device).
+        """
+        from torchview import draw_graph
+        import graphviz
+        
+        if device is None:
+            device = self.device if hasattr(self, 'device') else 'cpu'
+        in_channels = self.unet.config.in_channels if hasattr(self.unet, 'config') else 1
+        sample_shape = tuple([batch_size, in_channels, height, width])
+
+        dummy_x = torch.randn(size=sample_shape, device=device)
+        dummy_t = torch.tensor([0] * batch_size, dtype=torch.long, device=device)
+
+        # Prepare dummy text embedding (match what your UNet expects)
+        if hasattr(self.unet, 'config') and hasattr(self.unet.config, 'cross_attention_dim'):
+            cross_attention_dim = self.unet.config.cross_attention_dim
+        else:
+            cross_attention_dim = 128  # fallback
+        encoder_hidden_states = torch.randn(batch_size, 1, cross_attention_dim, device=device)
+
+        self.unet.eval()
+        inputs = (dummy_x, dummy_t, encoder_hidden_states)
+        #self.unet.down_blocks = self.unet.down_blocks[:2]
+
+        graph = draw_graph(
+            model=self.unet,
+            input_data=inputs,
+            expand_nested=False,
+            #enable_output_shape=True,   
+            #roll_out="nested",
+            depth=1
+        )
+        #graph.visual_graph.engine = "neato"
+        graph.visual_graph.attr(#rankdir="LR",
+                                nodesep="0.1",      # decrease space between nodes in the same rank (default ~0.25)
+                                ranksep="0.2",       # decrease space between ranks (default ~0.5)
+                                concentrate="true"  # merge edges between nodes in the same rank
+                            )
+        graph.visual_graph.node_attr.update(
+            shape="rectangle",
+            width="1.5",   # narrow width
+            height="0.5"  # taller height to make vertical rectangles
+            #fixedsize="true"
+        )
+        
+        graph.visual_graph.render(filename, format='pdf', cleanup=False)  # Cleanup removes intermediate files
+
+        # Save the graph to a PDF file
+        print(f"UNet architecture saved to {filename}")
+

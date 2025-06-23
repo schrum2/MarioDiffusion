@@ -104,6 +104,9 @@ def parse_args():
     parser.add_argument("--legend_cols", type=int, default=1, help="Number of columns for the legend")
     parser.add_argument("--loc", type=str, default="best", help="Where the legend is displayed")
     parser.add_argument("--bbox", nargs="+", default=None, help="bbox parameters for the legend")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--scatter", action="store_true", help="Show individual values as x-marks (default)")
+    group.add_argument("--errorbar", action="store_true", help="Show error bars (standard error) on bars instead of scatter")
     return parser.parse_args()
 
 def get_bar_color(model_name, mode, mode_list=None, colors=None):
@@ -261,38 +264,71 @@ def main():
 
     for i, mode in enumerate(modes):
         means = []
+        std_errs = []
         for model in sorted_models:
-            # values = data[model][mode]
             values = data[model].get(mode, [])
             mean_val = sum(values) / len(values) if values else 0
             means.append(mean_val)
+            # Standard error: std / sqrt(n)
+            if values and len(values) > 1:
+                std = (sum((v - mean_val) ** 2 for v in values) / (len(values) - 1)) ** 0.5
+                std_err = std / (len(values) ** 0.5)
+            else:
+                std_err = 0
+            std_errs.append(std_err)
 
         bar_positions = [xi + offsets[i] for xi in x]
 
         # Plot bars for each model
         for j, model in enumerate(sorted_models):
-            #print(f"Processing model {model} in mode {mode}")  # Debug print
             color = get_bar_color(model, mode, modes, colors)
             is_mariogpt = "MarioGPT" in model
-            
+
+            # Define hatching patterns for each mode for B&W printing
+            MODE_HATCHES = {
+                "real_full": "////",
+                "real": "\\\\",
+                "random": "....",
+                "short": "xxxx",
+                "long": "++",
+            }
+            hatch = MODE_HATCHES.get(mode, "")
+            if is_mariogpt:
+                hatch = "xx" # Override
+
             # Add mode to legend only once per mode, and never for MarioGPT
             should_add_to_legend = not has_added_mode_to_legend[mode] and not is_mariogpt
             if should_add_to_legend:
                 has_added_mode_to_legend[mode] = True
-            
-            plt.barh(
-                bar_positions[j],
-                means[j],
-                height=bar_width,
-                color=color,
-                edgecolor='black',
-                label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
-                alpha=0.6
-            )
 
-            # Scatter plot for individual values
-            if args.plot_file == "evaluation_metrics.json":
-                #values = data[model][mode]
+            # Plot bar with or without error bar
+            if args.errorbar:
+                plt.barh(
+                    bar_positions[j],
+                    means[j],
+                    height=bar_width,
+                    color=color,
+                    edgecolor='black',
+                    label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
+                    alpha=0.6,
+                    hatch=hatch,
+                    xerr=std_errs[j],
+                    error_kw={'elinewidth': 1, 'capthick': 1, 'capsize': 4, 'ecolor': 'black'}
+                )
+            else:
+                plt.barh(
+                    bar_positions[j],
+                    means[j],
+                    height=bar_width,
+                    color=color,
+                    edgecolor='black',
+                    label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
+                    alpha=0.6,
+                    hatch=hatch
+                )
+
+            # Scatter plot for individual values (default or --scatter)
+            if (not args.errorbar) and args.plot_file == "evaluation_metrics.json":
                 values = data[model].get(mode, [])
                 if values:  # Only plot if we have values
                     y_position = x[j] + offsets[i]
@@ -301,7 +337,9 @@ def main():
                         [y_position] * len(values),
                         color='black',
                         marker='x',
-                        zorder=10
+                        zorder=10,
+                        s=10,           # smaller marker size
+                        linewidths=1    # thinner x-marks
                     )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)

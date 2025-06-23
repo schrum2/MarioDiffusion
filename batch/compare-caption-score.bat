@@ -78,16 +78,18 @@ for %%d in (LevelsAndCaptions RandomTest test) do (
     set /a GTE_MULTI_STYLE=!STYLE_INDEX!+12
     set /a FDM_MINILN_STYLE=!STYLE_INDEX!+15
     set /a FDM_GTE_STYLE=!STYLE_INDEX!+17
-    
+
+    REM Conditionally set FDM_ARGS only if %%t is not negative
+    set FDM_ARGS=
+    if /I "%%t" NEQ "negative" set FDM_ARGS="Mar1and2-fdm-MiniLM-!DATA!:0-29:!DATA_FILE!:FDM-MiniLM-!DATA!:!FDM_MINILN_STYLE!"  "Mar1and2-fdm-GTE-!DATA!:0-29:!DATA_FILE!:FDM-GTE-!DATA!:!FDM_GTE_STYLE!" 
+
     python plot_average_caption_score.py ^
         "Mar1and2-conditional-%%t:0-9:!DATA_FILE!:MLM-%%t:!MLM_STYLE!" ^
         "Mar1and2-conditional-MiniLM-%%t:0-9:!DATA_FILE!:MiniLM-single-%%t:!MINILN_SINGLE_STYLE!" ^
         "Mar1and2-conditional-MiniLMsplit-%%t:0-4:!DATA_FILE!:MiniLM-multiple-%%t:!MINILN_MULTI_STYLE!" ^
         "Mar1and2-conditional-GTE-%%t:0-4:!DATA_FILE!:GTE-single-%%t:!GTE_SINGLE_STYLE!" ^
         "Mar1and2-conditional-GTEsplit-%%t:0:!DATA_FILE!:GTE-multiple-%%t:!GTE_MULTI_STYLE!" ^
-        "Mar1and2-fdm-MiniLM-!DATA!:0-29:!DATA_FILE!:FDM-MiniLM-!DATA!:!FDM_MINILN_STYLE!" ^
-        "Mar1and2-fdm-GTE-!DATA!:0-29:!DATA_FILE!:FDM-GTE-!DATA!:!FDM_GTE_STYLE!" ^
-        --ci --pdf "CaptionAdherence-%%d-%%t.pdf" --ymin !YMIN! --ymax !YMAX!
+        !FDM_ARGS! --ci --pdf "CaptionAdherence-%%d-%%t.pdf" --ymin !YMIN! --ymax !YMAX!
   )
 )
 
