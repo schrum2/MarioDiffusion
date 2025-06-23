@@ -167,18 +167,22 @@ def main():
         df[args.x_axis] = pd.to_numeric(df[args.x_axis], errors="coerce")
         grouped = df.groupby(args.group_key, observed=False)[args.x_axis].mean()
         groups_reversed = groups_with_data[::-1]
-
         y = range(len(groups_reversed))
-        if args.stacked_bar_for_mlm:
-            for q in ["", "2"]:
 
+        if args.stacked_bar_for_mlm:
+            # Define hatches for the two bars
+            HATCHES = {"": "////", "2": "\\\\\\"}
+            LABELS = {"": "Level Model (End)", "2": "Level Model (Best)"}
+            for q in ["", "2"]:
                 bar_offset = 0.25 if q == "" else -0.25
                 main_color = "skyblue" if q == "" else "lightgreen"
                 minor_color = "red" # if q == "" else "orange"
+                hatch = HATCHES[q]
+                label = LABELS[q]
 
                 # Prepare data for stacked bars
                 mlm_groups = [g for g in groups_reversed if g in ["MLM-regular", "MLM-absence", "MLM-negative"]]
-                other_groups = [g for g in groups_reversed if g not in mlm_groups]
+                # other_groups = [g for g in groups_reversed if g not in mlm_groups]
                 mlm_means = []
                 cond_means = []
                 bar_labels = []
@@ -197,15 +201,19 @@ def main():
                         single_positions.append(i + bar_offset)
                 # Plot stacked bars for MLM groups
                 plt.barh(bar_positions, mlm_means, height=0.4, color=minor_color, label="Language Model" if q == "" else None)
-                plt.barh(bar_positions, cond_means, height=0.4, left=mlm_means, color=main_color, label="Level Model (End)" if q == "" else "Level Model (Best)")
+                plt.barh(bar_positions, cond_means, height=0.4, left=mlm_means, color=main_color, hatch=hatch, edgecolor='black', label=label)
                 plt.grid(axis='x', which='both', linestyle='--', alpha=0.5)
                 # Plot single bars for other groups
-                plt.barh(single_positions, single_means, height=0.4, color=main_color)
+                plt.barh(single_positions, single_means, height=0.4, color=main_color, hatch=hatch, edgecolor='black', label=label)
                 plt.yticks(y, groups_reversed)
                 plt.xlabel(args.x_axis_label)
                 plt.ylabel(args.y_axis_label)
                 plt.xticks(rotation=args.x_tick_rotation)
-                plt.legend()
+
+                # Only show each legend entry once
+                handles, labels = plt.gca().get_legend_handles_labels()
+                by_label = dict(zip(labels, handles))
+                plt.legend(by_label.values(), by_label.keys())
 
                 if args.x_markers_on_bar_plot:
                     if args.x_marker_data_on_bar_plot:
