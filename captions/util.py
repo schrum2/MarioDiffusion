@@ -168,8 +168,8 @@ def extract_tileset(tileset_path):
         tile_chars = sorted(tileset['tiles'].keys())
         # Wiggle room for the tileset to be a bit more flexible.
         # However, this requires me to add some bogus tiles to the list.
-        tile_chars.append('!') 
-        tile_chars.append('*') 
+        # tile_chars.append('!') 
+        # tile_chars.append('*') 
         #print(f"tile_chars: {tile_chars}")
         id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
         #print(f"id_to_char: {id_to_char}")
