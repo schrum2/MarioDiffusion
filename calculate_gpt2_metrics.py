@@ -11,6 +11,8 @@ def parse_args():
     parser.add_argument("--training_levels", type=str, default="datasets\\Mar1and2_LevelsAndCaptions-regular.json", help="The filepath of the LevelsAndCaptions format for default data")
 
     parser.add_argument("--output_dir", type=str, default="MarioGPT_metrics", help="The output directory for the created json data")
+    parser.add_argument("--num_runs", type=int, default=1, help="The number of astar runs to do")
+
 
 
     return parser.parse_args()
@@ -42,12 +44,12 @@ def main():
     print("Finding astar metrics")
     #Do the full dataset instead of just 100 if we have more
     if(samples_json!=allsamples_json):
-        create_astar_metrics(allsamples_json, args.output_dir, fullsamples=True)
-    create_astar_metrics(samples_json, args.output_dir)
+        create_astar_metrics(allsamples_json, args.output_dir, fullsamples=True, num_runs=args.num_runs)
+    create_astar_metrics(samples_json, args.output_dir, num_runs=args.num_runs)
 
 
 
-def create_astar_metrics(allsamples_json, output_dir, fullsamples=False):
+def create_astar_metrics(allsamples_json, output_dir, fullsamples=False, num_runs=1):
     # Load generated levels and real levels
     with open(allsamples_json, "r") as f:
         generated_data = json.load(f)
@@ -61,7 +63,7 @@ def create_astar_metrics(allsamples_json, output_dir, fullsamples=False):
     if fullsamples:
         savename = "full_"+savename
 
-    metrics.astar_metrics(generated_scenes, output_json_path=output_path, save_name=savename)  
+    metrics.astar_metrics(generated_scenes, output_json_path=output_path, save_name=savename, num_runs=num_runs)  
     
 
     print(f"Astar metrics saved to {output_dir}")
@@ -104,7 +106,7 @@ def find_metrics_of_samples(samples_json, real_json, output_dir):
 
     # Save results to a JSON file
     results = {
-        "average_min_edit_distance_generated": avg_min_edit_distance,
+        "average_min_edit_distance": avg_min_edit_distance,
         "average_min_edit_distance_from_real": avg_min_edit_distance_from_real,
         "perfect_matches_to_real": perfect_matches,
         "broken_pipes_percentage_in_dataset": broken_pipe_percent,

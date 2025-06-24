@@ -161,14 +161,14 @@ class SampleOutput:
             if self.use_snes_graphics:
                 simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
             else:
-                simulator = CustomSimulator(level=self.level)
+                simulator = CustomSimulator(level=self.level, jar_path="NESMarioEval.jar")
             simulator.interactive()
 
     def run_astar(self, render=True):
         if self.use_snes_graphics:
             simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
         else:
-            simulator = CustomSimulator(level=self.level)
+            simulator = CustomSimulator(level=self.level, jar_path="NESMarioEval.jar")
         return simulator.astar(render)
 
 class CustomSimulator:
@@ -181,7 +181,7 @@ class CustomSimulator:
         to caption and return that information)
     """
 
-    def __init__(self, level, jar_path="NESMarioEval.jar"):
+    def __init__(self, level, jar_path="MarioEval.jar"):
         while len(level) > 15:
             level.pop(0)
         # For some reason, my older A* agent
