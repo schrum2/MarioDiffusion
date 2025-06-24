@@ -55,12 +55,22 @@ Must be in a directory that contains both of the other two directory before usin
 python LodeRunner\loderunner\main.py LR_LevelsAndCaptions-regular.json 1
 ```
 
+Captions will be automatically assigned to the levels, and you can browse that data with this command:
+```
+python ascii_data_browser.py LR-conditional-regular0-samples-from-real-LR-captions\all_levels.json
+```
+
+But to actually provide captions to guide the level generation, use this command
+```
+python text_to_level_diffusion.py --model_path LR-conditional-regular --game LR
+```
+
 Batch file that fully runs unconditional diffusion for Lode Runner (as long as the file do not exist):
 ```
-BAT_LR-unconditional.bat
+LR-unconditional.bat
 ```
 
 Batch file that fully runs conditional diffusion for Lode Runner (as long as the file do not exist):
 ```
-BAT_LR-conditional.bat
+LR-conditional.bat
 ```
