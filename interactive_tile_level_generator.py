@@ -25,6 +25,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # except ImportError:
 #     lr_main = None  # Handle gracefully if not present
 
+# Global constant for GUI font size
+GUI_FONT_SIZE = 22 # 12
+
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
         super().__init__(master) 
@@ -44,7 +47,7 @@ class CaptionBuilder(ParentBuilder):
         self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
         self.caption_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False)  # Only fill vertically, don't expand horizontally
         
-        self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", font=("Arial", 12, "bold"))
+        self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", font=("Arial", GUI_FONT_SIZE, "bold"))
         self.caption_label.pack(pady=5)
         
         self.caption_text = tk.Text(self.caption_frame, height=8, wrap=tk.WORD, state=tk.DISABLED)
