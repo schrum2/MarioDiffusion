@@ -94,7 +94,7 @@ def verify_data_completeness(model_path, type_str):
             errors.append(f"Requirement 2 failed: 'evaluation_metrics.json' file is missing in {random_samples}.")
         
         if is_zero_iteration(model_path):
-            print("ZERO!")
+            #print("ZERO!")
             astar_metrics_path = os.path.join(os.path.dirname(random_samples), "astar_result.jsonl")
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 3 failed: 'astar_result.jsonl' file is missing in {random_samples}")
