@@ -228,6 +228,16 @@ python calculate_gpt2_metrics.py --generated_levels "datasets\\MarioGPT_LevelsAn
 
 ## Comparing model results
 
+Evaluating A* Solvability for each model using up to 100 samples from all_levels.json from each model. This returns astar_result_overall_averages.json, the average across all averages of metrics returned from all A* runs on tested levels. Returns from the following batch file are automatically plotted in plot_metrics.bat (described in the next section.)
+
+```
+evaluate-solvability.bat
+```
+After running this batch file, you can plot these results on their own with the following command:
+```
+python evaluate_models.py --plot_file astar_result_overall_averages.json --modes real random short --metric "beaten" --plot_label "Percent Beatable Levels" --save
+```
+
 Average minimum edit distance (amed) calculates the edit distance for each level in a levelset against a levelset. We calculate amed self, where the min edit distance is calculated for each level against the remaining levels in the set, and amed real, where the min edit distance is calculated for each level in a levelset against the entire real levelset that was used to generate the level.
 
 All amed plots and calculations - as well as broken feature generatsion plots - can be run like this
