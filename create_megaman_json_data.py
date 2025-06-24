@@ -33,7 +33,7 @@ def main():
 
 #Parses through one complete level
 def parse_level(level, width, height):
-    startx, starty = find_start(level)
+    startx, starty = find_start(level, width, height)
     sample=get_sample_from_idx(level, startx, starty, width, height)
     for row in sample:
         print(row)
@@ -41,11 +41,61 @@ def parse_level(level, width, height):
 
 
 #Finds the spawn sample to begin searching
-def find_start(level):
+def find_start(level, width, height):
+    start_y=-1
+    start_x=-1
+
+    #Loop through every row to find the spawn location
     for i in range(len(level)):
-        if level[i][0]!='@':
-            return 0, i
-    return 0, 0
+        if level[i].find('P')!=-1:
+            start_y=i
+            start_x=level[i].find('P')
+            break
+    
+    if start_y==-1:
+        raise ValueError("Spawn location not found!")
+    
+
+    #Continue searching down for the bottom of the level or more null chars
+    #We do this to get the full level scene, not just the spawn point and up
+    lowest_possible_start = min(len(level), start_y+height)
+    lowest_found = False
+    for i in range(start_y, lowest_possible_start):
+        if level[i][start_x]=='@':
+            start_y=i
+            start_y=start_y-height #This is needed because we expect a top left index, not a bottom left
+            lowest_found=True
+            break
+    
+
+    #Check to see if we didn't find a lower null char (Meaning we hit the bottom of the level, or the level keeps going down awhile)
+    if not lowest_found:
+        #Did we reach the bottom of the level?
+        if lowest_possible_start==len(level):
+            start_y=lowest_possible_start
+            start_y=start_y-height
+        #If not, the level is vertical downwards, so we need to go up to reach the top
+        else:
+            #Pretty much the same sequence of checks again, just going up this time, this should only rarely be needed
+            highest_possible_start=max(start_y-height, 0)
+            heighest_found=False
+            for i in range(start_y, highest_possible_start, -1):
+                if level[i][start_x]=='@':
+                    start_y=i
+                    break
+            
+            if not heighest_found:
+                start_y=highest_possible_start
+
+    
+
+    #Start at the left edge if close enough
+    if start_x<width:
+        start_x=0
+    else:
+        start_x=start_x-width
+    
+    return start_x, start_y
 
 
 #Gets a full level sample of the desired size from the top left corner
