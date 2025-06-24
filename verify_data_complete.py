@@ -428,7 +428,7 @@ def main():
             return
         
         for model_path in matched_dirs:
-            if args.override_metrics and "MarioGPT" not in dir_path: 
+            if args.override_metrics and "MarioGPT" not in model_path: 
                 evaluate_metrics(model_path, "Mar1and2", override=args.override_metrics)
 
             if not args.show_successes and not args.show_errors: print(f"\nChecking model directory: {model_path}")
@@ -456,6 +456,10 @@ def main():
 
         for i in range(args.start_num, args.end_num + 1):
             model_path = f"{args.prefix}{i}"
+
+            if args.override_metrics and "MarioGPT" not in model_path: 
+                evaluate_metrics(model_path, "Mar1and2", override=args.override_metrics)
+
             if not args.show_successes and not args.show_errors: print(f"\nChecking model directory: {model_path}")
             dir_type = "absence" if "absence" in model_path.lower() else "regular"
 
