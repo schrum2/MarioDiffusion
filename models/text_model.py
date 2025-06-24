@@ -1,3 +1,5 @@
+import argparse
+from xml.parsers.expat import model
 import torch
 import torch.nn as nn
 import math
@@ -131,3 +133,74 @@ class TransformerModel(nn.Module):
             model.tokenizer = tokenizer
 
         return model
+    
+    def print_architecture(self, inputs=None):
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--model_path", type=str, required=True, help="Path to trained transformer model")
+        parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
+        parser.add_argument("--num_samples", type=int, default=10, help="Number of captions to evaluate")
+        parser.add_argument("--mask_prob", type=float, default=0.15, help="Probability of masking each token")
+
+        parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
+        args = parser.parse_args()
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = TransformerModel.from_pretrained(args.model_path).to(device)
+        print(f"Loaded model from {args.model_path}")
+
+        import os
+        import re
+        import json
+        import matplotlib.pyplot as plt
+        from torchview import draw_graph
+        import graphviz
+
+        graph = draw_graph(
+            model=model,
+            input_data=inputs,
+            expand_nested=False,
+            #enable_output_shape=True,   
+            #roll_out="nested",
+            depth=1
+        )
+
+        # Save plot
+        filename = 'mlm_architecture'
+        graph.visual_graph.render(filename, format='pdf', cleanup=False)  # Cleanup removes intermediate files
+        #graph.visual_graph.save('unet_architecture.dot')
+
+    def save_architecture_pdf(self, filename="transformer_architecture.pdf", input_length=32):
+        """Save a visualization of the model architecture as a PDF using torchview."""
+        try:
+            from torchview import draw_graph
+        except ImportError:
+            raise ImportError("torchview is required for model visualization. Install with 'pip install torchview'.")
+        import torch
+        import os
+        # Create a dummy input of the correct type for the model
+        captions = ["full floor. two coins. one pipe.", "floor with two gaps. one cannon. many enemies."]
+        tensor = encode_token_captions(captions, self.tokenizer, self.max_seq_length, device=next(self.parameters()).device)
+        input_length = tensor.size(1) if tensor.dim() > 1 else self.max_seq_length
+
+        num_tokens_list = [len(self.tokenizer.encode(c)) for c in captions]
+        input_length = max(num_tokens_list) if num_tokens_list else input_length
+        dummy_input = torch.zeros((1, input_length), dtype=torch.long, device=next(self.parameters()).device)
+
+        # Draw the graph and save as PNG
+        graph = draw_graph(self, input_data=dummy_input, expand_nested=True, save_graph=True, filename=filename.replace('.pdf',''), directory=".", depth=2)
+        png_file = filename.replace('.pdf', '.png')
+        # Convert PNG to PDF
+        if os.path.exists(png_file):
+            try:
+                from PIL import Image
+                im = Image.open(png_file)
+                im.save(filename, "PDF", resolution=100.0)
+                print(f"Saved architecture PDF to {filename}")
+                # Optionally, remove the PNG file
+                os.remove(png_file)
+            except ImportError:
+                print(f"PIL not installed. Architecture saved as PNG: {png_file}")
+            except Exception as e:
+                print(f"Could not convert PNG to PDF: {e}")
+        else:
+            print(f"Could not find PNG file to convert: {png_file}")
