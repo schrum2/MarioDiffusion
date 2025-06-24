@@ -52,7 +52,7 @@ python tokenizer.py save --json_file LR_LevelsAndCaptions-regular.json --pkl_fil
 If the user wanted to play the levels, use the following command line. The following line allows the user to play the first level. If the user wants to play a different level, change the 1 to the level they wish to play.
 Must be in a directory that contains both of the other two directory before using this command line.
 ```
-python LodeRunner\loderunner\main.py MarioDiffusion/LR_LevelsAndCaptions-regular.json 1
+python LodeRunner\loderunner\main.py LR_LevelsAndCaptions-regular.json 1
 ```
 
 Batch file that fully runs unconditional diffusion for Lode Runner (as long as the file do not exist):
