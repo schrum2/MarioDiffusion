@@ -35,7 +35,7 @@ def extract_prefix(name):
     elif "-wgan" in name:
         # return re.sub(r"-wgan\d+", "-wgan", name)
         return "Mar1and2-wgan"
-    elif "MarioGPT" in name:
+    elif "MarioGPT_metrics" in name:
         return "MarioGPT_metrics"
     return name.rstrip("0123456789").rstrip("-_")
 
@@ -84,7 +84,7 @@ def get_metrics_path(base_dir, mode, plot_file, full_metrics=False):
     elif "-wgan" in model_name:
         return os.path.join(f"{base_dir}-samples", plot_file)
 
-    elif "MarioGPT" in model_name:
+    elif "MarioGPT_metrics" in model_name:
         return os.path.join(base_dir, f"{mode}_levels", plot_file)
     else:
         print(f"[WARNING] Unknown model type for: {model_name}")
