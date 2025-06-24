@@ -91,19 +91,21 @@ def find_metrics_of_samples(samples_json, real_json, output_dir):
         avg_min_edit_distance_from_real, perfect_matches = metrics.average_min_edit_distance_from_real(generated_scenes, real_scenes)
 
     # Broken pipe calculations (as percent of scenes with broken pipes)
-    broken_pipe_percent = metrics.analyze_broken_pipes(generated_data, as_instance_of_feature=False)
+    broken_pipe_count, total_scenes = metrics.analyze_broken_pipes(generated_data, as_instance_of_feature=False, as_count=True)
+    broken_pipe_percent = (broken_pipe_count / total_scenes) * 100
 
     # Broken pipe calculations (as percent of all pipes)
-    broken_pipes_percentage_of_pipes = metrics.analyze_broken_pipes(generated_data, as_instance_of_feature=True)
+    broken_pipe_count, pipe_scenes = metrics.analyze_broken_pipes(generated_data, as_instance_of_feature=True, as_count=True)
+    broken_pipes_percentage_of_pipes = (broken_pipe_count / pipe_scenes) * 100
 
     # Broken cannon calculations (as percent of scenes with broken cannons)
-    broken_cannon_percent = metrics.analyze_broken_cannons(generated_data, as_instance_of_feature=False)
+    broken_cannon_count, total_scenes = metrics.analyze_broken_cannons(generated_data, as_instance_of_feature=False, as_count=True)
+    broken_cannon_percent = (broken_cannon_count / total_scenes) * 100
 
     # Broken cannon calculations (as percent of all cannons)
-    broken_cannons_percentage_of_cannons = metrics.analyze_broken_cannons(generated_data, as_instance_of_feature=True)
-
+    broken_cannont_count, cannon_scenes = metrics.analyze_broken_cannons(generated_data, as_instance_of_feature=True, as_count=True)
+    broken_cannons_percentage_of_cannons = (broken_cannont_count / cannon_scenes) * 100
     
-
     # Save results to a JSON file
     results = {
         "average_min_edit_distance": avg_min_edit_distance,
@@ -112,7 +114,12 @@ def find_metrics_of_samples(samples_json, real_json, output_dir):
         "broken_pipes_percentage_in_dataset": broken_pipe_percent,
         "broken_pipes_percentage_of_pipes": broken_pipes_percentage_of_pipes,
         "broken_cannons_percentage_in_dataset": broken_cannon_percent,
-        "broken_cannons_percentage_of_cannons": broken_cannons_percentage_of_cannons
+        "broken_cannons_percentage_of_cannons": broken_cannons_percentage_of_cannons,
+        "total_generated_levels": total_scenes,
+        "broken_pipes_count": broken_pipe_count,
+        "broken_cannons_count": broken_cannon_count,
+        "total_pipes": pipe_scenes,
+        "total_cannons": cannon_scenes
     }
 
     output_path = os.path.join(output_dir, "MarioGPT_metrics_summary.json")

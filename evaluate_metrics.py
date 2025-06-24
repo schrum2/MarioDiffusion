@@ -71,13 +71,31 @@ def evaluate_all_levels(json_file_path, output_file, game, key, debug):
 
         #print(f"Found {len(prompts)} prompts, {len(levels)} generated levels, and {len(captions)} generated captions.")
 
+        broken_pipe_count, total_scenes = count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=False, as_count=True)
+        broken_pipes_percentage_in_dataset = (broken_pipe_count / total_scenes) * 100
+
+        broken_pipe_count, pipe_scenes = count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=True, as_count=True)
+        broken_pipes_percentage_of_pipes = (broken_pipe_count / pipe_scenes) * 100
+
+        broken_cannon_count, total_scenes = count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=False, as_count=True)
+        broken_cannons_percentage_in_dataset = (broken_cannon_count / total_scenes) * 100
+
+        broken_cannon_count, cannon_scenes = count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True, as_count=True)
+        broken_cannons_percentage_of_cannons = (broken_cannon_count / cannon_scenes) * 100
+
         metrics = {
             "file_name": os.path.basename(json_file_path),
             "average_min_edit_distance": average_min_edit_distance(levels),
-            "broken_pipes_percentage_in_dataset": count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=False),
-            "broken_pipes_percentage_of_pipes": count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=True),
-            "broken_cannons_percentage_in_dataset": count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=False),
-            "broken_cannons_percentage_of_cannons":count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True),
+            "broken_pipes_percentage_in_dataset": broken_pipes_percentage_in_dataset,
+            "broken_pipes_percentage_of_pipes": broken_pipes_percentage_of_pipes,
+            "broken_cannons_percentage_in_dataset": broken_cannons_percentage_in_dataset,
+            "broken_cannons_percentage_of_cannons": broken_cannons_percentage_of_cannons,
+
+            "total_generated_levels": total_scenes,
+            "broken_pipes_count": broken_pipe_count,
+            "broken_cannons_count": broken_cannon_count,
+            "total_pipes": pipe_scenes,
+            "total_cannons": cannon_scenes
         }
         
         if key == "real" or key == "short" or key == "random" or key == "real_full": 
