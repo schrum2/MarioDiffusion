@@ -153,7 +153,9 @@ def evaluate_metrics(model_path, game, override, debug=False):
     """
     # Determine the model type from naming convention
     fdm = "fdm" in model_path.lower()
-    wgan = "wgan" in model_path.lower() and "samples" in model_path.lower()
+    wgan = "wgan" in model_path.lower() and not "samples" in model_path.lower()
+    wgan_samples = "wgan" in model_path.lower() and "samples" in model_path.lower()
+    unconditional = "-unconditional" in model_path.lower()
     unconditional_short = "unconditional-samples-short" in model_path.lower()
     unconditional_long = "unconditional-samples-long" in model_path.lower()
     conditional = "-conditional-" in model_path.lower()
@@ -171,18 +173,31 @@ def evaluate_metrics(model_path, game, override, debug=False):
     elif wgan:
         if debug: print("Wgan model detected")
         paths = {
-            "short": os.path.join(model_path, "all_levels.json")
+            "short": os.path.join(f"{model_path}-samples", "all_levels.json")
         }
+    elif unconditional:
+        if debug: print("Unconditional model detected")
+        paths = {
+            "short": os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json"),
+            "long": os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json"),
+        }
+    elif wgan_samples:
+        print(f"Skip {model_path} as it is wgan samples")
+        return
     elif unconditional_short:
-        if debug: print("Unconditional model (short samples) detected")
-        paths = {
-            "short": os.path.join(model_path, "all_levels.json")
-        }
+        print(f"Skip {model_path} as it is an unconditional model with short samples")
+        return
+#        if debug: print("Unconditional model (short samples) detected")
+#        paths = {
+#            "short": os.path.join(model_path, "all_levels.json")
+#        }
     elif unconditional_long:
-        if debug: print("Unconditional model (long samples) detected")
-        paths = {
-            "long": os.path.join(model_path, "all_levels.json")
-        }
+        print(f"Skip {model_path} as it is an unconditional model with long samples")
+        return
+#        if debug: print("Unconditional model (long samples) detected")
+#        paths = {
+#            "long": os.path.join(model_path, "all_levels.json")
+#        }
     elif conditional: # Define paths for the four expected all_levels.json files for a conditional model
         if debug: print("Conditional model detected")
         paths = {
@@ -192,6 +207,9 @@ def evaluate_metrics(model_path, game, override, debug=False):
             "long": os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json"),
             "real_full": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels_full.json"),
         }
+    else:
+        print(f"Error: Model type not recognized in path - {model_path}")
+        raise ValueError(f"Model type not recognized in path: {model_path}")
 
     for key, json_path in paths.items():
         if os.path.isfile(json_path):
