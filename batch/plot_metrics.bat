@@ -21,6 +21,6 @@ python evaluate_models.py --modes real random short real_full --full_metrics --m
 
 REM A* Solvability
 :: Run A* for metric results to create: astar_result.json and astar_result_overall_averages.json for each model
-call evaluate-solvability.bat
+REM call evaluate-solvability.bat
 :: Plot A* Solvability
 python evaluate_models.py --plot_file astar_result_overall_averages.json --modes real random short --metric "beaten" --plot_label "Percent Beatable Levels" --save
