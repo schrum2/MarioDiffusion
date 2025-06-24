@@ -134,7 +134,7 @@ def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
     """
     # Clean captions by removing "no broken" phrases. Does not remove the caption, rather changes it
     cleaned_captions = [
-        caption.replace(f"no broken {feature}s", "").replace(f"no broken {feature}", "").replace(f"no {feature}s", "").replace(f"no {feature}", "").replace("no upside down {feature}s", "").strip()
+        caption.replace(f"no broken {feature}s", "").replace(f"no broken {feature}", "").replace(f"no {feature}s", "").replace(f"no {feature}", "").replace(f"no upside down {feature}s", "").replace(f"no upside down {feature}", "").strip()
         for caption in captions
     ]
     return cleaned_captions
