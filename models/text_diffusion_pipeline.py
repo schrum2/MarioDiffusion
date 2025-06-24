@@ -435,6 +435,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         )
         
         graph.visual_graph.render(filename, format='pdf', cleanup=False)  # Cleanup removes intermediate files
+        graph.visual_graph.save('unet_architecture.dot')
 
         # Save the graph to a PDF file
         print(f"UNet architecture saved to {filename}")

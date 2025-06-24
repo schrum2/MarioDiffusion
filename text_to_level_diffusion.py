@@ -59,7 +59,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.pipe = get_pipeline(args.model_path).to(self.device)
         self.pipe.print_unet_architecture()
-        self.pipe.save_unet_architecture_pdf(height, width)
+        #self.pipe.save_unet_architecture_pdf(height, width)
 
         if args.automatic_negative_captions or not self.pipe.supports_negative_prompt:
             self.input_parameters.pop('negative_prompt', None)

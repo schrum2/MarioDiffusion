@@ -37,7 +37,9 @@ def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15, console
 
             with torch.no_grad():
                 output = model(input_tensor)
-            
+                # Uncomment to save architecture as PDF
+                #model.save_architecture_pdf("my_transformer.pdf")
+
             predicted_ids = output[0].argmax(-1).tolist()
             
             for idx in masked_indices:
@@ -70,7 +72,7 @@ def evaluate_model(model, tokenizer, dataloader, device, mask_prob=0.15, console
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, required=True, help="Path to trained transformer model")
-    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions-regular-test.json", help="Path to dataset json file")
     parser.add_argument("--num_samples", type=int, default=10, help="Number of captions to evaluate")
     parser.add_argument("--mask_prob", type=float, default=0.15, help="Probability of masking each token")
 
@@ -79,6 +81,7 @@ if __name__ == "__main__":
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = TransformerModel.from_pretrained(args.model_path).to(device)
+
     print(f"Loaded model from {args.model_path}")
     
     dataset = LevelDataset(args.json, model.tokenizer, mode="text")
