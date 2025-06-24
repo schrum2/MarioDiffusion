@@ -26,12 +26,20 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 #     lr_main = None  # Handle gracefully if not present
 
 # Global constant for GUI font size
-GUI_FONT_SIZE = 22 # 12
+GUI_FONT_SIZE = 12 # 12
+GUI_FONT = ("Arial", GUI_FONT_SIZE)
 
 class CaptionBuilder(ParentBuilder):
     def __init__(self, master):
         super().__init__(master) 
-                
+        # Set ttk style for font size
+        style = ttk.Style()
+        style.configure("TLabel", font=GUI_FONT)
+        style.configure("TButton", font=GUI_FONT)
+        style.configure("TCheckbutton", font=GUI_FONT)
+        style.configure("TEntry", font=GUI_FONT)
+        style.configure("TCombobox", font=GUI_FONT)
+        
         # Holds tensors of levels currently on display
         self.current_levels = []
         self.generated_images = []
@@ -47,53 +55,52 @@ class CaptionBuilder(ParentBuilder):
         self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
         self.caption_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False)  # Only fill vertically, don't expand horizontally
         
-        self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", font=("Arial", GUI_FONT_SIZE, "bold"))
+        self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", style="TLabel", font=GUI_FONT)
         self.caption_label.pack(pady=5)
         
-        self.caption_text = tk.Text(self.caption_frame, height=8, wrap=tk.WORD, state=tk.DISABLED)
+        self.caption_text = tk.Text(self.caption_frame, height=8, wrap=tk.WORD, state=tk.DISABLED, font=GUI_FONT)
         self.caption_text.pack() 
                 
-        self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:")
+        self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:", style="TLabel")
         self.negative_prompt_label.pack()
-        self.negative_prompt_entry = ttk.Entry(self.caption_frame, width=100)
+        self.negative_prompt_entry = ttk.Entry(self.caption_frame, width=100, font=GUI_FONT)
         self.negative_prompt_entry.pack()
         self.negative_prompt_entry.insert(0, "")
         
-        self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:")
+        self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:", style="TLabel")
         self.num_images_label.pack()        
-        self.num_images_entry = ttk.Entry(self.caption_frame)
+        self.num_images_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.num_images_entry.pack()
         self.num_images_entry.insert(0, "4")
 
-        self.seed_label = ttk.Label(self.caption_frame, text="Random Seed:")
+        self.seed_label = ttk.Label(self.caption_frame, text="Random Seed:", style="TLabel")
         self.seed_label.pack()        
-        self.seed_entry = ttk.Entry(self.caption_frame)
+        self.seed_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.seed_entry.pack()
         self.seed_entry.insert(0, "1")
 
-        self.num_steps_label = ttk.Label(self.caption_frame, text="Num Inference Steps:")
+        self.num_steps_label = ttk.Label(self.caption_frame, text="Num Inference Steps:", style="TLabel")
         self.num_steps_label.pack()
-        self.num_steps_entry = ttk.Entry(self.caption_frame)
+        self.num_steps_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.num_steps_entry.pack()
         self.num_steps_entry.insert(0, f"{common_settings.NUM_INFERENCE_STEPS}")
         
-        self.guidance_label = ttk.Label(self.caption_frame, text="Guidance Scale:")
+        self.guidance_label = ttk.Label(self.caption_frame, text="Guidance Scale:", style="TLabel")
         self.guidance_label.pack()
-        self.guidance_entry = ttk.Entry(self.caption_frame)
+        self.guidance_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.guidance_entry.pack()
         self.guidance_entry.insert(0, f"{common_settings.GUIDANCE_SCALE}")
 
-        self.width_label = ttk.Label(self.caption_frame, text="Width (in tiles):")
+        self.width_label = ttk.Label(self.caption_frame, text="Width (in tiles):", style="TLabel")
         self.width_label.pack()
-        self.width_entry = ttk.Entry(self.caption_frame)
+        self.width_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.width_entry.pack()
-        #self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
         self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
                 
-        self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
+        self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image, style="TButton")
         self.generate_button.pack(pady=5)
                 
-        self.model_button = ttk.Button(self.checkbox_frame, text="Load Model", command=self.load_model)
+        self.model_button = ttk.Button(self.checkbox_frame, text="Load Model", command=self.load_model, style="TButton")
         self.model_button.pack(anchor=tk.E)
 
         # Frame for image display
@@ -121,11 +128,11 @@ class CaptionBuilder(ParentBuilder):
         
         self.checkbox_vars = {}
 
-        self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet")
+        self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet", style="TLabel")
         self.loaded_model_label.pack()
 
         self.debug_caption = tk.BooleanVar(value=False)
-        self.debug_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Debug Caption Match", variable=self.debug_caption)
+        self.debug_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Debug Caption Match", variable=self.debug_caption, style="TCheckbutton")
         self.debug_caption_checkbox.pack()
 
         # Frame for composed level controls
@@ -142,24 +149,24 @@ class CaptionBuilder(ParentBuilder):
         row3 = ttk.Frame(self.composed_frame)
         row3.pack(pady=(10, 0), anchor="center")
 
-        self.play_composed_button = ttk.Button(row1, text="Play Composed Level", command=self.play_composed_level)
+        self.play_composed_button = ttk.Button(row1, text="Play Composed Level", command=self.play_composed_level, style="TButton")
         self.play_composed_button.pack(side=tk.LEFT, padx=5)
-        self.astar_composed_button = ttk.Button(row1, text="Use A* on Composed Level", command=self.astar_composed_level)
+        self.astar_composed_button = ttk.Button(row1, text="Use A* on Composed Level", command=self.astar_composed_level, style="TButton")
         self.astar_composed_button.pack(side=tk.LEFT, padx=5)
         self.use_snes_graphics = tk.BooleanVar(value=False)
-        self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics)
+        self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics, style="TCheckbutton")
         self.graphics_checkbox.pack(side=tk.LEFT, padx=5)
 
-        self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=self.delete_selected_composed_image)
+        self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=self.delete_selected_composed_image, style="TButton")
         self.delete_image_button.pack(side=tk.LEFT, padx=10)
-        self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level)
+        self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level, style="TButton")
         self.clear_composed_button.pack(side=tk.LEFT, padx=10)
-        self.save_composed_button = ttk.Button(row2, text="Save Composed Level", command=self.save_composed_level)
+        self.save_composed_button = ttk.Button(row2, text="Save Composed Level", command=self.save_composed_level, style="TButton")
         self.save_composed_button.pack(side=tk.LEFT, padx=10)
         
-        self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1))
+        self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1), style="TButton")
         self.move_left_button.pack(side=tk.LEFT, padx=60)
-        self.move_right_button = ttk.Button(row3, text="Move Selected Image Right", command=lambda: self.move_selected_image(1))
+        self.move_right_button = ttk.Button(row3, text="Move Selected Image Right", command=lambda: self.move_selected_image(1), style="TButton")
         self.move_right_button.pack(side=tk.LEFT, padx=60)
 
         # Frame for thumbnails with horizontal scrolling
@@ -181,9 +188,9 @@ class CaptionBuilder(ParentBuilder):
 
         # Game selection
         self.game_var = tk.StringVar(value="Mario")
-        self.game_label = ttk.Label(self.caption_frame, text="Select Game:")
+        self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner"], state="readonly")
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner"], state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
 
     def create_image_context_menu(self, pil_image, image_index):
@@ -469,7 +476,8 @@ Average Segment Score: {avg_segment_score}"""
             play_button = ttk.Button(
                 button_frame, 
                 text="Play", 
-                command=lambda idx=i: self.play_level(idx)
+                command=lambda idx=i: self.play_level(idx),
+                style="TButton"
             )
             play_button.pack(side=tk.LEFT, padx=5)
     
@@ -477,7 +485,8 @@ Average Segment Score: {avg_segment_score}"""
             astar_button = ttk.Button(
                 button_frame, 
                 text="Use A*", 
-                command=lambda idx=i: self.use_astar(idx)
+                command=lambda idx=i: self.use_astar(idx),
+                style="TButton"
             )
             astar_button.pack(side=tk.LEFT, padx=5)
 
@@ -485,7 +494,8 @@ Average Segment Score: {avg_segment_score}"""
             add_button = ttk.Button(
                 button_frame,
                 text="Add To Level",
-                command=lambda idx=i: self.add_to_composed_level(idx)
+                command=lambda idx=i: self.add_to_composed_level(idx),
+                style="TButton"
             )
             add_button.pack(side=tk.LEFT, padx=5)
 
