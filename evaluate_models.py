@@ -171,6 +171,9 @@ def main():
 
     grouped = defaultdict(list)
     for dir_path, num, dir_type in numbered_dirs:
+        # Skip MarioGPT_Levels directory (special case)
+        if os.path.basename(dir_path) == "MarioGPT_Levels":
+            continue
         prefix = extract_prefix(dir_path)
         grouped[prefix].append(dir_path)
 
@@ -266,7 +269,7 @@ def main():
     for i, mode in enumerate(modes):
         means = []
         conf_intervals = []
-
+        total_pipes_percentages = []  # For background bars
         for model in sorted_models:
             values = data[model].get(mode, [])
             mean_val = sum(values) / len(values) if values else 0
@@ -280,8 +283,34 @@ def main():
                 conf_interval = t_score * std / (n ** 0.5)
             else:
                 conf_interval = 0
-
             conf_intervals.append(conf_interval)
+
+            # Special case for broken_pipes_percentage_in_dataset
+            if metric_key == "broken_pipes_percentage_in_dataset":
+                # Load the metrics dict for this model/mode
+                metrics_path = get_metrics_path(grouped[model][0], mode, args.plot_file, args.full_metrics)
+                if not metrics_path or not os.path.exists(metrics_path):
+                    raise ValueError(f"[BROKEN PIPES] Missing: {metrics_path}")
+                with open(metrics_path, 'r') as f:
+                    metrics = json.load(f)
+                for k in ["broken_pipes_percentage_in_dataset", "total_pipes", "broken_pipes_count", "total_generated_levels"]:
+                    if k not in metrics:
+                        raise KeyError(f"[BROKEN PIPES] Key '{k}' missing in {metrics_path}")
+                broken = metrics["broken_pipes_count"]
+                total = metrics["total_generated_levels"]
+                percent = metrics["broken_pipes_percentage_in_dataset"]
+                total_pipes = metrics["total_pipes"]
+                # Check value
+                computed = (broken / total) * 100 if total else 0
+                if abs(percent - computed) > 1e-3:
+                    raise ValueError(f"[BROKEN PIPES] Value mismatch in {metrics_path}: {percent} != {computed}")
+                # Check range
+                if not (broken <= total_pipes <= total):
+                    raise ValueError(f"[BROKEN PIPES] total_pipes ({total_pipes}) not in [{broken}, {total}] in {metrics_path}")
+                total_pipes_percentage = (total_pipes / total) * 100 if total else 0
+                total_pipes_percentages.append(total_pipes_percentage)
+            else:
+                total_pipes_percentages.append(None)
 
         bar_positions = [xi + offsets[i] for xi in x]
 
@@ -306,6 +335,18 @@ def main():
             should_add_to_legend = not has_added_mode_to_legend[mode] and not is_mariogpt
             if should_add_to_legend:
                 has_added_mode_to_legend[mode] = True
+
+            # Plot background bar for total_pipes_percentage if metric is broken_pipes_percentage_in_dataset
+            if metric_key == "broken_pipes_percentage_in_dataset" and total_pipes_percentages[j] is not None:
+                plt.barh(
+                    bar_positions[j],
+                    total_pipes_percentages[j],
+                    height=bar_width, 
+                    color="#444444",
+                    edgecolor='black',
+                    alpha=0.3,
+                    zorder=0
+                )
 
             # Plot bar with or without error bar
             if args.errorbar:
