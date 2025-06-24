@@ -288,14 +288,15 @@ def main():
             # Special case for broken_pipes_percentage_in_dataset
             if metric_key == "broken_pipes_percentage_in_dataset":
                 # Load the metrics dict for this model/mode
-                metrics_path = get_metrics_path(grouped[model][0], mode, args.plot_file, args.full_metrics)
+                model_dirs = grouped.get(model, None)
+                metrics_path = get_metrics_path(model_dirs[0] if model_dirs else None, mode, args.plot_file, args.full_metrics) if model_dirs else None
                 if not metrics_path or not os.path.exists(metrics_path):
-                    raise ValueError(f"[BROKEN PIPES] Missing: {metrics_path}")
+                    raise ValueError(f"[BROKEN PIPES] Missing: {metrics_path}\n  model: {model}\n  mode: {mode}\n  grouped[model]: {model_dirs}")
                 with open(metrics_path, 'r') as f:
                     metrics = json.load(f)
                 for k in ["broken_pipes_percentage_in_dataset", "total_pipes", "broken_pipes_count", "total_generated_levels"]:
                     if k not in metrics:
-                        raise KeyError(f"[BROKEN PIPES] Key '{k}' missing in {metrics_path}")
+                        raise KeyError(f"[BROKEN PIPES] Key '{k}' missing in {metrics_path}\n  model: {model}\n  mode: {mode}\n  grouped[model]: {model_dirs}")
                 broken = metrics["broken_pipes_count"]
                 total = metrics["total_generated_levels"]
                 percent = metrics["broken_pipes_percentage_in_dataset"]
