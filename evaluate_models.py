@@ -271,6 +271,14 @@ def main():
         conf_intervals = []
         total_pipes_percentages = []  # For background bars
         for model in sorted_models:
+            model_type = detect_model_type(model)
+            valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
+            # Only process valid (model, mode) pairs
+            if mode not in valid_modes and not (mode == "real_full" and model_type in {"conditional", "fdm"}):
+                means.append(0)
+                conf_intervals.append(0)
+                total_pipes_percentages.append(None)
+                continue
             values = data[model].get(mode, [])
             mean_val = sum(values) / len(values) if values else 0
             means.append(mean_val)
