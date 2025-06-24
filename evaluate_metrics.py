@@ -72,16 +72,16 @@ def evaluate_all_levels(json_file_path, output_file, game, key, debug):
         #print(f"Found {len(prompts)} prompts, {len(levels)} generated levels, and {len(captions)} generated captions.")
 
         broken_pipe_count, total_scenes = count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=False, as_count=True)
-        broken_pipes_percentage_in_dataset = (broken_pipe_count / total_scenes) * 100
+        broken_pipes_percentage_in_dataset = (broken_pipe_count / total_scenes) * 100 if total_scenes > 0 else 0
 
         broken_pipe_count, pipe_scenes = count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=True, as_count=True)
-        broken_pipes_percentage_of_pipes = (broken_pipe_count / pipe_scenes) * 100
+        broken_pipes_percentage_of_pipes = (broken_pipe_count / pipe_scenes) * 100 if pipe_scenes > 0 else 0
 
         broken_cannon_count, total_scenes = count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=False, as_count=True)
-        broken_cannons_percentage_in_dataset = (broken_cannon_count / total_scenes) * 100
+        broken_cannons_percentage_in_dataset = (broken_cannon_count / total_scenes) * 100 if total_scenes > 0 else 0
 
         broken_cannon_count, cannon_scenes = count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True, as_count=True)
-        broken_cannons_percentage_of_cannons = (broken_cannon_count / cannon_scenes) * 100
+        broken_cannons_percentage_of_cannons = (broken_cannon_count / cannon_scenes) * 100 if cannon_scenes > 0 else 0
 
         metrics = {
             "file_name": os.path.basename(json_file_path),

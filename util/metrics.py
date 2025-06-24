@@ -154,6 +154,7 @@ def count_broken_feature_mentions(captions: List[str], feature: str, as_percenta
     cleaned_captions = remove_absence_captions(captions, feature)
     if not cleaned_captions:
         print(f"Warning: No captions found after cleaning for feature '{feature}'")
+        if as_count: return (0,0)
         return 0.0
     
     # Count mentions of broken feature
@@ -171,6 +172,7 @@ def count_broken_feature_mentions(captions: List[str], feature: str, as_percenta
         
         if total_feature_count == 0:
             print(f"Warning: No mentions of '{feature}' found in captions")
+            if as_count: return (0,0)
             return 0.0
         
         if as_count:
