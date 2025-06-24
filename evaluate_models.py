@@ -293,31 +293,42 @@ def main():
                 conf_interval = 0
             conf_intervals.append(conf_interval)
 
-            # Special case for broken_pipes_percentage_in_dataset
-            if metric_key == "broken_pipes_percentage_in_dataset":
+            # Special case for broken_pipes_percentage_in_dataset or broken_cannons_percentage_in_dataset
+            if metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"]:
+                # Determine which keys to use
+                if metric_key == "broken_pipes_percentage_in_dataset":
+                    broken_key = "broken_pipes_count"
+                    total_key = "total_generated_levels"
+                    percent_key = "broken_pipes_percentage_in_dataset"
+                    total_items_key = "total_pipes"
+                else:  # broken_cannons_percentage_in_dataset
+                    broken_key = "broken_cannons_count"
+                    total_key = "total_generated_levels"
+                    percent_key = "broken_cannons_percentage_in_dataset"
+                    total_items_key = "total_cannons"
                 # Load the metrics dict for this model/mode
                 model_dirs = grouped.get(model, None)
                 metrics_path = get_metrics_path(model_dirs[0] if model_dirs else None, mode, args.plot_file, args.full_metrics) if model_dirs else None
                 if not metrics_path or not os.path.exists(metrics_path):
-                    raise ValueError(f"[BROKEN PIPES] Missing: {metrics_path}\n  model: {model}\n  mode: {mode}\n  grouped[model]: {model_dirs}")
+                    raise ValueError(f"[BROKEN {percent_key.upper()}] Missing: {metrics_path}\n  model: {model}\n  mode: {mode}\n  grouped[model]: {model_dirs}")
                 with open(metrics_path, 'r') as f:
                     metrics = json.load(f)
-                for k in ["broken_pipes_percentage_in_dataset", "total_pipes", "broken_pipes_count", "total_generated_levels"]:
+                for k in [percent_key, total_items_key, broken_key, total_key]:
                     if k not in metrics:
-                        raise KeyError(f"[BROKEN PIPES] Key '{k}' missing in {metrics_path}\n  model: {model}\n  mode: {mode}\n  grouped[model]: {model_dirs}")
-                broken = metrics["broken_pipes_count"]
-                total = metrics["total_generated_levels"]
-                percent = metrics["broken_pipes_percentage_in_dataset"]
-                total_pipes = metrics["total_pipes"]
+                        raise KeyError(f"[BROKEN {percent_key.upper()}] Key '{k}' missing in {metrics_path}\n  model: {model}\n  mode: {mode}\n  grouped[model]: {model_dirs}")
+                broken = metrics[broken_key]
+                total = metrics[total_key]
+                percent = metrics[percent_key]
+                total_items = metrics[total_items_key]
                 # Check value
                 computed = (broken / total) * 100 if total else 0
                 if abs(percent - computed) > 1e-3:
-                    raise ValueError(f"[BROKEN PIPES] Value mismatch in {metrics_path}: {percent} != {computed}")
+                    raise ValueError(f"[BROKEN {percent_key.upper()}] Value mismatch in {metrics_path}: {percent} != {computed}")
                 # Check range
-                if not (broken <= total_pipes <= total):
-                    raise ValueError(f"[BROKEN PIPES] total_pipes ({total_pipes}) not in [{broken}, {total}] in {metrics_path}")
-                total_pipes_percentage = (total_pipes / total) * 100 if total else 0
-                total_pipes_percentages.append(total_pipes_percentage)
+                if not (broken <= total_items <= total):
+                    raise ValueError(f"[BROKEN {percent_key.upper()}] {total_items_key} ({total_items}) not in [{broken}, {total}] in {metrics_path}")
+                total_items_percentage = (total_items / total) * 100 if total else 0
+                total_pipes_percentages.append(total_items_percentage)
             else:
                 total_pipes_percentages.append(None)
 
