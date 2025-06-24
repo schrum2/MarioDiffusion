@@ -168,6 +168,7 @@ def evaluate_metrics(model_path, game, override, debug=False):
         if debug: print("Fdm model detected")
         paths = {
             "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
+            "real_full": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels_full.json"),
             "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json")
         }
     elif wgan:
