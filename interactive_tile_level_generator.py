@@ -6,7 +6,7 @@ import torch
 import gc
 from PIL import ImageTk
 import sys
-from util.gui_shared import ParentBuilder
+from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
 from level_dataset import visualize_samples, convert_to_level_format
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
@@ -26,7 +26,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 #     lr_main = None  # Handle gracefully if not present
 
 # Global constant for GUI font size
-GUI_FONT_SIZE = 12 # 12
+
 GUI_FONT = ("Arial", GUI_FONT_SIZE)
 
 class CaptionBuilder(ParentBuilder):
