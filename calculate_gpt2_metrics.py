@@ -122,7 +122,7 @@ def find_metrics_of_samples(samples_json, real_json, output_dir):
         "total_cannons": cannon_scenes
     }
 
-    output_path = os.path.join(output_dir, "MarioGPT_metrics_summary.json")
+    output_path = os.path.join(output_dir, "evaluation_metrics.json")
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
 
