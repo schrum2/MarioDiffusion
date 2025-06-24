@@ -269,7 +269,7 @@ def main():
     for i, mode in enumerate(modes):
         means = []
         conf_intervals = []
-        total_pipes_percentages = []  # For background bars
+        total_feature_percentages = []  # For background bars
         for model in sorted_models:
             model_type = detect_model_type(model)
             valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
@@ -277,7 +277,7 @@ def main():
             if mode not in valid_modes and not (mode == "real_full" and model_type in {"conditional", "fdm"}):
                 means.append(0)
                 conf_intervals.append(0)
-                total_pipes_percentages.append(None)
+                total_feature_percentages.append(None)
                 continue
             values = data[model].get(mode, [])
             mean_val = sum(values) / len(values) if values else 0
@@ -328,9 +328,9 @@ def main():
                 if not (broken <= total_items <= total):
                     raise ValueError(f"[BROKEN {percent_key.upper()}] {total_items_key} ({total_items}) not in [{broken}, {total}] in {metrics_path}")
                 total_items_percentage = (total_items / total) * 100 if total else 0
-                total_pipes_percentages.append(total_items_percentage)
+                total_feature_percentages.append(total_items_percentage)
             else:
-                total_pipes_percentages.append(None)
+                total_feature_percentages.append(None)
 
         bar_positions = [xi + offsets[i] for xi in x]
 
@@ -357,10 +357,10 @@ def main():
                 has_added_mode_to_legend[mode] = True
 
             # Plot background bar for total_pipes_percentage if metric is broken_pipes_percentage_in_dataset
-            if metric_key == "broken_pipes_percentage_in_dataset" and total_pipes_percentages[j] is not None:
+            if metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"] and total_feature_percentages[j] is not None:
                 plt.barh(
                     bar_positions[j],
-                    total_pipes_percentages[j],
+                    total_feature_percentages[j],
                     height=bar_width, 
                     color="#444444",
                     edgecolor='black',
