@@ -308,33 +308,44 @@ def main():
                     total_key = "total_generated_levels"
                     percent_key = "broken_cannons_percentage_in_dataset"
                     total_items_key = "total_cannons"
-                # Load the metrics dict for this model/mode
+                # Loop over all directories for this model/mode
                 model_dirs = grouped.get(model, None)
-                metrics_path = get_metrics_path(model_dirs[0] if model_dirs else None, mode, args.plot_file, args.full_metrics) if model_dirs else None
-                if not metrics_path or not os.path.exists(metrics_path):
-                    raise ValueError(f"[BROKEN {percent_key.upper()}] Missing: {metrics_path}\n  model: {model}\n  mode: {mode}\n  grouped[model]: {model_dirs}")
-                with open(metrics_path, 'r') as f:
-                    metrics = json.load(f)
-                for k in [percent_key, total_items_key, broken_key, total_key]:
-                    if k not in metrics:
-                        raise KeyError(f"[BROKEN {percent_key.upper()}] Key '{k}' missing in {metrics_path}\n  model: {model}\n  mode: {mode}\n  grouped[model]: {model_dirs}")
-                broken = metrics[broken_key]
-                total = metrics[total_key]
-                percent = metrics[percent_key]
-                total_items = metrics[total_items_key]
-                # Check value
-                computed = (broken / total) * 100 if total else 0
-                if abs(percent - computed) > 1e-3:
-                    raise ValueError(f"[BROKEN {percent_key.upper()}] Value mismatch in {metrics_path}: {percent} != {computed}")
-                # Check range
-                if not (broken <= total_items <= total):
-                    raise ValueError(f"[BROKEN {percent_key.upper()}] {total_items_key} ({total_items}) not in [{broken}, {total}] in {metrics_path}")
-                total_items_percentage = (total_items / total) * 100 if total else 0
-                total_feature_percentages.append(total_items_percentage)
-
-                recent_index = len(total_feature_percentages) - 1
-                if total_feature_percentages[recent_index] < means[recent_index]:
-                    raise ValueError(f"[ANOMALY] Total feature percentage ({total_feature_percentages[j]}) is less than mean ({means[j]}) for model {model} in mode {mode}. This should not happen.")
+                tfp_values = []
+                for d in model_dirs or []:
+                    metrics_path = get_metrics_path(d, mode, args.plot_file, args.full_metrics)
+                    if not metrics_path or not os.path.exists(metrics_path):
+                        raise ValueError(f"[BROKEN {percent_key.upper()}] Missing: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                    with open(metrics_path, 'r') as f:
+                        metrics = json.load(f)
+                    for k in [percent_key, total_items_key, broken_key, total_key]:
+                        if k not in metrics:
+                            raise KeyError(f"[BROKEN {percent_key.upper()}] Key '{k}' missing in {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                    broken = metrics[broken_key]
+                    total = metrics[total_key]
+                    percent = metrics[percent_key]
+                    total_items = metrics[total_items_key]
+                    # Check value
+                    computed = (broken / total) * 100 if total else 0
+                    if abs(percent - computed) > 1e-3:
+                        raise ValueError(f"[BROKEN {percent_key.upper()}] Value mismatch in {metrics_path}: {percent} != {computed}")
+                    # Check range
+                    if not (broken <= total_items <= total):
+                        raise ValueError(f"[BROKEN {percent_key.upper()}] {total_items_key} ({total_items}) not in [{broken}, {total}] in {metrics_path}")
+                    total_items_percentage = (total_items / total) * 100 if total else 0
+                    tfp_values.append(total_items_percentage)
+                # Now, tfp_values should match the number of values for this model/mode
+                if len(tfp_values) != len(values):
+                    raise ValueError(f"[ANOMALY] Number of total_feature_percentages ({len(tfp_values)}) does not match number of values ({len(values)}) for model {model} in mode {mode}.")
+                # Check for anomalies
+                for idx, (tfp, val) in enumerate(zip(tfp_values, values)):
+                    if tfp < val:
+                        print(f"means: {means}")
+                        print(f"total_feature_percentages: {tfp_values}")
+                        print(f"values (of mean): {values}")
+                        raise ValueError(f"[ANOMALY] Total feature percentage ({tfp}) is less than value ({val}) for model {model} in mode {mode} (dir index {idx}). This should not happen.")
+                # For plotting, use the mean of tfp_values
+                tfp_mean = sum(tfp_values) / len(tfp_values) if tfp_values else 0
+                total_feature_percentages.append(tfp_mean)
             else:
                 total_feature_percentages.append(None)
 
