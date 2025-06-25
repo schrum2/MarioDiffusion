@@ -1,4 +1,6 @@
 ## Can I also get Lode Runner Data? (TODO)
+This Lode Runner data is still experimental and on-going and the current results are not as good as the Mario
+levels and outputs. The main therory as to why is a small dataset with only 150 samples.
 
 This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username. This should create a folder with the MarioDiffusion folder that contains all needed Lode Runner items:
 ```
