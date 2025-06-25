@@ -90,9 +90,12 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         # Convert to indices
         sample_tensor = images[0].unsqueeze(0)
         sample_indices = convert_to_level_format(sample_tensor)
-        
+
         # Add level data to the list
         scene = sample_indices[0].tolist()
+        if self.args.game == "LR":
+            number_of_tiles = common_settings.LR_TILE_COUNT
+            scene = [[x % number_of_tiles for x in row] for row in scene]
  
         # Assign a caption to the sceneof whichever game is being played
         if self.args.game == "Mario":
