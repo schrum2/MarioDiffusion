@@ -65,6 +65,11 @@ An easier-to-use GUI interface will let you select and combine known caption phr
 python interactive_tile_level_generator.py LR_LevelsAndCaptions-regular.json LR-conditional-regular
 ```
 
+Batch folder that contains all batch files associated with Lode Runner:
+```
+cd LR_batch
+```
+
 Batch file that fully runs unconditional diffusion for Lode Runner (as long as the file do not exist):
 ```
 LR-unconditional.bat
