@@ -33,6 +33,7 @@ def parse_args():
     parser.add_argument("--stacked_bar_for_mlm", action='store_true', help="If set, MLM groups with mlm_mean/cond_mean will be shown as stacked bars.\n")
     parser.add_argument("--convert_time_to_hours", action='store_true', help="If set, time values will be converted to hours.\n")
     parser.add_argument("--font", type=str, default="DejaVu Sans", help="Font family for the plo e.g. \"Times New Roman\", \"Palatino\", \"Garamond\", 'Courier New'.\n")
+    parser.add_argument("--log_scale", action="store_true", help="Plot with log scale.")
     return parser.parse_args()
 
 # GPT-4.1 suggested a more robust JSON loading function that can handle both JSON arrays and JSONL files.
@@ -291,6 +292,9 @@ def main():
                     for i, group in enumerate(groups_reversed):
                         points = df[df[args.group_key] == group][args.x_axis].dropna()
                         plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
+                        
+        if args.log_scale:
+            plt.xscale('log')
     # SCATTER PLOT
     elif args.plot_type == "scatter":
         color_map = plt.get_cmap('Set2', len(groups_with_data))
@@ -302,6 +306,7 @@ def main():
         plt.ylabel(args.y_axis_label)
         plt.xticks(rotation=args.x_tick_rotation)
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
     plt.tight_layout()
     plt.savefig(args.output, bbox_inches='tight', pad_inches=0)
     plt.close()
