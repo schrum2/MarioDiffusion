@@ -267,10 +267,12 @@ def main():
 
     from scipy.stats import t
     for i, mode in enumerate(modes):
+        #print(f"Processing mode: {mode}")
         means = []
         conf_intervals = []
         total_feature_percentages = []  # For background bars
         for model in sorted_models:
+            #print(f"  Processing model: {model}")
             model_type = detect_model_type(model)
             valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
             # Only process valid (model, mode) pairs
@@ -328,10 +330,11 @@ def main():
                 if not (broken <= total_items <= total):
                     raise ValueError(f"[BROKEN {percent_key.upper()}] {total_items_key} ({total_items}) not in [{broken}, {total}] in {metrics_path}")
                 total_items_percentage = (total_items / total) * 100 if total else 0
-                # Additional check: tfp (total_items_percentage) must be >= mean_val
-                if total_items_percentage < mean_val:
-                    raise ValueError(f"[ANOMALY] For model '{model}', mode '{mode}': total_items_percentage ({total_items_percentage}) < mean_val ({mean_val}) in {metrics_path}")
                 total_feature_percentages.append(total_items_percentage)
+
+                recent_index = len(total_feature_percentages) - 1
+                if total_feature_percentages[recent_index] < means[recent_index]:
+                    raise ValueError(f"[ANOMALY] Total feature percentage ({total_feature_percentages[j]}) is less than mean ({means[j]}) for model {model} in mode {mode}. This should not happen.")
             else:
                 total_feature_percentages.append(None)
 
