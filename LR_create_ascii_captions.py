@@ -119,7 +119,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
                     break
             run_length = x - run_start
             if run_length >= min_run_length:
-                already_accounted.update(possible_locations) # Blocks of the line are now accounted for
+                #already_accounted.update(possible_locations) # Blocks of the line are now accounted for
                 lines.append((y, run_start, x - 1))
             else:
                 x += 1
@@ -181,7 +181,6 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
 
 def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None):
     """
-        scene and char_to_id are needed when pipes is True so that the specific tiles can be checked.
         Returns a list of tuples (phrase, coordinates) where coordinates is a set of (row, col) positions
         associated with the phrase describing the structures of that type.
     """
@@ -282,6 +281,8 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     for scene in dataset:
         # caption blank/empty for lode runner
         #caption = " "
+        number_of_tiles = common_settings.LR_TILE_COUNT
+        scene = [[x % number_of_tiles for x in row] for row in scene]
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
         if "broken" in caption:
