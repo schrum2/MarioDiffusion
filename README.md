@@ -228,6 +228,60 @@ python calculate_gpt2_metrics.py --generated_levels "datasets\\MarioGPT_LevelsAn
 
 ## Comparing model results
 
+Exploration of the time taken to train models, as well as the time to the best epoch can be accomplished by running the following batch file:
+```
+calculate_runtimes.bat
+```
+This batch file calls the following batch file to complete all time calculations on every model.
+```
+calculate_times.bat
+```
+The output produced above is then used as input by the next script, which aggregates results for plotting.
+```
+python evaluate_execution_time.py
+```
+The aggregated results are used to plot the following two figures:
+
+1. A bar plot of mean grouped runtimes for each model with standard error from its individual times:
+```
+python visualize_best_model_stats.py --input training_runtimes\\mean_grouped_runtimes_plus_best.json --output total_time_with_std_err.pdf --plot_type bar --y_axis "group" --x_axis "mean" --x_axis_label "Hours to Train" --convert_time_to_hours --stacked_bar_for_mlm 
+```
+2. A box plot of individual times by each model:
+```
+python visualize_best_model_stats.py --input mean_grouped_runtimes.json --output mean_grouped_runtime_box_plot.pdf --plot_type box --x_axis "group" --y_axis "individual_times" --x_axis_label "Models" --y_axis_label "Hours to Train" --convert_time_to_hours --x_tick_rotation 45
+```
+Lastly, data from best_model_info.json from each model are aggregated for visualization:
+```
+python best_model_statistics.py
+```
+The output from this script is used to plot the following four graphs:
+1. A box plot for the best epoch of each model type:
+```
+python visualize_best_model_stats.py --input best_model_info_20250618_162147.json --output best_epoch_box_plot.pdf --plot_type box --x_axis "group" --y_axis "best_epoch" --x_axis_label "Models" --y_axis_label "Best Epoch" --x_tick_rotation 45 
+```
+2. A violin plot for the best epoch of each model type:
+```
+python visualize_best_model_stats.py --input best_model_info_20250618_162147.json --output best_epoch_violin_plot.pdf --plot_type violin --x_axis "group" --y_axis "best_epoch" --y_axis_label "Best Epoch" --x_tick_rotation 45 
+```
+3. A bar plot for the best epoch of each model type:
+```
+python visualize_best_model_stats.py --input best_model_info_20250618_162147.json --output best_epoch_bar_plot.pdf --plot_type bar --y_axis "group" --x_axis "best_epoch" --x_axis_label "Best Epoch" --x_markers_on_bar_plot 
+```
+4. A scatter plot for that compares the best caption score by the best epoch:
+```
+python visualize_best_model_stats.py --input best_model_info_20250618_162147.json --output best_epoch_v_best_caption_score_scatter_plot.pdf --plot_type scatter --y_axis "best_caption_score" --x_axis "best_epoch" --y_axis_label "Best Caption Score" --x_axis_label "Best Epoch" 
+```
+
+Evaluating A* Solvability for each model using up to 100 samples from all_levels.json from each model. This returns astar_result_overall_averages.json, the average across all averages of metrics returned from all A* runs on tested levels. Returns from the following batch file are automatically plotted in plot_metrics.bat (described in the next section.)
+```
+evaluate-solvability.bat
+```
+
+After running this batch file, you can plot these results on their own with the following command:
+```
+python evaluate_models.py --plot_file astar_result_overall_averages.json --modes real random short --metric "beaten" --plot_label "Percent Beatable Levels" --save
+```
+
 Average minimum edit distance (amed) calculates the edit distance for each level in a levelset against a levelset. We calculate amed self, where the min edit distance is calculated for each level against the remaining levels in the set, and amed real, where the min edit distance is calculated for each level in a levelset against the entire real levelset that was used to generate the level.
 
 All amed plots and calculations - as well as broken feature generatsion plots - can be run like this
