@@ -466,7 +466,32 @@ def main():
             plot_data[model] = {}
             for j, mode in enumerate(modes):
                 values = data[model].get(mode, [])
-                mean_val = sum(values) / len(values) if values
+                mean_val = sum(values) / len(values) if values else 0
+                # Find conf_interval for this model/mode
+                conf_interval = None
+                if len(values) > 1:
+                    from scipy.stats import t
+                    n = len(values)
+                    std = (sum((v - mean_val) ** 2 for v in values) / (n - 1)) ** 0.5
+                    t_score = t.ppf(0.975, df=n - 1)
+                    conf_interval = t_score * std / (n ** 0.5)
+                else:
+                    conf_interval = 0
+                entry = {
+                    "values": values,
+                    "mean": mean_val,
+                    "conf_interval": conf_interval
+                }
+                # Add total_feature_percentage if relevant
+                if metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"]:
+                    if j < len(total_feature_percentages):
+                        tfp = total_feature_percentages[j]
+                        if tfp is not None:
+                            entry["total_feature_percentage"] = tfp
+                plot_data[model][mode] = entry
+        with open(json_path, "w", encoding="utf-8") as jf:
+            json.dump(plot_data, jf, indent=2)
+        print(f"Plot data saved as: {json_path}")
     else:
         plt.show()
 
