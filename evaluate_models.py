@@ -367,19 +367,24 @@ def main():
                     alpha=0.3,
                     zorder=0
                 )
-
             # Plot bar with or without error bar
             if args.errorbar:
+                # Clip error bars so they do not extend below zero
+                mean = means[j]
+                err = conf_intervals[j]
+                lower = min(mean, err) if err > 0 else 0
+                upper = err
+                xerr = [[lower], [upper]] if lower > 0 else [[0], [upper]]
                 plt.barh(
                     bar_positions[j],
-                    means[j],
+                    mean,
                     height=bar_width,
                     color=color,
                     edgecolor='black',
                     label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
                     alpha=0.6,
                     hatch=hatch,
-                    xerr=conf_intervals[j],
+                    xerr=xerr,
                     error_kw={'elinewidth': 1, 'capthick': 1, 'capsize': 4, 'ecolor': 'black'}
                 )
             else:
@@ -410,7 +415,8 @@ def main():
                     )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)
-    
+    plt.xlim(left=0)
+
     if args.plot_label:
         plt.xlabel(args.plot_label, labelpad=10)
     else:
@@ -447,21 +453,61 @@ def main():
             else m
             for m in modes
         ]
-                
         if args.output_name:
             filename = f"{args.output_name}.pdf"
         else:
             filename = f"comparison_{'_'.join(reversed(renamed_modes))}_{metric_key}.pdf"
         save_path = os.path.join(save_dir, filename)
-        # JSON output path
         json_path = save_path[:-4] + ".json" if save_path.lower().endswith('.pdf') else save_path + ".json"
-        # Delete existing file if it exists
         if os.path.exists(save_path):
             os.remove(save_path)
         plt.savefig(save_path, bbox_inches='tight', dpi=300, pad_inches=0)
         print(f"Plot saved as: {save_path}")
         # --- Save JSON with all plotted data ---
         plot_data = {}
+        # For special metrics, collect all total_feature_percentages for each (model, mode)
+        special_metric = metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"]
+        # Recompute total_feature_percentages for all (model, mode) pairs if needed
+        total_feature_percentages_map = {}  # (model, mode) -> list of percentages
+        if special_metric:
+            for i, mode in enumerate(modes):
+                for j, model in enumerate(sorted_models):
+                    tfp_list = []
+                    model_type = detect_model_type(model)
+                    valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
+                    if mode not in valid_modes and not (mode == "real_full" and model_type in {"conditional", "fdm"}):
+                        total_feature_percentages_map[(model, mode)] = []
+                        continue
+                    # For each directory for this model
+                    model_dirs = grouped.get(model, None)
+                    if not model_dirs:
+                        total_feature_percentages_map[(model, mode)] = []
+                        continue
+                    for d in model_dirs:
+                        metrics_path = get_metrics_path(d, mode, args.plot_file, args.full_metrics)
+                        if not metrics_path or not os.path.exists(metrics_path):
+                            continue
+                        try:
+                            with open(metrics_path, 'r') as f:
+                                metrics = json.load(f)
+                        except Exception:
+                            continue
+                        if metric_key == "broken_pipes_percentage_in_dataset":
+                            broken_key = "broken_pipes_count"
+                            total_key = "total_generated_levels"
+                            total_items_key = "total_pipes"
+                        else:
+                            broken_key = "broken_cannons_count"
+                            total_key = "total_generated_levels"
+                            total_items_key = "total_cannons"
+                        broken = metrics.get(broken_key)
+                        total = metrics.get(total_key)
+                        total_items = metrics.get(total_items_key)
+                        if broken is None or total is None or total_items is None or total == 0:
+                            continue
+                        tfp = (total_items / total) * 100
+                        tfp_list.append(tfp)
+                    total_feature_percentages_map[(model, mode)] = tfp_list
         for i, model in enumerate(sorted_models):
             plot_data[model] = {}
             for j, mode in enumerate(modes):
@@ -482,12 +528,21 @@ def main():
                     "mean": mean_val,
                     "conf_interval": conf_interval
                 }
-                # Add total_feature_percentage if relevant
-                if metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"]:
-                    if j < len(total_feature_percentages):
-                        tfp = total_feature_percentages[j]
-                        if tfp is not None:
-                            entry["total_feature_percentage"] = tfp
+                # Add all total_feature_percentages if relevant
+                if special_metric:
+                    tfp_list = total_feature_percentages_map.get((model, mode), [])
+                    tfp_mean = sum(tfp_list) / len(tfp_list) if tfp_list else 0
+                    if len(tfp_list) > 1:
+                        from scipy.stats import t
+                        n = len(tfp_list)
+                        std = (sum((v - tfp_mean) ** 2 for v in tfp_list) / (n - 1)) ** 0.5
+                        t_score = t.ppf(0.975, df=n - 1)
+                        tfp_conf = t_score * std / (n ** 0.5)
+                    else:
+                        tfp_conf = 0
+                    entry["total_feature_percentages"] = tfp_list
+                    entry["total_feature_mean"] = tfp_mean
+                    entry["total_feature_conf_interval"] = tfp_conf
                 plot_data[model][mode] = entry
         with open(json_path, "w", encoding="utf-8") as jf:
             json.dump(plot_data, jf, indent=2)
