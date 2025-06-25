@@ -453,13 +453,20 @@ def main():
         else:
             filename = f"comparison_{'_'.join(reversed(renamed_modes))}_{metric_key}.pdf"
         save_path = os.path.join(save_dir, filename)
-        
+        # JSON output path
+        json_path = save_path[:-4] + ".json" if save_path.lower().endswith('.pdf') else save_path + ".json"
         # Delete existing file if it exists
         if os.path.exists(save_path):
             os.remove(save_path)
-            
         plt.savefig(save_path, bbox_inches='tight', dpi=300, pad_inches=0)
         print(f"Plot saved as: {save_path}")
+        # --- Save JSON with all plotted data ---
+        plot_data = {}
+        for i, model in enumerate(sorted_models):
+            plot_data[model] = {}
+            for j, mode in enumerate(modes):
+                values = data[model].get(mode, [])
+                mean_val = sum(values) / len(values) if values
     else:
         plt.show()
 
