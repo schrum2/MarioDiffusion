@@ -70,6 +70,11 @@ Batch folder that contains all batch files associated with Lode Runner:
 cd LR_batch
 ```
 
+Batch file that created regular and absence data associated with Lode Runner:
+```
+LR-data.bat
+```
+
 Batch file that fully runs unconditional diffusion for Lode Runner (as long as the file do not exist):
 ```
 LR-unconditional.bat
