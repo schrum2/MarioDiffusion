@@ -328,6 +328,9 @@ def main():
                 if not (broken <= total_items <= total):
                     raise ValueError(f"[BROKEN {percent_key.upper()}] {total_items_key} ({total_items}) not in [{broken}, {total}] in {metrics_path}")
                 total_items_percentage = (total_items / total) * 100 if total else 0
+                # Additional check: tfp (total_items_percentage) must be >= mean_val
+                if total_items_percentage < mean_val:
+                    raise ValueError(f"[ANOMALY] For model '{model}', mode '{mode}': total_items_percentage ({total_items_percentage}) < mean_val ({mean_val}) in {metrics_path}")
                 total_feature_percentages.append(total_items_percentage)
             else:
                 total_feature_percentages.append(None)
@@ -486,12 +489,12 @@ def main():
                     for d in model_dirs:
                         metrics_path = get_metrics_path(d, mode, args.plot_file, args.full_metrics)
                         if not metrics_path or not os.path.exists(metrics_path):
-                            continue
+                            raise ValueError(f"[ANOMALY] Missing metrics file for special metric: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
                         try:
                             with open(metrics_path, 'r') as f:
                                 metrics = json.load(f)
-                        except Exception:
-                            continue
+                        except Exception as e:
+                            raise ValueError(f"[ANOMALY] Failed to read metrics file: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}\n  error: {e}")
                         if metric_key == "broken_pipes_percentage_in_dataset":
                             broken_key = "broken_pipes_count"
                             total_key = "total_generated_levels"
@@ -504,7 +507,7 @@ def main():
                         total = metrics.get(total_key)
                         total_items = metrics.get(total_items_key)
                         if broken is None or total is None or total_items is None or total == 0:
-                            continue
+                            raise ValueError(f"[ANOMALY] Missing or invalid keys in metrics file: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
                         tfp = (total_items / total) * 100
                         tfp_list.append(tfp)
                     total_feature_percentages_map[(model, mode)] = tfp_list
