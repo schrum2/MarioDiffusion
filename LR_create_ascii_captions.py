@@ -309,12 +309,15 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
 def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, debug=False, return_details=False):
     """Assigns a caption to a level scene based on its contents."""
     already_accounted = set()
+    floor_tiles = set()
     details = {} if return_details else None
     WIDTH = len(scene[0])
 
     # Include all of floor, even empty tiles
     for x in range(WIDTH):
-        already_accounted.add((FLOOR, x))
+        #already_accounted.add((FLOOR, x))
+        floor_tiles.add((FLOOR, x))
+        continue
 
     floor_row = FLOOR
 
@@ -334,7 +337,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Analyze floor
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
-    add_to_caption(floor_caption + "." if floor_caption else "", list(already_accounted))
+    add_to_caption(floor_caption + "." if floor_caption else "", list(floor_tiles))
 
     def bigger_ceiling(ceiling_higher, ceiling_regular):
         if ceiling_higher == None:
