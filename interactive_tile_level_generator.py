@@ -25,8 +25,17 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # except ImportError:
 #     lr_main = None  # Handle gracefully if not present
 
+tileset_path = None  # Global variable for tileset path
+game_selected = None  # Global variable for selected game
+
+if 'LR' in sys.argv[1]:
+    game_selected = "Lode Runner"
+    tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+
 class CaptionBuilder(ParentBuilder):
+    global tileset_path, game_selected
     def __init__(self, master):
+        global tileset_path, game_selected
         super().__init__(master) 
                 
         # Holds tensors of levels currently on display
@@ -84,9 +93,17 @@ class CaptionBuilder(ParentBuilder):
         self.width_label.pack()
         self.width_entry = ttk.Entry(self.caption_frame)
         self.width_entry.pack()
-        #self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
-        self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
-                
+        self.height_label = ttk.Label(self.caption_frame, text="Height (in tiles):")
+        self.height_label.pack()
+        self.height_entry = ttk.Entry(self.caption_frame)
+        self.height_entry.pack()
+        if game_selected == "Lode Runner":
+            self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
+            self.height_entry.insert(0, f"{common_settings.LR_HEIGHT}")
+        else:
+            self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
+            self.height_entry.insert(0, f"{common_settings.MARIO_HEIGHT}")
+
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
                 
@@ -198,10 +215,15 @@ class CaptionBuilder(ParentBuilder):
         return patterns
 
     def load_data(self, filepath = None):
+        global tileset_path, game_selected
         if filepath == None:
             filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON", "*.json")])
         if filepath:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+            # print(f"Tileset in use: {tileset_path}")
+            # print(f"Self ID to Char: {self.id_to_char}")
+            # print(f"Self Char to ID: {self.char_to_id}")
+            # print(f"Self Tile Descriptors: {self.tile_descriptors}")
 
             try:
                 phrases_set = set()
@@ -250,6 +272,7 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text.config(state=tk.DISABLED)
     
     def generate_image(self):
+        global tileset_path, game_selected
         # # cannot use multiple generations of levels in one composed level
         # self.clear_composed_level()
         # print("Clearing previously composed level for newly generated scenes.")
@@ -266,6 +289,7 @@ class CaptionBuilder(ParentBuilder):
             "num_inference_steps": int(self.num_steps_entry.get()),
             "guidance_scale": float(self.guidance_entry.get()),
             "width": int(self.width_entry.get()),
+            "height": int(self.height_entry.get()),
             "output_type": "tensor"
         }
 
@@ -311,10 +335,16 @@ class CaptionBuilder(ParentBuilder):
             sample_indices = convert_to_level_format(sample_tensor)
             #print("images:", images)
             scene = sample_indices[0].tolist()
+            if game_selected == "Lode Runner":
+                number_of_tiles = common_settings.LR_TILE_COUNT
+                scene = [[x % number_of_tiles for x in row] for row in scene]
+                tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
             self.generated_scenes.append(scene)
             #selected_game = self.game_var.get()
-            #actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-            actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            if game_selected == "Lode Runner":
+                actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            else:
+                actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
            
             pil_img = visualize_samples(images)
             self.generated_images.append(pil_img)
@@ -369,31 +399,32 @@ class CaptionBuilder(ParentBuilder):
 
             # Check if the scene is wider than standard number of tiles and process segments if necessary
             avg_segment_score = None
-            if len(scene[0]) > common_settings.MARIO_WIDTH:
-                from captions.caption_match import process_scene_segments
-                avg_segment_score, _, _ = process_scene_segments(
-                    scene=scene,
-                    segment_width=common_settings.MARIO_WIDTH,
-                    prompt=prompt,
-                    id_to_char=self.id_to_char,
-                    char_to_id=self.char_to_id,
-                    tile_descriptors=self.tile_descriptors,
-                    describe_locations=False,
-                    describe_absence=False
-                )
-
-            # if len(scene[0]) > common_settings.LR_WIDTH:
-            #     from captions.caption_match import process_scene_segments
-            #     avg_segment_score, _, _ = process_scene_segments(
-            #         scene=scene,
-            #         segment_width=common_settings.LR_WIDTH,
-            #         prompt=prompt,
-            #         id_to_char=self.id_to_char,
-            #         char_to_id=self.char_to_id,
-            #         tile_descriptors=self.tile_descriptors,
-            #         describe_locations=False,
-            #         describe_absence=False
-            #     )
+            if game_selected != "Lode Runner":
+                if len(scene[0]) > common_settings.MARIO_WIDTH:
+                    from captions.caption_match import process_scene_segments
+                    avg_segment_score, _, _ = process_scene_segments(
+                        scene=scene,
+                        segment_width=common_settings.MARIO_WIDTH,
+                        prompt=prompt,
+                        id_to_char=self.id_to_char,
+                        char_to_id=self.char_to_id,
+                        tile_descriptors=self.tile_descriptors,
+                        describe_locations=False,
+                        describe_absence=False
+                    )
+            if game_selected == "Lode Runner":
+                if len(scene[0]) > common_settings.LR_WIDTH:
+                    from captions.caption_match import process_scene_segments
+                    avg_segment_score, _, _ = process_scene_segments(
+                        scene=scene,
+                        segment_width=common_settings.LR_WIDTH,
+                        prompt=prompt,
+                        id_to_char=self.id_to_char,
+                        char_to_id=self.char_to_id,
+                        tile_descriptors=self.tile_descriptors,
+                        describe_locations=False,
+                        describe_absence=False
+                    )
 
             # Update the score label text
             if avg_segment_score is not None:
@@ -616,9 +647,9 @@ Average Segment Score: {avg_segment_score}"""
 root = tk.Tk()
 app = CaptionBuilder(root)
 
-global tileset_path
-tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
-#tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+if tileset_path is None:
+    # Default to SMB tileset if not specified
+    tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
 
 if len(sys.argv) > 3:
     tileset_path = sys.argv[3]
