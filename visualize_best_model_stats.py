@@ -187,7 +187,7 @@ def main():
         if args.stacked_bar_for_mlm:
             # Define hatches for the two bars
             HATCHES = {"": "////", "2": "\\\\\\"}
-            LABELS = {"": "Level Model (End)", "2": "Level Model (Best)"}
+            LABELS = {"": "End Time", "2": "Best Time"}
             for q in ["", "2"]:
                 bar_offset = 0.25 if q == "" else -0.25
                 main_color = "skyblue" if q == "" else "lightgreen"
@@ -229,7 +229,7 @@ def main():
                         single_errors.append(error)
 
                 # Plot stacked bars for MLM groups
-                plt.barh(bar_positions, mlm_means, height=0.4, color=minor_color, edgecolor='black', label="Language Model" if q == "" else None)
+                plt.barh(bar_positions, mlm_means, height=0.4, color=minor_color, edgecolor='black', label="MLM Model" if q == "" else None)
                 plt.barh(bar_positions, cond_means, height=0.4, left=mlm_means, color=main_color, hatch=hatch, edgecolor='black', label=label)
                 # plt.grid(axis='x', which='both', linestyle='--', alpha=0.5)
                 for pos, mlm, cond, err in zip(bar_positions, mlm_means, cond_means, bar_errors):
