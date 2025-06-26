@@ -94,7 +94,7 @@ def verify_data_completeness(model_path, type_str):
             errors.append(f"Requirement 2 failed: 'evaluation_metrics.json' file is missing in {random_samples}.")
         
         if is_zero_iteration(model_path):
-            print("ZERO!")
+            #print("ZERO!")
             astar_metrics_path = os.path.join(os.path.dirname(random_samples), "astar_result.jsonl")
             if not os.path.isfile(astar_metrics_path):
                 errors.append(f"Requirement 3 failed: 'astar_result.jsonl' file is missing in {random_samples}")
@@ -428,6 +428,9 @@ def main():
             return
         
         for model_path in matched_dirs:
+            if args.override_metrics and "MarioGPT" not in model_path: 
+                evaluate_metrics(model_path, "Mar1and2", override=args.override_metrics)
+
             if not args.show_successes and not args.show_errors: print(f"\nChecking model directory: {model_path}")
             dir_type = "absence" if "absence" in model_path.lower() else "regular"
 
@@ -453,6 +456,10 @@ def main():
 
         for i in range(args.start_num, args.end_num + 1):
             model_path = f"{args.prefix}{i}"
+
+            if args.override_metrics and "MarioGPT" not in model_path: 
+                evaluate_metrics(model_path, "Mar1and2", override=args.override_metrics)
+
             if not args.show_successes and not args.show_errors: print(f"\nChecking model directory: {model_path}")
             dir_type = "absence" if "absence" in model_path.lower() else "regular"
 

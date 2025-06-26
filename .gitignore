@@ -179,3 +179,7 @@ cython_debug/
 *.txt
 *.ini
 *.0
+
+
+*.pdf
+*.dot

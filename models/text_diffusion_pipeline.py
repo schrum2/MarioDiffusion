@@ -358,11 +358,11 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             # Convert to output format
             if output_type == "tensor":
                 if self.block_embeddings is not None:
-                    image = get_scene_from_embeddings(image, self.block_embeddings)
+                    sample = get_scene_from_embeddings(sample, self.block_embeddings)
                 else:
                     # Apply softmax to get probabilities for each tile type
                     sample = F.softmax(sample, dim=1)
-                    image = image.detach().cpu() 
+                    sample = sample.detach().cpu() 
             else:
                 raise ValueError(f"Unsupported output type: {output_type}")
 
@@ -435,6 +435,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         )
         
         graph.visual_graph.render(filename, format='pdf', cleanup=False)  # Cleanup removes intermediate files
+        graph.visual_graph.save('unet_architecture.dot')
 
         # Save the graph to a PDF file
         print(f"UNet architecture saved to {filename}")

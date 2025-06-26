@@ -16,6 +16,8 @@ python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-fdm-GTE-regul
 python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-fdm-GTE-absence0"
 
 
-:: WGAN Models : Mar1and2-wgan0-samples (evaluate_solvability.py can't handle this, temp script in google drive)
+:: WGAN Models : Mar1and2-wgan0-samples
 python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-wgan0"
-:: MarioGPT Models : Ask Olivia
+
+:: MarioGPT Models
+python calculate_gpt2_metrics.py --generated_levels "datasets\\MarioGPT_LevelsAndCaptions-regular.json" --training_levels "datasets\\Mar1and2_LevelsAndCaptions-regular.json" --output_dir "MarioGPT_metrics//short_levels"

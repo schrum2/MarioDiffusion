@@ -35,7 +35,7 @@ def extract_prefix(name):
     elif "-wgan" in name:
         # return re.sub(r"-wgan\d+", "-wgan", name)
         return "Mar1and2-wgan"
-    elif "MarioGPT" in name:
+    elif "MarioGPT_metrics" in name:
         return "MarioGPT_metrics"
     return name.rstrip("0123456789").rstrip("-_")
 
@@ -84,7 +84,7 @@ def get_metrics_path(base_dir, mode, plot_file, full_metrics=False):
     elif "-wgan" in model_name:
         return os.path.join(f"{base_dir}-samples", plot_file)
 
-    elif "MarioGPT" in model_name:
+    elif "MarioGPT_metrics" in model_name:
         return os.path.join(base_dir, f"{mode}_levels", plot_file)
     else:
         print(f"[WARNING] Unknown model type for: {model_name}")
@@ -171,6 +171,9 @@ def main():
 
     grouped = defaultdict(list)
     for dir_path, num, dir_type in numbered_dirs:
+        # Skip MarioGPT_Levels directory (special case)
+        if os.path.basename(dir_path) == "MarioGPT_Levels":
+            continue
         prefix = extract_prefix(dir_path)
         grouped[prefix].append(dir_path)
 
@@ -262,20 +265,89 @@ def main():
         colors = ['#66c2a5', '#fc8d62', '#8da0cb'] # Colorblind-friendly, light colors
     has_added_mode_to_legend = {mode: False for mode in modes}  # Track which modes are in legend
 
+    from scipy.stats import t
     for i, mode in enumerate(modes):
+        #print(f"Processing mode: {mode}")
         means = []
-        std_errs = []
+        conf_intervals = []
+        total_feature_percentages = []  # For background bars
         for model in sorted_models:
+            #print(f"  Processing model: {model}")
+            model_type = detect_model_type(model)
+            valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
+            # Only process valid (model, mode) pairs
+            if mode not in valid_modes and not (mode == "real_full" and model_type in {"conditional", "fdm"}):
+                means.append(0)
+                conf_intervals.append(0)
+                total_feature_percentages.append(None)
+                continue
             values = data[model].get(mode, [])
             mean_val = sum(values) / len(values) if values else 0
             means.append(mean_val)
-            # Standard error: std / sqrt(n)
-            if values and len(values) > 1:
-                std = (sum((v - mean_val) ** 2 for v in values) / (len(values) - 1)) ** 0.5
-                std_err = std / (len(values) ** 0.5)
+
+            # 95% Confidence Interval: mean ± t * (std / sqrt(n))
+            n = len(values)
+            if values and n > 1:
+                std = (sum((v - mean_val) ** 2 for v in values) / (n - 1)) ** 0.5
+                t_score = t.ppf(0.975, df=n - 1)  # two-tailed 95% CI
+                conf_interval = t_score * std / (n ** 0.5)
             else:
-                std_err = 0
-            std_errs.append(std_err)
+                conf_interval = 0
+            conf_intervals.append(conf_interval)
+
+            # Special case for broken_pipes_percentage_in_dataset or broken_cannons_percentage_in_dataset
+            if metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"]:
+                # Determine which keys to use
+                if metric_key == "broken_pipes_percentage_in_dataset":
+                    broken_key = "broken_pipes_count"
+                    total_key = "total_generated_levels"
+                    percent_key = "broken_pipes_percentage_in_dataset"
+                    total_items_key = "total_pipes"
+                else:  # broken_cannons_percentage_in_dataset
+                    broken_key = "broken_cannons_count"
+                    total_key = "total_generated_levels"
+                    percent_key = "broken_cannons_percentage_in_dataset"
+                    total_items_key = "total_cannons"
+                # Loop over all directories for this model/mode
+                model_dirs = grouped.get(model, None)
+                tfp_values = []
+                for d in model_dirs or []:
+                    metrics_path = get_metrics_path(d, mode, args.plot_file, args.full_metrics)
+                    if not metrics_path or not os.path.exists(metrics_path):
+                        raise ValueError(f"[BROKEN {percent_key.upper()}] Missing: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                    with open(metrics_path, 'r') as f:
+                        metrics = json.load(f)
+                    for k in [percent_key, total_items_key, broken_key, total_key]:
+                        if k not in metrics:
+                            raise KeyError(f"[BROKEN {percent_key.upper()}] Key '{k}' missing in {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                    broken = metrics[broken_key]
+                    total = metrics[total_key]
+                    percent = metrics[percent_key]
+                    total_items = metrics[total_items_key]
+                    # Check value
+                    computed = (broken / total) * 100 if total else 0
+                    if abs(percent - computed) > 1e-3:
+                        raise ValueError(f"[BROKEN {percent_key.upper()}] Value mismatch in {metrics_path}: {percent} != {computed}")
+                    # Check range
+                    if not (broken <= total_items <= total):
+                        raise ValueError(f"[BROKEN {percent_key.upper()}] {total_items_key} ({total_items}) not in [{broken}, {total}] in {metrics_path}")
+                    total_items_percentage = (total_items / total) * 100 if total else 0
+                    tfp_values.append(total_items_percentage)
+                # Now, tfp_values should match the number of values for this model/mode
+                if len(tfp_values) != len(values):
+                    raise ValueError(f"[ANOMALY] Number of total_feature_percentages ({len(tfp_values)}) does not match number of values ({len(values)}) for model {model} in mode {mode}.")
+                # Check for anomalies
+                for idx, (tfp, val) in enumerate(zip(tfp_values, values)):
+                    if tfp < val:
+                        print(f"means: {means}")
+                        print(f"total_feature_percentages: {tfp_values}")
+                        print(f"values (of mean): {values}")
+                        raise ValueError(f"[ANOMALY] Total feature percentage ({tfp}) is less than value ({val}) for model {model} in mode {mode} (dir index {idx}). This should not happen.")
+                # For plotting, use the mean of tfp_values
+                tfp_mean = sum(tfp_values) / len(tfp_values) if tfp_values else 0
+                total_feature_percentages.append(tfp_mean)
+            else:
+                total_feature_percentages.append(None)
 
         bar_positions = [xi + offsets[i] for xi in x]
 
@@ -301,18 +373,35 @@ def main():
             if should_add_to_legend:
                 has_added_mode_to_legend[mode] = True
 
-            # Plot bar with or without error bar
-            if args.errorbar:
+            # Plot background bar for total_pipes_percentage if metric is broken_pipes_percentage_in_dataset
+            if metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"] and total_feature_percentages[j] is not None:
                 plt.barh(
                     bar_positions[j],
-                    means[j],
+                    total_feature_percentages[j],
+                    height=bar_width, 
+                    color="#444444",
+                    edgecolor='black',
+                    alpha=0.3,
+                    zorder=0
+                )
+            # Plot bar with or without error bar
+            if args.errorbar:
+                # Clip error bars so they do not extend below zero
+                mean = means[j]
+                err = conf_intervals[j]
+                lower = min(mean, err) if err > 0 else 0
+                upper = err
+                xerr = [[lower], [upper]] if lower > 0 else [[0], [upper]]
+                plt.barh(
+                    bar_positions[j],
+                    mean,
                     height=bar_width,
                     color=color,
                     edgecolor='black',
                     label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
                     alpha=0.6,
                     hatch=hatch,
-                    xerr=std_errs[j],
+                    xerr=xerr,
                     error_kw={'elinewidth': 1, 'capthick': 1, 'capsize': 4, 'ecolor': 'black'}
                 )
             else:
@@ -343,7 +432,8 @@ def main():
                     )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)
-    
+    plt.xlim(left=0)
+
     if args.plot_label:
         plt.xlabel(args.plot_label, labelpad=10)
     else:
@@ -380,19 +470,100 @@ def main():
             else m
             for m in modes
         ]
-                
         if args.output_name:
             filename = f"{args.output_name}.pdf"
         else:
             filename = f"comparison_{'_'.join(reversed(renamed_modes))}_{metric_key}.pdf"
         save_path = os.path.join(save_dir, filename)
-        
-        # Delete existing file if it exists
+        json_path = save_path[:-4] + ".json" if save_path.lower().endswith('.pdf') else save_path + ".json"
         if os.path.exists(save_path):
             os.remove(save_path)
-            
         plt.savefig(save_path, bbox_inches='tight', dpi=300, pad_inches=0)
         print(f"Plot saved as: {save_path}")
+        # --- Save JSON with all plotted data ---
+        plot_data = {}
+        # For special metrics, collect all total_feature_percentages for each (model, mode)
+        special_metric = metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"]
+        # Recompute total_feature_percentages for all (model, mode) pairs if needed
+        total_feature_percentages_map = {}  # (model, mode) -> list of percentages
+        if special_metric:
+            for i, mode in enumerate(modes):
+                for j, model in enumerate(sorted_models):
+                    tfp_list = []
+                    model_type = detect_model_type(model)
+                    valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
+                    if mode not in valid_modes and not (mode == "real_full" and model_type in {"conditional", "fdm"}):
+                        total_feature_percentages_map[(model, mode)] = []
+                        continue
+                    # For each directory for this model
+                    model_dirs = grouped.get(model, None)
+                    if not model_dirs:
+                        total_feature_percentages_map[(model, mode)] = []
+                        continue
+                    for d in model_dirs:
+                        metrics_path = get_metrics_path(d, mode, args.plot_file, args.full_metrics)
+                        if not metrics_path or not os.path.exists(metrics_path):
+                            raise ValueError(f"[ANOMALY] Missing metrics file for special metric: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                        try:
+                            with open(metrics_path, 'r') as f:
+                                metrics = json.load(f)
+                        except Exception as e:
+                            raise ValueError(f"[ANOMALY] Failed to read metrics file: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}\n  error: {e}")
+                        if metric_key == "broken_pipes_percentage_in_dataset":
+                            broken_key = "broken_pipes_count"
+                            total_key = "total_generated_levels"
+                            total_items_key = "total_pipes"
+                        else:
+                            broken_key = "broken_cannons_count"
+                            total_key = "total_generated_levels"
+                            total_items_key = "total_cannons"
+                        broken = metrics.get(broken_key)
+                        total = metrics.get(total_key)
+                        total_items = metrics.get(total_items_key)
+                        if broken is None or total is None or total_items is None or total == 0:
+                            raise ValueError(f"[ANOMALY] Missing or invalid keys in metrics file: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                        tfp = (total_items / total) * 100
+                        tfp_list.append(tfp)
+                    total_feature_percentages_map[(model, mode)] = tfp_list
+        for i, model in enumerate(sorted_models):
+            plot_data[model] = {}
+            for j, mode in enumerate(modes):
+                values = data[model].get(mode, [])
+                mean_val = sum(values) / len(values) if values else 0
+                # Find conf_interval for this model/mode
+                conf_interval = None
+                if len(values) > 1:
+                    from scipy.stats import t
+                    n = len(values)
+                    std = (sum((v - mean_val) ** 2 for v in values) / (n - 1)) ** 0.5
+                    t_score = t.ppf(0.975, df=n - 1)
+                    conf_interval = t_score * std / (n ** 0.5)
+                else:
+                    conf_interval = 0
+                entry = {
+                    "values": values,
+                    "mean": mean_val,
+                    "conf_interval": conf_interval
+                }
+                # Add all total_feature_percentages if relevant
+                if special_metric:
+                    tfp_list = total_feature_percentages_map.get((model, mode), [])
+                    tfp_mean = sum(tfp_list) / len(tfp_list) if tfp_list else 0
+                    if len(tfp_list) > 1:
+                        from scipy.stats import t
+                        n = len(tfp_list)
+                        std = (sum((v - tfp_mean) ** 2 for v in tfp_list) / (n - 1)) ** 0.5
+                        t_score = t.ppf(0.975, df=n - 1)
+                        tfp_conf = t_score * std / (n ** 0.5)
+                    else:
+                        tfp_conf = 0
+                    entry["total_feature_percentages"] = tfp_list
+                    entry["total_feature_mean"] = tfp_mean
+                    entry["total_feature_conf_interval"] = tfp_conf
+                plot_data[model][mode] = entry
+        with open(json_path, "w", encoding="utf-8") as jf:
+            json.dump(plot_data, jf, indent=2)
+        print(f"Plot data saved as: {json_path}")
     else:
         plt.show()
 

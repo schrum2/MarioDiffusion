@@ -71,13 +71,31 @@ def evaluate_all_levels(json_file_path, output_file, game, key, debug):
 
         #print(f"Found {len(prompts)} prompts, {len(levels)} generated levels, and {len(captions)} generated captions.")
 
+        broken_pipe_count, total_scenes = count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=False, as_count=True)
+        broken_pipes_percentage_in_dataset = (broken_pipe_count / total_scenes) * 100 if total_scenes > 0 else 0
+
+        broken_pipe_count, pipe_scenes = count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=True, as_count=True)
+        broken_pipes_percentage_of_pipes = (broken_pipe_count / pipe_scenes) * 100 if pipe_scenes > 0 else 0
+
+        broken_cannon_count, total_scenes = count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=False, as_count=True)
+        broken_cannons_percentage_in_dataset = (broken_cannon_count / total_scenes) * 100 if total_scenes > 0 else 0
+
+        broken_cannon_count, cannon_scenes = count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True, as_count=True)
+        broken_cannons_percentage_of_cannons = (broken_cannon_count / cannon_scenes) * 100 if cannon_scenes > 0 else 0
+
         metrics = {
             "file_name": os.path.basename(json_file_path),
             "average_min_edit_distance": average_min_edit_distance(levels),
-            "broken_pipes_percentage_in_dataset": count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=False),
-            "broken_pipes_percentage_of_pipes": count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=True),
-            "broken_cannons_percentage_in_dataset": count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=False),
-            "broken_cannons_percentage_of_cannons":count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True),
+            "broken_pipes_percentage_in_dataset": broken_pipes_percentage_in_dataset,
+            "broken_pipes_percentage_of_pipes": broken_pipes_percentage_of_pipes,
+            "broken_cannons_percentage_in_dataset": broken_cannons_percentage_in_dataset,
+            "broken_cannons_percentage_of_cannons": broken_cannons_percentage_of_cannons,
+
+            "total_generated_levels": total_scenes,
+            "broken_pipes_count": broken_pipe_count,
+            "broken_cannons_count": broken_cannon_count,
+            "total_pipes": pipe_scenes,
+            "total_cannons": cannon_scenes
         }
         
         if key == "real" or key == "short" or key == "random" or key == "real_full": 
@@ -135,7 +153,9 @@ def evaluate_metrics(model_path, game, override, debug=False):
     """
     # Determine the model type from naming convention
     fdm = "fdm" in model_path.lower()
-    wgan = "wgan" in model_path.lower() and "samples" in model_path.lower()
+    wgan = "wgan" in model_path.lower() and not "samples" in model_path.lower()
+    wgan_samples = "wgan" in model_path.lower() and "samples" in model_path.lower()
+    unconditional = "-unconditional" in model_path.lower()
     unconditional_short = "unconditional-samples-short" in model_path.lower()
     unconditional_long = "unconditional-samples-long" in model_path.lower()
     conditional = "-conditional-" in model_path.lower()
@@ -148,23 +168,37 @@ def evaluate_metrics(model_path, game, override, debug=False):
         if debug: print("Fdm model detected")
         paths = {
             "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
+            "real_full": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels_full.json"),
             "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json")
         }
     elif wgan:
         if debug: print("Wgan model detected")
         paths = {
-            "short": os.path.join(model_path, "all_levels.json")
+            "short": os.path.join(f"{model_path}-samples", "all_levels.json")
         }
+    elif unconditional:
+        if debug: print("Unconditional model detected")
+        paths = {
+            "short": os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json"),
+            "long": os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json"),
+        }
+    elif wgan_samples:
+        print(f"Skip {model_path} as it is wgan samples")
+        return
     elif unconditional_short:
-        if debug: print("Unconditional model (short samples) detected")
-        paths = {
-            "short": os.path.join(model_path, "all_levels.json")
-        }
+        print(f"Skip {model_path} as it is an unconditional model with short samples")
+        return
+#        if debug: print("Unconditional model (short samples) detected")
+#        paths = {
+#            "short": os.path.join(model_path, "all_levels.json")
+#        }
     elif unconditional_long:
-        if debug: print("Unconditional model (long samples) detected")
-        paths = {
-            "long": os.path.join(model_path, "all_levels.json")
-        }
+        print(f"Skip {model_path} as it is an unconditional model with long samples")
+        return
+#        if debug: print("Unconditional model (long samples) detected")
+#        paths = {
+#            "long": os.path.join(model_path, "all_levels.json")
+#        }
     elif conditional: # Define paths for the four expected all_levels.json files for a conditional model
         if debug: print("Conditional model detected")
         paths = {
@@ -174,6 +208,9 @@ def evaluate_metrics(model_path, game, override, debug=False):
             "long": os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json"),
             "real_full": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels_full.json"),
         }
+    else:
+        print(f"Error: Model type not recognized in path - {model_path}")
+        raise ValueError(f"Model type not recognized in path: {model_path}")
 
     for key, json_path in paths.items():
         if os.path.isfile(json_path):

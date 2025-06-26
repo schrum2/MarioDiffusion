@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import argparse
 from util.naming_conventions import get_model_name_map_and_order
+import numpy as np
+from scipy.stats import t
 
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
@@ -95,6 +97,19 @@ def rename_and_order_groups(df, group_key):
     df = df.sort_values(group_key)
     return df, desired_order
 
+def get_standard_error(data):
+    """Return 95% confidence interval for a list of numbers (or 0 if not enough data)."""
+    if not isinstance(data, list):
+        return 0
+    n = len(data)
+    if n > 1:
+        mean_val = np.mean(data)
+        std = np.std(data, ddof=1)
+        t_score = t.ppf(0.975, df=n-1)
+        return t_score * std / np.sqrt(n)
+    else:
+        return 0
+
 def main():
     args = parse_args()
     df = load_data(args.input, args.group_key)
@@ -167,45 +182,79 @@ def main():
         df[args.x_axis] = pd.to_numeric(df[args.x_axis], errors="coerce")
         grouped = df.groupby(args.group_key, observed=False)[args.x_axis].mean()
         groups_reversed = groups_with_data[::-1]
-
         y = range(len(groups_reversed))
-        if args.stacked_bar_for_mlm:
-            for q in ["", "2"]:
 
+        if args.stacked_bar_for_mlm:
+            # Define hatches for the two bars
+            HATCHES = {"": "////", "2": "\\\\\\"}
+            LABELS = {"": "Level Model (End)", "2": "Level Model (Best)"}
+            for q in ["", "2"]:
                 bar_offset = 0.25 if q == "" else -0.25
                 main_color = "skyblue" if q == "" else "lightgreen"
                 minor_color = "red" # if q == "" else "orange"
+                hatch = HATCHES[q]
+                label = LABELS[q]
 
                 # Prepare data for stacked bars
                 mlm_groups = [g for g in groups_reversed if g in ["MLM-regular", "MLM-absence", "MLM-negative"]]
-                other_groups = [g for g in groups_reversed if g not in mlm_groups]
                 mlm_means = []
                 cond_means = []
                 bar_labels = []
                 bar_positions = []
                 single_means = []
                 single_positions = []
+                single_errors = []
+                bar_errors = []
+
                 for i, g in enumerate(groups_reversed):
                     row = df[df[args.group_key] == g].iloc[0] if not df[df[args.group_key] == g].empty else None
                     if g in mlm_groups and row is not None and f"mlm_mean{q}" in row and f"cond_mean{q}" in row:
+                        # For stacked bars
                         mlm_means.append(row[f"mlm_mean{q}"])
                         cond_means.append(row[f"cond_mean{q}"])
                         bar_labels.append(g)
                         bar_positions.append(i + bar_offset)
+                        # Error for stacked bar: use individual_times or individual_times2
+                        times_key = "individual_times" if q == "" else "individual_times2"
+                        times = row.get(times_key, [])
+                        error = get_standard_error(times)
+                        bar_errors.append(error)
+                    # For single bars
                     elif row is not None and f"mean{q}" in row:
                         single_means.append(row[f"mean{q}"])
                         single_positions.append(i + bar_offset)
+                        times_key = "individual_times" if q == "" else "individual_times2"
+                        times = row.get(times_key, [])
+                        error = get_standard_error(times)
+                        single_errors.append(error)
+
                 # Plot stacked bars for MLM groups
-                plt.barh(bar_positions, mlm_means, height=0.4, color=minor_color, label="Language Model" if q == "" else None)
-                plt.barh(bar_positions, cond_means, height=0.4, left=mlm_means, color=main_color, label="Level Model (End)" if q == "" else "Level Model (Best)")
-                plt.grid(axis='x', which='both', linestyle='--', alpha=0.5)
+                plt.barh(bar_positions, mlm_means, height=0.4, color=minor_color, edgecolor='black', label="Language Model" if q == "" else None)
+                plt.barh(bar_positions, cond_means, height=0.4, left=mlm_means, color=main_color, hatch=hatch, edgecolor='black', label=label)
+                # plt.grid(axis='x', which='both', linestyle='--', alpha=0.5)
+                for pos, mlm, cond, err in zip(bar_positions, mlm_means, cond_means, bar_errors):
+                    total = mlm + cond
+                    plt.errorbar(
+                        x=total, y=pos, xerr=err, fmt='none', ecolor='black', elinewidth=2, capsize=5, capthick=2, zorder=10
+                    )
+                
                 # Plot single bars for other groups
-                plt.barh(single_positions, single_means, height=0.4, color=main_color)
+                plt.barh(single_positions, single_means, height=0.4, color=main_color, hatch=hatch, edgecolor='black', label=label)
+                for pos, mean, err in zip(single_positions, single_means, single_errors):
+                    plt.errorbar(
+                        x=mean, y=pos, xerr=err, fmt='none', ecolor='black', elinewidth=2, capsize=5, capthick=2, zorder=10
+                    )
+
+                # Set x and y labels (rotate x-ticks if needed)
                 plt.yticks(y, groups_reversed)
                 plt.xlabel(args.x_axis_label)
                 plt.ylabel(args.y_axis_label)
                 plt.xticks(rotation=args.x_tick_rotation)
-                plt.legend()
+
+                # Only show each legend entry once
+                handles, labels = plt.gca().get_legend_handles_labels()
+                by_label = dict(zip(labels, handles))
+                plt.legend(by_label.values(), by_label.keys())
 
                 if args.x_markers_on_bar_plot:
                     if args.x_marker_data_on_bar_plot:
@@ -214,7 +263,6 @@ def main():
                                 points = df[df[args.group_key] == group][args.x_marker_data_on_bar_plot].dropna()
                                 plt.scatter(points, [i + bar_offset]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
                         else:
-
                             # For the "2" (best) bar, plot all values in the list for this group
                             for i, group in enumerate(groups_reversed):
                                 row = df[df[args.group_key] == group].iloc[0] if not df[df[args.group_key] == group].empty else None
@@ -222,7 +270,6 @@ def main():
                                     points = row[args.x_marker_data_on_bar_plot + "2"]
                                     if isinstance(points, list):
                                         plt.scatter(points, [i + bar_offset]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
-
                     else: # What is this case?
                         plt.gca().set_xlim(left=0)
                         for i, group in enumerate(groups_reversed):
@@ -236,7 +283,6 @@ def main():
             plt.xticks(rotation=args.x_tick_rotation)
             if args.x_markers_on_bar_plot:
                 if args.x_marker_data_on_bar_plot:
-                    x_marker_data = df[args.x_marker_data_on_bar_plot].dropna()
                     for i, group in enumerate(groups_reversed):
                         points = df[df[args.group_key] == group][args.x_marker_data_on_bar_plot].dropna()
                         plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
