@@ -122,6 +122,9 @@ class CaptionBuilder(ParentBuilder):
         self.uncheck_all_button = ttk.Button(self.checkbox_frame, text="Uncheck All", command=self.uncheck_all)
         self.uncheck_all_button.pack(anchor=tk.E)
 
+        # self.expand_all_button = ttk.Button(self.checkbox_frame, text="Expand All", command=self.expand_all)
+        # self.expand_all_button.pack(anchor=tk.E)
+
         # Frame for image display
         self.image_frame = ttk.Frame(master, borderwidth=2, relief="solid")  # Add border
         self.image_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -717,6 +720,12 @@ Average Segment Score: {avg_segment_score}"""
         for var in self.checkbox_vars.values():
             var.set(0)
             self.update_caption()
+
+    # def expand_all(self):
+    #     """Expand all checkboxes in the provided list or dict."""
+    #     for var in self.checkbox_vars.values():
+    #         var.set(1)
+    #         self.update_caption()
 
 import argparse
 def parse_args():
