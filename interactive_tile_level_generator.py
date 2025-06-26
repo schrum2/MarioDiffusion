@@ -329,7 +329,7 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text.config(state=tk.NORMAL)
         self.caption_text.delete(1.0, tk.END)
         self.caption_text.insert(tk.END, new_caption)
-        self.caption_text.config(state=tk.DISABLED)
+        self.caption_text.config(state=tk.NORMAL)  # Keep it editable
     
     def generate_image(self):
         global tileset_path, game_selected
