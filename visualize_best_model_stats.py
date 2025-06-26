@@ -255,7 +255,16 @@ def main():
                 # Only show each legend entry once
                 handles, labels = plt.gca().get_legend_handles_labels()
                 by_label = dict(zip(labels, handles))
-                plt.legend(by_label.values(), by_label.keys())
+                if args.log_scale:
+                    plt.legend(
+                        by_label.values(),
+                        by_label.keys(),
+                        fontsize=max(args.legend_fontsize - 4, 10),  # Slightly smaller
+                        loc='lower right',
+                        #bbox_to_anchor=(0.5, 0.2)  # Move up slightly
+                    )
+                else:
+                    plt.legend(by_label.values(), by_label.keys())
 
                 if args.x_markers_on_bar_plot:
                     if args.x_marker_data_on_bar_plot:
