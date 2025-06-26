@@ -119,6 +119,9 @@ class CaptionBuilder(ParentBuilder):
         self.model_button = ttk.Button(self.checkbox_frame, text="Load Model", command=self.load_model, style="TButton")
         self.model_button.pack(anchor=tk.E)
 
+        self.uncheck_all_button = ttk.Button(self.checkbox_frame, text="Uncheck All", command=self.uncheck_all)
+        self.uncheck_all_button.pack(anchor=tk.E)
+
         # Frame for image display
         self.image_frame = ttk.Frame(master, borderwidth=2, relief="solid")  # Add border
         self.image_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -708,6 +711,12 @@ Average Segment Score: {avg_segment_score}"""
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
         console_output = level.run_astar()
         print(console_output)
+
+    def uncheck_all(self):
+        """Uncheck all checkboxes in the provided list or dict."""
+        for var in self.checkbox_vars.values():
+            var.set(0)
+            self.update_caption()
 
 import argparse
 def parse_args():
