@@ -104,7 +104,7 @@ class CaptionBuilder(ParentBuilder):
         self.width_entry.pack()
         self.height_label = ttk.Label(self.caption_frame, text="Height (in tiles):")
         self.height_label.pack()
-        self.height_entry = ttk.Entry(self.caption_frame)
+        self.height_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.height_entry.pack()
         if game_selected == "Lode Runner":
             self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")

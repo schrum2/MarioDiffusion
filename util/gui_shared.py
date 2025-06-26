@@ -151,6 +151,8 @@ class ParentBuilder:
     
         for pattern in patterns:
             grouped_phrases = group_phrases_by_pattern(pattern)
+            if pattern == "enem":
+                pattern = "enemy"
             if grouped_phrases:
                 create_group(f"{pattern.capitalize()} Phrases", grouped_phrases)
     
