@@ -655,6 +655,18 @@ if len(sys.argv) > 3:
     tileset_path = sys.argv[3]
 
 if __name__ == "__main__":
+    import argparse
+    def parse_args():
+        parser = argparse.ArgumentParser(description="Interactive Tile Level Generator")
+        parser.add_argument(
+            "--game",
+            type=str,
+            default="Mario",
+            choices=["Mario", "LR"],
+            help="Which game to create a model for (affects sample style and tile count)"
+        )
+    if len(sys.argv) > 3:
+        tileset_path = sys.argv[3]
     if len(sys.argv) > 1:
         app.load_data(sys.argv[1])
 
