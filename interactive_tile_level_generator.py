@@ -18,6 +18,7 @@ from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.sampler import scene_to_ascii
 
+
 # Add the parent directory to sys.path so sibling folders can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -25,12 +26,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # except ImportError:
 #     lr_main = None  # Handle gracefully if not present
 
+global tileset_path
 tileset_path = None  # Global variable for tileset path
+global game_selected
 game_selected = None  # Global variable for selected game
-
-if 'LR' in sys.argv[1]:
-    game_selected = "Lode Runner"
-    tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
 
 class CaptionBuilder(ParentBuilder):
     global tileset_path, game_selected
@@ -643,34 +642,34 @@ Average Segment Score: {avg_segment_score}"""
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
         console_output = level.run_astar()
         print(console_output)
-  
-root = tk.Tk()
-app = CaptionBuilder(root)
 
-if tileset_path is None:
-    # Default to SMB tileset if not specified
-    tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
-
-if len(sys.argv) > 3:
-    tileset_path = sys.argv[3]
+import argparse
+def parse_args():
+    parser = argparse.ArgumentParser(description="Interactive Tile Level Generator")
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
+    parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
+    parser.add_argument("--load_data", type=str, default="datasets/Mar1and2_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
+    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    import argparse
-    def parse_args():
-        parser = argparse.ArgumentParser(description="Interactive Tile Level Generator")
-        parser.add_argument(
-            "--game",
-            type=str,
-            default="Mario",
-            choices=["Mario", "LR"],
-            help="Which game to create a model for (affects sample style and tile count)"
-        )
-    if len(sys.argv) > 3:
-        tileset_path = sys.argv[3]
-    if len(sys.argv) > 1:
-        app.load_data(sys.argv[1])
+    args = parse_args()
+    if args.game == "Mario":
+        game_selected = "Mario"
+        tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+    elif args.game == "LR":
+        game_selected = "Lode Runner"
+        tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
 
-if len(sys.argv) > 2:
-    app.load_model(sys.argv[2])
+    root = tk.Tk()
+    app = CaptionBuilder(root)
+    app.load_data(args.load_data)
+    app.load_model(args.model_path)
 
 root.mainloop()
