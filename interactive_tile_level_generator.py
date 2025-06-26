@@ -65,7 +65,7 @@ class CaptionBuilder(ParentBuilder):
         self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", style="TLabel", font=GUI_FONT)
         self.caption_label.pack(pady=5)
         
-        self.caption_text = tk.Text(self.caption_frame, height=8, wrap=tk.WORD, state=tk.DISABLED, font=GUI_FONT)
+        self.caption_text = tk.Text(self.caption_frame, height=8, state=tk.NORMAL, wrap=tk.WORD, font=GUI_FONT) #state=tk.DISABLED,
         self.caption_text.pack() 
                 
         self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:", style="TLabel")
@@ -720,12 +720,6 @@ Average Segment Score: {avg_segment_score}"""
         for var in self.checkbox_vars.values():
             var.set(0)
             self.update_caption()
-
-    # def expand_all(self):
-    #     """Expand all checkboxes in the provided list or dict."""
-    #     for var in self.checkbox_vars.values():
-    #         var.set(1)
-    #         self.update_caption()
 
 import argparse
 def parse_args():
