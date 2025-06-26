@@ -11,7 +11,7 @@ import sys
 import os
 import numpy as np
 import json
-from util.sampler import MMNEATSimulator
+from util.sampler import CustomSimulator
 from captions.caption_match import compare_captions
 from util.sampler import scene_to_ascii
 from tqdm import tqdm
@@ -134,12 +134,12 @@ def remove_absence_captions(captions: List[str], feature: str) -> List[str]:
     """
     # Clean captions by removing "no broken" phrases. Does not remove the caption, rather changes it
     cleaned_captions = [
-        caption.replace(f"no broken {feature}s", "").replace(f"no broken {feature}", "")
+        caption.replace(f"no broken {feature}s", "").replace(f"no broken {feature}", "").replace(f"no {feature}s", "").replace(f"no {feature}", "").replace(f"no upside down {feature}s", "").replace(f"no upside down {feature}", "").strip()
         for caption in captions
     ]
     return cleaned_captions
 
-def count_broken_feature_mentions(captions: List[str], feature: str, as_percentage_of_feature: bool) -> float:
+def count_broken_feature_mentions(captions: List[str], feature: str, as_percentage_of_feature: bool, as_count: bool) -> float:
     """
     Calculate percentage of captions mentioning a broken feature
     
@@ -154,6 +154,7 @@ def count_broken_feature_mentions(captions: List[str], feature: str, as_percenta
     cleaned_captions = remove_absence_captions(captions, feature)
     if not cleaned_captions:
         print(f"Warning: No captions found after cleaning for feature '{feature}'")
+        if as_count: return (0,0)
         return 0.0
     
     # Count mentions of broken feature
@@ -171,15 +172,20 @@ def count_broken_feature_mentions(captions: List[str], feature: str, as_percenta
         
         if total_feature_count == 0:
             print(f"Warning: No mentions of '{feature}' found in captions")
+            if as_count: return (0,0)
             return 0.0
         
+        if as_count:
+            return broken_count, total_feature_count
         # Return percentage of broken feature mentions over total feature mentions
         return (broken_count / total_feature_count) * 100
-    
+
+    if as_count:
+        return broken_count, len(cleaned_captions)    
     # Returns percent of broken feature mentions over total captions
     return (broken_count / len(cleaned_captions)) * 100 
 
-def analyze_broken_features_from_data(data: List[Dict], feature: str, as_instance_of_feature: bool) -> float:
+def analyze_broken_features_from_data(data: List[Dict], feature: str, as_instance_of_feature: bool, as_count: bool) -> float:
     """
     Analyze broken features from list of scene/caption dictionaries
     
@@ -196,7 +202,7 @@ def analyze_broken_features_from_data(data: List[Dict], feature: str, as_instanc
         print(f"Warning: No captions found in data for feature '{feature}'")
         return 0.0
     
-    return count_broken_feature_mentions(captions, feature, as_instance_of_feature)
+    return count_broken_feature_mentions(captions, feature, as_instance_of_feature, as_count)
 
 def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: str, as_instance_of_feature: bool) -> float:
     """
@@ -229,7 +235,7 @@ def analyze_broken_features_from_scenes(scenes: List[List[List[int]]], feature: 
     return count_broken_feature_mentions(captions, feature, as_instance_of_feature)
 
 # Convenience functions for pipes specifically
-def analyze_broken_pipes(data: Union[List[str], List[Dict], List[List[List[int]]]], as_instance_of_feature: bool) -> float:
+def analyze_broken_pipes(data: Union[List[str], List[Dict], List[List[List[int]]]], as_instance_of_feature: bool, as_count: bool) -> float:
     """
     Analyze broken pipes in data, handling different input formats
     
@@ -244,14 +250,14 @@ def analyze_broken_pipes(data: Union[List[str], List[Dict], List[List[List[int]]
         
     # Determine data type and call appropriate function
     if isinstance(data[0], str):
-        return count_broken_feature_mentions(data, "pipe", as_instance_of_feature)
+        return count_broken_feature_mentions(data, "pipe", as_instance_of_feature, as_count)
     elif isinstance(data[0], dict):
-        return analyze_broken_features_from_data(data, "pipe", as_instance_of_feature)
+        return analyze_broken_features_from_data(data, "pipe", as_instance_of_feature, as_count)
     else:
-        return analyze_broken_features_from_scenes(data, "pipe", as_instance_of_feature)
+        return analyze_broken_features_from_scenes(data, "pipe", as_instance_of_feature, as_count)
 
 # Convenience functions for cannons specifically
-def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int]]]], as_instance_of_feature: bool) -> float:
+def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int]]]], as_instance_of_feature: bool, as_count: bool) -> float:
     """
     Analyze broken cannons in data, handling different input formats
     
@@ -266,11 +272,11 @@ def analyze_broken_cannons(data: Union[List[str], List[Dict], List[List[List[int
         
     # Determine data type and call appropriate function
     if isinstance(data[0], str):
-        return count_broken_feature_mentions(data, "cannon", as_instance_of_feature)
+        return count_broken_feature_mentions(data, "cannon", as_instance_of_feature, as_count)
     elif isinstance(data[0], dict):
-        return analyze_broken_features_from_data(data, "cannon", as_instance_of_feature)
+        return analyze_broken_features_from_data(data, "cannon", as_instance_of_feature, as_count)
     else:
-        return analyze_broken_features_from_scenes(data, "cannon", as_instance_of_feature)
+        return analyze_broken_features_from_scenes(data, "cannon", as_instance_of_feature, as_count)
     
     
 def analyze_phrase_targeting(
@@ -428,11 +434,11 @@ def astar_metrics(
     save_name: str = "astar_result.jsonl"
 ) -> tuple[List[dict], dict]:
     """
-    Runs the SNES A* algorithm on each level multiple times and saves results in JSONL format.
+    Runs the A* algorithm on each level multiple times and saves results in JSONL format.
     Args:
         levels: List of dicts (one-hot encoded json data) or list of lists of strings (raw ascii chars)
         num_runs: Number of runs per level
-        simulator_kwargs: kwargs for MMNEATSimulator
+        simulator_kwargs: kwargs for CustomSimulator
         output_json_path: Path to input JSON file (saves in root directory if None)
         save_name: Filename for output JSONL
     Returns:
@@ -470,7 +476,7 @@ def astar_metrics(
             run_metrics = []
             for run in range(num_runs):
                 try:
-                    sim = MMNEATSimulator(ascii_level, **simulator_kwargs)
+                    sim = CustomSimulator(ascii_level, **simulator_kwargs)
                     output = sim.astar(render=False)
                     # # Enable rendering if needed (for debugging)
                     # output = sim.astar()

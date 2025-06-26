@@ -1,6 +1,5 @@
 from interactive_generation import InteractiveGeneration
 import torch
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
 from captions.caption_match import compare_captions, process_scene_segments
 from captions.LR_caption_match import compare_captions as lr_compare_captions, process_scene_segments as lr_process_scene_segments
@@ -11,6 +10,8 @@ from util.sampler import scene_to_ascii
 import argparse
 import util.common_settings as common_settings
 from util.sampler import SampleOutput
+from models.pipeline_loader import get_pipeline
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")    
@@ -56,7 +57,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         )
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(self.device)
+        self.pipe = get_pipeline(args.model_path).to(self.device)
         self.pipe.print_unet_architecture()
         #self.pipe.save_unet_architecture_pdf(height, width)
 

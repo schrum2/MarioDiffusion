@@ -7,7 +7,6 @@ import numpy as np
 from datetime import datetime
 from level_dataset import LevelDataset, visualize_samples
 import json
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.fdm_pipeline import FDMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
 from create_ascii_captions import assign_caption, save_level_data
@@ -18,8 +17,8 @@ from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
-from models.fdm_pipeline import FDMPipeline
 from util.plotter import Plotter  
+from models.pipeline_loader import get_pipeline
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
@@ -87,16 +86,8 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
-    using_unet_pipe = False
-    # TODO: This won't work if training terminated early, but there are still valid checkpoints I want to evaluate
-    if(os.path.exists(os.path.join(args.model_path, "unet"))):
-        #Default to getting the Diffusion pipeline
-        using_unet_pipe = True
-        pipe = TextConditionalDDPMPipeline.from_pretrained(args.model_path).to(device)
-    else:
-        #Get the FDM pipeline if "unet" doesn't exist
-        #TODO: This doesn't work with our new saving system
-        pipe = FDMPipeline.from_pretrained(os.path.join(args.model_path, "final-model")).to(device)
+
+    pipe = get_pipeline(args.model_path).to(device)
 
     assert(pipe.tokenizer is not None)
 
@@ -214,10 +205,8 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
                 continue
                 
             print(f"Evaluating checkpoint: {checkpoint_dir}")
-            if using_unet_pipe:
-                pipe = TextConditionalDDPMPipeline.from_pretrained(checkpoint_dir).to(device)
-            else:
-                pipe = FDMPipeline.from_pretrained(checkpoint_dir).to(device)
+            
+            pipe = get_pipeline(checkpoint_dir).to(device)
 
 
             avg_score, _, _, _ = calculate_caption_score_and_samples(
@@ -241,21 +230,8 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
 def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True):
     
-    #With persistent_workers being set to true at creation, the dataset mode cannot be changed
-    #without creating a new dataset, because all of the workers present are working with the old
-    #version. This creates a new dataset to avoid this issue entierly
+    #Used for potential level scene pruning later
     original_mode = dataloader.dataset.mode
-    if original_mode == "diff_text":
-        dataset = dataloader.dataset
-        dataset.mode = "text"
-        dataloader = DataLoader(
-            dataset,
-            batch_size=dataloader.batch_size,
-            shuffle=False,
-            num_workers=4,
-            drop_last=False,
-            persistent_workers=False
-        )
         
 
     score_sum = 0.0
@@ -264,6 +240,13 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     all_prompts = []
     compare_all_scores = []
     for batch_idx, batch in enumerate(dataloader):
+
+        #Prune the one hot encoded level scene out of the batch if diff_text is being used
+        if original_mode == "diff_text":
+            batch = batch[1:]
+            if len(batch)==1:
+                batch=batch[0]
+
         with torch.no_grad():  # Disable gradient computation to save memory            
             if dataloader.dataset.negative_captions:
                 # For negative captions, batch is (positive_captions, negative_captions)

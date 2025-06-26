@@ -1,5 +1,4 @@
 from evolution.evolution import Evolver
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from level_dataset import visualize_samples, convert_to_level_format
 from create_ascii_captions import extract_tileset
 import argparse
@@ -7,6 +6,8 @@ import torch
 from evolution.genome import LatentGenome
 from create_ascii_captions import assign_caption
 import util.common_settings as common_settings
+from models.pipeline_loader import get_pipeline
+
 
 class TextDiffusionEvolver(Evolver):
     def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json', args = None):
@@ -18,7 +19,7 @@ class TextDiffusionEvolver(Evolver):
         self.args = args
         self.width = width
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.pipe = TextConditionalDDPMPipeline.from_pretrained(model_path).to(self.device)
+        self.pipe = get_pipeline(model_path).to(self.device)
         # Set negative prompt support in viewer if available
         self.negative_prompt_supported = getattr(self.pipe, "supports_negative_prompt", False)
 

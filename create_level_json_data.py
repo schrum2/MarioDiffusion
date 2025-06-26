@@ -144,7 +144,7 @@ def pad_and_sample(
 
         padded_level = [row.ljust(target_width, extra_tile) for row in padded_level]
         samples = []
-        for x in range((width - target_width + 1)//stride):
+        for x in range((width - target_width + stride)//stride):
             sample = []
             for y in range(target_height):
                 window_row = padded_level[y][x*stride:(x*stride)+target_width]

@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import matplotlib.pyplot as plt
 import argparse
@@ -8,7 +7,7 @@ from verify_data_complete import find_numbered_directories
 
 # Which modes are valid for which model types
 VALID_MODES_BY_TYPE = {
-    "conditional": {"real", "random", "short", "long"},
+    "conditional": {"real", "random", "short", "long", "real_full"},
     "unconditional": {"short", "long"},
     "wgan": {"short"},
     "fdm": {"real", "random"},
@@ -29,12 +28,6 @@ def detect_model_type(model_name):
     return "unknown"
 
 
-# def strip_common_prefix(strings):
-#     if not strings:
-#         return strings
-#     common_prefix = os.path.commonprefix(strings)
-#     return [s[len(common_prefix):] for s in strings], common_prefix
-
 def extract_prefix(name):
     if "-unconditional" in name:
         # return re.sub(r"-unconditional\d+", "-unconditional", name)
@@ -42,13 +35,13 @@ def extract_prefix(name):
     elif "-wgan" in name:
         # return re.sub(r"-wgan\d+", "-wgan", name)
         return "Mar1and2-wgan"
-    elif "MarioGPT" in name:
+    elif "MarioGPT_metrics" in name:
         return "MarioGPT_metrics"
     return name.rstrip("0123456789").rstrip("-_")
 
 # TODO: Add a commandline flag that when set, will indicate that we want to compute metrics with all 7687 real samples. That should reflect here
 # Instead of returning evaluation_metrics.json, return evaluation_metrics_full.json
-def get_metrics_path(base_dir, mode, plot_file):
+def get_metrics_path(base_dir, mode, plot_file, full_metrics=False):
     model_name = os.path.basename(base_dir)
 
     if "-conditional-" in model_name: # TODO: handle full case
@@ -60,20 +53,38 @@ def get_metrics_path(base_dir, mode, plot_file):
             # e.g. Mar1and2-conditional-absence5/samples-from-real-Mar1and2-captions/evaluation_metrics.json
             subdir = f"samples-from-{mode}-Mar1and2-captions"
             return os.path.join(base_dir, subdir, plot_file)
+        
+        elif mode in {"real_full"}:
+            if full_metrics:
+                subdir = f"samples-from-real-Mar1and2-captions"
+                return os.path.join(base_dir,subdir, "evaluation_metrics_full.json")
+            else: 
+                return None
+ 
 
     elif "-fdm-" in model_name: # TODO: handle full case
         # fdm case is always subdir
-        subdir = f"samples-from-{mode}-Mar1and2-captions"
-        return os.path.join(base_dir, subdir, plot_file)
+        if mode in {"real", "random"}:
+            subdir = f"samples-from-{mode}-Mar1and2-captions"
+            return os.path.join(base_dir, subdir, plot_file)
+        elif mode in {"real_full"}:
+            if full_metrics:
+                subdir = f"samples-from-real-Mar1and2-captions"
+                return os.path.join(base_dir,subdir, "evaluation_metrics_full.json")
+            else: 
+                None
 
-    elif "-unconditional-samples" in model_name:
+    elif "unconditional" in model_name:
+        if mode == "short":
+            return os.path.join(f"{base_dir}-unconditional-samples-short", plot_file)
         # e.g. Mar1and2-unconditional29-unconditional-samples-short
-        return os.path.join(base_dir, plot_file)
+        elif mode == "long":
+            return os.path.join(f"{base_dir}-unconditional-samples-long", plot_file)
 
     elif "-wgan" in model_name:
-        return os.path.join(base_dir, plot_file)
+        return os.path.join(f"{base_dir}-samples", plot_file)
 
-    elif "MarioGPT" in model_name:
+    elif "MarioGPT_metrics" in model_name:
         return os.path.join(base_dir, f"{mode}_levels", plot_file)
     else:
         print(f"[WARNING] Unknown model type for: {model_name}")
@@ -88,27 +99,65 @@ def parse_args():
     parser.add_argument("--plot_file", type=str, default="evaluation_metrics.json", help="File with metrics to plot")
     parser.add_argument("--save", action="store_true", help="Stores resulting pdfs in a folder named comparison_plots")
     parser.add_argument("--plot_label", type=str, default=None, help="Label for the outputted plot")
+    parser.add_argument("--full_metrics", action="store_true", help="Flag that indicates we will be plotting real_full")
+    parser.add_argument("--output_name", type=str, help="Name of outputted pdf file")
+    parser.add_argument("--legend_cols", type=int, default=1, help="Number of columns for the legend")
+    parser.add_argument("--loc", type=str, default="best", help="Where the legend is displayed")
+    parser.add_argument("--bbox", nargs="+", default=None, help="bbox parameters for the legend")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--scatter", action="store_true", help="Show individual values as x-marks (default)")
+    group.add_argument("--errorbar", action="store_true", help="Show error bars (standard error) on bars instead of scatter")
     return parser.parse_args()
 
-def get_bar_color(model_name, mode, mode_list, colors):
-    print(f"Determining color for model: {model_name}")  # Debug print
+def get_bar_color(model_name, mode, mode_list=None, colors=None):
     if "MarioGPT" in model_name:
         return 'red'
-    return colors[mode_list.index(mode) % len(colors)]
+    return MODE_COLORS.get(mode, "#cccccc")
+
+# Desired plotting order
+MODE_ORDER = ["real_full", "real", "random", "short"]
+
+# Add mode name mapping for legend labels
+MODE_DISPLAY_NAMES = {
+    "short": "unconditional",
+    "real": "real (100)",
+    "random": "random",
+    "long": "long",
+    "real_full": "real (full)",
+}
+
+MODE_COLORS = {
+    "real_full": "#e78ac3",   # pink
+    "real": "#fc8d62",        # orange
+    "random": "#8da0cb",      # blue
+    "short": "#66c2a5",       # greenish
+}
 
 def main():
     args = parse_args()
-    modes = list(reversed(args.modes))  # Reverse to control legend/bar order
+    
     metric_key = args.metric
+
+    # Ensure modes are in the desired order and present in the input
+    modes = [m for m in MODE_ORDER if m in args.modes or (m == "real_full" and args.full_metrics)]
+    modes = list(reversed(modes))  # Reverse to control legend/bar order
     print(f"Comparing modes: {modes}")
 
     # Add mode name mapping for legend labels
-    mode_display_names = {
-        "short": "unconditional",
-        "real": "real",
-        "random": "random",
-        "long": "long"
-    }
+    if args.metric == "beaten" and set(args.modes) == {"real", "random", "short", "long"}:
+        mode_display_names = {
+            "short": "unconditional short",
+            "real": "real",
+            "random": "random",
+            "long": "unconditional long"
+        }
+    else:
+        mode_display_names = {
+            "short": "unconditional",
+            "real": "real",
+            "random": "random",
+            "long": "long"
+        }
 
     numbered_dirs = find_numbered_directories()
 
@@ -122,6 +171,9 @@ def main():
 
     grouped = defaultdict(list)
     for dir_path, num, dir_type in numbered_dirs:
+        # Skip MarioGPT_Levels directory (special case)
+        if os.path.basename(dir_path) == "MarioGPT_Levels":
+            continue
         prefix = extract_prefix(dir_path)
         grouped[prefix].append(dir_path)
 
@@ -132,11 +184,13 @@ def main():
         valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
     
         for mode in modes:
-            if mode not in valid_modes:
+            if mode == "real_full" and model_type not in {"conditional", "fdm"}:
+                continue
+            if mode not in valid_modes and mode != "real_full":
                 continue
             
             for d in dirs:
-                metrics_path = get_metrics_path(d, mode, args.plot_file)
+                metrics_path = get_metrics_path(d, mode, args.plot_file, args.full_metrics)
                 if not metrics_path or not os.path.exists(metrics_path):
                     print(f"[SKIP] Missing: {metrics_path}")
                     continue
@@ -149,7 +203,7 @@ def main():
                 val = metrics.get(metric_key)
                 if val is not None:
                     data[prefix][mode].append(val)
-                    print(f"Adding a value to prefix {prefix}")
+                    #print(f"Adding a value to prefix {prefix}")
                 else:
                     print(f"[SKIP] {metric_key} missing in: {metrics_path}")
 
@@ -163,6 +217,24 @@ def main():
     sorted_models = list(map(lambda x : x[0], model_list))
     sorted_models = list(reversed(sorted_models))
     clean_labels_sorted = list(reversed(clean_labels_sorted))
+    
+    # Special case: Add "Full data" as a fake model with two bars if metric is average_min_edit_distance
+    if metric_key == "average_min_edit_distance":
+        real_data_path = os.path.join("real_data", "real_data_metrics.json")
+        if os.path.exists(real_data_path):
+            with open(real_data_path, "r") as f:
+                real_metrics = json.load(f)
+            # Add a fake model "Real data" with two bars: real (100) and real (full)
+            data["Real data"] = {
+                "real": [real_metrics["average_min_edit_distance_100"]],
+                "real_full": [real_metrics["average_min_edit_distance_full"]],
+            }
+            # Insert at the END so it appears at the top (since y-axis is reversed)
+            sorted_models.append("Real data")
+            clean_labels_sorted.append("Real data")
+        else:
+            print(f"[WARNING] Could not find {real_data_path} for Full data bars.")
+    
     
     # Plotting
     bar_width = 0.35
@@ -187,42 +259,166 @@ def main():
 
     plt.figure(figsize=(12, 12))
 
-    colors = ['#66c2a5', '#fc8d62', '#8da0cb']  # Colorblind-friendly, light colors
+    if args.metric == "beaten" and set(args.modes) == {"real", "random", "short", "long"}:
+        colors = ['#66c2a5', '#fc8d62', '#8da0cb', "#d383dd"]  # Add a distinct color for 'long'
+    else:
+        colors = ['#66c2a5', '#fc8d62', '#8da0cb'] # Colorblind-friendly, light colors
     has_added_mode_to_legend = {mode: False for mode in modes}  # Track which modes are in legend
 
+    from scipy.stats import t
     for i, mode in enumerate(modes):
+        #print(f"Processing mode: {mode}")
         means = []
+        conf_intervals = []
+        total_feature_percentages = []  # For background bars
         for model in sorted_models:
-            values = data[model][mode]
+            #print(f"  Processing model: {model}")
+            model_type = detect_model_type(model)
+            valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
+            # Only process valid (model, mode) pairs
+            if mode not in valid_modes and not (mode == "real_full" and model_type in {"conditional", "fdm"}):
+                means.append(0)
+                conf_intervals.append(0)
+                total_feature_percentages.append(None)
+                continue
+            values = data[model].get(mode, [])
             mean_val = sum(values) / len(values) if values else 0
             means.append(mean_val)
+
+            # 95% Confidence Interval: mean ± t * (std / sqrt(n))
+            n = len(values)
+            if values and n > 1:
+                std = (sum((v - mean_val) ** 2 for v in values) / (n - 1)) ** 0.5
+                t_score = t.ppf(0.975, df=n - 1)  # two-tailed 95% CI
+                conf_interval = t_score * std / (n ** 0.5)
+            else:
+                conf_interval = 0
+            conf_intervals.append(conf_interval)
+
+            # Special case for broken_pipes_percentage_in_dataset or broken_cannons_percentage_in_dataset
+            if metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"]:
+                # Determine which keys to use
+                if metric_key == "broken_pipes_percentage_in_dataset":
+                    broken_key = "broken_pipes_count"
+                    total_key = "total_generated_levels"
+                    percent_key = "broken_pipes_percentage_in_dataset"
+                    total_items_key = "total_pipes"
+                else:  # broken_cannons_percentage_in_dataset
+                    broken_key = "broken_cannons_count"
+                    total_key = "total_generated_levels"
+                    percent_key = "broken_cannons_percentage_in_dataset"
+                    total_items_key = "total_cannons"
+                # Loop over all directories for this model/mode
+                model_dirs = grouped.get(model, None)
+                tfp_values = []
+                for d in model_dirs or []:
+                    metrics_path = get_metrics_path(d, mode, args.plot_file, args.full_metrics)
+                    if not metrics_path or not os.path.exists(metrics_path):
+                        raise ValueError(f"[BROKEN {percent_key.upper()}] Missing: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                    with open(metrics_path, 'r') as f:
+                        metrics = json.load(f)
+                    for k in [percent_key, total_items_key, broken_key, total_key]:
+                        if k not in metrics:
+                            raise KeyError(f"[BROKEN {percent_key.upper()}] Key '{k}' missing in {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                    broken = metrics[broken_key]
+                    total = metrics[total_key]
+                    percent = metrics[percent_key]
+                    total_items = metrics[total_items_key]
+                    # Check value
+                    computed = (broken / total) * 100 if total else 0
+                    if abs(percent - computed) > 1e-3:
+                        raise ValueError(f"[BROKEN {percent_key.upper()}] Value mismatch in {metrics_path}: {percent} != {computed}")
+                    # Check range
+                    if not (broken <= total_items <= total):
+                        raise ValueError(f"[BROKEN {percent_key.upper()}] {total_items_key} ({total_items}) not in [{broken}, {total}] in {metrics_path}")
+                    total_items_percentage = (total_items / total) * 100 if total else 0
+                    tfp_values.append(total_items_percentage)
+                # Now, tfp_values should match the number of values for this model/mode
+                if len(tfp_values) != len(values):
+                    raise ValueError(f"[ANOMALY] Number of total_feature_percentages ({len(tfp_values)}) does not match number of values ({len(values)}) for model {model} in mode {mode}.")
+                # Check for anomalies
+                for idx, (tfp, val) in enumerate(zip(tfp_values, values)):
+                    if tfp < val:
+                        print(f"means: {means}")
+                        print(f"total_feature_percentages: {tfp_values}")
+                        print(f"values (of mean): {values}")
+                        raise ValueError(f"[ANOMALY] Total feature percentage ({tfp}) is less than value ({val}) for model {model} in mode {mode} (dir index {idx}). This should not happen.")
+                # For plotting, use the mean of tfp_values
+                tfp_mean = sum(tfp_values) / len(tfp_values) if tfp_values else 0
+                total_feature_percentages.append(tfp_mean)
+            else:
+                total_feature_percentages.append(None)
 
         bar_positions = [xi + offsets[i] for xi in x]
 
         # Plot bars for each model
         for j, model in enumerate(sorted_models):
-            print(f"Processing model {model} in mode {mode}")  # Debug print
             color = get_bar_color(model, mode, modes, colors)
             is_mariogpt = "MarioGPT" in model
-            
+
+            # Define hatching patterns for each mode for B&W printing
+            MODE_HATCHES = {
+                "real_full": "////",
+                "real": "\\\\",
+                "random": "....",
+                "short": "xxxx",
+                "long": "++",
+            }
+            hatch = MODE_HATCHES.get(mode, "")
+            if is_mariogpt:
+                hatch = "xx" # Override
+
             # Add mode to legend only once per mode, and never for MarioGPT
             should_add_to_legend = not has_added_mode_to_legend[mode] and not is_mariogpt
             if should_add_to_legend:
                 has_added_mode_to_legend[mode] = True
-            
-            plt.barh(
-                bar_positions[j],
-                means[j],
-                height=bar_width,
-                color=color,
-                edgecolor='black',
-                label=mode_display_names[mode] if should_add_to_legend else None,
-                alpha=0.6
-            )
 
-            # Scatter plot for individual values
-            if args.plot_file == "evaluation_metrics.json":
-                values = data[model][mode]
+            # Plot background bar for total_pipes_percentage if metric is broken_pipes_percentage_in_dataset
+            if metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"] and total_feature_percentages[j] is not None:
+                plt.barh(
+                    bar_positions[j],
+                    total_feature_percentages[j],
+                    height=bar_width, 
+                    color="#A3A3A3",
+                    edgecolor='black',
+                    alpha=0.3,
+                    zorder=0
+                )
+            # Plot bar with or without error bar
+            if args.errorbar:
+                # Clip error bars so they do not extend below zero
+                mean = means[j]
+                err = conf_intervals[j]
+                lower = min(mean, err) if err > 0 else 0
+                upper = err
+                xerr = [[lower], [upper]] if lower > 0 else [[0], [upper]]
+                plt.barh(
+                    bar_positions[j],
+                    mean,
+                    height=bar_width,
+                    color=color,
+                    edgecolor='black',
+                    label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
+                    alpha=0.6,
+                    hatch=hatch,
+                    xerr=xerr,
+                    error_kw={'elinewidth': 1, 'capthick': 1, 'capsize': 4, 'ecolor': 'black'}
+                )
+            else:
+                plt.barh(
+                    bar_positions[j],
+                    means[j],
+                    height=bar_width,
+                    color=color,
+                    edgecolor='black',
+                    label=MODE_DISPLAY_NAMES[mode] if should_add_to_legend else None,
+                    alpha=0.6,
+                    hatch=hatch
+                )
+
+            # Scatter plot for individual values (default or --scatter)
+            if (not args.errorbar) and args.plot_file == "evaluation_metrics.json":
+                values = data[model].get(mode, [])
                 if values:  # Only plot if we have values
                     y_position = x[j] + offsets[i]
                     plt.scatter(
@@ -230,39 +426,144 @@ def main():
                         [y_position] * len(values),
                         color='black',
                         marker='x',
-                        zorder=10
+                        zorder=10,
+                        s=10,           # smaller marker size
+                        linewidths=1    # thinner x-marks
                     )
 
     plt.yticks(ticks=x, labels=clean_labels_sorted)
-    
+    plt.xlim(left=0)
+
     if args.plot_label:
         plt.xlabel(args.plot_label, labelpad=10)
     else:
         plt.xlabel(metric_key.replace("_", " ").capitalize(), labelpad=10)
 
     handles, labels = plt.gca().get_legend_handles_labels()
-    plt.legend(
-        handles[::-1],
-        labels[::-1],
-        #title="Mode",
-        loc='best',
-        frameon=True,
-        edgecolor='black',
-    )
+    if args.metric == "beaten":
+        plt.legend(
+            loc='lower left',
+            bbox_to_anchor=(-0.45, -0.075),  # Move legend outside to the bottom left
+            frameon=True,
+            edgecolor='black',
+        )
+    else:
+        legend_kwargs = {
+            "handles": handles[::-1],
+            "labels": labels[::-1],
+            "loc": args.loc,
+            "ncol": args.legend_cols,
+            "frameon": True,
+            "edgecolor": 'black',
+        }
+        if args.bbox is not None:
+            legend_kwargs["bbox_to_anchor"] = tuple(float(x) for x in args.bbox)
+        plt.legend(**legend_kwargs)
 
     plt.grid(True, axis='x', linestyle='--', alpha=0.5)
     plt.tight_layout(pad=2)
 
     if args.save:
-        filename = f"comparison_{'_'.join(reversed(modes))}_{metric_key}.pdf"
+        renamed_modes = [
+            "unconditional" if m == "short"
+            else "full real samples" if m == "real_full"
+            else m
+            for m in modes
+        ]
+        if args.output_name:
+            filename = f"{args.output_name}.pdf"
+        else:
+            filename = f"comparison_{'_'.join(reversed(renamed_modes))}_{metric_key}.pdf"
         save_path = os.path.join(save_dir, filename)
-        
-        # Delete existing file if it exists
+        json_path = save_path[:-4] + ".json" if save_path.lower().endswith('.pdf') else save_path + ".json"
         if os.path.exists(save_path):
             os.remove(save_path)
-            
         plt.savefig(save_path, bbox_inches='tight', dpi=300, pad_inches=0)
         print(f"Plot saved as: {save_path}")
+        # --- Save JSON with all plotted data ---
+        plot_data = {}
+        # For special metrics, collect all total_feature_percentages for each (model, mode)
+        special_metric = metric_key in ["broken_pipes_percentage_in_dataset", "broken_cannons_percentage_in_dataset"]
+        # Recompute total_feature_percentages for all (model, mode) pairs if needed
+        total_feature_percentages_map = {}  # (model, mode) -> list of percentages
+        if special_metric:
+            for i, mode in enumerate(modes):
+                for j, model in enumerate(sorted_models):
+                    tfp_list = []
+                    model_type = detect_model_type(model)
+                    valid_modes = VALID_MODES_BY_TYPE.get(model_type, set())
+                    if mode not in valid_modes and not (mode == "real_full" and model_type in {"conditional", "fdm"}):
+                        total_feature_percentages_map[(model, mode)] = []
+                        continue
+                    # For each directory for this model
+                    model_dirs = grouped.get(model, None)
+                    if not model_dirs:
+                        total_feature_percentages_map[(model, mode)] = []
+                        continue
+                    for d in model_dirs:
+                        metrics_path = get_metrics_path(d, mode, args.plot_file, args.full_metrics)
+                        if not metrics_path or not os.path.exists(metrics_path):
+                            raise ValueError(f"[ANOMALY] Missing metrics file for special metric: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                        try:
+                            with open(metrics_path, 'r') as f:
+                                metrics = json.load(f)
+                        except Exception as e:
+                            raise ValueError(f"[ANOMALY] Failed to read metrics file: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}\n  error: {e}")
+                        if metric_key == "broken_pipes_percentage_in_dataset":
+                            broken_key = "broken_pipes_count"
+                            total_key = "total_generated_levels"
+                            total_items_key = "total_pipes"
+                        else:
+                            broken_key = "broken_cannons_count"
+                            total_key = "total_generated_levels"
+                            total_items_key = "total_cannons"
+                        broken = metrics.get(broken_key)
+                        total = metrics.get(total_key)
+                        total_items = metrics.get(total_items_key)
+                        if broken is None or total is None or total_items is None or total == 0:
+                            raise ValueError(f"[ANOMALY] Missing or invalid keys in metrics file: {metrics_path}\n  model: {model}\n  mode: {mode}\n  dir: {d}")
+                        tfp = (total_items / total) * 100
+                        tfp_list.append(tfp)
+                    total_feature_percentages_map[(model, mode)] = tfp_list
+        for i, model in enumerate(sorted_models):
+            plot_data[model] = {}
+            for j, mode in enumerate(modes):
+                values = data[model].get(mode, [])
+                mean_val = sum(values) / len(values) if values else 0
+                # Find conf_interval for this model/mode
+                conf_interval = None
+                if len(values) > 1:
+                    from scipy.stats import t
+                    n = len(values)
+                    std = (sum((v - mean_val) ** 2 for v in values) / (n - 1)) ** 0.5
+                    t_score = t.ppf(0.975, df=n - 1)
+                    conf_interval = t_score * std / (n ** 0.5)
+                else:
+                    conf_interval = 0
+                entry = {
+                    "values": values,
+                    "mean": mean_val,
+                    "conf_interval": conf_interval
+                }
+                # Add all total_feature_percentages if relevant
+                if special_metric:
+                    tfp_list = total_feature_percentages_map.get((model, mode), [])
+                    tfp_mean = sum(tfp_list) / len(tfp_list) if tfp_list else 0
+                    if len(tfp_list) > 1:
+                        from scipy.stats import t
+                        n = len(tfp_list)
+                        std = (sum((v - tfp_mean) ** 2 for v in tfp_list) / (n - 1)) ** 0.5
+                        t_score = t.ppf(0.975, df=n - 1)
+                        tfp_conf = t_score * std / (n ** 0.5)
+                    else:
+                        tfp_conf = 0
+                    entry["total_feature_percentages"] = tfp_list
+                    entry["total_feature_mean"] = tfp_mean
+                    entry["total_feature_conf_interval"] = tfp_conf
+                plot_data[model][mode] = entry
+        with open(json_path, "w", encoding="utf-8") as jf:
+            json.dump(plot_data, jf, indent=2)
+        print(f"Plot data saved as: {json_path}")
     else:
         plt.show()
 

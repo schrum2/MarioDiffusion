@@ -11,6 +11,37 @@ from util.metrics import (
 )
 from captions.caption_match import TOPIC_KEYWORDS
 
+def real_data():
+    real_levels_file_path = "datasets\\Mar1and2_LevelsAndCaptions-regular.json"
+    # Open full dataset
+    with open(real_levels_file_path, "r") as game_levels_file:
+        game_data = json.load(game_levels_file)
+        game_levels = [entry["scene"] for entry in game_data if "scene" in entry]
+        
+    avg_edit_distance_full = average_min_edit_distance(game_levels)
+    
+    # Resample levels to 100 samples
+    if len(game_levels) > 100:
+        increment = len(game_levels) // (100 + 1)
+        reduced_data = [game_levels[(i + 1) * increment] for i in range(100)]
+    
+        if len(reduced_data) != 100:
+            raise RuntimeError(f"Sample limit mismatched: Expected 100 samples, got {len(reduced_data)} after sampling.")
+    # calculate avg min edit distance self on this
+    avg_edit_distance_100 = average_min_edit_distance(reduced_data)
+
+    results = {
+        "average_min_edit_distance_full": avg_edit_distance_full,
+        "average_min_edit_distance_100": avg_edit_distance_100
+    }
+    # Save to a json file in a folder above datasets called "real_data"
+    datasets_dir = os.path.dirname(real_levels_file_path)
+    parent_dir = os.path.dirname(datasets_dir)
+    output_dir = os.path.join(parent_dir, "real_data")
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, "real_data_metrics.json")
+    with open(output_path, "w") as f:
+        json.dump(results, f, indent=2)
 
 def evaluate_all_levels(json_file_path, output_file, game, key, debug):
     """
@@ -40,16 +71,34 @@ def evaluate_all_levels(json_file_path, output_file, game, key, debug):
 
         #print(f"Found {len(prompts)} prompts, {len(levels)} generated levels, and {len(captions)} generated captions.")
 
+        broken_pipe_count, total_scenes = count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=False, as_count=True)
+        broken_pipes_percentage_in_dataset = (broken_pipe_count / total_scenes) * 100 if total_scenes > 0 else 0
+
+        broken_pipe_count, pipe_scenes = count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=True, as_count=True)
+        broken_pipes_percentage_of_pipes = (broken_pipe_count / pipe_scenes) * 100 if pipe_scenes > 0 else 0
+
+        broken_cannon_count, total_scenes = count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=False, as_count=True)
+        broken_cannons_percentage_in_dataset = (broken_cannon_count / total_scenes) * 100 if total_scenes > 0 else 0
+
+        broken_cannon_count, cannon_scenes = count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True, as_count=True)
+        broken_cannons_percentage_of_cannons = (broken_cannon_count / cannon_scenes) * 100 if cannon_scenes > 0 else 0
+
         metrics = {
             "file_name": os.path.basename(json_file_path),
             "average_min_edit_distance": average_min_edit_distance(levels),
-            "broken_pipes_percentage_in_dataset": count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=False),
-            "broken_pipes_percentage_of_pipes": count_broken_feature_mentions(captions, "pipe", as_percentage_of_feature=True),
-            "broken_cannons_percentage_in_dataset": count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=False),
-            "broken_cannons_percentage_of_cannons":count_broken_feature_mentions(captions, "cannon", as_percentage_of_feature=True),
+            "broken_pipes_percentage_in_dataset": broken_pipes_percentage_in_dataset,
+            "broken_pipes_percentage_of_pipes": broken_pipes_percentage_of_pipes,
+            "broken_cannons_percentage_in_dataset": broken_cannons_percentage_in_dataset,
+            "broken_cannons_percentage_of_cannons": broken_cannons_percentage_of_cannons,
+
+            "total_generated_levels": total_scenes,
+            "broken_pipes_count": broken_pipe_count,
+            "broken_cannons_count": broken_cannon_count,
+            "total_pipes": pipe_scenes,
+            "total_cannons": cannon_scenes
         }
         
-        if key == "real" or key == "short" or key == "random": 
+        if key == "real" or key == "short" or key == "random" or key == "real_full": 
             # With the original dataset, calculate average_min_edit_distance_from_real
             original_dataset_path = os.path.join("datasets", f"{game}_LevelsAndCaptions-regular.json")
             with open(original_dataset_path, "r") as original_file:
@@ -104,7 +153,9 @@ def evaluate_metrics(model_path, game, override, debug=False):
     """
     # Determine the model type from naming convention
     fdm = "fdm" in model_path.lower()
-    wgan = "wgan" in model_path.lower() and "samples" in model_path.lower()
+    wgan = "wgan" in model_path.lower() and not "samples" in model_path.lower()
+    wgan_samples = "wgan" in model_path.lower() and "samples" in model_path.lower()
+    unconditional = "-unconditional" in model_path.lower()
     unconditional_short = "unconditional-samples-short" in model_path.lower()
     unconditional_long = "unconditional-samples-long" in model_path.lower()
     conditional = "-conditional-" in model_path.lower()
@@ -117,23 +168,37 @@ def evaluate_metrics(model_path, game, override, debug=False):
         if debug: print("Fdm model detected")
         paths = {
             "real": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels.json"), # Location of these directories will change
+            "real_full": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels_full.json"),
             "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json")
         }
     elif wgan:
         if debug: print("Wgan model detected")
         paths = {
-            "short": os.path.join(model_path, "all_levels.json")
+            "short": os.path.join(f"{model_path}-samples", "all_levels.json")
         }
+    elif unconditional:
+        if debug: print("Unconditional model detected")
+        paths = {
+            "short": os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json"),
+            "long": os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json"),
+        }
+    elif wgan_samples:
+        print(f"Skip {model_path} as it is wgan samples")
+        return
     elif unconditional_short:
-        if debug: print("Unconditional model (short samples) detected")
-        paths = {
-            "short": os.path.join(model_path, "all_levels.json")
-        }
+        print(f"Skip {model_path} as it is an unconditional model with short samples")
+        return
+#        if debug: print("Unconditional model (short samples) detected")
+#        paths = {
+#            "short": os.path.join(model_path, "all_levels.json")
+#        }
     elif unconditional_long:
-        if debug: print("Unconditional model (long samples) detected")
-        paths = {
-            "long": os.path.join(model_path, "all_levels.json")
-        }
+        print(f"Skip {model_path} as it is an unconditional model with long samples")
+        return
+#        if debug: print("Unconditional model (long samples) detected")
+#        paths = {
+#            "long": os.path.join(model_path, "all_levels.json")
+#        }
     elif conditional: # Define paths for the four expected all_levels.json files for a conditional model
         if debug: print("Conditional model detected")
         paths = {
@@ -141,11 +206,19 @@ def evaluate_metrics(model_path, game, override, debug=False):
             "random": os.path.join(model_path, f"samples-from-random-{game}-captions", "all_levels.json"),
             "short": os.path.join(f"{model_path}-unconditional-samples-short", "all_levels.json"),
             "long": os.path.join(f"{model_path}-unconditional-samples-long", "all_levels.json"),
+            "real_full": os.path.join(model_path, f"samples-from-real-{game}-captions", "all_levels_full.json"),
         }
+    else:
+        print(f"Error: Model type not recognized in path - {model_path}")
+        raise ValueError(f"Model type not recognized in path: {model_path}")
 
     for key, json_path in paths.items():
         if os.path.isfile(json_path):
-            output_file = os.path.join(os.path.dirname(json_path), "evaluation_metrics.json")
+            
+            if key == "real_full":
+                output_file = os.path.join(os.path.dirname(json_path), "evaluation_metrics_full.json")
+            else:
+                output_file = os.path.join(os.path.dirname(json_path), "evaluation_metrics.json")
             
             if override and os.path.exists(output_file):
                 print(f"Override enabled: deleting existing {output_file}")
@@ -164,10 +237,15 @@ def parse_args():
     parser.add_argument("--game", type=str, default="Mar1and2", help="Game prefix for which to evaluate levels.")
     parser.add_argument("--override", action="store_true", help="Override all previously existing evaluation_metrics.json files and re-run calculations")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--real_data", action="store_true", help="Will create real data for avg min edit distance self when set")
 
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    evaluate_metrics(args.model_path, args.game, args.override, args.debug)
+    if args.real_data:
+        real_data()
+    else:
+        evaluate_metrics(args.model_path, args.game, args.override, args.debug)
+    

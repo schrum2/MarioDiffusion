@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
 
+GUI_FONT_SIZE = 12 
+
 class ParentBuilder:
     def __init__(self, master):
         self.master = master
@@ -88,7 +90,7 @@ class ParentBuilder:
                 self.toggle_button.bind("<Button-1>", self.toggle)
             
                 # Header label
-                self.title_label = ttk.Label(self.header_frame, text=text, font=("Arial", 10, "bold"))
+                self.title_label = ttk.Label(self.header_frame, text=text, font=("Arial", GUI_FONT_SIZE, "bold"))
                 self.title_label.pack(side=tk.LEFT, fill=tk.X)
                 self.title_label.bind("<Button-1>", self.toggle)
             
@@ -111,6 +113,7 @@ class ParentBuilder:
                     text=phrase, 
                     variable=var, 
                     command=command,     
+                    font=("Arial", GUI_FONT_SIZE),
                     wraplength=300,  # Adjust wrap length in pixels
                     anchor="w",
                     justify="left"

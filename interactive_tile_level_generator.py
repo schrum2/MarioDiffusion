@@ -1,4 +1,3 @@
-import argparse
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -7,8 +6,7 @@ import torch
 import gc
 from PIL import ImageTk
 import sys
-from util.gui_shared import ParentBuilder
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
+from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
 from level_dataset import visualize_samples, convert_to_level_format
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
@@ -17,6 +15,7 @@ from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.sampler import scene_to_ascii
+from models.pipeline_loader import get_pipeline
 
 
 # Add the parent directory to sys.path so sibling folders can be imported
@@ -31,12 +30,23 @@ tileset_path = None  # Global variable for tileset path
 global game_selected
 game_selected = None  # Global variable for selected game
 
+# Global constant for GUI font size
+
+GUI_FONT = ("Arial", GUI_FONT_SIZE)
+
 class CaptionBuilder(ParentBuilder):
     global tileset_path, game_selected
     def __init__(self, master):
         global tileset_path, game_selected
         super().__init__(master) 
-                
+        # Set ttk style for font size
+        style = ttk.Style()
+        style.configure("TLabel", font=GUI_FONT)
+        style.configure("TButton", font=GUI_FONT)
+        style.configure("TCheckbutton", font=GUI_FONT)
+        style.configure("TEntry", font=GUI_FONT)
+        style.configure("TCombobox", font=GUI_FONT)
+        
         # Holds tensors of levels currently on display
         self.current_levels = []
         self.generated_images = []
@@ -52,45 +62,45 @@ class CaptionBuilder(ParentBuilder):
         self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
         self.caption_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False)  # Only fill vertically, don't expand horizontally
         
-        self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", font=("Arial", 12, "bold"))
+        self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", style="TLabel", font=GUI_FONT)
         self.caption_label.pack(pady=5)
         
-        self.caption_text = tk.Text(self.caption_frame, height=8, wrap=tk.WORD, state=tk.DISABLED)
+        self.caption_text = tk.Text(self.caption_frame, height=8, wrap=tk.WORD, state=tk.DISABLED, font=GUI_FONT)
         self.caption_text.pack() 
                 
-        self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:")
+        self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:", style="TLabel")
         self.negative_prompt_label.pack()
-        self.negative_prompt_entry = ttk.Entry(self.caption_frame, width=100)
+        self.negative_prompt_entry = ttk.Entry(self.caption_frame, width=100, font=GUI_FONT)
         self.negative_prompt_entry.pack()
         self.negative_prompt_entry.insert(0, "")
         
-        self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:")
+        self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:", style="TLabel")
         self.num_images_label.pack()        
-        self.num_images_entry = ttk.Entry(self.caption_frame)
+        self.num_images_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.num_images_entry.pack()
         self.num_images_entry.insert(0, "4")
 
-        self.seed_label = ttk.Label(self.caption_frame, text="Random Seed:")
+        self.seed_label = ttk.Label(self.caption_frame, text="Random Seed:", style="TLabel")
         self.seed_label.pack()        
-        self.seed_entry = ttk.Entry(self.caption_frame)
+        self.seed_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.seed_entry.pack()
         self.seed_entry.insert(0, "1")
 
-        self.num_steps_label = ttk.Label(self.caption_frame, text="Num Inference Steps:")
+        self.num_steps_label = ttk.Label(self.caption_frame, text="Num Inference Steps:", style="TLabel")
         self.num_steps_label.pack()
-        self.num_steps_entry = ttk.Entry(self.caption_frame)
+        self.num_steps_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.num_steps_entry.pack()
         self.num_steps_entry.insert(0, f"{common_settings.NUM_INFERENCE_STEPS}")
         
-        self.guidance_label = ttk.Label(self.caption_frame, text="Guidance Scale:")
+        self.guidance_label = ttk.Label(self.caption_frame, text="Guidance Scale:", style="TLabel")
         self.guidance_label.pack()
-        self.guidance_entry = ttk.Entry(self.caption_frame)
+        self.guidance_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.guidance_entry.pack()
         self.guidance_entry.insert(0, f"{common_settings.GUIDANCE_SCALE}")
 
-        self.width_label = ttk.Label(self.caption_frame, text="Width (in tiles):")
+        self.width_label = ttk.Label(self.caption_frame, text="Width (in tiles):", style="TLabel")
         self.width_label.pack()
-        self.width_entry = ttk.Entry(self.caption_frame)
+        self.width_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.width_entry.pack()
         self.height_label = ttk.Label(self.caption_frame, text="Height (in tiles):")
         self.height_label.pack()
@@ -106,7 +116,7 @@ class CaptionBuilder(ParentBuilder):
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
                 
-        self.model_button = ttk.Button(self.checkbox_frame, text="Load Model", command=self.load_model)
+        self.model_button = ttk.Button(self.checkbox_frame, text="Load Model", command=self.load_model, style="TButton")
         self.model_button.pack(anchor=tk.E)
 
         # Frame for image display
@@ -134,8 +144,12 @@ class CaptionBuilder(ParentBuilder):
         
         self.checkbox_vars = {}
 
-        self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet")
+        self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet", style="TLabel")
         self.loaded_model_label.pack()
+
+        self.debug_caption = tk.BooleanVar(value=False)
+        self.debug_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Debug Caption Match", variable=self.debug_caption, style="TCheckbutton")
+        self.debug_caption_checkbox.pack()
 
         # Frame for composed level controls
         self.composed_frame = ttk.Frame(self.caption_frame)
@@ -151,24 +165,24 @@ class CaptionBuilder(ParentBuilder):
         row3 = ttk.Frame(self.composed_frame)
         row3.pack(pady=(10, 0), anchor="center")
 
-        self.play_composed_button = ttk.Button(row1, text="Play Composed Level", command=self.play_composed_level)
+        self.play_composed_button = ttk.Button(row1, text="Play Composed Level", command=self.play_composed_level, style="TButton")
         self.play_composed_button.pack(side=tk.LEFT, padx=5)
-        self.astar_composed_button = ttk.Button(row1, text="Use A* on Composed Level", command=self.astar_composed_level)
+        self.astar_composed_button = ttk.Button(row1, text="Use A* on Composed Level", command=self.astar_composed_level, style="TButton")
         self.astar_composed_button.pack(side=tk.LEFT, padx=5)
         self.use_snes_graphics = tk.BooleanVar(value=False)
-        self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics)
+        self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics, style="TCheckbutton")
         self.graphics_checkbox.pack(side=tk.LEFT, padx=5)
 
-        self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=self.delete_selected_composed_image)
+        self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=self.delete_selected_composed_image, style="TButton")
         self.delete_image_button.pack(side=tk.LEFT, padx=10)
-        self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level)
+        self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level, style="TButton")
         self.clear_composed_button.pack(side=tk.LEFT, padx=10)
-        self.save_composed_button = ttk.Button(row2, text="Save Composed Level", command=self.save_composed_level)
+        self.save_composed_button = ttk.Button(row2, text="Save Composed Level", command=self.save_composed_level, style="TButton")
         self.save_composed_button.pack(side=tk.LEFT, padx=10)
         
-        self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1))
+        self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1), style="TButton")
         self.move_left_button.pack(side=tk.LEFT, padx=60)
-        self.move_right_button = ttk.Button(row3, text="Move Selected Image Right", command=lambda: self.move_selected_image(1))
+        self.move_right_button = ttk.Button(row3, text="Move Selected Image Right", command=lambda: self.move_selected_image(1), style="TButton")
         self.move_right_button.pack(side=tk.LEFT, padx=60)
 
         # Frame for thumbnails with horizontal scrolling
@@ -190,10 +204,51 @@ class CaptionBuilder(ParentBuilder):
 
         # Game selection
         self.game_var = tk.StringVar(value="Mario")
-        self.game_label = ttk.Label(self.caption_frame, text="Select Game:")
+        self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner"], state="readonly")
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner"], state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
+
+    def create_image_context_menu(self, pil_image, image_index):
+        """Create a context menu for right-clicking on images"""
+        context_menu = tk.Menu(self.master, tearoff=0)
+        context_menu.add_command(
+            label="Save Image As...", 
+            command=lambda: self.save_image_as(pil_image, image_index)
+        )
+        return context_menu
+
+    def show_context_menu(self, event, context_menu):
+        """Show the context menu at the cursor position"""
+        try:
+            context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            context_menu.grab_release()
+
+    def save_image_as(self, pil_image, image_index):
+        """Save the PIL image to a file chosen by the user"""
+        # Create default filename
+        default_filename = f"generated_level_{image_index + 1}.png"
+        
+        # Open save dialog
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[
+                ("PNG files", "*.png"),
+                ("JPEG files", "*.jpg"),
+                ("All files", "*.*")
+            ],
+            title="Save Image As",
+            initialfile=default_filename  # Changed from initialfilename to initialfile
+        )
+        
+        if file_path:
+            try:
+                # Save the image
+                pil_image.save(file_path)
+                messagebox.showinfo("Success", f"Image saved successfully to:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save image:\n{str(e)}")
 
     def get_patterns(self):
         # Different for LoRA and tile diffusion
@@ -249,7 +304,7 @@ class CaptionBuilder(ParentBuilder):
                 model = os.path.dirname(model)
         if model:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.pipe = TextConditionalDDPMPipeline.from_pretrained(model).to(self.device)
+            self.pipe = get_pipeline(model).to(self.device)
 
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"
@@ -349,7 +404,7 @@ class CaptionBuilder(ParentBuilder):
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
 
-            compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True)
+            compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
@@ -368,6 +423,14 @@ class CaptionBuilder(ParentBuilder):
             label = ttk.Label(img_frame, image=img_tk)
             label.image = img_tk
             label.pack()
+
+            # Create context menu for this image
+            context_menu = self.create_image_context_menu(pil_img, i)
+
+            # Bind right-click to show context menu
+            label.bind("<Button-3>", lambda event, menu=context_menu: self.show_context_menu(event, menu))
+            # For macOS compatibility, also bind Control+Click
+            label.bind("<Control-Button-1>", lambda event, menu=context_menu: self.show_context_menu(event, menu))
 
             # Create a Text widget to allow colored text
             caption_text = tk.Text(img_frame, wrap=tk.WORD, width=40, height=5, state=tk.DISABLED)
@@ -443,7 +506,8 @@ Average Segment Score: {avg_segment_score}"""
             play_button = ttk.Button(
                 button_frame, 
                 text="Play", 
-                command=lambda idx=i: self.play_level(idx)
+                command=lambda idx=i: self.play_level(idx),
+                style="TButton"
             )
             play_button.pack(side=tk.LEFT, padx=5)
     
@@ -451,7 +515,8 @@ Average Segment Score: {avg_segment_score}"""
             astar_button = ttk.Button(
                 button_frame, 
                 text="Use A*", 
-                command=lambda idx=i: self.use_astar(idx)
+                command=lambda idx=i: self.use_astar(idx),
+                style="TButton"
             )
             astar_button.pack(side=tk.LEFT, padx=5)
 
@@ -459,7 +524,8 @@ Average Segment Score: {avg_segment_score}"""
             add_button = ttk.Button(
                 button_frame,
                 text="Add To Level",
-                command=lambda idx=i: self.add_to_composed_level(idx)
+                command=lambda idx=i: self.add_to_composed_level(idx),
+                style="TButton"
             )
             add_button.pack(side=tk.LEFT, padx=5)
 
@@ -672,4 +738,4 @@ if __name__ == "__main__":
     app.load_data(args.load_data)
     app.load_model(args.model_path)
 
-root.mainloop()
+    root.mainloop()

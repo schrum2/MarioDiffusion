@@ -12,6 +12,7 @@ from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 import models.sentence_transformers_helper as st_helper
 import models.text_model as text_model
+from models.general_training_helper import get_scene_from_embeddings
             
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
@@ -20,12 +21,13 @@ class PipelineOutput(NamedTuple):
 
 # Create a custom pipeline for text-conditional generation
 class TextConditionalDDPMPipeline(DDPMPipeline):
-    def __init__(self, unet, scheduler, text_encoder=None, tokenizer=None, supports_pretrained_split=False):
+    def __init__(self, unet, scheduler, text_encoder=None, tokenizer=None, supports_pretrained_split=False, block_embeddings=None):
         super().__init__(unet=unet, scheduler=scheduler)
         self.text_encoder = text_encoder
         self.tokenizer = tokenizer
         self.supports_negative_prompt = hasattr(unet, 'negative_prompt_support') and unet.negative_prompt_support
         self.supports_pretrained_split = supports_pretrained_split
+        self.block_embeddings = block_embeddings
 
         if self.tokenizer is None and self.text_encoder is not None:
             # Use the tokenizer from the text encoder if not provided
@@ -54,14 +56,10 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         os.makedirs(save_directory, exist_ok=True)
         super().save_pretrained(save_directory)  # saves UNet and scheduler
 
-        # Save custom text encoder
-        if self.text_encoder is not None:
-            self.text_encoder.save_pretrained(os.path.join(save_directory, "text_encoder"))
-        if self.tokenizer is not None and hasattr(self.tokenizer, 'save_pretrained'):
-            # Save tokenizer if it has a save_pretrained method.
-            # Otherwise, we presume the tokenizer was saved by the text encoder.
-            self.tokenizer.save_pretrained(os.path.join(save_directory, "text_encoder"))
-            
+        # Save block_embeddings tensor if it exists
+        if self.block_embeddings is not None:
+            torch.save(self.block_embeddings, os.path.join(save_directory, "block_embeddings.pt"))
+
         # Save supports_negative_prompt and supports_pretrained_split flags
         with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
             json.dump({
@@ -69,6 +67,27 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
                 "supports_pretrained_split": self.supports_pretrained_split,
                 "text_encoder_type": type(self.text_encoder).__name__   
             }, f)
+
+
+        #Text encoder/tokenizer saving is different depending on if we're using a larger pretrained model
+        if isinstance(self.text_encoder, TransformerModel):
+            # Save custom text encoder
+            if self.text_encoder is not None:
+                self.text_encoder.save_pretrained(os.path.join(save_directory, "text_encoder"))
+        else:
+            #Save pretrained tokenizer by name, so we can load from huggingface instead of saving a giant local model
+            text_encoder_info = {
+                "text_encoder_name": self.text_encoder.config.name_or_path,
+                "tokenizer_name": self.tokenizer.name_or_path,
+            }
+
+            text_encoder_directory = os.path.join(save_directory, "text_encoder")
+            os.makedirs(text_encoder_directory, exist_ok=True)
+
+            with open(os.path.join(text_encoder_directory, "loading_info.json"), "w") as f:
+                json.dump(text_encoder_info, f)
+            
+
 
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
@@ -86,13 +105,24 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
         tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
+        
         if os.path.exists(text_encoder_path):
-            try:
-                text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
-                tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
-            except (ValueError, KeyError):
-                text_encoder = TransformerModel.from_pretrained(text_encoder_path)
-                tokenizer = text_encoder.tokenizer
+            #Test for the new saving system, where we save a simple config file
+            if os.path.exists(os.path.join(text_encoder_path, "loading_info.json")):
+                with open(os.path.join(text_encoder_path, "loading_info.json"), "r") as f:
+                    encoder_config = json.load(f)
+
+                text_encoder = AutoModel.from_pretrained(encoder_config['text_encoder_name'], trust_remote_code=True)
+                tokenizer = AutoTokenizer.from_pretrained(encoder_config['tokenizer_name'])
+            
+            #Legacy loading system, loads models directly if the whole thing is saved in the directory
+            else:
+                try:
+                    text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
+                    tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
+                except (ValueError, KeyError):
+                    text_encoder = TransformerModel.from_pretrained(text_encoder_path)
+                    tokenizer = text_encoder.tokenizer
         else:
             text_encoder = None
 
@@ -104,6 +134,15 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             tokenizer=tokenizer,
             **kwargs,
         )
+
+        #Loads block embeddings if present
+        block_embeds_path = os.path.join(pretrained_model_path, "block_embeddings.pt")
+        if os.path.exists(block_embeds_path):
+            pipeline.block_embeddings = torch.load(block_embeds_path, map_location="cpu")
+        else:
+            pipeline.block_embeddings = None
+        
+
         # Load supports_negative_prompt flag if present
         config_path = os.path.join(pretrained_model_path, "pipeline_config.json")
         if os.path.exists(config_path):
@@ -318,8 +357,12 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
             # Convert to output format
             if output_type == "tensor":
-                # Apply softmax to get probabilities for each tile type
-                sample = F.softmax(sample, dim=1)
+                if self.block_embeddings is not None:
+                    sample = get_scene_from_embeddings(sample, self.block_embeddings)
+                else:
+                    # Apply softmax to get probabilities for each tile type
+                    sample = F.softmax(sample, dim=1)
+                    sample = sample.detach().cpu() 
             else:
                 raise ValueError(f"Unsupported output type: {output_type}")
 

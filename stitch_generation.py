@@ -3,9 +3,10 @@ import argparse
 import numpy as np
 from typing import List, Dict
 import torch
-from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from PIL import Image
 from tqdm import tqdm
+from models.pipeline_loader import get_pipeline
+
 
 
 def load_scenes(json_path: str) -> List[Dict]:
@@ -55,7 +56,7 @@ def generate_right_half_samples(
 
 
     # Load trained diffusion pipeline
-    pipe = TextConditionalDDPMPipeline.from_pretrained(model_path).to(device)
+    pipe = get_pipeline(model_path).to(device)
     pipe.set_progress_bar_config(disable=True)
 
     generated_samples = []

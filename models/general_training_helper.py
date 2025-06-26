@@ -6,6 +6,9 @@ from datetime import datetime
 import os
 import threading
 import json
+import torch.nn.functional as F
+import torch
+
 
 
 
@@ -139,5 +142,31 @@ def update_args_from_config(args, config):
         if hasattr(args, key):
             setattr(args, key, value)
     return args
+
+
+def get_scene_from_embeddings(image, block_embeddings):
+    """Code copied over from level_dataset, should give limited support for block embeddings"""
+    # Reshape sample to [batch_size * height * width, embedding_dim]
+    batch_size, embedding_dim, height, width = image.shape
+    
+    flat_samples = image.permute(0, 2, 3, 1).reshape(-1, embedding_dim)
+    
+    # Normalize vectors for cosine similarity
+    flat_samples = F.normalize(flat_samples, p=2, dim=1).cpu()
+    block_embeddings = F.normalize(block_embeddings, p=2, dim=1)
+
+    # Calculate cosine similarity between each position and all tile embeddings
+    similarities = torch.matmul(flat_samples, block_embeddings.t())
+    
+    # Get indices of most similar tiles
+    indices = torch.softmax(similarities, dim=1)
+    
+    
+    # Reshape back to [batch_size, height, width]
+    indices = indices.reshape(batch_size, height, width, 13)
+    indices = indices.permute(0, 3, 1, 2)
+
+    image=indices.detach().cpu()
+    return image
 
 

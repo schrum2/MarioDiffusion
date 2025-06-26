@@ -25,6 +25,8 @@ import models.text_model as text_model
 import glob
 import models.general_training_helper as gen_train_help
 import re
+from models.pipeline_loader import get_pipeline
+
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
@@ -532,10 +534,7 @@ def main():
             copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch, "caption_score_log_*.jsonl")
         if latest_ckpt is not None:
             # Use pipeline's from_pretrained to load everything from the checkpoint directory
-            if args.text_conditional:
-                pipeline = TextConditionalDDPMPipeline.from_pretrained(latest_ckpt)
-            else:
-                pipeline = UnconditionalDDPMPipeline.from_pretrained(latest_ckpt)
+            pipeline = get_pipeline(latest_ckpt)
             model = pipeline.unet
             noise_scheduler = pipeline.scheduler
 

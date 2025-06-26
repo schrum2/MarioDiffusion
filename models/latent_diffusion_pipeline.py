@@ -7,40 +7,25 @@ from diffusers.pipelines.ddpm.pipeline_ddpm import ImagePipelineOutput
 import util.common_settings as common_settings
 import os
 import json
+from models.general_training_helper import get_scene_from_embeddings
 
 class UnconditionalDDPMPipeline(DDPMPipeline):
     def __init__(self, unet, scheduler, block_embeddings=None):
         super().__init__(unet, scheduler)
 
         self.block_embeddings = block_embeddings
-        if self.block_embeddings is not None:
-            self.using_block_embeds = True
-        else:
-            self.using_block_embeds = False
     
 
     def save_pretrained(self, save_directory):
         os.makedirs(save_directory, exist_ok=True)
         super().save_pretrained(save_directory)
-        # Save using_block_embeds flag
-        using_block_embeds = getattr(self, "using_block_embeds", False)
-        with open(os.path.join(save_directory, "pipeline_config.json"), "w") as f:
-            json.dump({"using_block_embeds": using_block_embeds}, f)
         # Save block_embeddings tensor if it exists
-        if hasattr(self, "block_embeddings") and self.block_embeddings is not None:
+        if self.block_embeddings is not None:
             torch.save(self.block_embeddings, os.path.join(save_directory, "block_embeddings.pt"))
 
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
         pipeline = super().from_pretrained(pretrained_model_path, **kwargs)
-        # Load using_block_embeds flag
-        config_path = os.path.join(pretrained_model_path, "pipeline_config.json")
-        if os.path.exists(config_path):
-            with open(config_path, "r") as f:
-                config = json.load(f)
-            setattr(pipeline, "using_block_embeds", config.get("using_block_embeds", False))
-        else:
-            setattr(pipeline, "using_block_embeds", False)
         # Load block_embeddings tensor if it exists
         block_embeds_path = os.path.join(pretrained_model_path, "block_embeddings.pt")
         if os.path.exists(block_embeds_path):
@@ -98,29 +83,8 @@ class UnconditionalDDPMPipeline(DDPMPipeline):
                 image = image / self.sprite_scaling_factors.view(1, -1, 1, 1)
 
             
-            if self.using_block_embeds:
-                """Code copied over from level_dataset, should give limited support for block embeddings"""
-                # Reshape sample to [batch_size * height * width, embedding_dim]
-                batch_size, embedding_dim, height, width = image.shape
-                
-                flat_samples = image.permute(0, 2, 3, 1).reshape(-1, embedding_dim)
-                
-                # Normalize vectors for cosine similarity
-                flat_samples = F.normalize(flat_samples, p=2, dim=1).cpu()
-                block_embeddings = F.normalize(self.block_embeddings, p=2, dim=1)
-                
-
-                # Calculate cosine similarity between each position and all tile embeddings
-                similarities = torch.matmul(flat_samples, block_embeddings.t())
-                
-                # Get indices of most similar tiles
-                indices = torch.softmax(similarities, dim=1)
-                
-                
-                # Reshape back to [batch_size, height, width]
-                indices = indices.reshape(batch_size, height, width)
-
-                image=indices.cpu().numpy()
+            if self.block_embeddings is not None:
+                image = get_scene_from_embeddings(image, self.block_embeddings)
             else:
                 image = F.softmax(image, dim=1)
                 image = image.detach().cpu() 
