@@ -122,9 +122,6 @@ class CaptionBuilder(ParentBuilder):
         self.uncheck_all_button = ttk.Button(self.checkbox_frame, text="Uncheck All", command=self.uncheck_all)
         self.uncheck_all_button.pack(anchor=tk.E)
 
-        # self.expand_all_button = ttk.Button(self.checkbox_frame, text="Expand All", command=self.expand_all)
-        # self.expand_all_button.pack(anchor=tk.E)
-
         # Frame for image display
         self.image_frame = ttk.Frame(master, borderwidth=2, relief="solid")  # Add border
         self.image_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -146,8 +143,10 @@ class CaptionBuilder(ParentBuilder):
         self.image_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         # Bind mousewheel scrolling to the scrollbar for image_inner_frame
-        self.image_canvas.bind_all("<MouseWheel>", lambda event: self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units"))
-        
+        # self.image_canvas.bind_all("<MouseWheel>", lambda event: self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units"))
+
+        master.bind_all("<MouseWheel>", lambda event: master.yview_scroll(-1 * (event.delta // 120), "units"))
+
         self.checkbox_vars = {}
 
         self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet", style="TLabel")
@@ -720,6 +719,16 @@ Average Segment Score: {avg_segment_score}"""
         for var in self.checkbox_vars.values():
             var.set(0)
             self.update_caption()
+
+    def on_mouse_wheel(event):
+        widget = event.widget
+        try:
+            widget.yview_scroll(-1 * (event.delta // 120), "units")
+        except AttributeError:
+            # The widget doesn't support yview_scroll
+            pass
+
+
 
 import argparse
 def parse_args():
