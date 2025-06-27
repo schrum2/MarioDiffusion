@@ -153,7 +153,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             elif play_level == 'n':
                 print("Level not played.")
             else:
-                raise ValueError(f"Unknown input: {play_level}")
+                print("Unknown input: Level not played.")
 
         return visualize_samples(images)
 
