@@ -145,10 +145,15 @@ class CaptionBuilder(ParentBuilder):
         #Bind mousewheel scrolling globally, and scroll the widget under the mouse if it's a canvas
         def _on_mousewheel(event):
             widget_under_mouse = self.master.winfo_containing(event.x_root, event.y_root)
-            if widget_under_mouse == self.image_canvas or widget_under_mouse in self.image_canvas.winfo_children():
-                self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
-            elif widget_under_mouse == self.checkbox_canvas or widget_under_mouse in self.checkbox_canvas.winfo_children():
-                self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+            # Check if widget_under_mouse is self.image_canvas or a descendant
+            parent = widget_under_mouse
+            while parent is not None:
+                if parent == self.image_canvas:
+                    self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+                    break
+                elif parent == self.checkbox_canvas:
+                    self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+                parent = parent.master
 
         self.master.bind_all("<MouseWheel>", _on_mousewheel)
 
