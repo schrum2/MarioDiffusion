@@ -141,11 +141,19 @@ class CaptionBuilder(ParentBuilder):
         
         self.image_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.image_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # Bind mousewheel scrolling to the scrollbar for image_inner_frame
-        # self.image_canvas.bind_all("<MouseWheel>", lambda event: self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units"))
 
-        master.bind_all("<MouseWheel>", lambda event: master.yview_scroll(-1 * (event.delta // 120), "units"))
+        #Bind mousewheel scrolling globally, and scroll the widget under the mouse if it's a canvas
+        def _on_mousewheel(event):
+            widget_under_mouse = self.master.winfo_containing(event.x_root, event.y_root)
+            if widget_under_mouse == self.image_canvas or widget_under_mouse in self.image_canvas.winfo_children():
+                self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+            elif widget_under_mouse == self.checkbox_canvas or widget_under_mouse in self.checkbox_canvas.winfo_children():
+                self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+
+        self.master.bind_all("<MouseWheel>", _on_mousewheel)
+
+        #self.master.bind_all("<MouseWheel>", lambda event: _on_mousewheel(event))
+        #self.image_canvas.bind_all("<MouseWheel>", lambda event: self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units"))
 
         self.checkbox_vars = {}
 
@@ -720,13 +728,11 @@ Average Segment Score: {avg_segment_score}"""
             var.set(0)
             self.update_caption()
 
-    def on_mouse_wheel(event):
-        widget = event.widget
-        try:
-            widget.yview_scroll(-1 * (event.delta // 120), "units")
-        except AttributeError:
-            # The widget doesn't support yview_scroll
-            pass
+    # def _on_mousewheel(self, event):
+    #     widget = event.widget
+    #     # Only scroll if the widget is a Canvas
+    #     if isinstance(widget, tk.Canvas):
+    #         widget.yview_scroll(-1 * (event.delta // 120), "units")
 
 
 
