@@ -24,10 +24,8 @@ def get_pipeline(model_path):
             #New FDM saving
             pipe = FDMPipeline.from_pretrained(model_path)
     else:
-        # Hugging Face Hub model: trust remote code and use model_index.json for pipeline
-        pipe = DiffusionPipeline.from_pretrained(
-            model_path,
-            trust_remote_code=True,
-        )
+        # Hugging Face Hub model: 
+        # Need to generalize to support other pipelines
+        pipe = TextConditionalDDPMPipeline.from_pretrained(model_path)
 
     return pipe
