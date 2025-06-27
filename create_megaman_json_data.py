@@ -13,11 +13,12 @@ class Axis(Enum):
     HORIZ=1
 
 #Needed to identify the direction of the sample
-class Direction(Enum):
+class Direction(MultiValueEnum):
     UP=0, Axis.VERT, -1
-    DOWN=1, Axis.VERT, 1
-    LEFT=2, Axis.HORIZ, -1
-    RIGHT=3, Axis.HORIZ, 1
+    RIGHT=1, Axis.HORIZ, 1
+    DOWN=2, Axis.VERT, 1
+    LEFT=3, Axis.HORIZ, -1
+    
 
 
     def __init__(self, value, axis, offset_for_axis):
@@ -129,32 +130,26 @@ def main():
 
 #Parses through one complete level
 def parse_level(level, width, height, null_chars=['@'], wall_chars=['#']):
-    x_idx, y_idx = find_start(level, width, height)
-    sample=get_sample_from_idx(level, x_idx, y_idx, width, height)
-    for row in sample:
-        print(row)
-    print("")
-    new_direction = Direction.RIGHT
-    for i in range(70):
-        print("")
-        x_idx, y_idx, new_direction = move_scene(level, x_idx, y_idx, width, height, new_direction, null_chars, wall_chars)
-        print("Level: ")
-        sample2 = get_sample_from_idx(level, x_idx, y_idx, width, height)
-        for row in sample2:
-            print(row)
-    print("\n\n")
+    level_sample=LevelSample(level, width, height, null_chars, wall_chars)
+
+    moving=True
+    while moving:
+        moving=level_sample.move_step()
+    
+    level_sample.print_sample()
+
 
 
 #Finds the spawn sample to begin searching
-def find_start(level, width, height):
+def find_start(level_sample):
     start_y=-1
     start_x=-1
 
     #Loop through every row to find the spawn location
-    for i in range(len(level)):
-        if level[i].find('P')!=-1:
+    for i in range(len(level_sample.level)):
+        if level_sample.level[i].find('P')!=-1:
             start_y=i
-            start_x=level[i].find('P')
+            start_x=level_sample.level[i].find('P')
             break
     
     if start_y==-1:
@@ -163,12 +158,12 @@ def find_start(level, width, height):
 
     #Continue searching down for the bottom of the level or more null chars
     #We do this to get the full level scene, not just the spawn point and up
-    lowest_possible_start = min(len(level), start_y+height)
+    lowest_possible_start = min(len(level_sample.level), start_y+level_sample.height)
     lowest_found = False
     for i in range(start_y, lowest_possible_start):
-        if level[i][start_x]=='@':
+        if level_sample.level[i][start_x]=='@':
             start_y=i
-            start_y=start_y-height #This is needed because we expect a top left index, not a bottom left
+            start_y=start_y-level_sample.height #This is needed because we expect a top left index, not a bottom left
             lowest_found=True
             break
     
@@ -176,16 +171,16 @@ def find_start(level, width, height):
     #Check to see if we didn't find a lower null char (Meaning we hit the bottom of the level, or the level keeps going down awhile)
     if not lowest_found:
         #Did we reach the bottom of the level?
-        if lowest_possible_start==len(level):
+        if lowest_possible_start==len(level_sample.level):
             start_y=lowest_possible_start
-            start_y=start_y-height
+            start_y=start_y-level_sample.height
         #If not, the level is vertical downwards, so we need to go up to reach the top
         else:
             #Pretty much the same sequence of checks again, just going up this time, this should only rarely be needed
-            highest_possible_start=max(start_y-height, 0)
+            highest_possible_start=max(start_y-level_sample.height, 0)
             heighest_found=False
             for i in range(start_y, highest_possible_start, -1):
-                if level[i][start_x]=='@':
+                if level_sample.level[i][start_x]=='@':
                     start_y=i
                     break
             
@@ -195,15 +190,15 @@ def find_start(level, width, height):
     
 
     #Start at the left edge if close enough
-    if start_x<width:
+    if start_x<level_sample.width:
         start_x=0
     else:
-        start_x=start_x-width
+        start_x=start_x-level_sample.width
     
     return start_x, start_y
 
 
-#Move the sliding window one block
+"""#Move the sliding window one block
 def move_scene(level, old_x_idx, old_y_idx, width, height, direction, null_chars=['@'], wall_chars=['#']):
 
 
@@ -288,103 +283,100 @@ def change_direction(level, old_x_idx, old_y_idx, width, height, direction, null
         elif left_possible:
             return move_left()
         else:
-            return move_right()
+            return move_right()"""
 
 
-def is_up_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
-    #If we're at the top of the screen
-    if old_y_idx <= 0:
-        return False
-    
-    top_row = level[old_y_idx][old_x_idx:old_x_idx+width]
-    above_top_row = level[old_y_idx-1][old_x_idx:old_x_idx+width]
 
-    if any(x in above_top_row for x in null_chars):
-        return False
-    
-    if not any(x not in wall_chars for x in top_row):
-        return False
-    
-    return True
 
-def is_down_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
-    #If we're at the top of the screen
-    if old_y_idx+height >= len(level):
-        return False
-    
-    bottom_row = level[old_y_idx+height-1][old_x_idx:old_x_idx+width]
-    below_bottom_row = level[old_y_idx+height][old_x_idx:old_x_idx+width]
-
-    if any(x in below_bottom_row for x in null_chars):
-        return False
-    
-    if not any(x not in wall_chars for x in bottom_row):
-        return False
-    
-    return True
-
-def is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
-    #If we're at the top of the screen
-    if old_x_idx <= 0:
-        return False
-    
-    left_col = [x[old_x_idx] for x in level[old_y_idx:old_y_idx+height]]
-    left_of_left_col = [x[old_x_idx-1] for x in level[old_y_idx:old_y_idx+height]]
-
-    if any(x in left_of_left_col for x in null_chars):
-        return False
-    
-    if not any(x not in wall_chars for x in left_col):
-        return False
-    
-    return True
-
-def is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
-    #If we're at the top of the screen
-    if old_x_idx+height >= len(level[0]):
-        return False
-    
-    right_col = [x[old_x_idx+width-1] for x in level[old_y_idx:old_y_idx+height]]
-    right_of_right_col = [x[old_x_idx+width] for x in level[old_y_idx:old_y_idx+height]]
-    print("\n\n")
-    print(right_col)
-    print(right_of_right_col)
-    print("\n\n")
-    if any(x in right_of_right_col for x in null_chars):
-        print("A")
-        return False
-    
-    if not any(x not in wall_chars for x in right_col):
-        return False
-    
-    return True
-
-#Gets a full level sample of the desired size from the top left corner
-def get_sample_from_idx(level, col, row, width, height):
-    
-    #Make sure the level sample is in bounds
-    if row<0 or col<0 or width<0 or height<0:
-        raise ValueError(f"Row ({row}), collumn ({col}), width ({width}), and height ({height}) all must be positive.")
-    if (row + height)>len(level) or (col+width)>len(level[0]):
-        raise ValueError(f"This level sample is out of bounds at the bottom or right, with height index {row+height}/{len(level)} and width index {col+width}/{len(level[0])}.")
-    
-    sample = []
-    for row in level[row:row+height]:
-        sample.append(row[col:col+width])
-    
-    return sample
 
 class LevelSample():
-    def __init__(self, level, width, height, null_chars=['@'], wall_chars=['#']):
+    def __init__(self, level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT):
         self.level=level
         self.width=width
         self.height=height
         self.null_chars=null_chars
         self.wall_chars=wall_chars
-        direction=Direction.RIGHT
+        self.direction=start_direction
 
-        self.x_idx, self.y_idx = find_start(level, width, height)
+        self.x_idx, self.y_idx = find_start(self)
     
+    #Attempts to move one step forward, returns True if sucessful, False otherwise. Throws an error if it finds a spit path
+    def move_step(self):
+        if self.check_for_end(): 
+            return False #We're at the end of the level, so break out
+        
+        if self.direction.is_possible_to_move_direction(self, check_for_walls=True):
+            self.direction.move_scene(self) #If the scene ahead is clear, move into it
+            return True
+        
+        return self.change_direction()
+    
+    #Changes direction of the sample if it should, prioritizing avoiding null chars
+    def change_direction(self):
+        self.print_sample()
+        left, center, right, left_permeability, center_permeability, right_permeability = self.check_travel_movability(check_for_walls=True)
+
+        if left_permeability and right_permeability: #Throw an error if there's a fork in the path
+            raise ValueError(f"I don't know where to go! The index is x: {self.x_idx}, y: {self.y_idx}")
+
+        #If either side is accesible to us, we should go that way
+        if left_permeability:
+            self.direction = Direction(self.direction.value-1%4)
+            self.direction.move_scene(self)
+            return True
+        if right_permeability:
+            self.direction = Direction(self.direction.value+1%4)
+            self.direction.move_scene(self)
+            return True
+
+        #All cases are not permeable, so if the center route isn't invalid, we should take it
+        if center:
+            self.direction.move_scene(self)
+            return True
+        
+        if left and right: #There's another fork, just this time with walls blocking the path
+            raise ValueError(f"I don't know where to go! The index is x: {self.x_idx}, y: {self.y_idx}")
+        
+        #Last resort, head whatever direction the camera can move, even though there is a wall in the way
+        if left:
+            self.direction = Direction(self.direction.value-1%4)
+            self.direction.move_scene(self)
+            return True
+        if right:
+            self.direction = Direction(self.direction.value+1%4)
+            self.direction.move_scene(self)
+            return True
+            
+        raise ValueError(f"We should literally never get here, this is a debugging case. The index is x: {self.x_idx}, y: {self.y_idx}")
+
+    #Checks to see if the end of the level has been reached, returns true if it has
+    def check_for_end(self):
+        left, center, right, _, _, _ = self.check_travel_movability()
+        if not (left or center or right):
+            return True #If we can't move any direction except backwards, we're probably at the end of the level
+        return False
+
+    #Returns a 6-tuple of the ability to move left, forward, and right (relative to the current direction), the first 3 only check for null, the last 3 check for null and walls
+    def check_travel_movability(self, check_for_walls = False):
+        direction_left = Direction(self.direction.value-1%4)
+        direction_right = Direction(self.direction.value+1%4)
+
+        left_possibility = direction_left.is_possible_to_move_direction(self)
+        right_possibility = direction_right.is_possible_to_move_direction(self)
+        center_possibility = self.direction.is_possible_to_move_direction(self)
+
+        left_permeability = None
+        right_permeability = None
+        center_permeability = None
+
+        if check_for_walls:
+            left_permeability = direction_left.is_possible_to_move_direction(self, check_for_walls=True)
+            right_permeability = direction_right.is_possible_to_move_direction(self, check_for_walls=True)
+            center_permeability = self.direction.is_possible_to_move_direction(self, check_for_walls=True)
+        
+        return left_possibility, center_possibility, right_possibility, left_permeability, center_permeability, right_permeability
+
+    #Checks if a sample is out of bounds of the full level, defaulting to the sample
     def is_out_of_bounds(self, x = None, y = None):
         if x is None:
             x = self.x_idx
@@ -394,6 +386,32 @@ class LevelSample():
         if (x < 0) or (y < 0) or (x+self.width >= len(self.level[0])) or (y+self.height >= len(self.level)):
             return True #We are out of bounds
         return False #We are not out of bounds
+    
+    def print_sample(self):
+        sample=self.get_sample_from_idx()
+        print(f"Level sample at ({self.x_idx}, {self.y_idx}):")
+        for row in sample:
+            print(row)
+        print("\n")
+
+    #Gets a full level sample of the desired size from the top left corner
+    def get_sample_from_idx(self, x=None, y=None):
+        if x is None:
+            x = self.x_idx
+        if y is None:
+            y = self.y_idx
+
+        #Make sure the level sample is in bounds
+        if x<0 or x<0:
+            raise ValueError(f"X value ({x}) and Y value ({y}) all must be positive.")
+        if (y + self.height)>len(self.level) or (x+self.width)>len(self.level[0]):
+            raise ValueError(f"This level sample is out of bounds at the bottom or right, with height index {y+self.height}/{len(self.level)} and width index {x+self.width}/{len(self.level[0])}.")
+        
+        sample = []
+        for row in self.level[y:y+self.height]:
+            sample.append(row[x:x+self.width])
+        
+        return sample
 
     
 
@@ -406,6 +424,4 @@ class LevelSample():
 
 
 if __name__ == "__main__":
-    direc=Direction.UP
-    print(direc.index)
-    #main()
+    main()
