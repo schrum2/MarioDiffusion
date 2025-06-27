@@ -99,7 +99,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         
         if os.path.exists(text_encoder_path):
-            #Test for the new saving system, where we save a simple config file
+            # Test for the new saving system, where we save a simple config file
+            # This case is for pretrained text encoders: MiniLM, GTE
             if os.path.exists(os.path.join(text_encoder_path, "loading_info.json")):
                 with open(os.path.join(text_encoder_path, "loading_info.json"), "r") as f:
                     encoder_config = json.load(f)
@@ -109,11 +110,13 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             
             #Legacy loading system, loads models directly if the whole thing is saved in the directory
             else:
-                try:
+                try: # Assumes MiniLM or GTE is directly saved on the disk in subdir
                     text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
                     tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
                 except (ValueError, KeyError):
-                    text_encoder = TransformerModel.from_pretrained(text_encoder_path)
+                    # If it fails, assume it's a custom TransformerModel 
+                    # This command can grab code from local directory or Hugging Face
+                    text_encoder = TransformerModel.from_pretrained(pretrained_model_path, subfolder="text_encoder")
                     tokenizer = text_encoder.tokenizer
         else:
             text_encoder = None
