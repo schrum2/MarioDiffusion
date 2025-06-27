@@ -31,9 +31,7 @@ This will download one of the models from our paper: `MLM-regular`. The model co
 ```
 full floor. one enemy. a few question blocks. one platform. one pipe. one loose block.
 ```
-For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. Please browse through the instructions below or read our paper to learn more about how our models work. A full list of Hugging Face models you can download are available here:
-
-TODO
+For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. Please browse through the instructions below or read our paper to learn more about how our models work. A full list of Hugging Face models you can download are available [here](MODELS.md).
 
 ## Create datasets
 
