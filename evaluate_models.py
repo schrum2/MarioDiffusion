@@ -379,7 +379,7 @@ def main():
                     bar_positions[j],
                     total_feature_percentages[j],
                     height=bar_width, 
-                    color="#444444",
+                    color="#A3A3A3",
                     edgecolor='black',
                     alpha=0.3,
                     zorder=0

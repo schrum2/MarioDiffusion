@@ -25,12 +25,19 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # except ImportError:
 #     lr_main = None  # Handle gracefully if not present
 
+global tileset_path
+tileset_path = None  # Global variable for tileset path
+global game_selected
+game_selected = None  # Global variable for selected game
+
 # Global constant for GUI font size
 
 GUI_FONT = ("Arial", GUI_FONT_SIZE)
 
 class CaptionBuilder(ParentBuilder):
+    global tileset_path, game_selected
     def __init__(self, master):
+        global tileset_path, game_selected
         super().__init__(master) 
         # Set ttk style for font size
         style = ttk.Style()
@@ -95,13 +102,25 @@ class CaptionBuilder(ParentBuilder):
         self.width_label.pack()
         self.width_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
         self.width_entry.pack()
-        self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
-                
-        self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image, style="TButton")
+        self.height_label = ttk.Label(self.caption_frame, text="Height (in tiles):")
+        self.height_label.pack()
+        self.height_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
+        self.height_entry.pack()
+        if game_selected == "Lode Runner":
+            self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
+            self.height_entry.insert(0, f"{common_settings.LR_HEIGHT}")
+        else:
+            self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
+            self.height_entry.insert(0, f"{common_settings.MARIO_HEIGHT}")
+
+        self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
                 
         self.model_button = ttk.Button(self.checkbox_frame, text="Load Model", command=self.load_model, style="TButton")
         self.model_button.pack(anchor=tk.E)
+
+        self.uncheck_all_button = ttk.Button(self.checkbox_frame, text="Uncheck All", command=self.uncheck_all)
+        self.uncheck_all_button.pack(anchor=tk.E)
 
         # Frame for image display
         self.image_frame = ttk.Frame(master, borderwidth=2, relief="solid")  # Add border
@@ -253,10 +272,15 @@ class CaptionBuilder(ParentBuilder):
         return patterns
 
     def load_data(self, filepath = None):
+        global tileset_path, game_selected
         if filepath == None:
             filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON", "*.json")])
         if filepath:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+            # print(f"Tileset in use: {tileset_path}")
+            # print(f"Self ID to Char: {self.id_to_char}")
+            # print(f"Self Char to ID: {self.char_to_id}")
+            # print(f"Self Tile Descriptors: {self.tile_descriptors}")
 
             try:
                 phrases_set = set()
@@ -305,6 +329,7 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text.config(state=tk.DISABLED)
     
     def generate_image(self):
+        global tileset_path, game_selected
         # # cannot use multiple generations of levels in one composed level
         # self.clear_composed_level()
         # print("Clearing previously composed level for newly generated scenes.")
@@ -321,6 +346,7 @@ class CaptionBuilder(ParentBuilder):
             "num_inference_steps": int(self.num_steps_entry.get()),
             "guidance_scale": float(self.guidance_entry.get()),
             "width": int(self.width_entry.get()),
+            "height": int(self.height_entry.get()),
             "output_type": "tensor"
         }
 
@@ -366,10 +392,16 @@ class CaptionBuilder(ParentBuilder):
             sample_indices = convert_to_level_format(sample_tensor)
             #print("images:", images)
             scene = sample_indices[0].tolist()
+            if game_selected == "Lode Runner":
+                number_of_tiles = common_settings.LR_TILE_COUNT
+                scene = [[x % number_of_tiles for x in row] for row in scene]
+                tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
             self.generated_scenes.append(scene)
             #selected_game = self.game_var.get()
-            #actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-            actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            if game_selected == "Lode Runner":
+                actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            else:
+                actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
            
             pil_img = visualize_samples(images)
             self.generated_images.append(pil_img)
@@ -432,31 +464,32 @@ class CaptionBuilder(ParentBuilder):
 
             # Check if the scene is wider than standard number of tiles and process segments if necessary
             avg_segment_score = None
-            if len(scene[0]) > common_settings.MARIO_WIDTH:
-                from captions.caption_match import process_scene_segments
-                avg_segment_score, _, _ = process_scene_segments(
-                    scene=scene,
-                    segment_width=common_settings.MARIO_WIDTH,
-                    prompt=prompt,
-                    id_to_char=self.id_to_char,
-                    char_to_id=self.char_to_id,
-                    tile_descriptors=self.tile_descriptors,
-                    describe_locations=False,
-                    describe_absence=False
-                )
-
-            # if len(scene[0]) > common_settings.LR_WIDTH:
-            #     from captions.caption_match import process_scene_segments
-            #     avg_segment_score, _, _ = process_scene_segments(
-            #         scene=scene,
-            #         segment_width=common_settings.LR_WIDTH,
-            #         prompt=prompt,
-            #         id_to_char=self.id_to_char,
-            #         char_to_id=self.char_to_id,
-            #         tile_descriptors=self.tile_descriptors,
-            #         describe_locations=False,
-            #         describe_absence=False
-            #     )
+            if game_selected != "Lode Runner":
+                if len(scene[0]) > common_settings.MARIO_WIDTH:
+                    from captions.caption_match import process_scene_segments
+                    avg_segment_score, _, _ = process_scene_segments(
+                        scene=scene,
+                        segment_width=common_settings.MARIO_WIDTH,
+                        prompt=prompt,
+                        id_to_char=self.id_to_char,
+                        char_to_id=self.char_to_id,
+                        tile_descriptors=self.tile_descriptors,
+                        describe_locations=False,
+                        describe_absence=False
+                    )
+            if game_selected == "Lode Runner":
+                if len(scene[0]) > common_settings.LR_WIDTH:
+                    from captions.caption_match import process_scene_segments
+                    avg_segment_score, _, _ = process_scene_segments(
+                        scene=scene,
+                        segment_width=common_settings.LR_WIDTH,
+                        prompt=prompt,
+                        id_to_char=self.id_to_char,
+                        char_to_id=self.char_to_id,
+                        tile_descriptors=self.tile_descriptors,
+                        describe_locations=False,
+                        describe_absence=False
+                    )
 
             # Update the score label text
             if avg_segment_score is not None:
@@ -678,29 +711,40 @@ Average Segment Score: {avg_segment_score}"""
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
         console_output = level.run_astar()
         print(console_output)
-  
+
+    def uncheck_all(self):
+        """Uncheck all checkboxes in the provided list or dict."""
+        for var in self.checkbox_vars.values():
+            var.set(0)
+            self.update_caption()
+
+import argparse
+def parse_args():
+    parser = argparse.ArgumentParser(description="Interactive Tile Level Generator")
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
+    parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
+    parser.add_argument("--load_data", type=str, default="datasets/Mar1and2_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
+    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    return parser.parse_args()
+
 if __name__ == "__main__":
+    args = parse_args()
+    if args.game == "Mario":
+        game_selected = "Mario"
+        tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+    elif args.game == "LR":
+        game_selected = "Lode Runner"
+        tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+
     root = tk.Tk()
     app = CaptionBuilder(root)
-
-    # Example usage:
-    # python interactive_tile_level_generator.py Mar1and2-conditional-regular0
-    # python interactive_tile_level_generator.py Mar1and2-conditional-regular0 datasets\Mar1and2_LevelsAndCaptions-regular.json
-    # python interactive_tile_level_generator.py Mar1and2-conditional-regular0 datasets\Mar1and2_LevelsAndCaptions-regular.json ..\TheVGLC\Super Mario Bros\smb.json
-
-    global tileset_path
-    tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
-    #tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
-
-    if len(sys.argv) > 3:
-        tileset_path = sys.argv[3]
-
-    if len(sys.argv) > 2:
-        app.load_data(sys.argv[2])
-    else:
-        app.load_data('datasets\Mar1and2_LevelsAndCaptions-regular.json')
-
-    if len(sys.argv) > 1:
-        app.load_model(sys.argv[1])
+    app.load_data(args.load_data)
+    app.load_model(args.model_path)
 
     root.mainloop()

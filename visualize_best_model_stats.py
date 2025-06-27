@@ -33,6 +33,7 @@ def parse_args():
     parser.add_argument("--stacked_bar_for_mlm", action='store_true', help="If set, MLM groups with mlm_mean/cond_mean will be shown as stacked bars.\n")
     parser.add_argument("--convert_time_to_hours", action='store_true', help="If set, time values will be converted to hours.\n")
     parser.add_argument("--font", type=str, default="DejaVu Sans", help="Font family for the plo e.g. \"Times New Roman\", \"Palatino\", \"Garamond\", 'Courier New'.\n")
+    parser.add_argument("--log_scale", action="store_true", help="Plot with log scale.")
     return parser.parse_args()
 
 # GPT-4.1 suggested a more robust JSON loading function that can handle both JSON arrays and JSONL files.
@@ -187,7 +188,7 @@ def main():
         if args.stacked_bar_for_mlm:
             # Define hatches for the two bars
             HATCHES = {"": "////", "2": "\\\\\\"}
-            LABELS = {"": "Level Model (End)", "2": "Level Model (Best)"}
+            LABELS = {"": "End Time", "2": "Best Time"}
             for q in ["", "2"]:
                 bar_offset = 0.25 if q == "" else -0.25
                 main_color = "skyblue" if q == "" else "lightgreen"
@@ -229,7 +230,7 @@ def main():
                         single_errors.append(error)
 
                 # Plot stacked bars for MLM groups
-                plt.barh(bar_positions, mlm_means, height=0.4, color=minor_color, edgecolor='black', label="Language Model" if q == "" else None)
+                plt.barh(bar_positions, mlm_means, height=0.4, color=minor_color, edgecolor='black', label="MLM Model" if q == "" else None)
                 plt.barh(bar_positions, cond_means, height=0.4, left=mlm_means, color=main_color, hatch=hatch, edgecolor='black', label=label)
                 # plt.grid(axis='x', which='both', linestyle='--', alpha=0.5)
                 for pos, mlm, cond, err in zip(bar_positions, mlm_means, cond_means, bar_errors):
@@ -254,7 +255,16 @@ def main():
                 # Only show each legend entry once
                 handles, labels = plt.gca().get_legend_handles_labels()
                 by_label = dict(zip(labels, handles))
-                plt.legend(by_label.values(), by_label.keys())
+                if args.log_scale:
+                    plt.legend(
+                        by_label.values(),
+                        by_label.keys(),
+                        fontsize=max(args.legend_fontsize - 4, 10),  # Slightly smaller
+                        loc='lower right',
+                        #bbox_to_anchor=(0.5, 0.2)  # Move up slightly
+                    )
+                else:
+                    plt.legend(by_label.values(), by_label.keys())
 
                 if args.x_markers_on_bar_plot:
                     if args.x_marker_data_on_bar_plot:
@@ -291,6 +301,9 @@ def main():
                     for i, group in enumerate(groups_reversed):
                         points = df[df[args.group_key] == group][args.x_axis].dropna()
                         plt.scatter(points, [i]*len(points), color='k', alpha=0.6, s=30, marker='x', label='_nolegend_')
+                        
+        if args.log_scale:
+            plt.xscale('log')
     # SCATTER PLOT
     elif args.plot_type == "scatter":
         color_map = plt.get_cmap('Set2', len(groups_with_data))
@@ -302,6 +315,7 @@ def main():
         plt.ylabel(args.y_axis_label)
         plt.xticks(rotation=args.x_tick_rotation)
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
     plt.tight_layout()
     plt.savefig(args.output, bbox_inches='tight', pad_inches=0)
     plt.close()

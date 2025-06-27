@@ -119,7 +119,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
                     break
             run_length = x - run_start
             if run_length >= min_run_length:
-                already_accounted.update(possible_locations) # Blocks of the line are now accounted for
+                #already_accounted.update(possible_locations) # Blocks of the line are now accounted for
                 lines.append((y, run_start, x - 1))
             else:
                 x += 1
@@ -181,7 +181,6 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
 
 def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None):
     """
-        scene and char_to_id are needed when pipes is True so that the specific tiles can be checked.
         Returns a list of tuples (phrase, coordinates) where coordinates is a set of (row, col) positions
         associated with the phrase describing the structures of that type.
     """
@@ -282,6 +281,8 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     for scene in dataset:
         # caption blank/empty for lode runner
         #caption = " "
+        number_of_tiles = common_settings.LR_TILE_COUNT
+        scene = [[x % number_of_tiles for x in row] for row in scene]
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence)
 
         if "broken" in caption:
@@ -308,12 +309,15 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
 def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, debug=False, return_details=False):
     """Assigns a caption to a level scene based on its contents."""
     already_accounted = set()
+    floor_tiles = set()
     details = {} if return_details else None
     WIDTH = len(scene[0])
 
     # Include all of floor, even empty tiles
     for x in range(WIDTH):
-        already_accounted.add((FLOOR, x))
+        #already_accounted.add((FLOOR, x))
+        floor_tiles.add((FLOOR, x))
+        continue
 
     floor_row = FLOOR
 
@@ -333,7 +337,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Analyze floor
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
-    add_to_caption(floor_caption + "." if floor_caption else "", list(already_accounted))
+    add_to_caption(floor_caption + "." if floor_caption else "", list(floor_tiles))
 
     def bigger_ceiling(ceiling_higher, ceiling_regular):
         if ceiling_higher == None:
@@ -442,53 +446,31 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
             for y in range(start_y, end_y + 1):
                 ladder_columns_by_row.setdefault(y, []).append(x)
         # Find ladder clusters: ladders that are horizontally adjacent in the same row
-        ladder_cluster_coords = set()
-        for y, cols in ladder_columns_by_row.items():
-            cols = sorted(cols)
-            cluster = [cols[0]]
-            for i in range(1, len(cols)):
-                if cols[i] == cols[i-1] + 1:
-                    cluster.append(cols[i])
-                else:
-                    if len(cluster) > 1:
-                        for cx in cluster:
-                            ladder_cluster_coords.add((y, cx))
-                    cluster = [cols[i]]
-            if len(cluster) > 1:
-                for cx in cluster:
-                    ladder_cluster_coords.add((y, cx))
-        # Describe ladder clusters
-        if ladder_cluster_coords:
-            # Group clusters by contiguous horizontal runs in each row
-            cluster_count = 0
-            visited = set()
-            for y, cols in ladder_columns_by_row.items():
-                cols = sorted(cols)
-                i = 0
-                while i < len(cols):
-                    if (y, cols[i]) not in ladder_cluster_coords:
-                        i += 1
-                        continue
-                    # Start of a cluster
-                    start = i
-                    while i + 1 < len(cols) and cols[i+1] == cols[i] + 1 and (y, cols[i+1]) in ladder_cluster_coords:
-                        i += 1
-                    # Only count as a cluster if more than one ladder in a row
-                    if i > start:
-                        cluster_count += 1
-                        for cx in cols[start:i+1]:
-                            visited.add((y, cx))
-                    i += 1
-            if cluster_count > 0:
-                ladder_cluster_phrase = f" one ladder cluster." if cluster_count == 1 else f" {describe_quantity(cluster_count) if coarse_counts else cluster_count} ladder clusters."
-                add_to_caption(ladder_cluster_phrase, list(ladder_cluster_coords))
+        ladder_clusters = find_horizontal_lines(
+            scene, id_to_char, tile_descriptors, target_descriptor="ladder", min_run_length=2
+        )
+        ladder_line_coords = set()
+        cluster_count = 0
+        for y, start_x, end_x in ladder_clusters:
+            for x in range(start_x, end_x + 1):
+                cluster = flood_fill(
+                    scene, ladder_line_coords, y, x, id_to_char, tile_descriptors, excluded=set(), target_descriptor="ladder"
+                )
+                if cluster:
+                    cluster_count += 1
+                ladder_line_coords.add((y, x))
+
+        if cluster_count > 0:
+            ladder_cluster_phrase = f" one ladder cluster." if cluster_count == 1 else f" {describe_quantity(cluster_count) if coarse_counts else cluster_count} ladder clusters."
+            add_to_caption(ladder_cluster_phrase, list(ladder_line_coords))
         # Describe each ladder type
         short_phrase = describe_vertical_lines(short_ladders, "lone ladder tile", describe_locations, describe_absence=describe_absence)
         medium_phrase = describe_vertical_lines(medium_ladders, "short ladder", describe_locations, describe_absence=describe_absence)
         tall_phrase = describe_vertical_lines(tall_ladders, "tall ladder", describe_locations, describe_absence=describe_absence)
-        add_to_caption(short_phrase, [(y, x) for x, start_y, end_y in short_ladders for y in range(start_y, end_y + 1) if (y, x) not in ladder_cluster_coords])
-        add_to_caption(medium_phrase, [(y, x) for x, start_y, end_y in medium_ladders for y in range(start_y, end_y + 1) if (y, x) not in ladder_cluster_coords])
-        add_to_caption(tall_phrase, [(y, x) for x, start_y, end_y in tall_ladders for y in range(start_y, end_y + 1) if (y, x) not in ladder_cluster_coords])
+        add_to_caption(short_phrase, [(y, x) for x, start_y, end_y in short_ladders for y in range(start_y, end_y + 1) if (y, x) not in ladder_columns_by_row])
+        add_to_caption(medium_phrase, [(y, x) for x, start_y, end_y in medium_ladders for y in range(start_y, end_y + 1) if (y, x) not in ladder_columns_by_row])
+        add_to_caption(tall_phrase, [(y, x) for x, start_y, end_y in tall_ladders for y in range(start_y, end_y + 1) if (y, x) not in ladder_columns_by_row])
+    
     # Count player spawn (M) - only one allowed
     if 'M' in char_to_id:
         spawn_positions = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['M']]
@@ -675,6 +657,20 @@ def describe_vertical_lines(lines, label, describe_locations, describe_absence):
         count = len(lines)
         return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count != 1 else ''}."
 
+def count_ladder_clusters(scene, id_to_char, tile_descriptors, ladder_tile_ids):
+    """Counts all connected ladders (vertical or horizontal) as one cluster using flood fill."""
+    visited = set()
+    clusters = []
+    for row in range(len(scene)):
+        for col in range(len(scene[0])):
+            tile = scene[row][col]
+            if tile in ladder_tile_ids and (row, col) not in visited:
+                cluster = flood_fill(
+                    scene, visited, row, col, id_to_char, tile_descriptors, excluded=set(), target_descriptor="ladder"
+                )
+                if cluster:
+                    clusters.append(cluster)
+    return clusters
 
 if __name__ == "__main__":
     import argparse

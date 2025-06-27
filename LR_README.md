@@ -1,4 +1,6 @@
 ## Can I also get Lode Runner Data? (TODO)
+This Lode Runner data is still experimental and on-going and the current results are not as good as the Mario
+levels and outputs. The main therory as to why is a small dataset with only 150 samples.
 
 This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username. This should create a folder with the MarioDiffusion folder that contains all needed Lode Runner items:
 ```
@@ -55,14 +57,24 @@ Must be in a directory that contains both of the other two directory before usin
 python LodeRunner\loderunner\main.py LR_LevelsAndCaptions-regular.json 1
 ```
 
-Captions will be automatically assigned to the levels, and you can browse that data with this command:
-```
-python ascii_data_browser.py LR-conditional-regular0-samples-from-real-LR-captions\all_levels.json
-```
-
 But to actually provide captions to guide the level generation, use this command
 ```
-python text_to_level_diffusion.py --model_path LR-conditional-regular --game LR
+python text_to_level_diffusion.py --model_path LR-conditional-regular0 --game LR
+```
+
+An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
+```
+python interactive_tile_level_generator.py LR_LevelsAndCaptions-regular.json LR-conditional-regular0
+```
+
+Batch folder that contains all batch files associated with Lode Runner:
+```
+cd LR_batch
+```
+
+Batch file that created regular and absence data associated with Lode Runner:
+```
+LR-data.bat
 ```
 
 Batch file that fully runs unconditional diffusion for Lode Runner (as long as the file do not exist):
