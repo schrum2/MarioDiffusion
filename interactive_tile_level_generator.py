@@ -143,22 +143,7 @@ class CaptionBuilder(ParentBuilder):
         self.image_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         #Bind mousewheel scrolling globally, and scroll the widget under the mouse if it's a canvas
-        def _on_mousewheel(event):
-            widget_under_mouse = self.master.winfo_containing(event.x_root, event.y_root)
-            # Check if widget_under_mouse is self.image_canvas or a descendant
-            parent = widget_under_mouse
-            while parent is not None:
-                if parent == self.image_canvas:
-                    self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
-                    break
-                elif parent == self.checkbox_canvas:
-                    self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
-                parent = parent.master
-
-        self.master.bind_all("<MouseWheel>", _on_mousewheel)
-
-        #self.master.bind_all("<MouseWheel>", lambda event: _on_mousewheel(event))
-        #self.image_canvas.bind_all("<MouseWheel>", lambda event: self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units"))
+        self.master.bind_all("<MouseWheel>", self._on_mousewheel)
 
         self.checkbox_vars = {}
 
@@ -733,12 +718,17 @@ Average Segment Score: {avg_segment_score}"""
             var.set(0)
             self.update_caption()
 
-    # def _on_mousewheel(self, event):
-    #     widget = event.widget
-    #     # Only scroll if the widget is a Canvas
-    #     if isinstance(widget, tk.Canvas):
-    #         widget.yview_scroll(-1 * (event.delta // 120), "units")
-
+    def _on_mousewheel(self, event):
+            widget_under_mouse = self.master.winfo_containing(event.x_root, event.y_root)
+            # Check if widget_under_mouse is self.image_canvas or a descendant
+            parent = widget_under_mouse
+            while parent is not None:
+                if parent == self.image_canvas:
+                    self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+                    break
+                elif parent == self.checkbox_canvas:
+                    self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+                parent = parent.master
 
 
 import argparse
