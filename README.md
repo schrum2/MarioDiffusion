@@ -27,7 +27,7 @@ Following the instructions below will lead you through training your own diffusi
 ```
 python .\text_to_level_diffusion.py --model_path "schrum2/MarioDiffusion-MLM-regular0"
 ```
-This will download one of the models from our paper: `MLM-regular`. You will be asked to enter a caption. Try this:
+This will download one of the models from our paper: `MLM-regular`. The model comes from [this Hugging Face repo](https://huggingface.co/schrum2/MarioDiffusion-MLM-regular0). Once it downloads, you will be asked to enter a caption. Try this:
 ```
 full floor. one enemy. a few question blocks. one platform. one pipe. one loose block.
 ```
