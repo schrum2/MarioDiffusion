@@ -115,18 +115,24 @@ class TransformerModel(nn.Module):
             self.tokenizer.save(os.path.join(save_directory, "tokenizer.pkl"))
 
     @classmethod
-    def from_pretrained(cls, load_directory):
-        with open(os.path.join(load_directory, "config.json")) as f:
+    def from_pretrained(cls, load_directory, subfolder=None):
+        # Support loading from a subfolder (e.g., 'text_encoder')
+        if subfolder is not None:
+            model_dir = os.path.join(load_directory, subfolder)
+        else:
+            model_dir = load_directory
+
+        with open(os.path.join(model_dir, "config.json")) as f:
             config = json.load(f)
 
         model = cls(**config)
 
         # Load weights
-        state_dict = load_file(os.path.join(load_directory, "model.safetensors"))
+        state_dict = load_file(os.path.join(model_dir, "model.safetensors"))
         model.load_state_dict(state_dict)
 
         # Load tokenizer if available
-        tokenizer_path = os.path.join(load_directory, "tokenizer.pkl")
+        tokenizer_path = os.path.join(model_dir, "tokenizer.pkl")
         if os.path.exists(tokenizer_path):
             tokenizer = Tokenizer()
             tokenizer.load(tokenizer_path)
