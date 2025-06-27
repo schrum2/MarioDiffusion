@@ -91,17 +91,19 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
-        #from diffusers.utils import load_config, load_state_dict
-        # Load model_index.json
-        #model_index = load_config(pretrained_model_path)
+        # Load UNet - can be local path or HF model ID with subfolder
+        if os.path.exists(os.path.join(pretrained_model_path, "unet")):
+            # Local path
+            unet = UNet2DConditionModel.from_pretrained(pretrained_model_path, subfolder="unet")
+        else:
+            # Hugging Face model ID
+            unet = UNet2DConditionModel.from_pretrained(pretrained_model_path, subfolder="unet")
 
-        # Load components manually
-        unet_path = os.path.join(pretrained_model_path, "unet")
-        unet = UNet2DConditionModel.from_pretrained(unet_path)
-
-        scheduler_path = os.path.join(pretrained_model_path, "scheduler")
-        # Have heard that DDIMScheduler might be faster for inference, though not necessarily better
-        scheduler = DDPMScheduler.from_pretrained(scheduler_path)
+        # Load Scheduler - same logic
+        if os.path.exists(os.path.join(pretrained_model_path, "scheduler")):
+            scheduler = DDPMScheduler.from_pretrained(pretrained_model_path, subfolder="scheduler")
+        else:
+            scheduler = DDPMScheduler.from_pretrained(pretrained_model_path, subfolder="scheduler")
 
         tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
