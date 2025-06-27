@@ -7,12 +7,81 @@ from create_level_json_data import load_levels, load_tileset
 from enum import Enum
 
 
+#This enum is for the readability of the direction enum
+class Axis(Enum):
+    VERT=0
+    HORIZ=1
+
 #Needed to identify the direction of the sample
 class Direction(Enum):
-    UP=0
-    RIGHT=1
-    DOWN=2
-    LEFT=3
+    UP=0, Axis.VERT, -1
+    DOWN=1, Axis.VERT, 1
+    LEFT=2, Axis.HORIZ, -1
+    RIGHT=3, Axis.HORIZ, 1
+
+
+    def __init__(self, value, axis, offset_for_axis):
+        self._value_=value
+        self.axis = axis
+        self.offset_for_axis = offset_for_axis #This is the modifier we place on the axis variable to move in that direction
+
+    
+    #Move the scene one block in the desired direction
+    def move_scene(self, level): 
+        if self.axis == Axis.VERT: #up/down
+            level.y_idx += self.offset_for_axis
+        
+        if self.axis == Axis.HORIZ: #left/right
+            level.x_idx += self.offset_for_axis
+
+    
+    #Helper method, gets the row or collumn at a given index, depending on axis
+    def get_row_or_col(self, level, index):  
+        if self.axis == Axis.VERT:
+            return [index][level.x_idx:level.x_idx+level.width]
+        if self.axis == Axis.HORIZ:
+            return [x[index] for x in level[level.y_idx:level.y_idx+level.height]] #We need list comprehention to get a vertical slice
+    
+
+    #Gets the index of the last row/col of the level sample on the side of the given direction
+    def get_index_of_side(self, level): 
+        if self.axis == Axis.VERT:
+            base = level.y_idx
+            modifier=level.height-1
+        else:
+            base = level.x_idx
+            modifier=level.width-1
+        
+        if self.offset_for_axis==1:
+            return base+modifier
+        return base
+
+
+    #Check if it's possible to move in a given direction, optionally checking if there's anything blocking MegaMan from moving that way
+    def is_possible_to_move_direction(self, level, check_for_walls = False):
+        #Check if we're about to move into an out of bounds reigion
+        if self.axis==Axis.VERT:
+            if level.is_out_of_bounds(y=level.y_idx+self.offset_for_axis):
+                return False
+        else:
+            if level.is_out_of_bounds(x=level.x_idx+self.offset_for_axis):
+                return False
+        
+        #Check to see if moving in the given direction would put us in contact with null chars
+        index = self.get_index_of_side(self, level) + self.offset_for_axis #We want 1 row in that direction
+        row = self.get_row_or_col(self, level, index)
+
+        if any(x in row for x in level.null_chars):
+            return False
+        
+        #Do a second check to see if there is a hole that Mega Man could move through, lower priority than the other two
+        if check_for_walls:
+            walls_index = index-self.offset_for_axis #We only want the wall at the end of the row, not the row behind it
+            walls_row = self.get_row_or_col(self, level, walls_index)
+            if not any(x not in level.wall_chars for x in walls_row):
+                return False
+        
+        return True #Base case, fires if we're not out of bounds, there's no null ahead, and optionally there's no wall blocking us
 
 
 
@@ -135,7 +204,7 @@ def find_start(level, width, height):
 
 
 #Move the sliding window one block
-def move_scene(level, old_x_idx, old_y_idx, width, height, direction: Direction, null_chars=['@'], wall_chars=['#']):
+def move_scene(level, old_x_idx, old_y_idx, width, height, direction, null_chars=['@'], wall_chars=['#']):
 
 
     #Changedir if: 
@@ -143,27 +212,22 @@ def move_scene(level, old_x_idx, old_y_idx, width, height, direction: Direction,
         #The spot we would be moving into has null tokens
     #If the right is blocked (wall)
     #Move the scene one block to the right
-    up_possible = is_up_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-    down_possible = is_down_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-    left_possible = is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-    right_possible = is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-
-    if direction == Direction.UP and up_possible:
+    if direction == Direction.UP and is_up_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
         y_idx = old_y_idx - 1
         x_idx = old_x_idx
         next_direction=direction
 
-    elif direction == Direction.DOWN and down_possible:
+    elif direction == Direction.DOWN and is_down_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
         y_idx = old_y_idx + 1
         x_idx = old_x_idx
         next_direction=direction
 
-    elif direction == Direction.RIGHT and right_possible:
+    elif direction == Direction.RIGHT and is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
         x_idx = old_x_idx + 1
         y_idx = old_y_idx
         next_direction=direction
 
-    elif direction == Direction.LEFT and left_possible:
+    elif direction == Direction.LEFT and is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
         x_idx = old_x_idx - 1
         y_idx = old_y_idx
         next_direction=direction
@@ -177,18 +241,8 @@ def move_scene(level, old_x_idx, old_y_idx, width, height, direction: Direction,
 
 
 # Changes the current direction to be vertical and moves the index one block in that direction
-def change_direction(level, old_x_idx, old_y_idx, width, height, direction: Direction, null_chars, wall_chars):
+def change_direction(level, old_x_idx, old_y_idx, width, height, direction, null_chars, wall_chars):
     #Method calls to automate
-    def move_direction(direction):
-        if direction==Direction.DOWN:
-            move_down()
-        elif direction==Direction.UP:
-            move_up()
-        elif direction==Direction.RIGHT:
-            move_right()
-        elif direction==Direction.LEFT:
-            move_left()
-    
     def move_down():
         new_direction=Direction.DOWN
         y_idx=old_y_idx+1
@@ -221,116 +275,89 @@ def change_direction(level, old_x_idx, old_y_idx, width, height, direction: Dire
             raise ValueError("Both directions are impassible!")
         elif up_possible:
             return move_up()
-        elif down_possible:
-            return move_down()
         else:
-            return move_direction(direction)
+            return move_down()
     else:
-        #Check if the player can move in that direction
         left_possible = is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
         right_possible = is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-
-        #Check if that direction is possible to move in
-        left_valid = is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars, only_check_null=True)
-        right_valid = is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars, only_check_null=True)
-
+        
         if left_possible and right_possible:
             raise ValueError("I don't know which way to go!")
         elif not left_possible and not right_possible:
             raise ValueError("Both directions are impassible!")
         elif left_possible:
             return move_left()
-        elif right_possible:
-            return move_right()
         else:
-            return move_direction(direction)
-        
+            return move_right()
 
 
-"""
-This family of functions retuurns 2 boolean values for each direction:
-The first value tracks if moving into a direction would result in hitting a level boundry or null char
-The second tracks if there is a hole in the wall where Mega Man might be able to move through
-"""
 def is_up_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
     #If we're at the top of the screen
     if old_y_idx <= 0:
-        return False, False
+        return False
     
     top_row = level[old_y_idx][old_x_idx:old_x_idx+width]
     above_top_row = level[old_y_idx-1][old_x_idx:old_x_idx+width]
 
-    #Neither passible nor possible to look at with the camera
     if any(x in above_top_row for x in null_chars):
-        return False, False
+        return False
     
-    #Not passible, but can be viewed with the camera
     if not any(x not in wall_chars for x in top_row):
-        return True, False
+        return False
     
-    #Fully passible
-    return True, True
+    return True
 
 def is_down_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
     #If we're at the top of the screen
     if old_y_idx+height >= len(level):
-        return False, False
+        return False
     
     bottom_row = level[old_y_idx+height-1][old_x_idx:old_x_idx+width]
     below_bottom_row = level[old_y_idx+height][old_x_idx:old_x_idx+width]
 
-    #Neither passible nor possible to look at with the camera
     if any(x in below_bottom_row for x in null_chars):
-        return False, False
+        return False
     
-    #Not passible, but can be viewed with the camera
     if not any(x not in wall_chars for x in bottom_row):
-        return True, False
+        return False
     
-    #Fully passible
-    return True, True
+    return True
 
 def is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
     #If we're at the top of the screen
     if old_x_idx <= 0:
-        return False, False
+        return False
     
     left_col = [x[old_x_idx] for x in level[old_y_idx:old_y_idx+height]]
     left_of_left_col = [x[old_x_idx-1] for x in level[old_y_idx:old_y_idx+height]]
 
-    #Neither passible nor possible to look at with the camera
     if any(x in left_of_left_col for x in null_chars):
-        return False, False
+        return False
     
-    #Not passible, but can be viewed with the camera
     if not any(x not in wall_chars for x in left_col):
-        return True, False
+        return False
     
-    #Fully passible
-    return True, True
+    return True
 
 def is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
     #If we're at the top of the screen
     if old_x_idx+height >= len(level[0]):
-        return False, False
+        return False
     
     right_col = [x[old_x_idx+width-1] for x in level[old_y_idx:old_y_idx+height]]
     right_of_right_col = [x[old_x_idx+width] for x in level[old_y_idx:old_y_idx+height]]
-
-    #Neither passible nor possible to look at with the camera
+    print("\n\n")
+    print(right_col)
+    print(right_of_right_col)
+    print("\n\n")
     if any(x in right_of_right_col for x in null_chars):
-        return False, False
+        print("A")
+        return False
     
-    #Not passible, but can be viewed with the camera
     if not any(x not in wall_chars for x in right_col):
-        return True, False
+        return False
     
-    #Fully passible
-    return True, True
-
-
-
-
+    return True
 
 #Gets a full level sample of the desired size from the top left corner
 def get_sample_from_idx(level, col, row, width, height):
@@ -347,7 +374,38 @@ def get_sample_from_idx(level, col, row, width, height):
     
     return sample
 
+class LevelSample():
+    def __init__(self, level, width, height, null_chars=['@'], wall_chars=['#']):
+        self.level=level
+        self.width=width
+        self.height=height
+        self.null_chars=null_chars
+        self.wall_chars=wall_chars
+        direction=Direction.RIGHT
+
+        self.x_idx, self.y_idx = find_start(level, width, height)
+    
+    def is_out_of_bounds(self, x = None, y = None):
+        if x is None:
+            x = self.x_idx
+        if y is None:
+            y = self.y_idx
+        
+        if (x < 0) or (y < 0) or (x+self.width >= len(self.level[0])) or (y+self.height >= len(self.level)):
+            return True #We are out of bounds
+        return False #We are not out of bounds
+
+    
+
+
+
+        
+
+
+
 
 
 if __name__ == "__main__":
-    main()
+    direc=Direction.UP
+    print(direc.index)
+    #main()
