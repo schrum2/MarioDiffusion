@@ -1,5 +1,4 @@
 import argparse
-from xml.parsers.expat import model
 import torch
 import torch.nn as nn
 import math
@@ -7,6 +6,7 @@ import os
 import json
 from safetensors.torch import save_file, load_file
 from tokenizer import Tokenizer
+from huggingface_hub import hf_hub_download
 
 def get_embeddings(batch_size, tokenizer, text_encoder, captions=None, neg_captions=None, device='cpu'):
     max_length = text_encoder.max_seq_length
@@ -115,19 +115,39 @@ class TransformerModel(nn.Module):
             self.tokenizer.save(os.path.join(save_directory, "tokenizer.pkl"))
 
     @classmethod
-    def from_pretrained(cls, load_directory):
-        with open(os.path.join(load_directory, "config.json")) as f:
-            config = json.load(f)
+    def from_pretrained(cls, load_directory, subfolder=None):
+        """
+        Load a TransformerModel from a local directory or a Hugging Face Hub repo.
+        If load_directory is a local path, loads from disk. If not, loads from Hugging Face Hub.
+        The subfolder argument specifies a subdirectory (local or in the repo).
+        """
+        # Helper to get file path (local or HF Hub)
+        def get_file(filename):
+            # Try local path first
+            if os.path.isdir(load_directory):
+                model_dir = os.path.join(load_directory, subfolder) if subfolder else load_directory
+                file_path = os.path.join(model_dir, filename)
+                if os.path.exists(file_path):
+                    return file_path
+            # Otherwise, try Hugging Face Hub
+            repo_id = load_directory
+            subpath = f"{subfolder}/{filename}" if subfolder else filename
+            return hf_hub_download(repo_id=repo_id, filename=subpath)
 
+        # Load config
+        config_path = get_file("config.json")
+        with open(config_path, "r") as f:
+            config = json.load(f)
         model = cls(**config)
 
         # Load weights
-        state_dict = load_file(os.path.join(load_directory, "model.safetensors"))
+        weights_path = get_file("model.safetensors")
+        state_dict = load_file(weights_path)
         model.load_state_dict(state_dict)
 
         # Load tokenizer if available
-        tokenizer_path = os.path.join(load_directory, "tokenizer.pkl")
-        if os.path.exists(tokenizer_path):
+        tokenizer_path = get_file("tokenizer.pkl")
+        if tokenizer_path and os.path.exists(tokenizer_path):
             tokenizer = Tokenizer()
             tokenizer.load(tokenizer_path)
             model.tokenizer = tokenizer

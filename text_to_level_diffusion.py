@@ -58,7 +58,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.pipe = get_pipeline(args.model_path).to(self.device)
-        self.pipe.print_unet_architecture()
+        #self.pipe.print_unet_architecture()
         #self.pipe.save_unet_architecture_pdf(height, width)
 
         if args.automatic_negative_captions or not self.pipe.supports_negative_prompt:
@@ -82,10 +82,15 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         if self.args.automatic_negative_captions:
             pos, neg = positive_negative_caption_split(param_values["caption"], True)
             param_values["negative_prompt"] = neg
-        images = self.pipe(
-            generator=generator,
-            **param_values
-        ).images
+
+        try:
+            images = self.pipe(
+                generator=generator,
+                **param_values
+            ).images
+        except Exception as e:
+            print(f"Error during image generation: {e}")
+            return None
 
         # Convert to indices
         sample_tensor = images[0].unsqueeze(0)
@@ -153,7 +158,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             elif play_level == 'n':
                 print("Level not played.")
             else:
-                raise ValueError(f"Unknown input: {play_level}")
+                print("Unknown input: Level not played.")
 
         return visualize_samples(images)
 

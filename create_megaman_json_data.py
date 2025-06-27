@@ -143,22 +143,27 @@ def move_scene(level, old_x_idx, old_y_idx, width, height, direction: Direction,
         #The spot we would be moving into has null tokens
     #If the right is blocked (wall)
     #Move the scene one block to the right
-    if direction == Direction.UP and is_up_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
+    up_possible = is_up_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
+    down_possible = is_down_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
+    left_possible = is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
+    right_possible = is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
+
+    if direction == Direction.UP and up_possible:
         y_idx = old_y_idx - 1
         x_idx = old_x_idx
         next_direction=direction
 
-    elif direction == Direction.DOWN and is_down_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
+    elif direction == Direction.DOWN and down_possible:
         y_idx = old_y_idx + 1
         x_idx = old_x_idx
         next_direction=direction
 
-    elif direction == Direction.RIGHT and is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
+    elif direction == Direction.RIGHT and right_possible:
         x_idx = old_x_idx + 1
         y_idx = old_y_idx
         next_direction=direction
 
-    elif direction == Direction.LEFT and is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
+    elif direction == Direction.LEFT and left_possible:
         x_idx = old_x_idx - 1
         y_idx = old_y_idx
         next_direction=direction
@@ -174,6 +179,16 @@ def move_scene(level, old_x_idx, old_y_idx, width, height, direction: Direction,
 # Changes the current direction to be vertical and moves the index one block in that direction
 def change_direction(level, old_x_idx, old_y_idx, width, height, direction: Direction, null_chars, wall_chars):
     #Method calls to automate
+    def move_direction(direction):
+        if direction==Direction.DOWN:
+            move_down()
+        elif direction==Direction.UP:
+            move_up()
+        elif direction==Direction.RIGHT:
+            move_right()
+        elif direction==Direction.LEFT:
+            move_left()
+    
     def move_down():
         new_direction=Direction.DOWN
         y_idx=old_y_idx+1
@@ -206,89 +221,116 @@ def change_direction(level, old_x_idx, old_y_idx, width, height, direction: Dire
             raise ValueError("Both directions are impassible!")
         elif up_possible:
             return move_up()
-        else:
+        elif down_possible:
             return move_down()
+        else:
+            return move_direction(direction)
     else:
+        #Check if the player can move in that direction
         left_possible = is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
         right_possible = is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-        
+
+        #Check if that direction is possible to move in
+        left_valid = is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars, only_check_null=True)
+        right_valid = is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars, only_check_null=True)
+
         if left_possible and right_possible:
             raise ValueError("I don't know which way to go!")
         elif not left_possible and not right_possible:
             raise ValueError("Both directions are impassible!")
         elif left_possible:
             return move_left()
-        else:
+        elif right_possible:
             return move_right()
+        else:
+            return move_direction(direction)
+        
 
 
+"""
+This family of functions retuurns 2 boolean values for each direction:
+The first value tracks if moving into a direction would result in hitting a level boundry or null char
+The second tracks if there is a hole in the wall where Mega Man might be able to move through
+"""
 def is_up_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
     #If we're at the top of the screen
     if old_y_idx <= 0:
-        return False
+        return False, False
     
     top_row = level[old_y_idx][old_x_idx:old_x_idx+width]
     above_top_row = level[old_y_idx-1][old_x_idx:old_x_idx+width]
 
+    #Neither passible nor possible to look at with the camera
     if any(x in above_top_row for x in null_chars):
-        return False
+        return False, False
     
+    #Not passible, but can be viewed with the camera
     if not any(x not in wall_chars for x in top_row):
-        return False
+        return True, False
     
-    return True
+    #Fully passible
+    return True, True
 
 def is_down_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
     #If we're at the top of the screen
     if old_y_idx+height >= len(level):
-        return False
+        return False, False
     
     bottom_row = level[old_y_idx+height-1][old_x_idx:old_x_idx+width]
     below_bottom_row = level[old_y_idx+height][old_x_idx:old_x_idx+width]
 
+    #Neither passible nor possible to look at with the camera
     if any(x in below_bottom_row for x in null_chars):
-        return False
+        return False, False
     
+    #Not passible, but can be viewed with the camera
     if not any(x not in wall_chars for x in bottom_row):
-        return False
+        return True, False
     
-    return True
+    #Fully passible
+    return True, True
 
 def is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
     #If we're at the top of the screen
     if old_x_idx <= 0:
-        return False
+        return False, False
     
     left_col = [x[old_x_idx] for x in level[old_y_idx:old_y_idx+height]]
     left_of_left_col = [x[old_x_idx-1] for x in level[old_y_idx:old_y_idx+height]]
 
+    #Neither passible nor possible to look at with the camera
     if any(x in left_of_left_col for x in null_chars):
-        return False
+        return False, False
     
+    #Not passible, but can be viewed with the camera
     if not any(x not in wall_chars for x in left_col):
-        return False
+        return True, False
     
-    return True
+    #Fully passible
+    return True, True
 
 def is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
     #If we're at the top of the screen
     if old_x_idx+height >= len(level[0]):
-        return False
+        return False, False
     
     right_col = [x[old_x_idx+width-1] for x in level[old_y_idx:old_y_idx+height]]
     right_of_right_col = [x[old_x_idx+width] for x in level[old_y_idx:old_y_idx+height]]
-    print("\n\n")
-    print(right_col)
-    print(right_of_right_col)
-    print("\n\n")
+
+    #Neither passible nor possible to look at with the camera
     if any(x in right_of_right_col for x in null_chars):
-        print("A")
-        return False
+        return False, False
     
+    #Not passible, but can be viewed with the camera
     if not any(x not in wall_chars for x in right_col):
-        return False
+        return True, False
     
-    return True
+    #Fully passible
+    return True, True
+
+
+
+
 
 #Gets a full level sample of the desired size from the top left corner
 def get_sample_from_idx(level, col, row, width, height):
