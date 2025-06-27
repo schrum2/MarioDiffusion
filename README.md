@@ -87,7 +87,7 @@ python text_to_level_diffusion.py --model_path Mar1and2-conditional-regular0
 ```
 An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
 ```
-python interactive_tile_level_generator.py datasets\Mar1and2_LevelsAndCaptions-regular-train.json Mar1and2-conditional-regular0
+python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json --tileset "..\TheVGLC\Super Mario Bros\smb.json" --game Mario
 ```
 Interactively evolve level scenes in the latent space of the conditional model:
 ```
