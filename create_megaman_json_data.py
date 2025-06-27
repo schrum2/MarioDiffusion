@@ -13,18 +13,20 @@ class Axis(Enum):
     HORIZ=1
 
 #Needed to identify the direction of the sample
-class Direction(MultiValueEnum):
+class Direction(Enum):
     UP=0, Axis.VERT, -1
     RIGHT=1, Axis.HORIZ, 1
     DOWN=2, Axis.VERT, 1
     LEFT=3, Axis.HORIZ, -1
-    
 
 
-    def __init__(self, value, axis, offset_for_axis):
-        self._value_=value
-        self.axis = axis
-        self.offset_for_axis = offset_for_axis #This is the modifier we place on the axis variable to move in that direction
+    #Override new so we can process multiple inputs correctly
+    def __new__(cls, value, axis, offset_for_axis):
+        obj = object.__new__(cls)
+        obj._value_ = value
+        obj.axis = axis
+        obj.offset_for_axis = offset_for_axis
+        return obj #This is the modifier we place on the axis variable to move in that direction
 
     
     #Move the scene one block in the desired direction
@@ -39,9 +41,9 @@ class Direction(MultiValueEnum):
     #Helper method, gets the row or collumn at a given index, depending on axis
     def get_row_or_col(self, level, index):  
         if self.axis == Axis.VERT:
-            return [index][level.x_idx:level.x_idx+level.width]
+            return level.level[index][level.x_idx:level.x_idx+level.width]
         if self.axis == Axis.HORIZ:
-            return [x[index] for x in level[level.y_idx:level.y_idx+level.height]] #We need list comprehention to get a vertical slice
+            return [x[index] for x in level.level[level.y_idx:level.y_idx+level.height]] #We need list comprehention to get a vertical slice
     
 
     #Gets the index of the last row/col of the level sample on the side of the given direction
@@ -53,7 +55,7 @@ class Direction(MultiValueEnum):
             base = level.x_idx
             modifier=level.width-1
         
-        if self.offset_for_axis==1:
+        if self.offset_for_axis==1.0:
             return base+modifier
         return base
 
@@ -69,16 +71,17 @@ class Direction(MultiValueEnum):
                 return False
         
         #Check to see if moving in the given direction would put us in contact with null chars
-        index = self.get_index_of_side(self, level) + self.offset_for_axis #We want 1 row in that direction
-        row = self.get_row_or_col(self, level, index)
+        index = self.get_index_of_side(level) + self.offset_for_axis #We want 1 row in that direction
+        row = self.get_row_or_col(level, index)
 
         if any(x in row for x in level.null_chars):
+            print("c")
             return False
         
         #Do a second check to see if there is a hole that Mega Man could move through, lower priority than the other two
         if check_for_walls:
             walls_index = index-self.offset_for_axis #We only want the wall at the end of the row, not the row behind it
-            walls_row = self.get_row_or_col(self, level, walls_index)
+            walls_row = self.get_row_or_col(level, walls_index)
             if not any(x not in level.wall_chars for x in walls_row):
                 return False
         
@@ -198,96 +201,6 @@ def find_start(level_sample):
     return start_x, start_y
 
 
-"""#Move the sliding window one block
-def move_scene(level, old_x_idx, old_y_idx, width, height, direction, null_chars=['@'], wall_chars=['#']):
-
-
-    #Changedir if: 
-        #The right wall of the prev. sample is only wall
-        #The spot we would be moving into has null tokens
-    #If the right is blocked (wall)
-    #Move the scene one block to the right
-    if direction == Direction.UP and is_up_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
-        y_idx = old_y_idx - 1
-        x_idx = old_x_idx
-        next_direction=direction
-
-    elif direction == Direction.DOWN and is_down_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
-        y_idx = old_y_idx + 1
-        x_idx = old_x_idx
-        next_direction=direction
-
-    elif direction == Direction.RIGHT and is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
-        x_idx = old_x_idx + 1
-        y_idx = old_y_idx
-        next_direction=direction
-
-    elif direction == Direction.LEFT and is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars):
-        x_idx = old_x_idx - 1
-        y_idx = old_y_idx
-        next_direction=direction
-
-    else:
-        x_idx, y_idx, next_direction = change_direction(level, old_x_idx, old_y_idx, width, height, direction, null_chars, wall_chars)
-
-    print(next_direction.name)
-
-    return x_idx, y_idx, next_direction
-
-
-# Changes the current direction to be vertical and moves the index one block in that direction
-def change_direction(level, old_x_idx, old_y_idx, width, height, direction, null_chars, wall_chars):
-    #Method calls to automate
-    def move_down():
-        new_direction=Direction.DOWN
-        y_idx=old_y_idx+1
-        return old_x_idx, y_idx, new_direction
-    
-    def move_up():
-        new_direction=Direction.UP
-        y_idx=old_y_idx-1
-        return old_x_idx, y_idx, new_direction
-    
-    def move_right():
-        new_direction=Direction.RIGHT
-        x_idx=old_x_idx+1
-        return x_idx, old_y_idx, new_direction
-    
-    def move_left():
-        new_direction=Direction.LEFT
-        x_idx=old_x_idx-1
-        return x_idx, old_y_idx, new_direction
-    
-
-
-    if direction.value%2==1:
-        up_possible = is_up_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-        down_possible = is_down_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-        
-        if up_possible and down_possible:
-            raise ValueError("I don't know which way to go!")
-        elif not up_possible and not down_possible:
-            raise ValueError("Both directions are impassible!")
-        elif up_possible:
-            return move_up()
-        else:
-            return move_down()
-    else:
-        left_possible = is_left_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-        right_possible = is_right_possible(level, old_x_idx, old_y_idx, width, height, null_chars, wall_chars)
-        
-        if left_possible and right_possible:
-            raise ValueError("I don't know which way to go!")
-        elif not left_possible and not right_possible:
-            raise ValueError("Both directions are impassible!")
-        elif left_possible:
-            return move_left()
-        else:
-            return move_right()"""
-
-
-
-
 
 class LevelSample():
     def __init__(self, level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT):
@@ -321,11 +234,11 @@ class LevelSample():
 
         #If either side is accesible to us, we should go that way
         if left_permeability:
-            self.direction = Direction(self.direction.value-1%4)
+            self.direction = Direction((self.direction.value-1)%4)
             self.direction.move_scene(self)
             return True
         if right_permeability:
-            self.direction = Direction(self.direction.value+1%4)
+            self.direction = Direction((self.direction.value+1)%4)
             self.direction.move_scene(self)
             return True
 
@@ -339,11 +252,11 @@ class LevelSample():
         
         #Last resort, head whatever direction the camera can move, even though there is a wall in the way
         if left:
-            self.direction = Direction(self.direction.value-1%4)
+            self.direction = Direction((self.direction.value-1)%4)
             self.direction.move_scene(self)
             return True
         if right:
-            self.direction = Direction(self.direction.value+1%4)
+            self.direction = Direction((self.direction.value+1)%4)
             self.direction.move_scene(self)
             return True
             
@@ -353,13 +266,14 @@ class LevelSample():
     def check_for_end(self):
         left, center, right, _, _, _ = self.check_travel_movability()
         if not (left or center or right):
+            print(left, center, right)
             return True #If we can't move any direction except backwards, we're probably at the end of the level
         return False
 
     #Returns a 6-tuple of the ability to move left, forward, and right (relative to the current direction), the first 3 only check for null, the last 3 check for null and walls
     def check_travel_movability(self, check_for_walls = False):
-        direction_left = Direction(self.direction.value-1%4)
-        direction_right = Direction(self.direction.value+1%4)
+        direction_left = Direction((self.direction.value-1)%4)
+        direction_right = Direction((self.direction.value+1)%4)
 
         left_possibility = direction_left.is_possible_to_move_direction(self)
         right_possibility = direction_right.is_possible_to_move_direction(self)
