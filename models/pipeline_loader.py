@@ -39,17 +39,11 @@ def get_pipeline(model_path):
                 trust_remote_code=True,
             )
         else:
-            # Fallback: try unconditional or FDM pipeline as needed
-            try:
-                pipe = DiffusionPipeline.from_pretrained(
-                    model_path,
-                    custom_pipeline="models.latent_diffusion_pipeline.UnconditionalDDPMPipeline",
-                    trust_remote_code=True,
-                )
-            except Exception:
-                pipe = DiffusionPipeline.from_pretrained(
-                    model_path,
-                    custom_pipeline="models.fdm_pipeline.FDMPipeline",
-                    trust_remote_code=True,
-                )
+            # Fallback: try unconditional 
+            pipe = DiffusionPipeline.from_pretrained(
+                model_path,
+                custom_pipeline="models.latent_diffusion_pipeline.UnconditionalDDPMPipeline",
+                trust_remote_code=True,
+            )
+
     return pipe
