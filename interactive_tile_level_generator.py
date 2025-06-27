@@ -21,10 +21,6 @@ from models.pipeline_loader import get_pipeline
 # Add the parent directory to sys.path so sibling folders can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-#from LodeRunner.loderunner import main as lr_main
-# except ImportError:
-#     lr_main = None  # Handle gracefully if not present
-
 global tileset_path
 tileset_path = None  # Global variable for tileset path
 global game_selected
@@ -65,7 +61,7 @@ class CaptionBuilder(ParentBuilder):
         self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", style="TLabel", font=GUI_FONT)
         self.caption_label.pack(pady=5)
         
-        self.caption_text = tk.Text(self.caption_frame, height=8, wrap=tk.WORD, state=tk.DISABLED, font=GUI_FONT)
+        self.caption_text = tk.Text(self.caption_frame, height=8, state=tk.NORMAL, wrap=tk.WORD, font=GUI_FONT) #state=tk.DISABLED,
         self.caption_text.pack() 
                 
         self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:", style="TLabel")
@@ -141,10 +137,10 @@ class CaptionBuilder(ParentBuilder):
         
         self.image_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.image_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # Bind mousewheel scrolling to the scrollbar for image_inner_frame
-        self.image_canvas.bind_all("<MouseWheel>", lambda event: self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units"))
-        
+
+        #Bind mousewheel scrolling globally, and scroll the widget under the mouse if it's a canvas
+        self.master.bind_all("<MouseWheel>", self._on_mousewheel)
+
         self.checkbox_vars = {}
 
         self.loaded_model_label = ttk.Label(self.caption_frame, text=f"Using model: Not loaded yet", style="TLabel")
@@ -326,7 +322,7 @@ class CaptionBuilder(ParentBuilder):
         self.caption_text.config(state=tk.NORMAL)
         self.caption_text.delete(1.0, tk.END)
         self.caption_text.insert(tk.END, new_caption)
-        self.caption_text.config(state=tk.DISABLED)
+        self.caption_text.config(state=tk.NORMAL)  # Keep it editable
     
     def generate_image(self):
         global tileset_path, game_selected
@@ -542,6 +538,10 @@ Average Segment Score: {avg_segment_score}"""
     def add_to_composed_level(self, idx):
         # Store the actual scene
         scene = self.generated_scenes[idx]
+        if game_selected == "Lode Runner":
+                number_of_tiles = common_settings.LR_TILE_COUNT
+                scene = [[x % number_of_tiles for x in row] for row in scene]
+                tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
         self.composed_scenes.append(scene)
 
         # Create and store the thumbnail
@@ -689,19 +689,10 @@ Average Segment Score: {avg_segment_score}"""
         selected_game = self.game_var.get()
         if selected_game == "Lode Runner":
             import tempfile, json
-            scene = self.get_sample_output(idx).level  # list of strings
-            # Convert to Lode Runner JSON format
-            lr_json = [{
-                "scene": [[char for char in row] for row in scene],
-                "caption": ""
-            }]
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-                json.dump(lr_json, tmp)
-                tmp_path = tmp.name
-            if lr_main:
-                lr_main.play_lr_level(tmp_path, 1)
-            else:
-                print("LodeRunner main module not found.")
+            level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
+            level.play(game="loderunner",)
+            # level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
+            # level.play("loderunner")
         else:
             #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
@@ -717,6 +708,19 @@ Average Segment Score: {avg_segment_score}"""
         for var in self.checkbox_vars.values():
             var.set(0)
             self.update_caption()
+
+    def _on_mousewheel(self, event):
+            widget_under_mouse = self.master.winfo_containing(event.x_root, event.y_root)
+            # Check if widget_under_mouse is self.image_canvas or a descendant
+            parent = widget_under_mouse
+            while parent is not None:
+                if parent == self.image_canvas:
+                    self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+                    break
+                elif parent == self.checkbox_canvas:
+                    self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+                parent = parent.master
+
 
 import argparse
 def parse_args():
