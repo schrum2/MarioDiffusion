@@ -40,7 +40,7 @@ class InteractiveGeneration:
                     if isinstance(image, list):
                         # Assume this represents an animation
                         webbrowser.open("test.gif")
-                    else:
+                    elif image:
                         image.show()
             #except Exception as e:
             #    print(f"Error: {e}")

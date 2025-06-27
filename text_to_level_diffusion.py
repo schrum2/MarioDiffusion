@@ -82,10 +82,15 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         if self.args.automatic_negative_captions:
             pos, neg = positive_negative_caption_split(param_values["caption"], True)
             param_values["negative_prompt"] = neg
-        images = self.pipe(
-            generator=generator,
-            **param_values
-        ).images
+
+        try:
+            images = self.pipe(
+                generator=generator,
+                **param_values
+            ).images
+        except Exception as e:
+            print(f"Error during image generation: {e}")
+            return None
 
         # Convert to indices
         sample_tensor = images[0].unsqueeze(0)
