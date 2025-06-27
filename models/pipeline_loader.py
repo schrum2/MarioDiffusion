@@ -24,26 +24,8 @@ def get_pipeline(model_path):
             #New FDM saving
             pipe = FDMPipeline.from_pretrained(model_path)
     else:
-        # Assume it's a Hugging Face Hub model ID
-        # Try to load config to determine if it's text-conditional
-        try:
-            config, _ = DiffusionPipeline.load_config(model_path)
-            components = config.get("components", {})
-        except Exception:
-            components = {}
-        if "text_encoder" in components or "text_encoder" in str(components):
-            # Use the local pipeline file for custom_pipeline
-            pipe = DiffusionPipeline.from_pretrained(
-                model_path,
-                custom_pipeline="models.text_diffusion_pipeline.TextConditionalDDPMPipeline",
-                trust_remote_code=True,
-            )
-        else:
-            # Fallback: try unconditional 
-            pipe = DiffusionPipeline.from_pretrained(
-                model_path,
-                custom_pipeline="models.latent_diffusion_pipeline.UnconditionalDDPMPipeline",
-                trust_remote_code=True,
-            )
+        # Hugging Face Hub model: 
+        # Need to generalize to support other pipelines
+        pipe = TextConditionalDDPMPipeline.from_pretrained(model_path)
 
     return pipe

@@ -91,40 +91,40 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
-        #from diffusers.utils import load_config, load_state_dict
-        # Load model_index.json
-        #model_index = load_config(pretrained_model_path)
-
-        # Load components manually
-        unet_path = os.path.join(pretrained_model_path, "unet")
-        unet = UNet2DConditionModel.from_pretrained(unet_path)
-
-        scheduler_path = os.path.join(pretrained_model_path, "scheduler")
-        # Have heard that DDIMScheduler might be faster for inference, though not necessarily better
-        scheduler = DDPMScheduler.from_pretrained(scheduler_path)
+        # Load UNet - can be local path or HF model ID with subfolder
+        unet = UNet2DConditionModel.from_pretrained(pretrained_model_path, subfolder="unet")
+        scheduler = DDPMScheduler.from_pretrained(pretrained_model_path, subfolder="scheduler")
 
         tokenizer = None
+        text_encoder = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
         
-        if os.path.exists(text_encoder_path):
-            #Test for the new saving system, where we save a simple config file
-            if os.path.exists(os.path.join(text_encoder_path, "loading_info.json")):
-                with open(os.path.join(text_encoder_path, "loading_info.json"), "r") as f:
-                    encoder_config = json.load(f)
+        # Test for the new saving system, where we save a simple config file
+        # This case is for pretrained text encoders: MiniLM, GTE
+        if os.path.exists(os.path.join(text_encoder_path, "loading_info.json")):
+            with open(os.path.join(text_encoder_path, "loading_info.json"), "r") as f:
+                encoder_config = json.load(f)
 
-                text_encoder = AutoModel.from_pretrained(encoder_config['text_encoder_name'], trust_remote_code=True)
-                tokenizer = AutoTokenizer.from_pretrained(encoder_config['tokenizer_name'])
+            text_encoder = AutoModel.from_pretrained(encoder_config['text_encoder_name'], trust_remote_code=True)
+            tokenizer = AutoTokenizer.from_pretrained(encoder_config['tokenizer_name'])
             
-            #Legacy loading system, loads models directly if the whole thing is saved in the directory
-            else:
-                try:
-                    text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
-                    tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
-                except (ValueError, KeyError):
-                    text_encoder = TransformerModel.from_pretrained(text_encoder_path)
-                    tokenizer = text_encoder.tokenizer
-        else:
-            text_encoder = None
+        #Legacy loading system, loads models directly if the whole thing is saved in the directory
+        elif os.path.exists(text_encoder_path):
+            try: # Assumes MiniLM or GTE is directly saved on the disk in subdir
+                text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
+                tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
+            except (ValueError, KeyError):
+                # The model must be a TransformerModel, which is a custom class
+                text_encoder = None
+                tokenizer = None
+
+        # TODO: Case for MiniLM and GTE based models on Hugging Face
+
+        if text_encoder is None:
+            # Assume it's a custom TransformerModel 
+            # This command can grab code from local directory or Hugging Face
+            text_encoder = TransformerModel.from_pretrained(pretrained_model_path, subfolder="text_encoder")
+            tokenizer = text_encoder.tokenizer
 
         # Instantiate your pipeline
         pipeline = cls(
