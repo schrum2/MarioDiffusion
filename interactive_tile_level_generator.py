@@ -21,10 +21,6 @@ from models.pipeline_loader import get_pipeline
 # Add the parent directory to sys.path so sibling folders can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-#from LodeRunner.loderunner import main as lr_main
-# except ImportError:
-#     lr_main = None  # Handle gracefully if not present
-
 global tileset_path
 tileset_path = None  # Global variable for tileset path
 global game_selected
@@ -542,6 +538,10 @@ Average Segment Score: {avg_segment_score}"""
     def add_to_composed_level(self, idx):
         # Store the actual scene
         scene = self.generated_scenes[idx]
+        if game_selected == "Lode Runner":
+                number_of_tiles = common_settings.LR_TILE_COUNT
+                scene = [[x % number_of_tiles for x in row] for row in scene]
+                tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
         self.composed_scenes.append(scene)
 
         # Create and store the thumbnail
@@ -689,19 +689,10 @@ Average Segment Score: {avg_segment_score}"""
         selected_game = self.game_var.get()
         if selected_game == "Lode Runner":
             import tempfile, json
-            scene = self.get_sample_output(idx).level  # list of strings
-            # Convert to Lode Runner JSON format
-            lr_json = [{
-                "scene": [[char for char in row] for row in scene],
-                "caption": ""
-            }]
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-                json.dump(lr_json, tmp)
-                tmp_path = tmp.name
-            if lr_main:
-                lr_main.play_lr_level(tmp_path, 1)
-            else:
-                print("LodeRunner main module not found.")
+            level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
+            level.play(game="loderunner",)
+            # level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
+            # level.play("loderunner")
         else:
             #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
