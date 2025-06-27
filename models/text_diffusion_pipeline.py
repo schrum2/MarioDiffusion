@@ -92,18 +92,8 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
     @classmethod
     def from_pretrained(cls, pretrained_model_path, **kwargs):
         # Load UNet - can be local path or HF model ID with subfolder
-        if os.path.exists(os.path.join(pretrained_model_path, "unet")):
-            # Local path
-            unet = UNet2DConditionModel.from_pretrained(pretrained_model_path, subfolder="unet")
-        else:
-            # Hugging Face model ID
-            unet = UNet2DConditionModel.from_pretrained(pretrained_model_path, subfolder="unet")
-
-        # Load Scheduler - same logic
-        if os.path.exists(os.path.join(pretrained_model_path, "scheduler")):
-            scheduler = DDPMScheduler.from_pretrained(pretrained_model_path, subfolder="scheduler")
-        else:
-            scheduler = DDPMScheduler.from_pretrained(pretrained_model_path, subfolder="scheduler")
+        unet = UNet2DConditionModel.from_pretrained(pretrained_model_path, subfolder="unet")
+        scheduler = DDPMScheduler.from_pretrained(pretrained_model_path, subfolder="scheduler")
 
         tokenizer = None
         text_encoder_path = os.path.join(pretrained_model_path, "text_encoder")
