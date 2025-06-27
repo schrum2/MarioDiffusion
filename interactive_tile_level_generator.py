@@ -676,7 +676,10 @@ Average Segment Score: {avg_segment_score}"""
         if isinstance(idx_or_scene, int):
             tensor = torch.tensor(self.current_levels[idx_or_scene])
             tile_numbers = torch.argmax(tensor, dim=0).numpy()
-            char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
+            if game_selected == "Lode Runner":
+                char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
+            else:
+                char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
@@ -690,9 +693,8 @@ Average Segment Score: {avg_segment_score}"""
         if selected_game == "Lode Runner":
             import tempfile, json
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
-            level.play(game="loderunner",)
-            # level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
-            # level.play("loderunner")
+            #print("Level to play:", level)
+            level.play(game="loderunner", level_idx=idx)
         else:
             #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
