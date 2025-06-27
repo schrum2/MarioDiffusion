@@ -21,20 +21,59 @@ Before running any code, install all requirements with pip:
 pip install -r requirements.txt
 ```
 
+## Preview of final results
+
+Following the instructions below will lead you through training your own diffusion model to create Mario levels. There is also a cool GUI you can work with to build larger levels out of diffusion-generated scenes. However, if you want to skip past all of that and just see some results from a pre-trained diffusion model now, run the following command:
+```
+python .\text_to_level_diffusion.py --model_path "schrum2/MarioDiffusion-MLM-regular0"
+```
+This will download one of the models from our paper: `MLM-regular`. You will be asked to enter a caption. Try this:
+```
+full floor. one enemy. a few question blocks. one platform. one pipe. one loose block.
+```
+For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. Please browse through the instructions below or read our paper to learn more about how our models work. A full list of Hugging Face models you can download are available here:
+
+TODO
+
 ## Create datasets
 
-This batch file call will create sets of 16x16 level scenes of both SMB1 and SMB2 (Japan), as well as a combination of both. Afterwards, it will create captions for all 3 datasets, tokenizers for the data, test captions for later training, and finally splits the data into training, validation, and testing json files
+This batch file call will create sets of 16x16 level scenes of both SMB1 and SMB2 (Japan), as well as a combination of both. Afterwards, it will create captions for all 3 datasets, tokenizers for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. Run these commands:
 ```
-batch\Mar1and2-data.bat
+cd batch
+Mar1and2-data.bat
 ```
 Now you can browse level scenes and their captions with a command like this (the json file can be replaced by any levels and captions json file in datasets):
 ```
-python ascii_data_browser.py datasets\\Mar1and2_LevelsAndCaptions-regular.json 
+python ascii_data_browser.py datasets\Mar1and2_LevelsAndCaptions-regular.json 
 ```
+
+## Complete training and evaluation sequence
+
+The next two sections go into detail on training both the text encoder and the diffusion model, but if you want to train the whole thing all at once and use default settings from our paper, we have some batch files you can use. Be forewarned that after training, these batch files will also embark on a somewhat lengthy data collection process used to evaluate the models, so if you just want to train a model and then play with it yourself, you might want to skip to the more specific instructions below. If you want to use these batch files, you will need to be in the actual batch directory first:
+```
+cd batch
+```
+Once here, you can train both a text encoder and its corresponding diffusion model back to back with a single command like this:
+```
+train-conditional.bat 0 Mar1and2 regular 
+```
+The `0` is an experiment number which can be replaced with any integer. Both `Mar1and2` and `regular` are referring to portions of the dataset file names that will be used for training, though they also indicate some settings for the model. For example, you can switch `regular` to `absence` and a different style of captions will be used for training. If you switch it to `negative` then negative guidance will be used during training, allowing for negative prompts during inference. If you know you want to repeat an experiment multiple times and train multiple copies of the same model, then you can use this command:
+```
+batch_runner.bat train-conditional.bat 0 4 Mar1and2 regular
+```
+This trains models for experiment numbers 0 through 4 in sequence. Also, the primary focus of our work is on training diffusion models that use simple text encoders, but our paper also compares against models using pretrained sentence transformers. They are trained with a different batch file. Here is an example:
+```
+train-conditional-pre.bat 0 Mar1and2 regular MiniLM split
+```
+This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Mario captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE`, which is a larger embedding model. It takes longer to train, and is not really worth the extra time, but you are welcome to experiment. The `train-conditional-pre.bat` file can also be used with `batch_runner.bat train-conditional.bat` in a similar way:
+```
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular MiniLM split
+```
+Now, if you just want to train a model step by step, look at the next sections instead.
 
 ## Train text encoder
 
-Masked language modeling will be used to pre-train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. It is reccomended to supply the validation and test datasets of the same type as well, though it is optional, and only used for evaluation.
+Masked language modeling is used to train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. It is reccomended to supply the validation and test datasets of the same type as well, though it is optional, and only used for evaluation.
 ```
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --test_json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --output_dir Mar1and2-MLM-regular0 --seed 0
 ```
@@ -53,11 +92,11 @@ python evaluate_masked_token_prediction.py --model_path Mar1and2-MLM-regular0 --
 
 ## Train text-conditional diffusion model
 
-Now that the text embedding model is ready, train a diffusion model conditioned on text embeddings from the descriptive captions:
+Now that the text embedding model is ready, train a diffusion model conditioned on text embeddings from the descriptive captions. Note that this can take a while. We used relatively modest consumer GPUs, so our models took about 12 hours to train. However, you can lower the number of epochs to 300 or even 200 and still get decent results:
 ```
 python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir Mar1and2-conditional-regular0 --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --mlm_model_dir Mar1and2-MLM-regular0 --plot_validation_caption_score --seed 0 
 ```
-If you care more about speed than seeing intermediate results, you can set --save_image_epochs to an arbitrarily large number, like this
+Another trick if you care more about speed than seeing intermediate results is to set `--save_image_epochs` to a large number (larger than the number of epochs), like this
 ```
 python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir Mar1and2-conditional-regular0 --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --mlm_model_dir Mar1and2-MLM-regular0 --plot_validation_caption_score --seed 0 
 ```
@@ -65,7 +104,6 @@ You can also train with negative prompting by adding an additional flag like thi
 ```
 python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir Mar1and2-conditional-negative0 --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --mlm_model_dir Mar1and2-MLM-regular0 --plot_validation_caption_score --seed 0 --negative_prompt_training
 ```
-You can swap out the dataset and, tokenizer, and language model however you like, as long as everything is consistent.
 
 ## Generate levels from text-conditional diffusion model
 
