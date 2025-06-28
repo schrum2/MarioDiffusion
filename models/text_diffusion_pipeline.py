@@ -102,8 +102,13 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         
         # Test for the new saving system, where we save a simple config file
         # This case is for pretrained text encoders: MiniLM, GTE
-        if os.path.exists(os.path.join(text_encoder_path, "loading_info.json")):
-            with open(os.path.join(text_encoder_path, "loading_info.json"), "r") as f:
+        try:
+            encoder_config = get_file("loading_info.json", pretrained_model_path, "text_encoder")
+        except Exception as e:
+            encoder_config = None
+
+        if encoder_config is not None:
+            with open(encoder_config, "r") as f:
                 encoder_config = json.load(f)
 
             text_encoder = AutoModel.from_pretrained(encoder_config['text_encoder_name'], trust_remote_code=True)
