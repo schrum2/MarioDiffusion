@@ -6,7 +6,7 @@ import os
 import json
 from safetensors.torch import save_file, load_file
 from tokenizer import Tokenizer
-from huggingface_hub import hf_hub_download
+from util.hf import get_file
 
 def get_embeddings(batch_size, tokenizer, text_encoder, captions=None, neg_captions=None, device='cpu'):
     max_length = text_encoder.max_seq_length
@@ -121,32 +121,20 @@ class TransformerModel(nn.Module):
         If load_directory is a local path, loads from disk. If not, loads from Hugging Face Hub.
         The subfolder argument specifies a subdirectory (local or in the repo).
         """
-        # Helper to get file path (local or HF Hub)
-        def get_file(filename):
-            # Try local path first
-            if os.path.isdir(load_directory):
-                model_dir = os.path.join(load_directory, subfolder) if subfolder else load_directory
-                file_path = os.path.join(model_dir, filename)
-                if os.path.exists(file_path):
-                    return file_path
-            # Otherwise, try Hugging Face Hub
-            repo_id = load_directory
-            subpath = f"{subfolder}/{filename}" if subfolder else filename
-            return hf_hub_download(repo_id=repo_id, filename=subpath)
 
         # Load config
-        config_path = get_file("config.json")
+        config_path = get_file("config.json", load_directory, subfolder)
         with open(config_path, "r") as f:
             config = json.load(f)
         model = cls(**config)
 
         # Load weights
-        weights_path = get_file("model.safetensors")
+        weights_path = get_file("model.safetensors", load_directory, subfolder)
         state_dict = load_file(weights_path)
         model.load_state_dict(state_dict)
 
         # Load tokenizer if available
-        tokenizer_path = get_file("tokenizer.pkl")
+        tokenizer_path = get_file("tokenizer.pkl", load_directory, subfolder)
         if tokenizer_path and os.path.exists(tokenizer_path):
             tokenizer = Tokenizer()
             tokenizer.load(tokenizer_path)
@@ -168,12 +156,7 @@ class TransformerModel(nn.Module):
         model = TransformerModel.from_pretrained(args.model_path).to(device)
         print(f"Loaded model from {args.model_path}")
 
-        import os
-        import re
-        import json
-        import matplotlib.pyplot as plt
         from torchview import draw_graph
-        import graphviz
 
         graph = draw_graph(
             model=model,
