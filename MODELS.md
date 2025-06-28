@@ -8,5 +8,7 @@ Our paper outlines how we train multiple models of various types and compare the
 - [schrum2/MarioDiffusion-MiniLM-single-absence0](https://huggingface.co/schrum2/MarioDiffusion-MiniLM-single-absence0)
 - [schrum2/MarioDiffusion-MiniLM-single-negative0](https://huggingface.co/schrum2/MarioDiffusion-MiniLM-single-negative0)
 - [schrum2/MarioDiffusion-MiniLM-multiple-regular0](https://huggingface.co/schrum2/MarioDiffusion-MiniLM-multiple-regular0)
+- [schrum2/MarioDiffusion-MiniLM-multiple-absence0](https://huggingface.co/schrum2/MarioDiffusion-MiniLM-multiple-absence0)
+- [schrum2/MarioDiffusion-MiniLM-multiple-negative0](https://huggingface.co/schrum2/MarioDiffusion-MiniLM-multiple-negative0)
 
 - TODO (More soon!)
