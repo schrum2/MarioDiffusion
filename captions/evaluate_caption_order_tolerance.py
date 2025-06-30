@@ -228,12 +228,19 @@ def main():
     if args.caption is not None or "":
         caption_folder = args.caption.replace(" ", "_").replace(".", "_")
         output_directory = os.path.join(visualizations_dir, caption_folder)
-
-        visualize_samples(
-            all_samples,
-            output_dir=output_directory,
-            prompts=all_prompts[0] if all_prompts else "No prompts available"
-        )
+        if args.game == "LR":
+            visualize_samples(
+                all_samples,
+                output_dir=output_directory,
+                prompts=all_prompts[0] if all_prompts else "No prompts available",
+                game = "LR"
+            )
+        else:
+            visualize_samples(
+                all_samples,
+                output_dir=output_directory,
+                prompts=all_prompts[0] if all_prompts else "No prompts available"
+            )
         print(f"\nVisualizations saved to: {output_directory}")
 
 

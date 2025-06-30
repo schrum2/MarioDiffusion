@@ -70,7 +70,11 @@ class WGANEvolver(Evolver):
         #compare_score = compare_captions(self.prompt, actual_caption)
         #print(f"Comparison score: {compare_score}")
 
-        return visualize_samples(samples_cpu)
+        if args.tileset == '..\TheVGLC\Super Mario Bros\smb.json':
+            samples = visualize_samples(samples_cpu)
+        elif args.tileset == '..\TheVGLC\Lode Runner\Loderunner.json':
+            samples = visualize_samples(samples_cpu, game='LR')
+        return samples
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evolve levels with WGAN")    

@@ -161,8 +161,13 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 print("Level not played.")
             else:
                 print("Unknown input: Level not played.")
+        
+        if self.args.game == "Mario":
+            samples = visualize_samples(images)
+        elif self.args.game == "LR":
+            samples = visualize_samples(images, game='LR')
 
-        return visualize_samples(images)
+        return samples
 
     def get_extra_params(self, param_values): 
         if "negative_prompt" in param_values and param_values["negative_prompt"] == "":

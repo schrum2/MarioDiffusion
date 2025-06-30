@@ -29,10 +29,10 @@ class TextDiffusionEvolver(Evolver):
 
     def random_latent(self, seed=1):
         # Create the initial noise latents (this is what the pipeline does internally)
-        if args.width == common_settings.MARIO_WIDTH:
+        if args.tileset == '..\TheVGLC\Super Mario Bros\smb.json':
             height = common_settings.MARIO_HEIGHT
             width = self.width
-        elif args.width == common_settings.LR_WIDTH:
+        elif args.tileset == '..\TheVGLC\Lode Runner\Loderunner.json':
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
         num_channels_latents = len(self.id_to_char)
@@ -83,7 +83,11 @@ class TextDiffusionEvolver(Evolver):
         actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
         g.caption = actual_caption
 
-        return visualize_samples(images)
+        if args.tileset == '..\TheVGLC\Super Mario Bros\smb.json':
+            samples = visualize_samples(images)
+        elif args.tileset == '..\TheVGLC\Lode Runner\Loderunner.json':
+            samples = visualize_samples(images, game='LR')
+        return samples
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evolve levels with unconditional diffusion model")    

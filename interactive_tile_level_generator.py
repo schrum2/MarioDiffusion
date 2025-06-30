@@ -402,10 +402,11 @@ class CaptionBuilder(ParentBuilder):
             #selected_game = self.game_var.get()
             if game_selected == "Lode Runner":
                 actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+                pil_img = visualize_samples(images, game='LR')
             else:
                 actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-           
-            pil_img = visualize_samples(images)
+                pil_img = visualize_samples(images)
+                
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
 

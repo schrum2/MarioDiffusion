@@ -143,22 +143,22 @@ class SampleOutput:
         if game == "loderunner":
             import tempfile, json
             # Convert self.level (list of strings) to Lode Runner JSON format
-            # scene = [[c for c in row] for row in self.level]
-            # lr_json = [{
-            #     "scene": scene,
-            #     "caption": ""
-            # }]
-            # with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-            #     json.dump(lr_json, tmp)
-            #     tmp_path = tmp.name
-            # import sys, os
-            # #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-            # from LodeRunner.loderunner import main
-            # tmp_path = tmp_path if dataset_path is None else dataset_path
-            # print(f"Playing Lode Runner level interactively -- {tmp_path}!")
-            # main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
-            simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
-            simulator.interactive()
+            scene = [[c for c in row] for row in self.level]
+            lr_json = [{
+                "scene": scene,
+                "caption": ""
+            }]
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+                json.dump(lr_json, tmp)
+                tmp_path = tmp.name
+            import sys, os
+            #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+            from LodeRunner.loderunner import main
+            tmp_path = tmp_path if dataset_path is None else dataset_path
+            print(f"Playing Lode Runner level interactively -- {tmp_path}!")
+            main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
+            # simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
+            # simulator.interactive()
         else:
             if self.use_snes_graphics:
                 simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
