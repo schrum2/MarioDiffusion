@@ -32,9 +32,11 @@ class Direction(Enum):
     #Move the scene one block in the desired direction
     def move_scene(self, level): 
         if self.axis == Axis.VERT: #up/down
+            level.move_iter+=1
             level.y_idx += self.offset_for_axis
         
         if self.axis == Axis.HORIZ: #left/right
+            level.move_iter+=1
             level.x_idx += self.offset_for_axis
 
     
@@ -123,15 +125,24 @@ def main():
     print(null_chars)
     print(wall_chars)
 
-    parse_level(levels[2], args.target_width, args.target_height, null_chars, wall_chars)
+    #We literally only need level overrides for 1-7, every other level parses as expected
+    overrides_1_7 = [120, 121, 122, 123, 182] #Needed to avoid an early turn leading to a split path, and to prevent the level from turning back around to go back to the start
+
+
+    for i in range(len(levels)):
+        if i==7: #We need to do some slight overrides on 1-7 to make the level functional
+            parse_level(levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=True, change_direction_overrides=overrides_1_7)
+        else:
+            parse_level(levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=True)
+        print(i)
 
     #for level in levels:
     #    parse_level(level, args.target_width, args.target_height, null_chars, wall_chars)
 
 
 #Parses through one complete level
-def parse_level(level, width, height, null_chars=['@'], wall_chars=['#']):
-    level_sample=LevelSample(level, width, height, null_chars, wall_chars)
+def parse_level(level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
+    level_sample=LevelSample(level, width, height, null_chars, wall_chars, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
 
     moving=True
     while moving:
@@ -201,22 +212,27 @@ def find_start(level_sample):
 
 
 class LevelSample():
-    def __init__(self, level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT):
+    def __init__(self, level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
         self.level=level
         self.width=width
         self.height=height
         self.null_chars=null_chars
         self.wall_chars=wall_chars
         self.direction=start_direction
+        self.print_at_corners=print_at_corners
+
+        #Built for edge cases, plug in an array of integers to override turning logic, and keep moving forward
+        self.change_direction_overrides=change_direction_overrides
+        self.move_iter=0 #Tracks what movement we're on for overrides
 
         self.x_idx, self.y_idx = find_start(self)
     
     #Attempts to move one step forward, returns True if sucessful, False otherwise. Throws an error if it finds a spit path
     def move_step(self):
-        if self.check_for_end(): 
+        if self.check_for_end() and not (self.move_iter in self.change_direction_overrides): 
             return False #We're at the end of the level, so break out
         
-        if self.direction.is_possible_to_move_direction(self, check_for_walls=True):
+        if self.direction.is_possible_to_move_direction(self, check_for_walls=True) or self.move_iter in self.change_direction_overrides:
             self.direction.move_scene(self) #If the scene ahead is clear, move into it
             return True
                 
@@ -224,11 +240,13 @@ class LevelSample():
     
     #Changes direction of the sample if it should, prioritizing avoiding null chars
     def change_direction(self):
-        self.print_sample()
-        left, center, right, left_permeability, center_permeability, right_permeability = self.check_travel_movability(check_for_walls=True)
+        if self.print_at_corners:
+            self.print_sample()
+        _, center, _, left_permeability, _, right_permeability = self.check_travel_movability(check_for_walls=True)
 
         if left_permeability and right_permeability: #Throw an error if there's a fork in the path
-            raise ValueError(f"I don't know where to go! The index is x: {self.x_idx}, y: {self.y_idx}")
+            self.print_sample()
+            raise ValueError(f"I don't know where to go! The index is x: {self.x_idx}, y: {self.y_idx}, and I can't decide between {Direction((self.direction.value-1)%4).name} and {Direction((self.direction.value+1)%4).name}. The current move is {self.move_iter}")
 
         #If either side is accesible to us, we should go that way
         if left_permeability:
@@ -245,24 +263,14 @@ class LevelSample():
             self.direction.move_scene(self)
             return True
         
-        if left and right: #There's another fork, just this time with walls blocking the path
-            raise ValueError(f"I don't know where to go! The index is x: {self.x_idx}, y: {self.y_idx}")
-        
-        #Last resort, head whatever direction the camera can move, even though there is a wall in the way
-        if left:
-            self.direction = Direction((self.direction.value-1)%4)
-            self.direction.move_scene(self)
-            return True
-        if right:
-            self.direction = Direction((self.direction.value+1)%4)
-            self.direction.move_scene(self)
-            return True
-            
+        #All other cases should be covered by the check
         raise ValueError(f"We should literally never get here, this is a debugging case. The index is x: {self.x_idx}, y: {self.y_idx}")
 
     #Checks to see if the end of the level has been reached, returns true if it has
     def check_for_end(self):
-        left, center, right, _, _, _ = self.check_travel_movability()
+        #We care if it's *possible* to move straight, and if the walls to the left and right are closed
+        #We're never going to turn into a blocked off wall, more often than not this just leads to errors.
+        _, center, _, left, _, right = self.check_travel_movability(check_for_walls=True)
         if not (left or center or right):
             return True #If we can't move any direction except backwards, we're probably at the end of the level
         return False
@@ -302,7 +310,7 @@ class LevelSample():
     
     def print_sample(self):
         sample=self.get_sample_from_idx()
-        print(f"Level sample at ({self.x_idx}, {self.y_idx}):")
+        print(f"Level sample at ({self.x_idx}, {self.y_idx}) on move step {self.move_iter}:")
         for row in sample:
             print(row)
         print("\n")
