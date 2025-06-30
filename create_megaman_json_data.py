@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 import util.common_settings as common_settings
 from captions.util import extract_tileset
-from create_level_json_data import load_levels, load_tileset
+from create_level_json_data import load_levels
 from enum import Enum
 
 
@@ -87,6 +87,56 @@ class Direction(Enum):
         
         return True #Base case, fires if we're not out of bounds, there's no null ahead, and optionally there's no wall blocking us
 
+def create_tile_to_id(tileset_path, tile_descriptors, group_enemies = True, group_powerups = True, group_empty_tiles = False):
+    with open(tileset_path, "r") as f:
+        tileset = json.load(f)
+        tile_chars = sorted(tileset['tiles'].keys())
+        print(tile_chars)
+        print(tile_descriptors)
+
+        #These variables are used in grouping data later, but defined here to make this optional
+        basic_enemy_char = ""
+        basic_powerup_char = ""
+        basic_empty_tile_char = ""
+        enemies = []
+        powerups = []
+        empty_tiles = []
+
+        null_tiles = [x for x in tile_chars if "null" in tile_descriptors.get(x)] #Always removed
+
+        #Finding the data to remove
+        if group_enemies:
+            basic_enemy_char = "a" #Met enemy
+            enemies = [x for x in tile_chars if "enemy" in tile_descriptors.get(x)]
+        if group_powerups:
+            basic_powerup_char = "l" #Small health pack
+            powerups = [x for x in tile_chars if "powerup" in tile_descriptors.get(x)]
+        if group_empty_tiles:
+            basic_empty_tile_char = "-" #Air tile
+            empty_tiles = [x for x in tile_chars if "empty" in tile_descriptors.get(x)]
+        
+        #Clearing up grouped data, adding basic examples back in
+        cleared_list_of_chars = [x for x in tile_chars if x not in enemies+powerups+empty_tiles+null_tiles]
+        
+        #We do sadly have to do this twice to avoid appending empty chars
+        if group_enemies:
+            cleared_list_of_chars.append(basic_enemy_char)
+        if group_powerups:
+            cleared_list_of_chars.append(basic_powerup_char)
+        if group_empty_tiles:
+            cleared_list_of_chars.append(basic_empty_tile_char)
+        
+        #Create the basic dictionary
+        tile_to_id = {char: idx for idx, char in enumerate(cleared_list_of_chars)}
+
+        #Add in the 
+        tile_to_id_enemies = {char: tile_to_id[basic_enemy_char] for char in enemies}
+        tile_to_id_powerups = {char: tile_to_id[basic_powerup_char] for char in powerups}
+        tile_to_id_null_tiles = {char: tile_to_id[basic_empty_tile_char] for char in empty_tiles}
+        tile_to_id.update(tile_to_id_enemies)
+        tile_to_id.update(tile_to_id_powerups)
+        tile_to_id.update(tile_to_id_null_tiles)
+        return tile_to_id
 
 
 def parse_args():
@@ -94,10 +144,13 @@ def parse_args():
     
     parser.add_argument('--tileset', default='..\\TheVGLC\\MegaMan\\MM.json', help='Path to the tile set JSON')
     parser.add_argument('--levels', default='..\\TheVGLC\\MegaMan\\Enhanced', help='Directory containing level text files')
+
     #parser.add_argument('--output', required=True, help='Path to the output JSON file')
 
     parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_HEIGHT, help='Target output height (e.g., 16 or 14)')
     parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Target output width (e.g., 16)')
+
+    parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
 
 
     return parser.parse_args()
@@ -107,48 +160,56 @@ def main():
 
     args = parse_args()
 
-    sample_arr=[
-        [1,2,3,4],
-        [5,6,7,8],
-        [9,10,11,12],
-        [13,14,15,16]
-    ]
 
-    #print(sample_arr[1][1:3])
-    #print([x[1] for x in sample_arr[1:3]])
 
     levels = load_levels(args.levels)
-    tileset = load_tileset(args.tileset, "-")
-    tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+    _, _, tile_to_id, tile_descriptors = extract_tileset(args.tileset)
     null_chars = [key for key, value in tile_descriptors.items() if 'null' in value]
     wall_chars = [key for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
     print(null_chars)
     print(wall_chars)
+    
+    if args.group_encodings:
+        tile_to_id = create_tile_to_id(args.tileset, tile_descriptors)
 
     #We literally only need level overrides for 1-7, every other level parses as expected
     overrides_1_7 = [120, 121, 122, 123, 182] #Needed to avoid an early turn leading to a split path, and to prevent the level from turning back around to go back to the start
 
-
+    all_samples = []
     for i in range(len(levels)):
         if i==7: #We need to do some slight overrides on 1-7 to make the level functional
-            parse_level(levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=True, change_direction_overrides=overrides_1_7)
+            samples=parse_level(tile_to_id, levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=False, change_direction_overrides=overrides_1_7)
         else:
-            parse_level(levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=True)
-        print(i)
-
-    #for level in levels:
-    #    parse_level(level, args.target_width, args.target_height, null_chars, wall_chars)
+            samples=parse_level(tile_to_id, levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=False)
+        all_samples.append(samples)
+    
+    print(len(all_samples))
+    print(len(all_samples[0])) #Level 1
+    print(len(all_samples[0][0])) #First sample of level 1
+    print(len(all_samples[0][0][0])) #first row of the first sample of level 1
+    print(all_samples[9][56]) #first row of the first sample of level 1
 
 
 #Parses through one complete level
-def parse_level(level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
+def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
     level_sample=LevelSample(level, width, height, null_chars, wall_chars, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
+    samples = []
 
     moving=True
+    samples.append(level_sample.get_sample_from_idx())
+
     while moving:
         moving=level_sample.move_step()
-    
-    level_sample.print_sample()
+        samples.append(level_sample.get_sample_from_idx())
+
+    encoded_samples = []
+    for sample in samples:
+        encoded_sample = []
+        for row in sample:
+            encoded_sample.append([tile_to_id.get(c) for c in row])
+        encoded_samples.append(encoded_sample)
+    #level_sample.print_sample()
+    return encoded_samples
 
 
 
