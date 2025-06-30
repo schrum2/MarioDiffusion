@@ -103,7 +103,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             number_of_tiles = common_settings.LR_TILE_COUNT
             scene = [[x % number_of_tiles for x in row] for row in scene]
  
-        # Assign a caption to the sceneof whichever game is being played
+        # Assign a caption to the scene of whichever game is being played
         if self.args.game == "Mario":
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
             level_width = common_settings.MARIO_WIDTH
@@ -132,6 +132,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             )
 
         elif args.game == "Mario":
+            #print(f"Describe resulting image: {actual_caption}")
             compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
             print(f"Comparison score: {compare_score}")
 
