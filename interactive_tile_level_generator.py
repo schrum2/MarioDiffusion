@@ -735,7 +735,8 @@ Average Segment Score: {avg_segment_score}"""
         patterns = self.get_patterns()
         if self.automatic_negative_caption.get():
             self.negative_prompt_entry.delete(0, tk.END)
-            self.negative_prompt_entry.insert(0, patterns )#or "No enemies, no hazards, no traps")
+            self.negative_prompt_entry.insert(0, patterns) # Need to change patterns to be the negative caption of the selected phrases
+            # Disable the entry if automatic negative caption is checked
             self.negative_prompt_entry.config(state=tk.DISABLED)
         else:
             self.negative_prompt_entry.config(state=tk.NORMAL)
