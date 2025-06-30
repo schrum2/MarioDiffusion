@@ -8,11 +8,7 @@ This repository can be checked out with this command:
 ```
 git clone https://github.com/schrum2/MarioDiffusion.git
 ```
-You will also need to check out level data from [My forked copy of TheVGLC](https://github.com/schrum2/TheVGLC) to create the training dataset:
-```
-git clone https://github.com/schrum2/TheVGLC.git
-```
-Both of these directories should be in the same parent directory. Next, enter the `MarioDiffusion` repository.
+Next, enter the `MarioDiffusion` repository.
 ```
 cd MarioDiffusion
 ```
@@ -38,9 +34,25 @@ For the rest of the prompts, if you simply press enter, it will skip thorugh the
 
 ## Create datasets
 
-This batch file call will create sets of 16x16 level scenes of both SMB1 and SMB2 (Japan), as well as a combination of both. Afterwards, it will create captions for all 3 datasets, tokenizers for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. Run these commands:
+Data used for training our models already exists in the `datasets` directory of this repo,
+but you can recreate the data using these commands. First, you will need to check out 
+[my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC). Note that the following
+command should be executed in the parent directory of the `MarioDiffusion` repository so that
+the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the same directory:
 ```
+git clone https://github.com/schrum2/TheVGLC.git
+```
+Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `batch` sub-directory in the
+`MarioDiffusion` repo.
+```
+cd MarioDiffusion
 cd batch
+```
+Next, run a batch file to create datasets from the VGLC data. This batch file call will create sets of 16x16 level scenes of both SMB1 and SMB2 (Japan), as well as a combination of both. 
+Afterwards, it will create captions for all 3 datasets, tokenizers for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. 
+These files will overwrite the files already in the repo, but they should be identical.
+Run this command:
+```
 Mar1and2-data.bat
 ```
 Now you can browse level scenes and their captions with a command like this (the json file can be replaced by any levels and captions json file in datasets):
