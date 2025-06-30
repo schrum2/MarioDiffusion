@@ -111,7 +111,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             number_of_tiles = common_settings.LR_TILE_COUNT
             scene = [[x % number_of_tiles for x in row] for row in scene]
  
-        # Assign a caption to the sceneof whichever game is being played
+        # Assign a caption to the scene of whichever game is being played
         if self.args.game == "Mario":
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
             level_width = common_settings.MARIO_WIDTH
@@ -140,6 +140,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             )
 
         elif args.game == "Mario":
+            #print(f"Describe resulting image: {actual_caption}")
             compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
             print(f"Comparison score: {compare_score}")
 
@@ -168,8 +169,13 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 print("Level not played.")
             else:
                 print("Unknown input: Level not played.")
+        
+        if self.args.game == "Mario":
+            samples = visualize_samples(images)
+        elif self.args.game == "LR":
+            samples = visualize_samples(images, game='LR')
 
-        return visualize_samples(images)
+        return samples
 
     def get_extra_params(self, param_values): 
         if "negative_prompt" in param_values and param_values["negative_prompt"] == "":

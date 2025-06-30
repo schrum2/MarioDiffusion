@@ -7,7 +7,7 @@ import gc
 from PIL import ImageTk
 import sys
 from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
-from level_dataset import visualize_samples, convert_to_level_format
+from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
 from create_ascii_captions import assign_caption
@@ -61,14 +61,18 @@ class CaptionBuilder(ParentBuilder):
         self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", style="TLabel", font=GUI_FONT)
         self.caption_label.pack(pady=5)
         
-        self.caption_text = tk.Text(self.caption_frame, height=8, state=tk.NORMAL, wrap=tk.WORD, font=GUI_FONT) #state=tk.DISABLED,
+        self.caption_text = tk.Text(self.caption_frame, height=8, state=tk.NORMAL, wrap=tk.WORD, font=GUI_FONT)
         self.caption_text.pack() 
                 
         self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:", style="TLabel")
         self.negative_prompt_label.pack()
-        self.negative_prompt_entry = ttk.Entry(self.caption_frame, width=100, font=GUI_FONT)
+        self.negative_prompt_entry = tk.Text(self.caption_frame, height=4, wrap=tk.WORD, font=GUI_FONT)
         self.negative_prompt_entry.pack()
-        self.negative_prompt_entry.insert(0, "")
+        self.negative_prompt_entry.insert("1.0", "")
+
+        self.automatic_negative_caption = tk.BooleanVar(value=False)
+        self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
+        self.automatic_negative_caption_checkbox.pack()
         
         self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:", style="TLabel")
         self.num_images_label.pack()        
@@ -311,9 +315,11 @@ class CaptionBuilder(ParentBuilder):
             # Enable or disable negative prompt entry based on pipeline support
             if hasattr(self.pipe, "supports_negative_prompt") and self.pipe.supports_negative_prompt:
                 self.negative_prompt_entry.config(state=tk.NORMAL)
+                self.automatic_negative_caption_checkbox.config(command=self.update_negative_prompt_entry)
             else:
-                self.negative_prompt_entry.delete(0, tk.END)
+                self.negative_prompt_entry.delete("1.0", tk.END)
                 self.negative_prompt_entry.config(state=tk.DISABLED)
+                self.automatic_negative_caption_checkbox.config(state=tk.DISABLED)
 
     def update_caption(self):
         self.selected_phrases = [phrase for phrase, var in self.checkbox_vars.items() if var.get()]
@@ -336,7 +342,7 @@ class CaptionBuilder(ParentBuilder):
 
         print("Generating")
         prompt = self.caption_text.get("1.0", tk.END).strip()
-        negative_prompt = self.negative_prompt_entry.get().strip()
+        negative_prompt = self.negative_prompt_entry.get("1.0", tk.END).strip()
         num_images = int(self.num_images_entry.get())        
         param_values = {
             "num_inference_steps": int(self.num_steps_entry.get()),
@@ -396,10 +402,11 @@ class CaptionBuilder(ParentBuilder):
             #selected_game = self.game_var.get()
             if game_selected == "Lode Runner":
                 actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+                pil_img = visualize_samples(images, game='LR')
             else:
                 actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-           
-            pil_img = visualize_samples(images)
+                pil_img = visualize_samples(images)
+                
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
 
@@ -676,7 +683,10 @@ Average Segment Score: {avg_segment_score}"""
         if isinstance(idx_or_scene, int):
             tensor = torch.tensor(self.current_levels[idx_or_scene])
             tile_numbers = torch.argmax(tensor, dim=0).numpy()
-            char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
+            if game_selected == "Lode Runner":
+                char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
+            else:
+                char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
@@ -690,9 +700,8 @@ Average Segment Score: {avg_segment_score}"""
         if selected_game == "Lode Runner":
             import tempfile, json
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
-            level.play(game="loderunner",)
-            # level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
-            # level.play("loderunner")
+            #print("Level to play:", level)
+            level.play(game="loderunner", level_idx=idx)
         else:
             #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
@@ -710,16 +719,30 @@ Average Segment Score: {avg_segment_score}"""
             self.update_caption()
 
     def _on_mousewheel(self, event):
-            widget_under_mouse = self.master.winfo_containing(event.x_root, event.y_root)
-            # Check if widget_under_mouse is self.image_canvas or a descendant
-            parent = widget_under_mouse
-            while parent is not None:
-                if parent == self.image_canvas:
-                    self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
-                    break
-                elif parent == self.checkbox_canvas:
-                    self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
-                parent = parent.master
+        """Handle mouse wheel scrolling for both image and checkbox canvases."""
+        widget_under_mouse = self.master.winfo_containing(event.x_root, event.y_root)
+        # Check if widget_under_mouse is self.image_canvas or a descendant
+        parent = widget_under_mouse
+        while parent is not None:
+            if parent == self.image_canvas:
+                self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+                break
+            elif parent == self.checkbox_canvas:
+                self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+            parent = parent.master
+
+    def update_negative_prompt_entry(self):
+        """Update the negative prompt entry based on the automatic negative caption checkbox."""
+        caption_text_list = self.caption_text.get("1.0", tk.END)
+        pos, neg = positive_negative_caption_split(caption_text_list, True)
+        if self.automatic_negative_caption.get():
+            self.negative_prompt_entry.delete("1.0", tk.END)
+            self.negative_prompt_entry.insert("1.0", neg) # Need to change patterns to be the negative caption of the selected phrases
+            # Disable the entry if automatic negative caption is checked
+            self.negative_prompt_entry.config(state=tk.DISABLED)
+        else:
+            self.negative_prompt_entry.config(state=tk.NORMAL)
+            self.negative_prompt_entry.delete("1.0", tk.END)
 
 
 import argparse

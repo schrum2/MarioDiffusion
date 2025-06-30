@@ -75,7 +75,12 @@ class DiffusionEvolver(Evolver):
         #compare_score = compare_captions(self.prompt, actual_caption)
         #print(f"Comparison score: {compare_score}")
 
-        return visualize_samples(images)
+        if args.tileset == '..\TheVGLC\Super Mario Bros\smb.json':
+            samples = visualize_samples(images)
+        elif args.tileset == '..\TheVGLC\Lode Runner\Loderunner.json':
+            samples = visualize_samples(images, game='LR')
+        return samples
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evolve levels with unconditional diffusion model")    

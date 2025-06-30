@@ -108,7 +108,12 @@ def generate_levels(args):
 
             # Create a unique subdirectory for each batch
             start_index = batch_idx * args.batch_size
-            visualize_samples(samples, args.output_dir, True, start_index)
+            if args.game == "Mario":
+                visualize_samples(samples, args.output_dir, True, start_index)
+            elif args.game == "LR":
+                visualize_samples(samples, args.output_dir, True, start_index, game='LR')
+            else:
+                raise ValueError(f"Unknown game: {args.game}")
     
     # Concatenate all batches
     all_samples = torch.cat(all_samples, dim=0)[:total_samples]

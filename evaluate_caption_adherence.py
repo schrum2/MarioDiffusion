@@ -121,7 +121,10 @@ def main():
         print(f"Generated {len(all_samples)} level samples")
         
         if args.save_image_samples:
-            visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
+            if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+                visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
+            elif args.num_tiles == common_settings.LR_TILE_COUNT:
+                visualize_samples(all_samples, args.output_dir, prompts=all_prompts, game='LR')
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
