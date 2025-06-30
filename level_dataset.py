@@ -214,7 +214,7 @@ def lr_tiles():
 
     return LR_tile_images
 
-def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, block_embeddings=None, prompts=None):
+def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, block_embeddings=None, prompts=None, game='Mario'):
     """
     Visualize generated samples and save as images.
 
@@ -246,15 +246,17 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
         channels = samples.shape[1]
         height = samples.shape[2]
         width = samples.shape[3]
-        if height == common_settings.LR_HEIGHT: #and width == lr_common_settings.LR_WIDTH:
+        if game == 'LR': #and width == lr_common_settings.LR_WIDTH:
             #print("Using Lode Runner tiles")
             tile_images = lr_tiles()
             tile_size = common_settings.LR_TILE_PIXEL_DIM
         #elif height == common_settings.MARIO_HEIGHT: #and width == common_settings.MARIO_WIDTH:
-        else: # Default to Mario
+        elif game == 'Mario': # Default to Mario
             #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = common_settings.MARIO_TILE_PIXEL_DIM
+        else:
+            raise ValueError(f"Unsupported game or dimensions: {game} {height}x{width}")
         
         for i, sample_index in enumerate(sample_indices):
             # Create a blank image to hold the tile-based visualization

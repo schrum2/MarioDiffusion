@@ -150,11 +150,6 @@ class CaptionBuilder(ParentBuilder):
         self.debug_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Debug Caption Match", variable=self.debug_caption, style="TCheckbutton")
         self.debug_caption_checkbox.pack()
 
-        # if not self.pipe.supports_negative_prompt:
-        #     self.automatic_negative_caption = tk.BooleanVar(value=False)
-        #     self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
-        #     self.automatic_negative_caption_checkbox.pack()
-
         # Frame for composed level controls
         self.composed_frame = ttk.Frame(self.caption_frame)
         self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
