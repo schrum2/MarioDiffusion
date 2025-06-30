@@ -69,13 +69,11 @@ class Direction(Enum):
         else:
             if level.is_out_of_bounds(x=level.x_idx+self.offset_for_axis):
                 return False
-        
         #Check to see if moving in the given direction would put us in contact with null chars
         index = self.get_index_of_side(level) + self.offset_for_axis #We want 1 row in that direction
         row = self.get_row_or_col(level, index)
 
         if any(x in row for x in level.null_chars):
-            print("c")
             return False
         
         #Do a second check to see if there is a hole that Mega Man could move through, lower priority than the other two
@@ -221,7 +219,7 @@ class LevelSample():
         if self.direction.is_possible_to_move_direction(self, check_for_walls=True):
             self.direction.move_scene(self) #If the scene ahead is clear, move into it
             return True
-        
+                
         return self.change_direction()
     
     #Changes direction of the sample if it should, prioritizing avoiding null chars
@@ -266,7 +264,6 @@ class LevelSample():
     def check_for_end(self):
         left, center, right, _, _, _ = self.check_travel_movability()
         if not (left or center or right):
-            print(left, center, right)
             return True #If we can't move any direction except backwards, we're probably at the end of the level
         return False
 
@@ -276,8 +273,9 @@ class LevelSample():
         direction_right = Direction((self.direction.value+1)%4)
 
         left_possibility = direction_left.is_possible_to_move_direction(self)
-        right_possibility = direction_right.is_possible_to_move_direction(self)
         center_possibility = self.direction.is_possible_to_move_direction(self)
+        right_possibility = direction_right.is_possible_to_move_direction(self)
+
 
         left_permeability = None
         right_permeability = None
@@ -285,8 +283,9 @@ class LevelSample():
 
         if check_for_walls:
             left_permeability = direction_left.is_possible_to_move_direction(self, check_for_walls=True)
-            right_permeability = direction_right.is_possible_to_move_direction(self, check_for_walls=True)
             center_permeability = self.direction.is_possible_to_move_direction(self, check_for_walls=True)
+            right_permeability = direction_right.is_possible_to_move_direction(self, check_for_walls=True)
+            
         
         return left_possibility, center_possibility, right_possibility, left_permeability, center_permeability, right_permeability
 
@@ -297,7 +296,7 @@ class LevelSample():
         if y is None:
             y = self.y_idx
         
-        if (x < 0) or (y < 0) or (x+self.width >= len(self.level[0])) or (y+self.height >= len(self.level)):
+        if (x < 0) or (y < 0) or (x+self.width > len(self.level[0])) or (y+self.height > len(self.level)):
             return True #We are out of bounds
         return False #We are not out of bounds
     
