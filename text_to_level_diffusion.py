@@ -11,6 +11,7 @@ import argparse
 import util.common_settings as common_settings
 from util.sampler import SampleOutput
 from models.pipeline_loader import get_pipeline
+from models.fdm_pipeline import FDMPipeline
 
 
 def parse_args():
@@ -61,11 +62,11 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         #self.pipe.print_unet_architecture()
         #self.pipe.save_unet_architecture_pdf(height, width)
 
-        if args.automatic_negative_captions or not self.pipe.supports_negative_prompt:
+        if args.automatic_negative_captions or isinstance(self.pipe, FDMPipeline) or not self.pipe.supports_negative_prompt:
             self.input_parameters.pop('negative_prompt', None)
             self.default_parameters.pop('negative_prompt', None)
         
-        if args.automatic_negative_captions and not self.pipe.supports_negative_prompt:
+        if args.automatic_negative_captions and (isinstance(self.pipe, FDMPipeline) or not self.pipe.supports_negative_prompt):
             raise ValueError("Automatic negative caption generation is not possible with a model that doesn't support it")
 
         if args.tileset:

@@ -13,7 +13,8 @@ import util.common_settings as common_settings
 import models.sentence_transformers_helper as st_helper
 import models.text_model as text_model
 from models.general_training_helper import get_scene_from_embeddings
-            
+from util.hf import get_file
+
 class PipelineOutput(NamedTuple):
     images: torch.Tensor
     
@@ -101,8 +102,13 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         
         # Test for the new saving system, where we save a simple config file
         # This case is for pretrained text encoders: MiniLM, GTE
-        if os.path.exists(os.path.join(text_encoder_path, "loading_info.json")):
-            with open(os.path.join(text_encoder_path, "loading_info.json"), "r") as f:
+        try:
+            encoder_config = get_file("loading_info.json", pretrained_model_path, "text_encoder")
+        except Exception as e:
+            encoder_config = None
+
+        if encoder_config is not None:
+            with open(encoder_config, "r") as f:
                 encoder_config = json.load(f)
 
             text_encoder = AutoModel.from_pretrained(encoder_config['text_encoder_name'], trust_remote_code=True)
@@ -144,7 +150,7 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
         
 
         # Load supports_negative_prompt flag if present
-        config_path = os.path.join(pretrained_model_path, "pipeline_config.json")
+        config_path = get_file("pipeline_config.json", pretrained_model_path, None)
         if os.path.exists(config_path):
             with open(config_path, "r") as f:
                 config = json.load(f)

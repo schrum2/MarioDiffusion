@@ -64,7 +64,7 @@ python text_to_level_diffusion.py --model_path LR-conditional-regular0 --game LR
 
 An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
 ```
-python interactive_tile_level_generator.py LR_LevelsAndCaptions-regular.json LR-conditional-regular0
+python interactive_tile_level_generator.py --load_data LR_LevelsAndCaptions-regular.json --model_path LR-conditional-regular0 --game LR 
 ```
 
 Batch folder that contains all batch files associated with Lode Runner:

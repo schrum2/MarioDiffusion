@@ -32,6 +32,12 @@ class ParentBuilder:
         self.load_button = ttk.Button(self.checkbox_frame, text="Load Data", command=self.load_data)
         self.load_button.pack(anchor=tk.E)
 
+        self.expand_all_button = ttk.Button(self.checkbox_frame, text="Expand All", command=self.expand_all)
+        self.expand_all_button.pack(anchor=tk.E)
+
+        self.collapse_all_button = ttk.Button(self.checkbox_frame, text="Collapse All", command=self.collapse_all)
+        self.collapse_all_button.pack(anchor=tk.E)
+
         self.checkbox_vars = {}
     
     def load_data(self, filepath = None):
@@ -166,3 +172,17 @@ class ParentBuilder:
         # has to be overridden in the child class
         patterns = [ ]
         return patterns
+    
+    def expand_all(self):
+        """Expand all collapsible topic dropdowns (CollapsibleFrames) in the checkbox area."""
+        if hasattr(self, 'collapsible_frames'):
+            for frame in self.collapsible_frames.values():
+                if not frame.shown:
+                    frame.toggle()
+
+    def collapse_all(self):
+        """Collapse all collapsible topic dropdowns (CollapsibleFrames) in the checkbox area."""
+        if hasattr(self, 'collapsible_frames'):
+            for frame in self.collapsible_frames.values():
+                if frame.shown:
+                    frame.toggle()

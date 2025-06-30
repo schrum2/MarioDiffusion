@@ -1,6 +1,6 @@
 REM @echo off
 REM Usage: batch_runner.bat <job_batch_file> <seed_start> <seed_end> [extra_params...]
-REM Example: batch_runner.bat SMB1-conditional-MiniLM.bat 0 4 regular split
+REM Example: batch_runner.bat train-conditional.bat 0 4 Mar1and2 regular
 
 setlocal enabledelayedexpansion
 
