@@ -1,0 +1,302 @@
+[
+    {
+        "caption": "no floor. one pipe. no coin lines. no loose blocks. no enemies. no descending staircases. no coins. no rectangular block clusters. no ceiling. no towers. no platforms. no irregular block clusters. no cannons. no question blocks. two ascending staircases."
+    },
+    {
+        "caption": "no ascending staircases. full ceiling. several loose blocks. no coin lines. no towers. many question blocks. no cannons. one platform. a few pipes. two descending staircases. no irregular block clusters. a few rectangular block clusters. several coins. floor with two gaps. two enemies."
+    },
+    {
+        "caption": "one enemy. full ceiling. one coin. two coin lines. no rectangular block clusters. no cannons. no ascending staircases. no pipes. two platforms. a few irregular block clusters. several question blocks. no floor. no towers. several loose blocks. two descending staircases."
+    },
+    {
+        "caption": "no cannons. no platforms. two coin lines. no enemies. no floor. no towers. no irregular block clusters. a few rectangular block clusters. no descending staircases. a few coins. no ascending staircases. no pipes. many question blocks. no ceiling. no loose blocks."
+    },
+    {
+        "caption": "two pipes. no ceiling. no coins. no irregular block clusters. no cannons. no question blocks. no rectangular block clusters. two loose blocks. a few platforms. two descending staircases. one enemy. no ascending staircases. no towers. no coin lines. no floor."
+    },
+    {
+        "caption": "no cannons. no loose blocks. several question blocks. no irregular block clusters. two coins. two ascending staircases. ceiling with one gap. two rectangular block clusters. no descending staircases. two enemies. a few towers. several pipes. two platforms. two coin lines. giant gap with a few chunks of floor."
+    },
+    {
+        "caption": "no coins. two towers. no ceiling. no question blocks. floor with one gap. no ascending staircases. no descending staircases. no cannons. no coin lines. no pipes. no irregular block clusters. no enemies. no loose blocks. no platforms. no rectangular block clusters."
+    },
+    {
+        "caption": "no ceiling. no enemies. one coin. a few cannons. no ascending staircases. several pipes. no descending staircases. no floor. several loose blocks. many question blocks. two irregular block clusters. several platforms. no rectangular block clusters. two coin lines. two towers."
+    },
+    {
+        "caption": "no ascending staircases. a few platforms. no towers. no loose blocks. no coin lines. two descending staircases. two coins. no rectangular block clusters. one question block. no cannons. two irregular block clusters. one pipe. one enemy. no ceiling. giant gap with several chunks of floor."
+    },
+    {
+        "caption": "no platforms. no rectangular block clusters. no cannons. no irregular block clusters. no ascending staircases. no ceiling. no enemies. no loose blocks. no pipes. no coin lines. two descending staircases. no floor. no towers. no question blocks. no coins."
+    },
+    {
+        "caption": "a few cannons. no coins. a few platforms. no irregular block clusters. no rectangular block clusters. full ceiling. one pipe. full floor. no enemies. no ascending staircases. one loose block. no descending staircases. no coin lines. one tower. no question blocks."
+    },
+    {
+        "caption": "many coins. no towers. a few rectangular block clusters. no cannons. two pipes. a few irregular block clusters. a few loose blocks. full ceiling. no platforms. one question block. no descending staircases. no floor. one coin line. two ascending staircases. a few enemies."
+    },
+    {
+        "caption": "a few irregular block clusters. full floor. no loose blocks. one rectangular block cluster. a few cannons. no descending staircases. two towers. two ascending staircases. no ceiling. no enemies. one question block. no coin lines. no platforms. several pipes. two coins."
+    },
+    {
+        "caption": "no descending staircases. no cannons. no enemies. no coins. one loose block. no irregular block clusters. no rectangular block clusters. no coin lines. no ceiling. several question blocks. no platforms. no towers. a few pipes. no ascending staircases. no floor."
+    },
+    {
+        "caption": "no irregular block clusters. no question blocks. no towers. no ascending staircases. no floor. two descending staircases. no cannons. no pipes. no loose blocks. no enemies. no platforms. no ceiling. no coin lines. no rectangular block clusters. a few coins."
+    },
+    {
+        "caption": "no ascending staircases. no loose blocks. no descending staircases. several platforms. no towers. no enemies. no cannons. floor with several gaps. no coins. no coin lines. no ceiling. no irregular block clusters. no question blocks. no rectangular block clusters. no pipes."
+    },
+    {
+        "caption": "no rectangular block clusters. no cannons. no loose blocks. no enemies. no floor. no ascending staircases. no coin lines. no pipes. no towers. no irregular block clusters. no platforms. no ceiling. no descending staircases. no question blocks. one coin."
+    },
+    {
+        "caption": "no loose blocks. several enemies. one coin. two ascending staircases. no rectangular block clusters. two coin lines. two descending staircases. a few platforms. no cannons. a few towers. many question blocks. no floor. full ceiling. no irregular block clusters. no pipes."
+    },
+    {
+        "caption": "no loose blocks. one rectangular block cluster. no ascending staircases. two platforms. ceiling with one gap. no coins. two pipes. no irregular block clusters. no question blocks. no floor. no enemies. no descending staircases. no towers. one cannon. no coin lines."
+    },
+    {
+        "caption": "one descending staircase. no floor. no pipes. two ascending staircases. no platforms. one rectangular block cluster. no coin lines. a few cannons. no enemies. no loose blocks. several coins. no ceiling. no question blocks. no towers. no irregular block clusters."
+    },
+    {
+        "caption": "several platforms. no coin lines. two question blocks. floor with a few gaps. no irregular block clusters. several enemies. one tower. one loose block. no pipes. no ascending staircases. a few coins. no ceiling. no cannons. a few rectangular block clusters. two descending staircases."
+    },
+    {
+        "caption": "no coin lines. no coins. no ascending staircases. no rectangular block clusters. no ceiling. no floor. a few irregular block clusters. a few platforms. one loose block. two question blocks. no towers. no descending staircases. no pipes. one enemy. a few cannons."
+    },
+    {
+        "caption": "no floor. no ascending staircases. no enemies. no cannons. no loose blocks. no coin lines. no platforms. no towers. two rectangular block clusters. no question blocks. no coins. two irregular block clusters. no pipes. no ceiling. one descending staircase."
+    },
+    {
+        "caption": "two platforms. a few coins. ceiling with a few gaps. two irregular block clusters. several pipes. a few rectangular block clusters. no coin lines. one loose block. two enemies. no descending staircases. no floor. two towers. no question blocks. two cannons. no ascending staircases."
+    },
+    {
+        "caption": "no towers. one ascending staircase. two platforms. no loose blocks. several coins. no enemies. no floor. no question blocks. one rectangular block cluster. no descending staircases. several pipes. no cannons. ceiling with a few gaps. one irregular block cluster. a few coin lines."
+    },
+    {
+        "caption": "a few coins. one coin line. no towers. ceiling with two gaps. no question blocks. no loose blocks. no descending staircases. one rectangular block cluster. no cannons. one ascending staircase. no enemies. no platforms. no floor. two pipes. no irregular block clusters."
+    },
+    {
+        "caption": "full ceiling. no rectangular block clusters. two irregular block clusters. no platforms. no question blocks. no floor. no coin lines. several coins. no cannons. no loose blocks. two towers. no pipes. no enemies. one ascending staircase. no descending staircases."
+    },
+    {
+        "caption": "no ascending staircases. no descending staircases. no pipes. no cannons. no coins. no question blocks. several loose blocks. no ceiling. no enemies. no rectangular block clusters. no coin lines. no floor. several platforms. no irregular block clusters. no towers."
+    },
+    {
+        "caption": "a few platforms. no pipes. many coins. no loose blocks. two ascending staircases. no floor. ceiling with two gaps. no descending staircases. one coin line. no towers. two question blocks. no irregular block clusters. no rectangular block clusters. several enemies. no cannons."
+    },
+    {
+        "caption": "no pipes. no towers. no coins. no enemies. two ascending staircases. no irregular block clusters. no rectangular block clusters. full ceiling. two cannons. no platforms. no loose blocks. no floor. no coin lines. no question blocks. no descending staircases."
+    },
+    {
+        "caption": "no enemies. no rectangular block clusters. no loose blocks. no ascending staircases. no towers. no pipes. no cannons. no coins. no coin lines. two platforms. no ceiling. one question block. no descending staircases. giant gap with one chunk of floor. no irregular block clusters."
+    },
+    {
+        "caption": "one irregular block cluster. a few cannons. one descending staircase. no towers. no enemies. no platforms. one rectangular block cluster. no ascending staircases. two pipes. no ceiling. one coin line. several coins. no loose blocks. giant gap with two chunks of floor. no question blocks."
+    },
+    {
+        "caption": "a few coins. two pipes. two ascending staircases. two rectangular block clusters. no cannons. no platforms. no irregular block clusters. no question blocks. no floor. two descending staircases. two towers. no enemies. no ceiling. one loose block. a few coin lines."
+    },
+    {
+        "caption": "one pipe. one loose block. no coin lines. no platforms. no ascending staircases. no cannons. ceiling with one gap. no irregular block clusters. one descending staircase. no floor. a few towers. no rectangular block clusters. one enemy. no question blocks. many coins."
+    },
+    {
+        "caption": "floor with one gap. one rectangular block cluster. a few irregular block clusters. a few platforms. no coin lines. no loose blocks. ceiling with one gap. several pipes. no cannons. no descending staircases. no question blocks. two towers. two ascending staircases. two enemies. one coin."
+    },
+    {
+        "caption": "no irregular block clusters. no question blocks. no ascending staircases. no floor. one loose block. one pipe. two rectangular block clusters. one descending staircase. a few coin lines. a few platforms. many coins. no cannons. no towers. two enemies. no ceiling."
+    },
+    {
+        "caption": "no platforms. no ascending staircases. no coin lines. two towers. no irregular block clusters. no rectangular block clusters. no ceiling. no loose blocks. no coins. no enemies. a few pipes. no question blocks. no cannons. no floor. no descending staircases."
+    },
+    {
+        "caption": "no ceiling. no ascending staircases. a few towers. several enemies. no platforms. no pipes. no irregular block clusters. no rectangular block clusters. no coin lines. no coins. no floor. no descending staircases. no cannons. no loose blocks. no question blocks."
+    },
+    {
+        "caption": "no rectangular block clusters. no enemies. giant gap with two chunks of floor. no loose blocks. no coins. one ascending staircase. two cannons. no irregular block clusters. no question blocks. ceiling with one gap. no towers. no platforms. no pipes. no descending staircases. no coin lines."
+    },
+    {
+        "caption": "no ascending staircases. no ceiling. no question blocks. a few pipes. two towers. no floor. two descending staircases. a few coin lines. two coins. two enemies. no cannons. no rectangular block clusters. no loose blocks. no irregular block clusters. one platform."
+    },
+    {
+        "caption": "no enemies. no question blocks. no loose blocks. a few rectangular block clusters. no ceiling. no descending staircases. no platforms. one coin. a few coin lines. no ascending staircases. no cannons. no towers. no irregular block clusters. no pipes. no floor."
+    },
+    {
+        "caption": "no rectangular block clusters. no coin lines. no pipes. one ascending staircase. no towers. no enemies. no loose blocks. one cannon. no ceiling. no platforms. two question blocks. no descending staircases. no irregular block clusters. no coins. full floor."
+    },
+    {
+        "caption": "no coins. no rectangular block clusters. no ascending staircases. one tower. no pipes. no coin lines. two enemies. no loose blocks. giant gap with two chunks of floor. no platforms. two cannons. two descending staircases. no ceiling. no irregular block clusters. no question blocks."
+    },
+    {
+        "caption": "no ceiling. no cannons. no platforms. no enemies. no floor. no coin lines. several pipes. one coin. no question blocks. no rectangular block clusters. no irregular block clusters. a few loose blocks. no ascending staircases. two descending staircases. no towers."
+    },
+    {
+        "caption": "no floor. two cannons. no coins. no question blocks. one descending staircase. one enemy. no towers. no irregular block clusters. two ascending staircases. two platforms. full ceiling. no coin lines. one pipe. a few rectangular block clusters. two loose blocks."
+    },
+    {
+        "caption": "no enemies. no question blocks. no pipes. no coins. two platforms. no descending staircases. no cannons. several loose blocks. no irregular block clusters. ceiling with two gaps. no floor. no coin lines. no rectangular block clusters. no ascending staircases. a few towers."
+    },
+    {
+        "caption": "no irregular block clusters. two enemies. no loose blocks. many coins. two descending staircases. a few question blocks. no floor. no platforms. a few rectangular block clusters. no ascending staircases. no ceiling. several pipes. no cannons. no coin lines. one tower."
+    },
+    {
+        "caption": "one irregular block cluster. giant gap with one chunk of floor. one descending staircase. no loose blocks. one coin line. a few pipes. no ceiling. one coin. two towers. no ascending staircases. a few enemies. a few platforms. a few rectangular block clusters. no question blocks. no cannons."
+    },
+    {
+        "caption": "no towers. two loose blocks. no floor. a few coins. ceiling with two gaps. no ascending staircases. no enemies. no question blocks. no rectangular block clusters. no irregular block clusters. no descending staircases. no cannons. one coin line. no platforms. no pipes."
+    },
+    {
+        "caption": "no irregular block clusters. one enemy. no platforms. no coins. no loose blocks. no ceiling. no cannons. no question blocks. no pipes. two ascending staircases. no rectangular block clusters. no floor. no coin lines. no towers. no descending staircases."
+    },
+    {
+        "caption": "no coins. no rectangular block clusters. no question blocks. no enemies. no descending staircases. no ceiling. one cannon. no irregular block clusters. no ascending staircases. no loose blocks. no towers. no floor. several platforms. no coin lines. no pipes."
+    },
+    {
+        "caption": "giant gap with two chunks of floor. a few coins. no ascending staircases. one loose block. no irregular block clusters. one descending staircase. one rectangular block cluster. a few cannons. no enemies. no question blocks. a few pipes. no ceiling. one coin line. no platforms. no towers."
+    },
+    {
+        "caption": "no loose blocks. no ascending staircases. no enemies. no cannons. a few rectangular block clusters. full ceiling. no question blocks. no irregular block clusters. one descending staircase. no coins. no floor. no towers. no platforms. no coin lines. no pipes."
+    },
+    {
+        "caption": "no irregular block clusters. a few loose blocks. no coins. no enemies. two platforms. a few towers. two pipes. giant gap with two chunks of floor. full ceiling. two descending staircases. no question blocks. no coin lines. a few rectangular block clusters. a few cannons. no ascending staircases."
+    },
+    {
+        "caption": "several loose blocks. no platforms. giant gap with one chunk of floor. two ascending staircases. no towers. no pipes. no irregular block clusters. a few cannons. no coin lines. no rectangular block clusters. a few coins. two question blocks. no ceiling. no descending staircases. no enemies."
+    },
+    {
+        "caption": "no irregular block clusters. no coins. no coin lines. no ceiling. no question blocks. giant gap with several chunks of floor. one tower. two enemies. one pipe. several loose blocks. no descending staircases. no rectangular block clusters. no ascending staircases. one platform. a few cannons."
+    },
+    {
+        "caption": "no ascending staircases. no coins. no loose blocks. no enemies. no cannons. no question blocks. no towers. no coin lines. no irregular block clusters. no platforms. no floor. one pipe. no rectangular block clusters. no descending staircases. no ceiling."
+    },
+    {
+        "caption": "no floor. one coin line. one enemy. no descending staircases. a few rectangular block clusters. two coins. no ascending staircases. ceiling with one gap. many loose blocks. several platforms. no question blocks. no irregular block clusters. no cannons. a few towers. one pipe."
+    },
+    {
+        "caption": "one ascending staircase. two descending staircases. no coin lines. no pipes. a few coins. one enemy. no irregular block clusters. ceiling with two gaps. no platforms. several question blocks. two cannons. no floor. a few rectangular block clusters. no loose blocks. a few towers."
+    },
+    {
+        "caption": "no descending staircases. a few rectangular block clusters. no cannons. one question block. no ascending staircases. many coins. ceiling with one gap. one irregular block cluster. a few towers. no pipes. two loose blocks. a few platforms. one enemy. no coin lines. full floor."
+    },
+    {
+        "caption": "two ascending staircases. no enemies. no question blocks. several pipes. no platforms. no cannons. no irregular block clusters. no towers. no floor. no ceiling. no rectangular block clusters. no descending staircases. no coin lines. no coins. no loose blocks."
+    },
+    {
+        "caption": "a few enemies. no irregular block clusters. no pipes. two descending staircases. no ceiling. many loose blocks. two coin lines. no platforms. one cannon. several coins. two rectangular block clusters. floor with several gaps. one question block. no ascending staircases. two towers."
+    },
+    {
+        "caption": "one question block. no ceiling. one coin. no floor. no rectangular block clusters. no loose blocks. no cannons. no pipes. two coin lines. no ascending staircases. no descending staircases. no enemies. no irregular block clusters. no towers. no platforms."
+    },
+    {
+        "caption": "no pipes. no loose blocks. no coins. no floor. no irregular block clusters. no ascending staircases. no platforms. no towers. no coin lines. no enemies. no rectangular block clusters. one cannon. one descending staircase. a few question blocks. no ceiling."
+    },
+    {
+        "caption": "no descending staircases. no ascending staircases. no towers. a few coins. ceiling with a few gaps. no enemies. no coin lines. no loose blocks. no rectangular block clusters. no question blocks. giant gap with several chunks of floor. a few irregular block clusters. no cannons. two platforms. no pipes."
+    },
+    {
+        "caption": "one rectangular block cluster. one loose block. two platforms. giant gap with one chunk of floor. no enemies. two ascending staircases. no coin lines. no question blocks. no irregular block clusters. full ceiling. no towers. a few cannons. several pipes. many coins. two descending staircases."
+    },
+    {
+        "caption": "ceiling with a few gaps. one coin line. no cannons. no floor. two irregular block clusters. no pipes. two question blocks. no ascending staircases. no loose blocks. no towers. two enemies. several coins. no descending staircases. no platforms. no rectangular block clusters."
+    },
+    {
+        "caption": "no coin lines. no towers. no floor. several pipes. two cannons. a few platforms. one question block. no irregular block clusters. two descending staircases. no enemies. no ascending staircases. several coins. two rectangular block clusters. ceiling with two gaps. no loose blocks."
+    },
+    {
+        "caption": "no coins. no ceiling. no loose blocks. no irregular block clusters. no ascending staircases. no rectangular block clusters. no towers. no pipes. no coin lines. no platforms. two cannons. no floor. no question blocks. no descending staircases. no enemies."
+    },
+    {
+        "caption": "two towers. no ceiling. two question blocks. no pipes. no rectangular block clusters. no enemies. floor with several gaps. one coin line. two coins. no platforms. no cannons. many loose blocks. one irregular block cluster. two descending staircases. one ascending staircase."
+    },
+    {
+        "caption": "two coin lines. no question blocks. many coins. no rectangular block clusters. no platforms. floor with several gaps. no loose blocks. two enemies. no towers. no cannons. no ascending staircases. no descending staircases. ceiling with one gap. two irregular block clusters. no pipes."
+    },
+    {
+        "caption": "one coin. several platforms. two enemies. giant gap with two chunks of floor. two rectangular block clusters. a few question blocks. one irregular block cluster. no pipes. two coin lines. one ascending staircase. two towers. one descending staircase. no loose blocks. no cannons. no ceiling."
+    },
+    {
+        "caption": "no platforms. no floor. no descending staircases. no enemies. no cannons. no rectangular block clusters. one coin line. one tower. several coins. no question blocks. two pipes. a few irregular block clusters. no loose blocks. ceiling with one gap. no ascending staircases."
+    },
+    {
+        "caption": "one cannon. several coins. no rectangular block clusters. no towers. no loose blocks. no ceiling. full floor. two coin lines. no enemies. no platforms. no irregular block clusters. no descending staircases. no ascending staircases. no pipes. no question blocks."
+    },
+    {
+        "caption": "a few coin lines. one loose block. one rectangular block cluster. no ascending staircases. one tower. floor with one gap. two enemies. no irregular block clusters. several coins. one descending staircase. no question blocks. ceiling with two gaps. no cannons. no pipes. several platforms."
+    },
+    {
+        "caption": "two platforms. two towers. giant gap with one chunk of floor. one pipe. no irregular block clusters. no ascending staircases. ceiling with two gaps. no coins. no cannons. one descending staircase. no rectangular block clusters. one question block. no coin lines. a few enemies. one loose block."
+    },
+    {
+        "caption": "no rectangular block clusters. no ceiling. no question blocks. one coin line. two descending staircases. no towers. no enemies. no pipes. full floor. no ascending staircases. no irregular block clusters. no loose blocks. no platforms. many coins. no cannons."
+    },
+    {
+        "caption": "no ascending staircases. two coin lines. two rectangular block clusters. no question blocks. no towers. no platforms. a few coins. no irregular block clusters. no floor. no descending staircases. no ceiling. no pipes. no enemies. two loose blocks. no cannons."
+    },
+    {
+        "caption": "giant gap with several chunks of floor. a few rectangular block clusters. a few cannons. several platforms. no ceiling. two towers. one coin. one irregular block cluster. two coin lines. one descending staircase. no loose blocks. no question blocks. no pipes. a few enemies. no ascending staircases."
+    },
+    {
+        "caption": "full floor. no coin lines. no pipes. a few towers. no ceiling. one enemy. no irregular block clusters. no descending staircases. several loose blocks. no coins. no cannons. one question block. no rectangular block clusters. no ascending staircases. no platforms."
+    },
+    {
+        "caption": "two enemies. no floor. no loose blocks. no rectangular block clusters. no coins. no descending staircases. one pipe. no irregular block clusters. no platforms. no coin lines. no ascending staircases. no towers. no question blocks. no ceiling. no cannons."
+    },
+    {
+        "caption": "no enemies. no coin lines. no cannons. a few towers. no rectangular block clusters. no pipes. no descending staircases. no ascending staircases. no platforms. no coins. ceiling with one gap. two irregular block clusters. no question blocks. no loose blocks. no floor."
+    },
+    {
+        "caption": "two enemies. no floor. no loose blocks. many question blocks. no rectangular block clusters. no ascending staircases. no platforms. no pipes. no descending staircases. no cannons. no coins. no towers. no coin lines. no ceiling. two irregular block clusters."
+    },
+    {
+        "caption": "one ascending staircase. two towers. no floor. no pipes. no enemies. no cannons. ceiling with two gaps. no question blocks. no loose blocks. a few rectangular block clusters. a few coin lines. two coins. one irregular block cluster. two descending staircases. a few platforms."
+    },
+    {
+        "caption": "two irregular block clusters. two descending staircases. no pipes. one enemy. no floor. no coins. no ascending staircases. no rectangular block clusters. no towers. a few cannons. no coin lines. one loose block. ceiling with one gap. no question blocks. one platform."
+    },
+    {
+        "caption": "no towers. no loose blocks. one irregular block cluster. two cannons. several coins. a few rectangular block clusters. no ascending staircases. no floor. no enemies. no pipes. full ceiling. two question blocks. one descending staircase. no platforms. a few coin lines."
+    },
+    {
+        "caption": "no question blocks. no coin lines. one cannon. no pipes. no rectangular block clusters. no platforms. two irregular block clusters. a few coins. one ascending staircase. one loose block. ceiling with one gap. no towers. two enemies. one descending staircase. giant gap with two chunks of floor."
+    },
+    {
+        "caption": "several question blocks. two pipes. no cannons. no ascending staircases. no towers. no descending staircases. no enemies. no coins. no ceiling. no coin lines. no loose blocks. a few irregular block clusters. no rectangular block clusters. no platforms. giant gap with one chunk of floor."
+    },
+    {
+        "caption": "no enemies. no cannons. no platforms. ceiling with two gaps. many coins. one descending staircase. floor with a few gaps. no coin lines. no rectangular block clusters. no loose blocks. no ascending staircases. no irregular block clusters. no towers. no pipes. no question blocks."
+    },
+    {
+        "caption": "no platforms. two towers. no floor. no descending staircases. no enemies. no cannons. no loose blocks. two pipes. no question blocks. no rectangular block clusters. no coins. no irregular block clusters. no coin lines. no ascending staircases. no ceiling."
+    },
+    {
+        "caption": "no platforms. no floor. one rectangular block cluster. one question block. no coins. no ascending staircases. one enemy. several pipes. two cannons. no ceiling. no coin lines. one irregular block cluster. a few loose blocks. no descending staircases. a few towers."
+    },
+    {
+        "caption": "one descending staircase. giant gap with several chunks of floor. two loose blocks. no platforms. no question blocks. a few rectangular block clusters. no cannons. one pipe. one tower. no irregular block clusters. two ascending staircases. no enemies. two coin lines. no ceiling. many coins."
+    },
+    {
+        "caption": "one rectangular block cluster. a few loose blocks. two towers. two enemies. no irregular block clusters. floor with one gap. two cannons. no platforms. two coin lines. one descending staircase. two coins. no ascending staircases. no ceiling. two pipes. one question block."
+    },
+    {
+        "caption": "no question blocks. no ascending staircases. one enemy. a few platforms. one descending staircase. no ceiling. no loose blocks. no floor. a few towers. one coin. no pipes. no cannons. one rectangular block cluster. a few coin lines. no irregular block clusters."
+    },
+    {
+        "caption": "no cannons. no enemies. one pipe. no platforms. no floor. no ascending staircases. no coin lines. no towers. no question blocks. two descending staircases. ceiling with a few gaps. no loose blocks. no coins. no irregular block clusters. no rectangular block clusters."
+    },
+    {
+        "caption": "many coins. no pipes. no loose blocks. a few question blocks. no irregular block clusters. one enemy. no cannons. several platforms. no rectangular block clusters. no floor. no towers. no ascending staircases. no coin lines. no descending staircases. ceiling with a few gaps."
+    },
+    {
+        "caption": "a few coin lines. ceiling with one gap. a few pipes. many coins. one rectangular block cluster. a few loose blocks. one platform. no enemies. no question blocks. giant gap with several chunks of floor. no towers. no ascending staircases. no irregular block clusters. no descending staircases. no cannons."
+    },
+    {
+        "caption": "one descending staircase. no question blocks. no loose blocks. no coins. one tower. no cannons. several pipes. no enemies. a few irregular block clusters. no rectangular block clusters. ceiling with one gap. full floor. no platforms. no coin lines. one ascending staircase."
+    },
+    {
+        "caption": "one rectangular block cluster. a few coin lines. no platforms. ceiling with one gap. a few coins. no irregular block clusters. several question blocks. no towers. one enemy. no descending staircases. two ascending staircases. one loose block. giant gap with a few chunks of floor. no cannons. one pipe."
+    },
+    {
+        "caption": "no descending staircases. full ceiling. two cannons. no towers. one loose block. no platforms. a few pipes. one ascending staircase. a few rectangular block clusters. no floor. no question blocks. two enemies. several coins. one coin line. no irregular block clusters."
+    }
+]
