@@ -33,6 +33,9 @@ full floor. one enemy. a few question blocks. one platform. one pipe. one loose 
 ```
 For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. Please browse through the instructions below or read our paper to learn more about how our models work. A full list of Hugging Face models you can download are available [here](MODELS.md).
 
+**NOTE: MLM-regular and MLM-negative models both require the regular dataset, and the MLM-absence model requires the absence dataset.**
+**While using text_to_level_diffusion.py, MLM-absence can accept things like 'no pipes' in the prompt. MLM-negative has a secondary negative prompt where you simply write 'pipes' to exclude pipes.**
+
 ## Create datasets
 
 This batch file call will create sets of 16x16 level scenes of both SMB1 and SMB2 (Japan), as well as a combination of both. Afterwards, it will create captions for all 3 datasets, tokenizers for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. Run these commands:
@@ -125,6 +128,9 @@ An easier-to-use GUI interface will let you select and combine known caption phr
 ```
 python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json --tileset "..\TheVGLC\Super Mario Bros\smb.json" --game Mario
 ```
+
+**NOTE: MLM-absence has addtional checkboxes like 'no pipes'. MLM-negative has a negative prompt text box where you simply write 'pipes' to exclude pipes.**
+
 Interactively evolve level scenes in the latent space of the conditional model:
 ```
 python evolve_interactive_conditional_diffusion.py --model_path Mar1and2-conditional-regular0
@@ -140,6 +146,7 @@ You can evaluate the final model's ability to adhere to input captions with this
 ```
 python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_LevelsAndCaptions-regular.json --output_dir text-to-level-final
 ```
+
 You can also evaluate the how caption adherence changed during training with respect to the testing set:
 ```
 python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --compare_checkpoints 
