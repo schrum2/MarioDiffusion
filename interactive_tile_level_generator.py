@@ -61,14 +61,14 @@ class CaptionBuilder(ParentBuilder):
         self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", style="TLabel", font=GUI_FONT)
         self.caption_label.pack(pady=5)
         
-        self.caption_text = tk.Text(self.caption_frame, height=8, state=tk.NORMAL, wrap=tk.WORD, font=GUI_FONT) #state=tk.DISABLED,
+        self.caption_text = tk.Text(self.caption_frame, height=8, state=tk.NORMAL, wrap=tk.WORD, font=GUI_FONT)
         self.caption_text.pack() 
                 
         self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:", style="TLabel")
         self.negative_prompt_label.pack()
-        self.negative_prompt_entry = ttk.Entry(self.caption_frame, width=100, font=GUI_FONT)
+        self.negative_prompt_entry = tk.Text(self.caption_frame, height=4, wrap=tk.WORD, font=GUI_FONT)
         self.negative_prompt_entry.pack()
-        self.negative_prompt_entry.insert(0, "")
+        self.negative_prompt_entry.insert("1.0", "")
 
         self.automatic_negative_caption = tk.BooleanVar(value=False)
         self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
@@ -317,7 +317,7 @@ class CaptionBuilder(ParentBuilder):
                 self.negative_prompt_entry.config(state=tk.NORMAL)
                 self.automatic_negative_caption_checkbox.config(command=self.update_negative_prompt_entry)
             else:
-                self.negative_prompt_entry.delete(0, tk.END)
+                self.negative_prompt_entry.delete("1.0", tk.END)
                 self.negative_prompt_entry.config(state=tk.DISABLED)
                 self.automatic_negative_caption_checkbox.config(state=tk.DISABLED)
 
@@ -342,7 +342,7 @@ class CaptionBuilder(ParentBuilder):
 
         print("Generating")
         prompt = self.caption_text.get("1.0", tk.END).strip()
-        negative_prompt = self.negative_prompt_entry.get().strip()
+        negative_prompt = self.negative_prompt_entry.get("1.0", tk.END).strip()
         num_images = int(self.num_images_entry.get())        
         param_values = {
             "num_inference_steps": int(self.num_steps_entry.get()),
@@ -735,13 +735,13 @@ Average Segment Score: {avg_segment_score}"""
         caption_text_list = self.caption_text.get("1.0", tk.END)
         pos, neg = positive_negative_caption_split(caption_text_list, True)
         if self.automatic_negative_caption.get():
-            self.negative_prompt_entry.delete(0, tk.END)
-            self.negative_prompt_entry.insert(0, neg) # Need to change patterns to be the negative caption of the selected phrases
+            self.negative_prompt_entry.delete("1.0", tk.END)
+            self.negative_prompt_entry.insert("1.0", neg) # Need to change patterns to be the negative caption of the selected phrases
             # Disable the entry if automatic negative caption is checked
             self.negative_prompt_entry.config(state=tk.DISABLED)
         else:
             self.negative_prompt_entry.config(state=tk.NORMAL)
-            self.negative_prompt_entry.delete(0, tk.END)
+            self.negative_prompt_entry.delete("1.0", tk.END)
 
 
 import argparse
