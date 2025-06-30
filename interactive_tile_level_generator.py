@@ -7,7 +7,7 @@ import gc
 from PIL import ImageTk
 import sys
 from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
-from level_dataset import visualize_samples, convert_to_level_format
+from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
 from create_ascii_captions import assign_caption
@@ -732,10 +732,11 @@ Average Segment Score: {avg_segment_score}"""
 
     def update_negative_prompt_entry(self):
         """Update the negative prompt entry based on the automatic negative caption checkbox."""
-        patterns = self.get_patterns()
+        caption_text_list = self.caption_text.get("1.0", tk.END)
+        pos, neg = positive_negative_caption_split(caption_text_list, True)
         if self.automatic_negative_caption.get():
             self.negative_prompt_entry.delete(0, tk.END)
-            self.negative_prompt_entry.insert(0, patterns) # Need to change patterns to be the negative caption of the selected phrases
+            self.negative_prompt_entry.insert(0, neg) # Need to change patterns to be the negative caption of the selected phrases
             # Disable the entry if automatic negative caption is checked
             self.negative_prompt_entry.config(state=tk.DISABLED)
         else:
