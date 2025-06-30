@@ -69,6 +69,10 @@ class CaptionBuilder(ParentBuilder):
         self.negative_prompt_entry = ttk.Entry(self.caption_frame, width=100, font=GUI_FONT)
         self.negative_prompt_entry.pack()
         self.negative_prompt_entry.insert(0, "")
+
+        self.automatic_negative_caption = tk.BooleanVar(value=False)
+        self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
+        self.automatic_negative_caption_checkbox.pack()
         
         self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:", style="TLabel")
         self.num_images_label.pack()        
@@ -311,9 +315,9 @@ class CaptionBuilder(ParentBuilder):
             # Enable or disable negative prompt entry based on pipeline support
             if hasattr(self.pipe, "supports_negative_prompt") and self.pipe.supports_negative_prompt:
                 self.negative_prompt_entry.config(state=tk.NORMAL)
-                self.automatic_negative_caption = tk.BooleanVar(value=False)
-                self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
-                self.automatic_negative_caption_checkbox.pack()
+                # self.automatic_negative_caption = tk.BooleanVar(value=False)
+                # self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
+                # self.automatic_negative_caption_checkbox.pack()
                 self.automatic_negative_caption_checkbox.config(command=self.update_negative_prompt_entry)
                 if self.automatic_negative_caption == True:
                     self.negative_prompt_entry.delete(0, tk.END)
@@ -322,6 +326,7 @@ class CaptionBuilder(ParentBuilder):
             else:
                 self.negative_prompt_entry.delete(0, tk.END)
                 self.negative_prompt_entry.config(state=tk.DISABLED)
+                self.automatic_negative_caption_checkbox.config(state=tk.DISABLED)
 
     def update_caption(self):
         self.selected_phrases = [phrase for phrase, var in self.checkbox_vars.items() if var.get()]
@@ -738,6 +743,7 @@ Average Segment Score: {avg_segment_score}"""
             self.negative_prompt_entry.config(state=tk.DISABLED)
         else:
             self.negative_prompt_entry.config(state=tk.NORMAL)
+            self.negative_prompt_entry.delete(0, tk.END)
 
 
 import argparse
