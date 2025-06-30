@@ -1,6 +1,6 @@
 from interactive_generation import InteractiveGeneration
 import torch
-from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
+from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split, append_absence_captions
 from captions.caption_match import compare_captions, process_scene_segments
 from captions.LR_caption_match import compare_captions as lr_compare_captions, process_scene_segments as lr_process_scene_segments
 from create_ascii_captions import assign_caption
@@ -12,6 +12,7 @@ import util.common_settings as common_settings
 from util.sampler import SampleOutput
 from models.pipeline_loader import get_pipeline
 from models.fdm_pipeline import FDMPipeline
+from captions.caption_match import TOPIC_KEYWORDS
 
 
 def parse_args():
@@ -22,8 +23,7 @@ def parse_args():
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--automatic_negative_captions", action="store_true", default=False, help="Automatically create negative captions for prompts so the user doesn't have to")
-
-
+    parser.add_argument("--automatic_absence_captions", action="store_true", default=False, help="Automatically create absence captions for prompts so the user doesn't have to")
     parser.add_argument(
         "--game",
         type=str,
@@ -44,7 +44,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 "start_seed": int,
                 "end_seed": int,
                 "num_inference_steps": int,
-                "guidance_scale": float
+                "guidance_scale": float,
             },
             default_parameters={
                 "width":  width, #common_settings.MARIO_WIDTH,
@@ -53,7 +53,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 "num_inference_steps": common_settings.NUM_INFERENCE_STEPS,
                 "guidance_scale": common_settings.GUIDANCE_SCALE,
                 "caption": "",
-                "negative_prompt": ""
+                "negative_prompt": "",
             }
         )
 
@@ -63,6 +63,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         #self.pipe.save_unet_architecture_pdf(height, width)
 
         if args.automatic_negative_captions or isinstance(self.pipe, FDMPipeline) or not self.pipe.supports_negative_prompt:
+            # removed negative caption as an input
             self.input_parameters.pop('negative_prompt', None)
             self.default_parameters.pop('negative_prompt', None)
         
@@ -84,11 +85,18 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             pos, neg = positive_negative_caption_split(param_values["caption"], True)
             param_values["negative_prompt"] = neg
 
+        #print(f"PARAM VALUES BEFORE absence_captions: ", {param_values["caption"]})
+        if self.args.automatic_absence_captions:
+            param_values["caption"] = append_absence_captions(
+                param_values["caption"], TOPIC_KEYWORDS
+            )
+        #print(f"PARAM VALUES AFTER absence_captions: ", {param_values["caption"]})
         try:
             images = self.pipe(
                 generator=generator,
                 **param_values
             ).images
+            print(f"PARAM VALUES: ", {param_values["caption"]})
         except Exception as e:
             print(f"Error during image generation: {e}")
             return None

@@ -310,6 +310,52 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
 
     return sample_indices
 
+def append_absence_captions(prompt, topic_keywords=TOPIC_KEYWORDS):
+    """
+    Appends 'no X' for each topic in topic_keywords not mentioned in the prompt.
+    Avoids false positives for substrings (e.g., 'pipe' vs 'upside down pipe').
+    Skips adding absence phrases for topics containing the word 'broken'.
+    """
+    import re
+
+    prompt_lower = prompt.lower()
+    phrases = [p.strip() for p in re.split(r'[.,;]', prompt_lower) if p.strip()]
+    absence_phrases = []
+
+    # Build a set of topics that are present in the prompt
+    present_topics = set()
+    for topic in topic_keywords:
+        topic_pattern = r'\b' + re.escape(topic) + r'\b'
+        for phrase in phrases:
+            if re.search(topic_pattern, phrase):
+                present_topics.add(topic)
+                break
+
+    # For each topic, if not present, add "no X" unless 'broken' is in the topic
+    for topic in topic_keywords:
+        if topic in present_topics:
+            continue
+        if 'broken' in topic.lower() or 'rectangular' in topic.lower() or 'irregular' in topic.lower():
+            print(f"[Skip] Topic contains 'broken': {topic}")
+            continue
+        if topic in {"ceiling", "floor"}:
+            absence_phrases.append(f"no {topic}")
+        if topic not in {"enem", "ceiling", "floor"}:
+            absence_phrases.append(f"no {topic}s")
+        if topic == "enem":
+            absence_phrases.append("no enemies")
+        # else:
+        #     absence_phrases.append(f"no {topic}")
+
+    if absence_phrases:
+        result = prompt.rstrip(" .") + ". " + ". ".join(absence_phrases) + "."
+        return result
+    else:
+        return prompt
+
+
+
+
 def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize=False):
     phrases = [p.strip() for p in caption.split(".") if p]
     positive_phrases = ""
