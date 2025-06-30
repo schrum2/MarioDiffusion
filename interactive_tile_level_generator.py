@@ -315,14 +315,7 @@ class CaptionBuilder(ParentBuilder):
             # Enable or disable negative prompt entry based on pipeline support
             if hasattr(self.pipe, "supports_negative_prompt") and self.pipe.supports_negative_prompt:
                 self.negative_prompt_entry.config(state=tk.NORMAL)
-                # self.automatic_negative_caption = tk.BooleanVar(value=False)
-                # self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
-                # self.automatic_negative_caption_checkbox.pack()
                 self.automatic_negative_caption_checkbox.config(command=self.update_negative_prompt_entry)
-                if self.automatic_negative_caption == True:
-                    self.negative_prompt_entry.delete(0, tk.END)
-                    self.negative_prompt_entry.insert(0, "Generated negative caption will appear here.")
-                    self.negative_prompt_entry.config(state=tk.DISABLED)
             else:
                 self.negative_prompt_entry.delete(0, tk.END)
                 self.negative_prompt_entry.config(state=tk.DISABLED)
@@ -725,21 +718,24 @@ Average Segment Score: {avg_segment_score}"""
             self.update_caption()
 
     def _on_mousewheel(self, event):
-            widget_under_mouse = self.master.winfo_containing(event.x_root, event.y_root)
-            # Check if widget_under_mouse is self.image_canvas or a descendant
-            parent = widget_under_mouse
-            while parent is not None:
-                if parent == self.image_canvas:
-                    self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
-                    break
-                elif parent == self.checkbox_canvas:
-                    self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
-                parent = parent.master
+        """Handle mouse wheel scrolling for both image and checkbox canvases."""
+        widget_under_mouse = self.master.winfo_containing(event.x_root, event.y_root)
+        # Check if widget_under_mouse is self.image_canvas or a descendant
+        parent = widget_under_mouse
+        while parent is not None:
+            if parent == self.image_canvas:
+                self.image_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+                break
+            elif parent == self.checkbox_canvas:
+                self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+            parent = parent.master
 
     def update_negative_prompt_entry(self):
+        """Update the negative prompt entry based on the automatic negative caption checkbox."""
+        patterns = self.get_patterns()
         if self.automatic_negative_caption.get():
             self.negative_prompt_entry.delete(0, tk.END)
-            self.negative_prompt_entry.insert(0, "Generated negative caption will appear here.")
+            self.negative_prompt_entry.insert(0, patterns )#or "No enemies, no hazards, no traps")
             self.negative_prompt_entry.config(state=tk.DISABLED)
         else:
             self.negative_prompt_entry.config(state=tk.NORMAL)
