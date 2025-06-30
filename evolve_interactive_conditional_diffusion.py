@@ -10,7 +10,7 @@ from models.pipeline_loader import get_pipeline
 
 
 class TextDiffusionEvolver(Evolver):
-    def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json', args = None):
+    def __init__(self, model_path, width, tileset_path='datasets\smb.json', args = None):
         Evolver.__init__(self)
         # args = parse_args()
         # if args.tileset_path != "":
@@ -89,7 +89,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Evolve levels with unconditional diffusion model")    
     # Model and generation parameters
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
-    parser.add_argument("--tileset_path", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset_path", default='datasets\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Tile width of generated level")

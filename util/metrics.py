@@ -27,13 +27,7 @@ from create_ascii_captions import assign_caption, extract_tileset
 # Type variable for the tile type
 T = TypeVar('T')
 
-#tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
-tileset_path = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    'TheVGLC',
-    'Super Mario Bros',
-    'smb.json'
-)
+tileset_path = os.path.join('datasets','smb.json')
 
 # Ensure the tileset path exists
 try:

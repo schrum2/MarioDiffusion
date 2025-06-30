@@ -714,7 +714,7 @@ if __name__ == "__main__":
     def escape_path(path):
         return path.replace("\\", "\\\\")
 
-    parser.add_argument("--tileset", default=escape_path('..\\TheVGLC\\Super Mario Bros\\smb.json'), help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=escape_path('datasets\\smb.json'), help="Descriptions of individual tile types")
     parser.add_argument("--output", required=True, help="Output JSON file path")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")

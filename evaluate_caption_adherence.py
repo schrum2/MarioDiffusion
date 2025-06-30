@@ -36,7 +36,7 @@ def parse_args():
     parser.add_argument("--resume", action="store_true", help="Resume an interrupted checkpoint comparison run")
 
     # Used to generate captions when generating images
-    parser.add_argument("--tileset", default='..\\TheVGLC\\Super Mario Bros\\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default='datasets\\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Width of the generated levels")
@@ -57,7 +57,7 @@ def main():
 
     # Based on the number of tiles, decides which game to run
     if args.num_tiles == common_settings.MARIO_TILE_COUNT:
-            tileset = '..\\TheVGLC\\Super Mario Bros\\smb.json'
+            tileset = 'datasets\\smb.json'
             height = common_settings.MARIO_HEIGHT
             width = common_settings.MARIO_WIDTH
             path_to_json = args.json
@@ -135,7 +135,7 @@ def main():
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True):
 
     if args.num_tiles == common_settings.MARIO_TILE_COUNT:
-            tileset = '..\\TheVGLC\\Super Mario Bros\\smb.json'
+            tileset = 'datasets\\smb.json'
             height = common_settings.MARIO_HEIGHT
             width = common_settings.MARIO_WIDTH
             path_to_json = args.json

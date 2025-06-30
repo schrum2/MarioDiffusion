@@ -123,7 +123,7 @@ def parse_args():
     parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
 
     # For caption score calculation
-    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default='datasets\smb.json', help="Descriptions of individual tile types")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
 

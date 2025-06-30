@@ -35,7 +35,7 @@ def parse_args():
 
 
     # Used to generate captions when generating images
-    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default='datasets\smb.json', help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     args = parse_args()
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
-        args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+        args.tileset = 'datasets\smb.json'
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
         args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
