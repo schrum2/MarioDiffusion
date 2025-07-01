@@ -38,7 +38,7 @@ def main():
 
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
-        args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+        args.tileset = 'datasets\smb.json'
         generator = GrammarGenerator(
             seed = args.seed, 
             describe_absence=args.describe_absence,

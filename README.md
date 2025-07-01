@@ -19,7 +19,7 @@ pip install -r requirements.txt
 
 ## Preview of final results
 
-Following the instructions below will lead you through training your own diffusion model to create Mario levels. There is also a cool GUI you can work with to build larger levels out of diffusion-generated scenes. However, if you want to skip past all of that and just see some results from a pre-trained diffusion model now, run the following command:
+Following the instructions below will lead you through training your own diffusion model to create Mario levels. However, if you want to skip past all of that and just see some results from a pre-trained diffusion model now, run the following command:
 ```
 python .\text_to_level_diffusion.py --model_path "schrum2/MarioDiffusion-MLM-regular0"
 ```
@@ -27,7 +27,26 @@ This will download one of the models from our paper: `MLM-regular`. The model co
 ```
 full floor. one enemy. a few question blocks. one platform. one pipe. one loose block.
 ```
-For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. Please browse through the instructions below or read our paper to learn more about how our models work. A full list of Hugging Face models you can download are available [here](MODELS.md).
+For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. 
+
+**NOTE:**
+1. MLM-regular and MLM-negative models both require the regular dataset, and the MLM-absence model requires the absence dataset.
+2. While using text_to_level_diffusion.py, MLM-absence can accept things like 'no pipes' in the prompt. MLM-negative has a secondary negative prompt where you simply write 'pipes' to exclude pipes.
+
+There is also a cool GUI you can work with to build larger levels out of diffusion-generated scenes. Run the following command to load our best pretrained model to create new levels in the interactive tile level generator GUI!
+
+```
+python interactive_tile_level_generator.py --model_path schrum2/MarioDiffusion-MLM-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json
+```
+**NOTE:**
+1. Adjust the 'Number of Images' or change the 'Random Seed', and click the "Generate Image" button to generate new levels. 
+2. For more control of the content generated, use the drop down menu on the right side of the GUI. Here you can 'Construct [a] Caption' by checking boxes. 
+3. For larger levels, you can either adjust the 'Width' or you can compose larger levels from generated content by clicking the 'Add to Level' button. 
+4. Once scenes are added to larger 'composed' levels, click on the thumbnails you would like to delete or rearrange.
+5. You may also play or run A* Mario on any generated levels or composed larger level, and you can toggle between SNES and NES graphics with the 'Use SNES Graphics' checkbox.
+6. Save composed larger levels as ASCII text files by clicking on 'Save Composed Level.'
+
+**For more information, please browse through the instructions below or read our paper to learn more about how our models work. A full list of Hugging Face models you can download are available [here](MODELS.md).**
 
 ## Create datasets
 
@@ -135,8 +154,11 @@ python text_to_level_diffusion.py --model_path Mar1and2-conditional-regular0
 ```
 An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
 ```
-python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json --tileset "..\TheVGLC\Super Mario Bros\smb.json" --game Mario
+python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json
 ```
+
+**NOTE: MLM-absence has addtional checkboxes like 'no pipes'. MLM-negative has a negative prompt text box where you simply write 'pipes' to exclude pipes.**
+
 Interactively evolve level scenes in the latent space of the conditional model:
 ```
 python evolve_interactive_conditional_diffusion.py --model_path Mar1and2-conditional-regular0
@@ -152,6 +174,7 @@ You can evaluate the final model's ability to adhere to input captions with this
 ```
 python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_LevelsAndCaptions-regular.json --output_dir text-to-level-final
 ```
+
 You can also evaluate the how caption adherence changed during training with respect to the testing set:
 ```
 python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --compare_checkpoints 

@@ -6,7 +6,7 @@ from tqdm import tqdm
 from create_ascii_captions import extract_tileset
 
 
-tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+tileset_path = 'datasets\smb.json'
 
 # Ensure the tileset path exists
 

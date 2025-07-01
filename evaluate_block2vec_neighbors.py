@@ -7,7 +7,7 @@ def evaluate_block2vec_neighbors(embedding_dir: str):
     """Print embeddings for each tile from a trained block2vec model"""
     
     # Load tileset information
-    tileset_path = os.path.join('..', 'TheVGLC', 'Super Mario Bros', 'smb.json')
+    tileset_path = os.path.join('datasets', 'smb.json')
     tile_chars, id_to_char, _, _ = extract_tileset(tileset_path)
     
     # Load embeddings
