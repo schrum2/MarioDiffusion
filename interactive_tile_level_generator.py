@@ -833,16 +833,15 @@ Average Segment Score: {avg_segment_score}"""
     def update_negative_prompt_entry(self):
         """Update the negative prompt entry based on the automatic negative caption checkbox."""
         if self.automatic_negative_caption.get():
-            current_neg_text = self.negative_prompt_entry.get("1.0", tk.END).strip()
-            cleaned_neg_phrases = [phrase.strip() for phrase in current_neg_text.split('.') if phrase.strip()]
+            current_text = self.caption_text.get("1.0", tk.END).strip()
+            cleaned_neg_phrases = [phrase.strip() for phrase in current_text.split('.') if phrase.strip()]
             cleaned_neg_prompt = ". ".join(cleaned_neg_phrases)
             if cleaned_neg_prompt:
                 cleaned_neg_prompt += "."
-            self.last_present_neg_caption = cleaned_neg_prompt
-            #caption_text_list = self.caption_text.get("1.0", tk.END)
-            pos, neg = positive_negative_caption_split(self.last_present_neg_caption, True)
+            self.last_present_caption = cleaned_neg_prompt
+            pos, neg = positive_negative_caption_split(self.last_present_caption, True)
             self.negative_prompt_entry.delete("1.0", tk.END)
-            self.negative_prompt_entry.insert("1.0", neg) # Need to change patterns to be the negative caption of the selected phrases
+            self.negative_prompt_entry.insert("1.0", neg)
             # Disable the entry if automatic negative caption is checked
             self.negative_prompt_entry.config(state=tk.DISABLED)
         else:
