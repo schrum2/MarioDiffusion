@@ -18,7 +18,7 @@ Then go back to the MarioDiffusion directory to be able to run the following.
 
 Extract a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this (top 10 rows are filled with blank space to make a perfect square):
 ```
-python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json" --target_height 32 --target_width 32 --extra_tile .
+python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset datasets\Loderunner.json --target_height 32 --target_width 32 --extra_tile .
 ```
 
 These files only contains the level scenes. Create captions for all level scenes with a command like this:
@@ -33,7 +33,7 @@ python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAn
 
 Browse LR data with ascii browser and be able to play some of the Lode Runner levels:
 ```
-python ascii_data_browser.py LR_LevelsAndCaptions-regular.json "..\\TheVGLC\\Lode Runner\\Loderunner.json"
+python ascii_data_browser.py LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
 ```
 
 To train an unconditional diffusion model without any text embeddings, run this command:

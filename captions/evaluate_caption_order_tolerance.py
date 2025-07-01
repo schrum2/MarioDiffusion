@@ -64,10 +64,10 @@ def creation_of_parameters(caption, max_permutations):
 
     if args.game == "Mario":
         num_tiles = common_settings.MARIO_TILE_COUNT
-        tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+        tileset = common_settings.MARIO_TILESET
     elif args.game == "LR":
         num_tiles = common_settings.LR_TILE_COUNT
-        tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
+        tileset = common_settings.LR_TILESET
     else:
         raise ValueError(f"Unknown game: {args.game}")
 

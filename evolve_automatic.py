@@ -149,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Guidance scale for diffusion model")
     parser.add_argument("--population_size", type=int, default=10, help="Number of genomes in the population")
 
-    parser.add_argument("--tileset", default=os.path.join('..', 'TheVGLC', 'Super Mario Bros', 'smb.json'), help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     global args

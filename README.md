@@ -36,7 +36,7 @@ For the rest of the prompts, if you simply press enter, it will skip thorugh the
 There is also a cool GUI you can work with to build larger levels out of diffusion-generated scenes. Run the following command to load our best pretrained model to create new levels in the interactive tile level generator GUI!
 
 ```
-python interactive_tile_level_generator.py --model_path schrum2/MarioDiffusion-MLM-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json --tileset "../TheVGLC/Super Mario Bros/smb.json" --game Mario
+python interactive_tile_level_generator.py --model_path schrum2/MarioDiffusion-MLM-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json
 ```
 **NOTE:**
 1. Adjust the 'Number of Images' or change the 'Random Seed', and click the "Generate Image" button to generate new levels. 
@@ -154,7 +154,7 @@ python text_to_level_diffusion.py --model_path Mar1and2-conditional-regular0
 ```
 An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
 ```
-python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json --tileset "..\TheVGLC\Super Mario Bros\smb.json" --game Mario
+python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json
 ```
 
 **NOTE: MLM-absence has addtional checkboxes like 'no pipes'. MLM-negative has a negative prompt text box where you simply write 'pipes' to exclude pipes.**

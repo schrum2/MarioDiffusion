@@ -787,7 +787,7 @@ if __name__ == "__main__":
     tileset_path = None
     if len(sys.argv) == 3 or len(sys.argv) == 2:
         dataset_path = sys.argv[1]
-        tileset_path = sys.argv[2] if len(sys.argv) == 3 else r'..\TheVGLC\Super Mario Bros\smb.json'
+        tileset_path = sys.argv[2] if len(sys.argv) == 3 else common_settings.MARIO_TILESET
         if not os.path.isfile(dataset_path) or not os.path.isfile(tileset_path):
             print("Invalid file paths provided. Ignoring command-line files.")
             dataset_path = tileset_path = None

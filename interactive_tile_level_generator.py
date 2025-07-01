@@ -75,7 +75,7 @@ class CaptionBuilder(ParentBuilder):
         self.negative_prompt_entry.insert("1.0", "")
 
         self.automatic_negative_caption = tk.BooleanVar(value=False)
-        self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
+        self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton", command=self.update_negative_prompt_entry)
         self.automatic_negative_caption_checkbox.pack()
         
         # Automatic absence captions box
@@ -325,6 +325,8 @@ class CaptionBuilder(ParentBuilder):
                         phrases_set.update(phrase.strip() for phrase in phrases if phrase.strip())
                         if self.automatic_absence_caption.get():
                             self.update_absence_caption_entry()
+                        if self.automatic_negative_caption.get():
+                            self.update_negative_prompt_entry
                             
                 self.all_phrases = sorted(list(phrases_set))
                 self.create_checkboxes()
@@ -380,6 +382,22 @@ class CaptionBuilder(ParentBuilder):
             self.caption_text.delete(1.0, tk.END)
             self.caption_text.insert(tk.END, self.present_caption)
             self.caption_text.config(state=tk.NORMAL)
+
+        if self.automatic_negative_caption.get():
+            # Only use the currently checked phrases as the present caption
+            cleaned_neg_prompt = self.present_caption
+            self.last_present_neg_caption = cleaned_neg_prompt
+            pos, neg = positive_negative_caption_split(self.last_present_neg_caption, True)
+            negative_caption = remove_duplicate_phrases(neg)
+            self.negative_prompt_entry.config(state=tk.NORMAL)
+            self.negative_prompt_entry.delete(1.0, tk.END)
+            self.negative_prompt_entry.insert(tk.END, negative_caption)
+            self.negative_prompt_entry.config(state=tk.NORMAL)
+        else:
+            self.negative_prompt_entry.config(state=tk.NORMAL)
+            self.negative_prompt_entry.delete(1.0, tk.END)
+            #self.negative_prompt_entry.insert(tk.END, self.present_caption)
+            self.negative_prompt_entry.config(state=tk.NORMAL)
     
     def generate_image(self):
         global tileset_path, game_selected
@@ -466,7 +484,7 @@ class CaptionBuilder(ParentBuilder):
             else:
                 actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                 pil_img = visualize_samples(images)
-                
+
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
 
@@ -814,16 +832,23 @@ Average Segment Score: {avg_segment_score}"""
 
     def update_negative_prompt_entry(self):
         """Update the negative prompt entry based on the automatic negative caption checkbox."""
-        caption_text_list = self.caption_text.get("1.0", tk.END)
-        pos, neg = positive_negative_caption_split(caption_text_list, True)
         if self.automatic_negative_caption.get():
+            current_text = self.caption_text.get("1.0", tk.END).strip()
+            cleaned_neg_phrases = [phrase.strip() for phrase in current_text.split('.') if phrase.strip()]
+            cleaned_neg_prompt = ". ".join(cleaned_neg_phrases)
+            if cleaned_neg_prompt:
+                cleaned_neg_prompt += "."
+            self.last_present_caption = cleaned_neg_prompt
+            pos, neg = positive_negative_caption_split(self.last_present_caption, True)
             self.negative_prompt_entry.delete("1.0", tk.END)
-            self.negative_prompt_entry.insert("1.0", neg) # Need to change patterns to be the negative caption of the selected phrases
+            self.negative_prompt_entry.insert("1.0", neg)
             # Disable the entry if automatic negative caption is checked
             self.negative_prompt_entry.config(state=tk.DISABLED)
         else:
             self.negative_prompt_entry.config(state=tk.NORMAL)
-            self.negative_prompt_entry.delete("1.0", tk.END)
+            self.negative_prompt_entry.delete(1.0, tk.END)
+            #self.negative_prompt_entry.insert(tk.END, self.last_present_neg_caption)
+            self.negative_prompt_entry.config(state=tk.NORMAL)
 
 
 import argparse
@@ -838,17 +863,17 @@ def parse_args():
     )
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
     parser.add_argument("--load_data", type=str, default="datasets/Mar1and2_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
-    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
     if args.game == "Mario":
         game_selected = "Mario"
-        tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+        tileset_path = common_settings.MARIO_TILESET
     elif args.game == "LR":
         game_selected = "Lode Runner"
-        tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+        tileset_path = common_settings.LR_TILESET
 
     root = tk.Tk()
     app = CaptionBuilder(root)
