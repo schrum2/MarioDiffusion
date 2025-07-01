@@ -75,7 +75,7 @@ class CaptionBuilder(ParentBuilder):
         self.negative_prompt_entry.insert("1.0", "")
 
         self.automatic_negative_caption = tk.BooleanVar(value=False)
-        self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
+        self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton", command=self.update_negative_prompt_entry)
         self.automatic_negative_caption_checkbox.pack()
         
         # Automatic absence captions box
@@ -325,6 +325,8 @@ class CaptionBuilder(ParentBuilder):
                         phrases_set.update(phrase.strip() for phrase in phrases if phrase.strip())
                         if self.automatic_absence_caption.get():
                             self.update_absence_caption_entry()
+                        if self.automatic_negative_caption.get():
+                            self.update_negative_prompt_entry
                             
                 self.all_phrases = sorted(list(phrases_set))
                 self.create_checkboxes()
@@ -380,6 +382,22 @@ class CaptionBuilder(ParentBuilder):
             self.caption_text.delete(1.0, tk.END)
             self.caption_text.insert(tk.END, self.present_caption)
             self.caption_text.config(state=tk.NORMAL)
+
+        if self.automatic_negative_caption.get():
+            # Only use the currently checked phrases as the present caption
+            cleaned_neg_prompt = self.present_caption
+            self.last_present_neg_caption = cleaned_neg_prompt
+            pos, neg = positive_negative_caption_split(self.last_present_neg_caption, True)
+            negative_caption = remove_duplicate_phrases(neg)
+            self.negative_prompt_entry.config(state=tk.NORMAL)
+            self.negative_prompt_entry.delete(1.0, tk.END)
+            self.negative_prompt_entry.insert(tk.END, negative_caption)
+            self.negative_prompt_entry.config(state=tk.NORMAL)
+        else:
+            self.negative_prompt_entry.config(state=tk.NORMAL)
+            self.negative_prompt_entry.delete(1.0, tk.END)
+            #self.negative_prompt_entry.insert(tk.END, self.present_caption)
+            self.negative_prompt_entry.config(state=tk.NORMAL)
     
     def generate_image(self):
         global tileset_path, game_selected
@@ -814,16 +832,24 @@ Average Segment Score: {avg_segment_score}"""
 
     def update_negative_prompt_entry(self):
         """Update the negative prompt entry based on the automatic negative caption checkbox."""
-        caption_text_list = self.caption_text.get("1.0", tk.END)
-        pos, neg = positive_negative_caption_split(caption_text_list, True)
         if self.automatic_negative_caption.get():
+            current_neg_text = self.negative_prompt_entry.get("1.0", tk.END).strip()
+            cleaned_neg_phrases = [phrase.strip() for phrase in current_neg_text.split('.') if phrase.strip()]
+            cleaned_neg_prompt = ". ".join(cleaned_neg_phrases)
+            if cleaned_neg_prompt:
+                cleaned_neg_prompt += "."
+            self.last_present_neg_caption = cleaned_neg_prompt
+            #caption_text_list = self.caption_text.get("1.0", tk.END)
+            pos, neg = positive_negative_caption_split(self.last_present_neg_caption, True)
             self.negative_prompt_entry.delete("1.0", tk.END)
             self.negative_prompt_entry.insert("1.0", neg) # Need to change patterns to be the negative caption of the selected phrases
             # Disable the entry if automatic negative caption is checked
             self.negative_prompt_entry.config(state=tk.DISABLED)
         else:
             self.negative_prompt_entry.config(state=tk.NORMAL)
-            self.negative_prompt_entry.delete("1.0", tk.END)
+            self.negative_prompt_entry.delete(1.0, tk.END)
+            #self.negative_prompt_entry.insert(tk.END, self.last_present_neg_caption)
+            self.negative_prompt_entry.config(state=tk.NORMAL)
 
 
 import argparse
