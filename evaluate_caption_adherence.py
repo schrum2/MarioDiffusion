@@ -111,7 +111,7 @@ def main():
     )
 
     if args.compare_checkpoints:
-        scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe)
+        scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors)
 
     else:
         # Just run on one model and get samples as well
@@ -132,6 +132,10 @@ def main():
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
             elif args.num_tiles == common_settings.LR_TILE_COUNT:
                 tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+                scenes = [
+                            [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
+                            for scene in scenes
+                        ]
                 lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 
@@ -299,6 +303,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
                 #quit()
                 if height == common_settings.LR_HEIGHT:
+                    scene = [[tile % common_settings.LR_TILE_COUNT for tile in s] for s in scene]
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 elif height == common_settings.MARIO_HEIGHT:
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)

@@ -8,6 +8,7 @@ import random
 from create_ascii_captions import save_level_data
 import util.common_settings as common_settings
 from models.pipeline_loader import get_pipeline
+from LR_create_ascii_captions import save_level_data as lr_save_level_data
 
 
 def parse_args():
@@ -124,7 +125,11 @@ def generate_levels(args):
 
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)
-        save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
+        if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+            save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
+        elif args.num_tiles == common_settings.LR_TILE_COUNT:
+            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+            lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 if __name__ == "__main__":
     args = parse_args()
