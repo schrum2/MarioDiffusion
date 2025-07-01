@@ -36,7 +36,7 @@ def parse_args():
 
 
     # Used to generate captions when generating images
-    parser.add_argument("--tileset", default='datasets\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
@@ -128,17 +128,17 @@ def generate_levels(args):
         if args.num_tiles == common_settings.MARIO_TILE_COUNT:
             save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
         elif args.num_tiles == common_settings.LR_TILE_COUNT:
-            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+            tileset = common_settings.LR_TILESET
             lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 if __name__ == "__main__":
     args = parse_args()
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
-        args.tileset = 'datasets\smb.json'
+        args.tileset = common_settings.MARIO_TILESET
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
-        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
+        args.tileset = common_settings.LR_TILESET
     else:
         raise ValueError(f"Unknown game: {args.game}")
     generate_levels(args)

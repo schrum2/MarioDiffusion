@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument("--device", type=str, default="cuda", help="Device to use (cuda, cpu)")
         
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
-    parser.add_argument("--tileset", default='datasets\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
