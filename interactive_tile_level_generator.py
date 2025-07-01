@@ -406,7 +406,7 @@ class CaptionBuilder(ParentBuilder):
             else:
                 actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                 pil_img = visualize_samples(images)
-                
+
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
 
@@ -757,17 +757,17 @@ def parse_args():
     )
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
     parser.add_argument("--load_data", type=str, default="datasets/Mar1and2_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
-    parser.add_argument("--tileset", default='datasets\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
     if args.game == "Mario":
         game_selected = "Mario"
-        tileset_path = 'datasets\smb.json'
+        tileset_path = common_settings.MARIO_TILESET
     elif args.game == "LR":
         game_selected = "Lode Runner"
-        tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+        tileset_path = common_settings.LR_TILESET
 
     root = tk.Tk()
     app = CaptionBuilder(root)
