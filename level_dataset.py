@@ -13,6 +13,7 @@ from PIL import Image
 from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEGATED_PLURAL
 import numpy as np
 import util.common_settings as common_settings
+import re
 
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
@@ -311,6 +312,87 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
             return result
 
     return sample_indices
+
+def remove_duplicate_phrases(text):
+    seen = set()
+    topic_to_phrase = {}
+    
+    # Normalize phrases
+    raw_phrases = [p.strip() for p in text.split('.') if p.strip()]
+
+    for phrase in raw_phrases:
+        phrase_lower = phrase.lower()
+        if phrase_lower in seen:
+            continue  # Skip exact duplicates
+        seen.add(phrase_lower)
+
+        # Find topic keyword match
+        matched_topic = None
+        for topic in TOPIC_KEYWORDS:
+            if topic in phrase_lower:
+                matched_topic = topic
+                break
+        
+        if matched_topic:
+            existing = topic_to_phrase.get(matched_topic)
+            # Prefer positive version over 'no' version
+            if existing:
+                if existing.lower().startswith("no ") and not phrase_lower.startswith("no "):
+                    topic_to_phrase[matched_topic] = phrase  # Replace 'no X' with positive
+                # else keep existing
+            else:
+                topic_to_phrase[matched_topic] = phrase
+        else:
+            # Not in any topic: keep as-is
+            topic_to_phrase[phrase] = phrase
+
+    return '. '.join(topic_to_phrase.values()) + '.'
+    
+def append_absence_captions(prompt, topic_keywords=TOPIC_KEYWORDS):
+    """
+    Appends 'no X' for each topic in topic_keywords not mentioned in the prompt.
+    Avoids false positives for substrings (e.g., 'pipe' vs 'upside down pipe').
+    Skips adding absence phrases for topics containing the word 'broken'.
+    """
+    import re
+
+    prompt_lower = prompt.lower()
+    phrases = [p.strip() for p in re.split(r'[.,;]', prompt_lower) if p.strip()]
+    absence_phrases = []
+
+    # Build a set of topics that are present in the prompt
+    present_topics = set()
+    for topic in topic_keywords:
+        for phrase in phrases:
+            if any(word.startswith(topic) for word in phrase.split()):
+                present_topics.add(topic)
+                break
+
+    # For each topic, if not present, add "no X" unless 'broken' is in the topic
+    for topic in topic_keywords:
+        if topic in present_topics:
+            continue
+        if 'broken' in topic.lower():
+            # print(f"[Skip] Topic contains 'broken': {topic}")
+            continue
+        elif topic in {"rectangular", "irregular"}:
+            absence_phrases.append(f"no {topic} block clusters")
+        elif topic in {"ceiling", "floor"}:
+            absence_phrases.append(f"no {topic}")
+        elif topic == "enem":
+            absence_phrases.append("no enemies")
+        elif topic not in {"ceiling", "floor"}:
+            absence_phrases.append(f"no {topic}s")
+        
+
+    if absence_phrases:
+        result = prompt.rstrip(" .") + ". " + ". ".join(absence_phrases) + "."
+        return result
+    else:
+        return prompt
+
+
+
 
 def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize=False):
     phrases = [p.strip() for p in caption.split(".") if p]
