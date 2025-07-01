@@ -15,6 +15,7 @@ from util.sampler import CustomSimulator
 from captions.caption_match import compare_captions
 from util.sampler import scene_to_ascii
 from tqdm import tqdm
+import util.common_settings as common_settings
 
 # Add the parent directory to the system path to import the extract_tileset function
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,7 +28,7 @@ from create_ascii_captions import assign_caption, extract_tileset
 # Type variable for the tile type
 T = TypeVar('T')
 
-tileset_path = os.path.join('datasets','smb.json')
+tileset_path = common_settings.MARIO_TILESET
 
 # Ensure the tileset path exists
 try:
@@ -37,11 +38,12 @@ except FileNotFoundError:
     print("\nExpected directory structure:")
     print("GitHub/")
     print("├── MarioDiffusion/")
-    print("│   └── util/")
-    print("│       └── metrics.py")
-    print("└── TheVGLC/")
-    print("    └── Super Mario Bros/")
-    print("        └── smb.json")
+    print("    └── util/")
+    print("        └── common_settings.py")
+    # print("│       └── metrics.py")
+    # print("└── TheVGLC/")
+    # print("    └── Super Mario Bros/")
+    # print("        └── smb.json")
 
     print("\nActual directory structure:")
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
