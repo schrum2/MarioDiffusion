@@ -16,6 +16,8 @@ from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.sampler import scene_to_ascii
 from models.pipeline_loader import get_pipeline
+from level_dataset import append_absence_captions, remove_duplicate_phrases
+from captions.caption_match import TOPIC_KEYWORDS
 
 
 # Add the parent directory to sys.path so sibling folders can be imported
@@ -53,6 +55,8 @@ class CaptionBuilder(ParentBuilder):
         self.composed_thumbnails = []
         self.composed_thumbnail_labels = []
         self.selected_composed_index = None
+        self.present_caption = ""
+        self.last_present_caption = ""
 
         # Frame for caption display
         self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
@@ -73,6 +77,12 @@ class CaptionBuilder(ParentBuilder):
         self.automatic_negative_caption = tk.BooleanVar(value=False)
         self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton")
         self.automatic_negative_caption_checkbox.pack()
+        
+        # Automatic absence captions box
+        self.automatic_absence_caption = tk.BooleanVar(value=False)
+        self.automatic_absence_caption_checkbox = ttk.Checkbutton(self.caption_frame, text ="Automatic Absence Captions", variable=self.automatic_absence_caption, style="TCheckbutton", command=self.update_absence_caption_entry)
+        self.automatic_absence_caption_checkbox.pack()
+        self.automatic_absence_caption_checkbox.config(state=tk.DISABLED) # Start with the box disabled
         
         self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:", style="TLabel")
         self.num_images_label.pack()        
@@ -211,6 +221,30 @@ class CaptionBuilder(ParentBuilder):
         self.game_label.pack()
         self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner"], state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
+        
+    def probe_absence_caption_support(self):
+        """Test if the loaded model supports absence captions by running a quick, hidden generation."""
+        try:
+            # Use a minimal absence caption prompt
+            test_prompt = append_absence_captions("", TOPIC_KEYWORDS)
+            # Minimal params for a fast test
+            param_values = {
+                "num_inference_steps": 1,
+                "guidance_scale": 1.0,
+                "width": 4,
+                "height": 4,
+                "output_type": "tensor",
+                "caption": test_prompt
+            }
+            generator = torch.Generator(self.device).manual_seed(1)
+            # Try generating (do not display or store result)
+            _ = self.pipe(generator=generator, **param_values)
+            # If no exception, enable the checkbox
+            self.automatic_absence_caption_checkbox.config(state=tk.NORMAL)
+        except Exception as e:
+            # If any error, disable the checkbox
+            self.automatic_absence_caption_checkbox.config(state=tk.DISABLED)
+            self.automatic_absence_caption.set(False)
 
     def create_image_context_menu(self, pil_image, image_index):
         """Create a context menu for right-clicking on images"""
@@ -289,7 +323,9 @@ class CaptionBuilder(ParentBuilder):
                     for item in dataset:
                         phrases = item['caption'].split('.')
                         phrases_set.update(phrase.strip() for phrase in phrases if phrase.strip())
-                
+                        if self.automatic_absence_caption.get():
+                            self.update_absence_caption_entry()
+                            
                 self.all_phrases = sorted(list(phrases_set))
                 self.create_checkboxes()
 
@@ -308,6 +344,9 @@ class CaptionBuilder(ParentBuilder):
         if model:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.pipe = get_pipeline(model).to(self.device)
+            
+            # Probe for absence caption support before updating GUI
+            self.probe_absence_caption_support()
 
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"
@@ -323,12 +362,24 @@ class CaptionBuilder(ParentBuilder):
 
     def update_caption(self):
         self.selected_phrases = [phrase for phrase, var in self.checkbox_vars.items() if var.get()]
-        new_caption = ". ".join(self.selected_phrases) + "." if self.selected_phrases else ""
-        
-        self.caption_text.config(state=tk.NORMAL)
-        self.caption_text.delete(1.0, tk.END)
-        self.caption_text.insert(tk.END, new_caption)
-        self.caption_text.config(state=tk.NORMAL)  # Keep it editable
+        self.present_caption = ". ".join(self.selected_phrases) + "." if self.selected_phrases else ""
+        self.last_present_caption = self.present_caption  # Save for absence toggling
+
+        if self.automatic_absence_caption.get():
+            # Only use the currently checked phrases as the present caption
+            cleaned_prompt = self.present_caption
+            self.last_present_caption = cleaned_prompt
+            absence_caption = append_absence_captions(cleaned_prompt, TOPIC_KEYWORDS)
+            absence_caption = remove_duplicate_phrases(absence_caption)
+            self.caption_text.config(state=tk.NORMAL)
+            self.caption_text.delete(1.0, tk.END)
+            self.caption_text.insert(tk.END, absence_caption)
+            self.caption_text.config(state=tk.NORMAL)
+        else:
+            self.caption_text.config(state=tk.NORMAL)
+            self.caption_text.delete(1.0, tk.END)
+            self.caption_text.insert(tk.END, self.present_caption)
+            self.caption_text.config(state=tk.NORMAL)
     
     def generate_image(self):
         global tileset_path, game_selected
@@ -341,7 +392,14 @@ class CaptionBuilder(ParentBuilder):
         self.generated_scenes = []
 
         print("Generating")
-        prompt = self.caption_text.get("1.0", tk.END).strip()
+        
+        if self.automatic_absence_caption.get():
+            prompt = append_absence_captions(self.caption_text.get("1.0", tk.END).strip(), TOPIC_KEYWORDS)
+        else:
+            prompt = self.caption_text.get("1.0", tk.END).strip()
+        
+        #prompt = self.caption_text.get("1.0", tk.END).strip()
+        # prompt = self.present_caption.strip()
         negative_prompt = self.negative_prompt_entry.get("1.0", tk.END).strip()
         num_images = int(self.num_images_entry.get())        
         param_values = {
@@ -387,6 +445,8 @@ class CaptionBuilder(ParentBuilder):
 
         for i in range(num_images):
             print(f"Generating image {i + 1} of {num_images}...")
+            if "caption" in param_values: print(f"Caption: {param_values['caption']}")
+            else: print("No caption")
             images = self.pipe(generator=generator, **param_values).images
             self.current_levels.append(images[0].cpu().detach().numpy())
 
@@ -730,6 +790,27 @@ Average Segment Score: {avg_segment_score}"""
             elif parent == self.checkbox_canvas:
                 self.checkbox_canvas.yview_scroll(-1 * (event.delta // 120), "units")
             parent = parent.master
+
+    def update_absence_caption_entry(self):
+        """Update the constructed caption box based on the absence caption checkbox."""
+        if self.automatic_absence_caption.get():
+            # Remove all "no ..." phrases from the current box
+            current_text = self.caption_text.get("1.0", tk.END).strip()
+            cleaned_phrases = [phrase.strip() for phrase in current_text.split('.') if phrase.strip() and "no" not in phrase]
+            cleaned_prompt = ". ".join(cleaned_phrases)
+            if cleaned_prompt:
+                cleaned_prompt += "."
+            self.last_present_caption = cleaned_prompt
+            absence_caption = append_absence_captions(cleaned_prompt, TOPIC_KEYWORDS)
+            self.caption_text.config(state=tk.NORMAL)
+            self.caption_text.delete(1.0, tk.END)
+            self.caption_text.insert(tk.END, absence_caption)
+            self.caption_text.config(state=tk.NORMAL)
+        else:
+            self.caption_text.config(state=tk.NORMAL)
+            self.caption_text.delete(1.0, tk.END)
+            self.caption_text.insert(tk.END, self.last_present_caption)
+            self.caption_text.config(state=tk.NORMAL)
 
     def update_negative_prompt_entry(self):
         """Update the negative prompt entry based on the automatic negative caption checkbox."""
