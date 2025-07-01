@@ -377,7 +377,10 @@ class TileViewer(tk.Tk):
             )
             print(f"Generated new level from scene using {num_steps} steps.")
             from level_dataset import visualize_samples
-            generated_image = visualize_samples(output.images)
+            if self.is_lode_runner:
+                generated_image = visualize_samples(output.images, game='LR')
+            else:
+                generated_image = visualize_samples(output.images)
             if isinstance(generated_image, list):
                 generated_image = generated_image[0]
             generated_image.show()
@@ -491,8 +494,10 @@ class TileViewer(tk.Tk):
                 num_classes=common_settings.MARIO_TILE_COUNT
             ).float().permute(2, 0, 1).unsqueeze(0)  # Add batch dimension
 
-            
-            image = visualize_samples(one_hot_scene)
+            if self.is_lode_runner:
+                image = visualize_samples(one_hot_scene, game='LR')
+            else:
+                image = visualize_samples(one_hot_scene)
             if isinstance(image, list):
                 image = image[0]  # Handle list case by taking the first element
             # Convert to PIL Image if needed
@@ -619,7 +624,10 @@ class TileViewer(tk.Tk):
             torch.tensor(scene, dtype=torch.long),
             num_classes=len(self.id_to_char)
         ).float().permute(2, 0, 1).unsqueeze(0)
-        image = visualize_samples(one_hot_scene)
+        if self.is_lode_runner:
+                image = visualize_samples(one_hot_scene, game='LR')
+        else:
+            image = visualize_samples(one_hot_scene)
         if isinstance(image, list):
             image = image[0]
         # Convert to PIL Image if needed

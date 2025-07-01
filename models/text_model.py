@@ -197,7 +197,7 @@ class TransformerModel(nn.Module):
             try:
                 from PIL import Image
                 im = Image.open(png_file)
-                im.save(filename, "PDF", resolution=100.0)
+                im.save(filename, "PDF", resolution=100.0, transparent=True)
                 print(f"Saved architecture PDF to {filename}")
                 # Optionally, remove the PNG file
                 os.remove(png_file)

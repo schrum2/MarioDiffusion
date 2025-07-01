@@ -157,6 +157,8 @@ class SampleOutput:
             tmp_path = tmp_path if dataset_path is None else dataset_path
             print(f"Playing Lode Runner level interactively -- {tmp_path}!")
             main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
+            # simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
+            # simulator.interactive()
         else:
             if self.use_snes_graphics:
                 simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")

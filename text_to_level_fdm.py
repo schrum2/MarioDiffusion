@@ -72,7 +72,12 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             verbose=True
         )
 
-        return visualize_samples(images)
+        if self.args.game == "Mario":
+            samples = visualize_samples(images)
+        elif self.args.game == "LR":
+            samples = visualize_samples(images, game='LR')
+
+        return samples
 
     def get_extra_params(self, param_values): 
 
