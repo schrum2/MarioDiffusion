@@ -10,7 +10,7 @@ from models.pipeline_loader import get_pipeline
 
 
 class DiffusionEvolver(Evolver):
-    def __init__(self, model_path, width, tileset_path='datasets\smb.json', args=None):
+    def __init__(self, model_path, width, tileset_path=common_settings.MARIO_TILESET, args=None):
         Evolver.__init__(self)
 
         self.args = args
@@ -75,9 +75,9 @@ class DiffusionEvolver(Evolver):
         #compare_score = compare_captions(self.prompt, actual_caption)
         #print(f"Comparison score: {compare_score}")
 
-        if args.tileset == '..\TheVGLC\Super Mario Bros\smb.json':
+        if self.args.tileset == common_settings.MARIO_TILESET:
             samples = visualize_samples(images)
-        elif args.tileset == '..\TheVGLC\Lode Runner\Loderunner.json':
+        elif self.args.tileset == common_settings.LR_TILESET:
             samples = visualize_samples(images, game='LR')
         return samples
 
@@ -86,7 +86,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Evolve levels with unconditional diffusion model")    
     # Model and generation parameters
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
-    parser.add_argument("--tileset_path", default='datasets\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset_path", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Tile width of generated level")

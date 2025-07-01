@@ -202,7 +202,7 @@ Calls the main function with the provided arguments.
 """
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tileset', default='datasets\\smb.json', help='Path to the tile set JSON')
+    parser.add_argument('--tileset', default=common_settings.MARIO_TILESET, help='Path to the tile set JSON')
     parser.add_argument('--levels', default='..\\TheVGLC\\Super Mario Bros\\Processed', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output JSON file')
 

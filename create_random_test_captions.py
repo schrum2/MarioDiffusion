@@ -38,7 +38,7 @@ def main():
 
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
-        args.tileset = 'datasets\smb.json'
+        args.tileset = common_settings.MARIO_TILESET
         generator = GrammarGenerator(
             seed = args.seed, 
             describe_absence=args.describe_absence,
@@ -46,7 +46,7 @@ def main():
         )
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
-        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json' 
+        args.tileset = common_settings.LR_TILESET
         generator = LR_GrammarGenerator(
             seed = args.seed, 
             describe_absence=args.describe_absence,
