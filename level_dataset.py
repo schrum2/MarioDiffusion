@@ -215,6 +215,103 @@ def lr_tiles():
 
     return LR_tile_images
 
+
+def mm_tiles(game):
+    """
+    Maps integers 0-11 or 0-38 to 16x16 pixel sprites from MM_mapsheet.png.
+
+    Returns:
+        A list of 16x16 pixel tile images for Mega Man.
+    """
+    global _sprite_sheet
+
+    # Load the sprite sheet only once
+    if _sprite_sheet is None:
+        _sprite_sheet = Image.open("MM_mapsheet.png")
+
+    # Hardcoded coordinates for the first 10 tiles (row, col)
+    if game == 'MM-Full':
+        MM_tile_coordinates = [
+            (0,0),    #0 = Player/Spawn point
+            (0,1),    #1 = null
+            (0,2),    #2 = air/empty tile
+            (0,3),    #3 = Water
+            (0,4),    #4 = ground/wall
+            (0,5),    #5 = Ladder
+            (0,6),    #6 = Breakable block
+            (0,7),    #7 = Fake blocks (look solid but aren't)
+            (0,8),    #8 = Appearing/disappearing block
+            (0,9),    #9 = Moving platform
+            (0,10),   #10 = Door
+
+            (1,0),    #11 = Large ammo pack
+            (1,1),    #12 = Small ammo pack
+            (1,2),    #13 = Large health pack
+            (1,3),    #14 = Small health pack
+            (1,4),    #15 = Extra life
+            (1,5),    #16 = Yashichi, a special item that completely fills health and ammo (only shows up in the final level)
+            (1,6),    #17 = Magnet Beam (one-time appearance)
+            (1,7),    #18 = Orb collectable to get a new weapon
+
+            (2,0),    #19 = Spikes
+            (2,1),    #20 = Fire Pillar
+
+            (3,0),    #21 = Foot holder enemy/platform
+            (3,1),    #22 = Sniper Joe enemy
+            (3,2),    #23 = Flea enemy
+            (3,3),    #24 = Flying shell enemy spawner
+            (3,4),    #25 = Killer bullet enemy spawner
+            (3,5),    #26 = Killer bullet enemy
+            (3,6),    #27 = Spine enemy
+            (3,7),    #28 = Beak enemy
+            (3,8),    #29 = Screw bomber enemy
+            (3,9),    #30 = Tackle fire enemy
+            (3,10),   #31 = Watcher enemy
+
+            (4,0),    #32 = Octopus battery enemy going up/down
+            (4,1),    #33 = Octopus battery enemy going left/right
+            (4,2),    #34 = Big eye enemy
+            (4,3),    #35 = Bunby Heli enemy
+            (4,4),    #36 = Met enemy
+            (4,5),    #37 = Picket man enemy
+            (4,6)     #38 = Crazy razy enemy
+        ]
+    else:
+        MM_tile_coordinates = [
+            (0,4),     #0 = ground/wall
+            (0,1),     #1 = null
+            (0,8),     #2 = Appearing/disappearing block
+            (0,6),     #3 = Breakable block
+            (2,1),     #4 = Fire Pillar
+            (0,10),    #5 = Door
+            (2,0),     #6 = Spikes
+            (0,9),     #7 = Moving platform
+            (0,5),     #8 = Ladder
+            (4,4),     #9 = Met enemy
+            (1,3),     #10 = Small health pack
+            (0,2)      #11 = air/empty tile
+        ]
+
+    DIM = common_settings.MM_TILE_PIXEL_DIM
+
+    # Extract each tile as a 16x16 image
+    MM_tile_images = []
+    for row, col in MM_tile_coordinates:
+        left = col * DIM
+        upper = row * DIM
+        right = left + DIM
+        lower = upper + DIM
+        tile = _sprite_sheet.crop((left, upper, right, lower))
+        MM_tile_images.append(tile)
+
+    # Add a blank tile for the extra tile (padding)
+    blank_tile = Image.new('RGB', (DIM, DIM), color=(128, 128, 128))
+    MM_tile_images.append(blank_tile)
+
+    return MM_tile_images
+
+
+
 def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, block_embeddings=None, prompts=None, game='Mario'):
     """
     Visualize generated samples and save as images.
@@ -256,6 +353,9 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
             #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = common_settings.MARIO_TILE_PIXEL_DIM
+        elif game == 'MM-Simple' or game == 'MM-Full':
+            tile_images = mm_tiles(game)
+            tile_size = common_settings.MM_TILE_PIXEL_DIM
         else:
             raise ValueError(f"Unsupported game or dimensions: {game} {height}x{width}")
         

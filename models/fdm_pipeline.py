@@ -137,6 +137,7 @@ class FDMPipeline():
             batch_size: int = 1,
             show_progress_bar: bool = True,
             noise_vector: Optional[torch.FloatTensor] = None,
+            **kwargs: Optional[dict] #Used to allow this being called with the diffusion arguments without throwing an error
     ):
         """Generate a batch of images based on text input using the five-dollar-model.
 
