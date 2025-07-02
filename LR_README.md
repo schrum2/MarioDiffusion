@@ -8,23 +8,15 @@ levels and outputs. The main therory as to why is a small dataset with only 150 
 
 ## Set up the repository
 
-This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username. This should create a folder within the MarioDiffusion folder that contains all needed Lode Runner items:
+Everything needed for playing Lode Runner can be accessed be rerunning the `requirements.txt` file:
 ```
-git clone --branch Reid --single-branch https://github.com/williamsr03/LodeRunner.git
+pip uninstall loderunner
 ```
-Next, enter the `LodeRunner` respository.
+Before running any code, install all requirements with pip:
 ```
-cd LodeRunner
+pip install -r requirements.txt
 ```
-Then install Lode Runner repository as a library so it can be used with the MarioDiffusion data:
-```
-pip install -e .
-```
-Then go back to the MarioDiffusion directory to be able to run the following.
-```
-cd ..
-```
-
+Before being able to play some Lode Runner levels, you must create a dataset which happens below.
 ## Create datasets
 
 Data used for training our models already exists in the `datasets` directory of this repo,
@@ -82,7 +74,7 @@ LR-conditional.bat regular 0
 ## Generating and playing Lode Runner levels
 If the user wants to see the captions and play all of the original levels, use the following command line:
 ```
-python ascii_data_browser.py LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
+python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
 ```
 
 If the user wanted to play the levels, use the following command line. The following line allows the user to play the first level. If the user wants to play a different level, change the 1 to the level they wish to play.
@@ -98,7 +90,7 @@ python text_to_level_diffusion.py --model_path LR-conditional-regular0 --game LR
 
 An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
 ```
-python interactive_tile_level_generator.py --load_data LR_LevelsAndCaptions-regular.json --model_path LR-conditional-regular0 --game LR 
+python interactive_tile_level_generator.py --load_data datasets\LR_LevelsAndCaptions-regular.json --model_path LR-conditional-regular0 --game LR 
 ```
 
 ## Batch folder and files with Lode Runner
