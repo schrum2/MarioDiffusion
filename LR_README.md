@@ -52,26 +52,37 @@ Run this command:
 LR-data.bat
 ```
 
-Browse LR data with ascii browser and be able to play some of the Lode Runner levels:
+Now you can browse level scenes and their captions with a command like this (the json file can be replaced by any levels and captions json file in datasets):
 ```
 python ascii_data_browser.py LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
 ```
 
+## Complete training and evaluation sequence
 
+To train and run an unconditional diffusion model without any text embeddings, go within the 
+`LR_batch` sub-directory:
+```
+cd LR_batch
+```
+Run this command:
+```
+LR-unconditional.bat regular 0
+```
 
-To train an unconditional diffusion model without any text embeddings, run this command:
+To train and run a conditional diffusion model without any text embeddings, go within the 
+`LR_batch` sub-directory:
 ```
-python train_diffusion.py --augment --output_dir "LR-unconditional-regular" --num_epochs 100 --json LR_LevelsAndCaptions-regular.json --split --num_tiles 10 --batch_size 5 --game LR
+cd LR_batch
 ```
-
-Run trained unconditional diffusion model and save 100 random levels to json:
+The following command trains an MLM model on the Lode Runner data, trains a conditional diffusion model,
+runs the diffusion model, and evaluates the caption adherence based on the generated levels and captions:
 ```
-python run_diffusion.py --model_path LR-unconditional-regular --num_samples 100 --save_as_json --output_dir "LR-unconditional-regular-samples" --game LR
+LR-conditional.bat regular 0
 ```
-
-First create a tokenizer for the caption data you want to train on. Most of these datasets have the same vocabulary, but there is a clear difference between datasets that describe the absence of entities and those that do not.
+## Generating and playing Lode Runner levels
+If the user wants to see the captions and play all of the original levels, use the following command line:
 ```
-python tokenizer.py save --json_file LR_LevelsAndCaptions-regular.json --pkl_file LR_Tokenizer-regular.pkl
+python ascii_data_browser.py LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
 ```
 
 If the user wanted to play the levels, use the following command line. The following line allows the user to play the first level. If the user wants to play a different level, change the 1 to the level they wish to play.
@@ -90,6 +101,7 @@ An easier-to-use GUI interface will let you select and combine known caption phr
 python interactive_tile_level_generator.py --load_data LR_LevelsAndCaptions-regular.json --model_path LR-conditional-regular0 --game LR 
 ```
 
+## Batch folder and files with Lode Runner
 Batch folder that contains all batch files associated with Lode Runner:
 ```
 cd LR_batch
