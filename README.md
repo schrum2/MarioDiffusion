@@ -10,8 +10,8 @@ If you use this code, please cite our paper:
 [Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros](https://arxiv.org/abs/2507.00184)  
 
 ```bibtex
-@article{YourBibtexKey,
-  title   = {Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros},
+@article{schrum:mario2025,
+  title   = {{Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros}},
   author  = {Jacob Schrum, Olivia Kilday, Emilio Salas, Bess Hagan, Reid Williams},
   journal = {arXiv preprint arXiv:2507.00184},
   year    = {2025},
