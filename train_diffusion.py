@@ -123,7 +123,7 @@ def parse_args():
     parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
 
     # For caption score calculation
-    parser.add_argument("--tileset", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
 
@@ -271,10 +271,10 @@ def main():
 
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
-        args.tileset = '..\TheVGLC\Super Mario Bros\smb.json'
+        args.tileset = common_settings.MARIO_TILESET
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
-        args.tileset = '..\TheVGLC\Lode Runner\Loderunner.json'
+        args.tileset = common_settings.LR_TILESET
     elif args.game == "MM-Simple":
         args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
         args.tileset='datasets\MM_Simple_Tileset.json'
@@ -823,8 +823,11 @@ def main():
             # Convert one-hot samples to tile indices and visualize
             # TODO: Add prompt support
             prompts = sample_captions if args.text_conditional else None
-            visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts)
-            
+            if args.game == "Mario":
+                visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts)
+            elif args.game == "LR":
+                visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts, game='LR')
+
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
             checkpoint_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}")

@@ -2,12 +2,13 @@ import torch
 from create_ascii_captions import extract_tileset
 import os
 from train_block2vec import print_nearest_neighbors
+import util.common_settings as common_settings
 
 def evaluate_block2vec_neighbors(embedding_dir: str):
     """Print embeddings for each tile from a trained block2vec model"""
     
     # Load tileset information
-    tileset_path = os.path.join('..', 'TheVGLC', 'Super Mario Bros', 'smb.json')
+    tileset_path = common_settings.MARIO_TILESET
     tile_chars, id_to_char, _, _ = extract_tileset(tileset_path)
     
     # Load embeddings

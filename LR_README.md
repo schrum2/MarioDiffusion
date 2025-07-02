@@ -1,6 +1,12 @@
-## Can I also get Lode Runner Data? (TODO)
+# Lode Runner Generation
+
+Generate Lode Runner level scenes with a diffusion model conditioned on text input.
+
+## Getting Lode Runner Data
 This Lode Runner data is still experimental and on-going and the current results are not as good as the Mario
 levels and outputs. The main therory as to why is a small dataset with only 150 samples.
+
+## Set up the repository
 
 This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username. This should create a folder with the MarioDiffusion folder that contains all needed Lode Runner items:
 ```
@@ -15,10 +21,13 @@ Then install Lode Runner repository as a library so it can be used with the Mari
 pip install -e .
 ```
 Then go back to the MarioDiffusion directory to be able to run the following.
+```
+cd ..
+```
 
 Extract a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this (top 10 rows are filled with blank space to make a perfect square):
 ```
-python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json" --target_height 32 --target_width 32 --extra_tile .
+python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset datasets\Loderunner.json --target_height 32 --target_width 32 --extra_tile .
 ```
 
 These files only contains the level scenes. Create captions for all level scenes with a command like this:
@@ -33,7 +42,7 @@ python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAn
 
 Browse LR data with ascii browser and be able to play some of the Lode Runner levels:
 ```
-python ascii_data_browser.py LR_LevelsAndCaptions-regular.json "..\\TheVGLC\\Lode Runner\\Loderunner.json"
+python ascii_data_browser.py LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
 ```
 
 To train an unconditional diffusion model without any text embeddings, run this command:

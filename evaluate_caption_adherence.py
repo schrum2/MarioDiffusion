@@ -36,7 +36,7 @@ def parse_args():
     parser.add_argument("--resume", action="store_true", help="Resume an interrupted checkpoint comparison run")
 
     # Used to generate captions when generating images
-    parser.add_argument("--tileset", default='..\\TheVGLC\\Super Mario Bros\\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Width of the generated levels")
@@ -57,12 +57,12 @@ def main():
 
     # Based on the number of tiles, decides which game to run
     if args.num_tiles == common_settings.MARIO_TILE_COUNT:
-            tileset = '..\\TheVGLC\\Super Mario Bros\\smb.json'
+            tileset = common_settings.MARIO_TILESET
             height = common_settings.MARIO_HEIGHT
             width = common_settings.MARIO_WIDTH
             path_to_json = args.json
     elif args.num_tiles == common_settings.LR_TILE_COUNT:
-            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+            tileset = common_settings.LR_TILESET
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
             path_to_json = "datasets\LR_LevelsAndCaptions-regular.json"
@@ -111,7 +111,7 @@ def main():
     )
 
     if args.compare_checkpoints:
-        scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe)
+        scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors)
 
     else:
         # Just run on one model and get samples as well
@@ -121,7 +121,10 @@ def main():
         print(f"Generated {len(all_samples)} level samples")
         
         if args.save_image_samples:
-            visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
+            if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+                visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
+            elif args.num_tiles == common_settings.LR_TILE_COUNT:
+                visualize_samples(all_samples, args.output_dir, prompts=all_prompts, game='LR')
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
@@ -129,18 +132,22 @@ def main():
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
             elif args.num_tiles == common_settings.LR_TILE_COUNT:
                 tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+                scenes = [
+                            [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
+                            for scene in scenes
+                        ]
                 lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True):
 
     if args.num_tiles == common_settings.MARIO_TILE_COUNT:
-            tileset = '..\\TheVGLC\\Super Mario Bros\\smb.json'
+            tileset = common_settings.MARIO_TILESET
             height = common_settings.MARIO_HEIGHT
             width = common_settings.MARIO_WIDTH
             path_to_json = args.json
     elif args.num_tiles == common_settings.LR_TILE_COUNT:
-            tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+            tileset = common_settings.LR_TILESET
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
             path_to_json = "datasets\LR_LevelsAndCaptions-regular.json"
@@ -296,6 +303,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
                 #quit()
                 if height == common_settings.LR_HEIGHT:
+                    scene = [[tile % common_settings.LR_TILE_COUNT for tile in s] for s in scene]
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 elif height == common_settings.MARIO_HEIGHT:
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)

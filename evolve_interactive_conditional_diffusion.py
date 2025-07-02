@@ -10,7 +10,7 @@ from models.pipeline_loader import get_pipeline
 
 
 class TextDiffusionEvolver(Evolver):
-    def __init__(self, model_path, width, tileset_path='..\TheVGLC\Super Mario Bros\smb.json', args = None):
+    def __init__(self, model_path, width, tileset_path=common_settings.MARIO_TILESET, args = None):
         Evolver.__init__(self)
         # args = parse_args()
         # if args.tileset_path != "":
@@ -29,10 +29,10 @@ class TextDiffusionEvolver(Evolver):
 
     def random_latent(self, seed=1):
         # Create the initial noise latents (this is what the pipeline does internally)
-        if args.width == common_settings.MARIO_WIDTH:
+        if self.args.tileset == common_settings.MARIO_TILESET:
             height = common_settings.MARIO_HEIGHT
             width = self.width
-        elif args.width == common_settings.LR_WIDTH:
+        elif self.args.tileset == common_settings.LR_TILESET:
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
         num_channels_latents = len(self.id_to_char)
@@ -83,13 +83,17 @@ class TextDiffusionEvolver(Evolver):
         actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
         g.caption = actual_caption
 
-        return visualize_samples(images)
+        if args.tileset == common_settings.MARIO_TILESET:
+            samples = visualize_samples(images)
+        elif args.tileset == common_settings.LR_TILESET:
+            samples = visualize_samples(images, game='LR')
+        return samples
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evolve levels with unconditional diffusion model")    
     # Model and generation parameters
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
-    parser.add_argument("--tileset_path", default='..\TheVGLC\Super Mario Bros\smb.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset_path", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Tile width of generated level")

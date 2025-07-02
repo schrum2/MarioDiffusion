@@ -314,6 +314,10 @@ def main():
             
             # Visualize samples
             visualize_samples(samples_cpu, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
+            if args.game == "Mario":
+                visualize_samples(samples_cpu, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
+            elif args.game == "LR":
+                visualize_samples(samples_cpu, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), game='LR')
             netG.train()
         
         # Save checkpoints at specified intervals

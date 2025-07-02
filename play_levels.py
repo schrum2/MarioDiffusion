@@ -4,9 +4,10 @@ import argparse
 from util.sampler import scene_to_ascii, CustomSimulator
 from tqdm import tqdm
 from create_ascii_captions import extract_tileset
+import util.common_settings as common_settings
 
 
-tileset_path = '..\TheVGLC\Super Mario Bros\smb.json'
+tileset_path = common_settings.MARIO_TILESET
 
 # Ensure the tileset path exists
 
