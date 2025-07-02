@@ -390,3 +390,17 @@ Plots and compares broken cannons as a percentage of the full generated dataset
 python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_cannons_percentage_of_cannons --plot_label "Percent Broken Cannons" --save --output_name "BCPCannons_real(full)_real(100)_random_unconditional" --loc "lower right" --errorbar
 ```
 Plots and compares broken cannons as a percentage of total cannon mentions
+
+
+## Tiles based games besides Mario
+We are trying to be able to expand these methods to other games such as Lode Runner and Mega Man,
+but these games are still in the preliminary. Nevertheless, if you wish to learn more about the 
+advancements made for these games, then follow the links below.
+
+For more information regarding Lode Runner, go to the file named `LR_README.md` 
+within the Mario Diffusion directory.
+```
+[View LR_README.md](LR_README.md)
+```
+For more For more information regarding Mega Man, go to the file named (whatever Mega Man readme is named) 
+within the Mario Diffusion directory.
