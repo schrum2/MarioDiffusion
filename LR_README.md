@@ -1,6 +1,12 @@
-## Can I also get Lode Runner Data? (TODO)
+# Lode Runner Generation
+
+Generate Lode Runner level scenes with a diffusion model conditioned on text input.
+
+## Getting Lode Runner Data
 This Lode Runner data is still experimental and on-going and the current results are not as good as the Mario
 levels and outputs. The main therory as to why is a small dataset with only 150 samples.
+
+## Set up the repository
 
 This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username. This should create a folder with the MarioDiffusion folder that contains all needed Lode Runner items:
 ```
@@ -15,6 +21,9 @@ Then install Lode Runner repository as a library so it can be used with the Mari
 pip install -e .
 ```
 Then go back to the MarioDiffusion directory to be able to run the following.
+```
+cd ..
+```
 
 Extract a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this (top 10 rows are filled with blank space to make a perfect square):
 ```
