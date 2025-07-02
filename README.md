@@ -1,6 +1,23 @@
+[![arXiv](https://img.shields.io/badge/arXiv-2507.00184-b31b1b.svg)](https://arxiv.org/abs/2507.00184)
+
 # Mario Diffusion
 
 Generate Mario level scenes with a diffusion model conditioned on text input.
+
+## Citation
+
+If you use this code, please cite our paper:  
+[Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros](https://arxiv.org/abs/2507.00184)  
+
+```bibtex
+@article{schrum:mario2025,
+  title   = {{Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros}},
+  author  = {Jacob Schrum, Olivia Kilday, Emilio Salas, Bess Hagan, Reid Williams},
+  journal = {arXiv preprint arXiv:2507.00184},
+  year    = {2025},
+  url     = {https://arxiv.org/abs/2507.00184}
+}
+```
 
 ## Set up the repository
 
@@ -29,24 +46,24 @@ full floor. one enemy. a few question blocks. one platform. one pipe. one loose 
 ```
 For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. 
 
-**NOTE:**
-1. MLM-regular and MLM-negative models both require the regular dataset, and the MLM-absence model requires the absence dataset.
-2. While using text_to_level_diffusion.py, MLM-absence can accept things like 'no pipes' in the prompt. MLM-negative has a secondary negative prompt where you simply write 'pipes' to exclude pipes.
-
 There is also a cool GUI you can work with to build larger levels out of diffusion-generated scenes. Run the following command to load our best pretrained model to create new levels in the interactive tile level generator GUI!
 
 ```
 python interactive_tile_level_generator.py --model_path schrum2/MarioDiffusion-MLM-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json
 ```
-**NOTE:**
+**DETAILS:**
 1. Adjust the 'Number of Images' or change the 'Random Seed', and click the "Generate Image" button to generate new levels. 
-2. For more control of the content generated, use the drop down menu on the right side of the GUI. Here you can 'Construct [a] Caption' by checking boxes. 
+2. For more control of the content generated, use the drop down menu on the right side of the GUI. Here you can construct a caption for text guidance by checking boxes. 
 3. For larger levels, you can either adjust the 'Width' or you can compose larger levels from generated content by clicking the 'Add to Level' button. 
-4. Once scenes are added to larger 'composed' levels, click on the thumbnails you would like to delete or rearrange.
-5. You may also play or run A* Mario on any generated levels or composed larger level, and you can toggle between SNES and NES graphics with the 'Use SNES Graphics' checkbox.
+4. Once scenes are added to larger composed levels, click on the thumbnails you would like to delete or rearrange.
+5. You may also play or run A* Mario on any generated level or composed larger level, and you can toggle between SNES and NES graphics with the 'Use SNES Graphics' checkbox.
 6. Save composed larger levels as ASCII text files by clicking on 'Save Composed Level.'
 
 **For more information, please browse through the instructions below or read our paper to learn more about how our models work. A full list of Hugging Face models you can download are available [here](MODELS.md).**
+
+**NOTE:**
+1. When using "absence" models, text prompts can mention absent entities, such as "no pipes." However, we recommend enabling 'Automatic Absence Captions' when using such models.
+2. When using "negative" models, a separate text prompt can provide negative guidance. However, we recommend enabling 'Automatic Negative Captions' with such models.
 
 ## Create datasets
 

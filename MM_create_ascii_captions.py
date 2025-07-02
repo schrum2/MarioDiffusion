@@ -7,11 +7,11 @@ from captions.util import extract_tileset, describe_size, describe_quantity, get
 import util.common_settings as common_settings
 
 # The floor is the last row of the scene (0-indexed)
-FLOOR = common_settings.MARIO_HEIGHT - 1
-CEILING = common_settings.MARIO_HEIGHT - 12 #  4
+FLOOR = common_settings.MEGAMAN_HEIGHT - 1
+CEILING = common_settings.MEGAMAN_HEIGHT - 12 #  4
 
 # This is used for describing locations, but it doesn't work well
-STANDARD_WIDTH = common_settings.MARIO_WIDTH
+STANDARD_WIDTH = common_settings.MEGAMAN_WIDTH
 
 LEFT = STANDARD_WIDTH / 3
 RIGHT = STANDARD_WIDTH - LEFT
@@ -48,22 +48,6 @@ def describe_location(x, y):
         y_desc = "bottom"
 
     return f"{x_desc} {y_desc}"
-
-def describe_broken_cannons(scene, char_to_id):
-    count = 0
-    for r in range(len(scene)):
-        for c in range(len(scene[r])):
-            if scene[r][c] == char_to_id['b']:
-                # Although it looks weird, it is ok for either B or b to be above a b tile.
-                # The repeated use of b looks weird in visuzalization, but is perfectly valid
-                # and looks good in the real game.
-                if r == 0 or (scene[r-1][c] != char_to_id['B'] and scene[r-1][c] != char_to_id['b']):
-                    count += 1
-
-    if count > 0:
-        return f" {describe_quantity(count) if coarse_counts else count} broken " + ("cannons" if pluralize and count > 1 else "cannon") + "."
-    else:
-        return ""
 
 def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False, exclude_rows = [], already_accounted = set()):
     """
@@ -175,81 +159,6 @@ def describe_horizontal_lines(lines, label, describe_locations, describe_absence
         count = len(lines)
         return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count != 1 else ''}."
 
-def analyze_staircases(scene, id_to_char, tile_descriptors, verticality, already_accounted):
-    """
-    Detects staircases in the scene.
-    verticality = 1 for descending, verticality = -1 for ascending
-    A staircase is a sequence of at least 3 columns where solid tiles form steps increasing by 1 row each.
-    Above each solid block must be passable.
-    Returns a caption phrase or empty string.
-    """
-    height = len(scene)
-    width = len(scene[0]) if height > 0 else 0
-    staircases = 0
-    col = 0
-    staircase_lengths = []
-
-    while col <= width - 3:
-        # Try to find the start of a staircase
-        step_cols = []
-        for start_row in range(0 if verticality == 1 else 3, height - 2 if verticality == 1 else height):
-            if is_staircase_from(scene, id_to_char, tile_descriptors, col, start_row, verticality, already_accounted):
-                #print(f"staircase at {start_row} {col} {verticality}")
-                # Now count how many columns this staircase extends
-                length = 3
-                while col + length < width and is_staircase_from(scene, id_to_char, tile_descriptors, col + length - 2, start_row + verticality*(length - 2), verticality, already_accounted):
-                    length += 1
-                staircases += 1
-                col += length  # Skip past this staircase
-                staircase_lengths.append(length)
-                #print(f"staircase length {length} {already_accounted}")
-                break  # Restart staircase search from new col
-        else:
-            col += 1  # No staircase starting here, move right
-
-    type = "descending" if verticality == 1 else "ascending"
-    if staircases > 0:
-        return f" {describe_quantity(staircases) if coarse_counts else staircases} {type} staircase{'s' if pluralize and staircases > 1 else ''}"+ (f" with length{'s' if staircases > 1 else ''} {', '.join(map(str, staircase_lengths))}" if give_staircase_lengths else "")+ "."
-    else:
-        return ""
-
-def is_staircase_from(scene, id_to_char, tile_descriptors, start_col, start_row, verticality, already_accounted):
-    """
-    Checks if there's a valid 3-step staircase starting at (start_col, start_row).
-    verticality = 1 for descending staircase, verticality = -1 for ascending
-    """
-    try:
-        blocks_in_stairs = set()
-        for step in range(3):
-            row = start_row + verticality*step
-            if row == len(scene): 
-                return False # Do not count floor in staircases
-            col = start_col + step
-            tile = scene[row][col]
-            if "solid" not in tile_descriptors.get(id_to_char[tile], []):
-                #if start_col == 0: print("not solid at", row, col)
-                return False
-            # Check above this block is passable
-            if row > 0:
-                tile_above = scene[row - 1][col]
-                if "solid" in tile_descriptors.get(id_to_char[tile_above], []):
-                    #if start_col == 0: print("solid above", row, col)
-                    return False
-                else:
-                    # Blocks beneath the stairs are also part of stairs
-                    row2 = row
-                    while row2 < len(scene) and "solid" in tile_descriptors.get(id_to_char[scene[row2][col]], []): 
-                        blocks_in_stairs.add( (row2,col) )
-                        row2 += 1                    
-
-        # Only add all of the blocks once it is confirmed to be a staircase
-        already_accounted.update(blocks_in_stairs)
-        #if start_col == 0: print("staircase at", start_row, start_col, verticality)
-        return True
-    except IndexError:
-        print(f"IndexError at start_col {start_col}, start_row {start_row}, verticality {verticality}")
-        return False  # Out of bounds means no staircase
-
 
 def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted, pipes = False):
     """Find unaccounted solid block structures"""
@@ -269,112 +178,6 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
                     already_accounted.update(structure)
 
     return structures
-
-def valid_pipe(top_row, left_column, scene, char_to_id):
-    """
-        Is this a valid pipe or not?
-
-        <>
-        []
-       ...
-        []
-    """
-    # Case: left edge of screen
-    if left_column == 0 and scene[top_row][left_column] == char_to_id['>']:
-        # go down looking for ] or >
-        row = top_row+1
-        while row < len(scene):
-            # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
-            if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]: #, char_to_id['-']]: # emptiness under base also invalid
-                return False
-            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
-                row += 1
-            else:
-                return True
-
-        return True
-    # Case: right edge of screen
-    elif left_column == len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<']:
-        # go down looking for [ or <
-        row = top_row+1
-        while row < len(scene):
-            if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
-                row += 1
-            # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
-            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]: #, char_to_id['-']]:
-                return False
-            else:
-                return True
-
-        return True
-
-    # Case: Full pipe
-    elif left_column < len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<'] and scene[top_row][left_column+1] == char_to_id['>']:
-        # go down looking for [] or <>
-        row = top_row+1
-        while row < len(scene):
-            if (scene[row][left_column] == char_to_id['<'] and scene[row][left_column+1] == char_to_id['>']) or (scene[row][left_column] == char_to_id['['] and scene[row][left_column+1] == char_to_id[']']):
-                row += 1
-            # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
-            elif scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']] or scene[row][left_column+1] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']]:
-                return False
-            else:
-                return True
-
-        return True
-
-    return False
-
-def valid_upside_down_pipe(bottom_row, left_column, scene, char_to_id):
-    """
-        Is this a valid upside down pipe or not?
-
-        []
-        []
-        <>
-    """
-    # Case: left edge of screen
-    if left_column == 0 and scene[bottom_row][left_column] == char_to_id['>']:
-        # go up looking for ] or >
-        row = bottom_row - 1
-        while row >= 0:
-            if scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['-']]:  # emptiness above base also invalid
-                return False
-            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
-                row -= 1
-            else:
-                return True
-
-        return True
-    # Case: right edge of screen
-    elif left_column == len(scene[0]) - 1 and scene[bottom_row][left_column] == char_to_id['<']:
-        # go up looking for [ or <
-        row = bottom_row - 1
-        while row >= 0:
-            if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
-                row -= 1
-            elif scene[row][left_column] in [char_to_id['>'], char_to_id[']'], char_to_id['-']]:
-                return False
-            else:
-                return True
-
-        return True
-
-    # Case: Full upside down pipe
-    elif left_column < len(scene[0]) - 1 and scene[bottom_row][left_column] == char_to_id['<'] and scene[bottom_row][left_column + 1] == char_to_id['>']:
-        # go up looking for [] or <>
-        row = bottom_row - 1
-        while row >= 0:
-            if (scene[row][left_column] == char_to_id['['] and scene[row][left_column + 1] == char_to_id[']']) or (scene[row][left_column] == char_to_id['<'] and scene[row][left_column + 1] == char_to_id['>']):
-                row -= 1
-            elif scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']'], char_to_id['-']] or scene[row][left_column + 1] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']'], char_to_id['-']]:
-                return False
-            else:
-                return True
-
-        return True
-
-    return False
 
 def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None, exclude_upside_down_pipes=False):
     """
@@ -397,24 +200,15 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         attached_to_ceiling = any(r == ceiling_row for r, c in struct)
         in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
 
-        if pipes:
-            if valid_pipe(min_row, min_col, scene, char_to_id):
-                desc = "pipe"
-            elif valid_upside_down_pipe(max_row, min_col, scene, char_to_id):
-                if exclude_upside_down_pipes:
-                    raise ValueError("Don't exclude_upside_down_pipes if valid upside down pipes are in the data")
-                desc = "upside down pipe"
-            else:
-                desc = "broken pipe"
+
+        if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
+            desc = "tower"
+        elif all((r, c) in struct for r in range(min_row, max_row + 1) for c in range(min_col, max_col + 1)):
+            desc = "rectangular block cluster"
+        #elif not attached_to_ceiling and width >= 3 and height <= 2 and in_contact_with_floor:
+        #    desc = "wall"
         else:
-            if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
-                desc = "tower"
-            elif all((r, c) in struct for r in range(min_row, max_row + 1) for c in range(min_col, max_col + 1)):
-                desc = "rectangular block cluster"
-            #elif not attached_to_ceiling and width >= 3 and height <= 2 and in_contact_with_floor:
-            #    desc = "wall"
-            else:
-                desc = "irregular block cluster"
+            desc = "irregular block cluster"
 
         if debug:
             print(f"{desc} at {min_row} {max_row} {min_col} {max_col}: {struct}: attached_to_ceiling: {attached_to_ceiling}, in_contact_with_floor: {in_contact_with_floor}")
@@ -476,15 +270,15 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
 #    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
 #    return words[n - 1] if 1 <= n <= 10 else str(n)
 
-def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence, exclude_upside_down_pipes=False):
+def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence):
     """Processes the dataset and generates captions for each level scene."""
     # Load dataset
     with open(dataset_path, "r") as f:
         dataset = json.load(f)
-    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_upside_down_pipes=exclude_upside_down_pipes)
+    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence)
     print(f"Captioned dataset saved to {output_path}")
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence, exclude_broken=True, exclude_upside_down_pipes=False, prompts=None):
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence):
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
@@ -497,15 +291,6 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
         #caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, exclude_upside_down_pipes=exclude_upside_down_pipes)
 
         # We only want to discard levels with broken pipes if we indicate that (describe_absence is True)
-        if exclude_broken and "broken" in caption:
-            if "broken pipe" in caption:
-                print("Broken pipe in training data")
-            if "broken cannon" in caption:
-                print("Broken cannon in training data")
-            print(caption)
-            current = len(captioned_dataset)
-            print(f"Excluding training sample: {current}")
-            num_excluded += 1
             
             #import torch
             #import torch.nn.functional as F
@@ -520,17 +305,10 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
             #    print("Exiting caption generation.")
             #    sys.exit(0)
 
-            continue
-
         captioned_dataset.append({
-            "prompt": prompts[i] if prompts else None,
             "scene": scene,
             "caption": caption
         })
-
-    # Probably need to fix the VGLC data manually.
-    # Should I make the script repair the data or make my own fork of VGLC with good data?
-    print(f"{num_excluded} samples excluded due to broken pipes/cannons.")
 
     # Save new dataset with captions
     with open(output_path, "w") as f:
@@ -625,63 +403,12 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     enemy_phrase = count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies", describe_absence=describe_absence)
     add_to_caption(enemy_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['E']])
 
-    #print("after enemy", (10,0) in already_accounted)
 
-    # Count question blocks
-    question_block_phrase = count_caption_phrase(scene, [char_to_id['Q'], char_to_id['?']], "question block", "question blocks", describe_absence=describe_absence)
-    add_to_caption(question_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['Q'], char_to_id['?']]])
-
-    #print("after qb", (10,0) in already_accounted)
-    #print(already_accounted)
-    # Count cannons
-    cannon_phrase = count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons", describe_absence=describe_absence)
-    cannon_locations = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']]
-    add_to_caption(cannon_phrase, cannon_locations)
-    already_accounted.update(cannon_locations)
-
-    #print("after cannon", (10,0) in already_accounted)
-
-    # Describe broken cannons
-    broken_cannon_phrase = describe_broken_cannons(scene, char_to_id)
-    add_to_caption(broken_cannon_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']])
-
-    # Count coins
-    coin_phrase = count_caption_phrase(scene, [char_to_id['o']], "coin", "coins", describe_absence=describe_absence)
-    add_to_caption(coin_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['o']])
-
-    # Coin lines
-    coin_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="coin", min_run_length=2)
-    coin_line_phrase = describe_horizontal_lines(coin_lines, "coin line", describe_locations, describe_absence=describe_absence)
-    add_to_caption(coin_line_phrase, [(y, x) for y, start_x, end_x in coin_lines for x in range(start_x, end_x + 1)])
-
-    #print("after coin line", (10,0) in already_accounted)
     # Platforms
     platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[] if ceiling_row == None else [ceiling_row])
     #print("after platform_lines", (10,0) in already_accounted)
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations, describe_absence=describe_absence)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
-
-    #print("after platform", (10,0) in already_accounted)
-    #print("before stairs", (10,0) in already_accounted)
-    # Staircases
-    up_stair_set = set()
-    ascending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, -1, already_accounted=up_stair_set)
-    add_to_caption(ascending_caption, list(up_stair_set))
-    #print(already_accounted)
-    already_accounted.update(up_stair_set)
-
-    down_stair_set = set()
-    descending_caption = analyze_staircases(scene, id_to_char, tile_descriptors, 1, already_accounted=down_stair_set)
-    add_to_caption(descending_caption, list(down_stair_set))
-    #print(already_accounted)
-    already_accounted.update(down_stair_set)
-
-    #print(already_accounted)
-    if describe_absence and not ascending_caption:
-        add_to_caption(" no ascending staircases.", [])
-
-    if describe_absence and not descending_caption:
-        add_to_caption(" no descending staircases.", [])
 
 
     # Solid structures
@@ -732,4 +459,4 @@ if __name__ == "__main__":
         print("Error: One or more input files do not exist.")
         sys.exit(1)
 
-    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence, args.exclude_upside_down_pipes)
+    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence)
