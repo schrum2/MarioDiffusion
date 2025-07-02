@@ -9,7 +9,7 @@ if not exist "datasets" mkdir datasets
 set default_out=datasets\LR_LevelsAndCaptions
 
 :: Convert Lode Runner raw level data to JSON
-python create_level_json_data.py --output "datasets\\LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset "..\\TheVGLC\\Lode Runner\\Loderunner.json" --target_height 32 --target_width 32 --extra_tile .
+python create_level_json_data.py --output "datasets\\LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset datasets\Loderunner.json --target_height 32 --target_width 32 --extra_tile .
 
 :: Generate captions for Lode Runner
 python LR_create_ascii_captions.py --dataset datasets\LR_Levels.json --output %default_out%-regular.json

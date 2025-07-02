@@ -25,25 +25,39 @@ Then go back to the MarioDiffusion directory to be able to run the following.
 cd ..
 ```
 
-Extract a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this (top 10 rows are filled with blank space to make a perfect square):
-```
-python create_level_json_data.py --output "LR_Levels.json" --levels "..\\TheVGLC\\Lode Runner\\Processed" --tileset datasets\Loderunner.json --target_height 32 --target_width 32 --extra_tile .
-```
+## Create datasets
 
-These files only contains the level scenes. Create captions for all level scenes with a command like this:
+Data used for training our models already exists in the `datasets` directory of this repo,
+but you can recreate the data using these commands. First, you will need to check out 
+[my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC). Note that the following
+command should be executed in the parent directory of the `MarioDiffusion` repository so that
+the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the same directory:
 ```
-python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-regular.json
+git clone https://github.com/schrum2/TheVGLC.git
 ```
+Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `LR_batch` sub-directory in the
+`MarioDiffusion` repo for Lode Runner batch files.
+```
+cd MarioDiffusion
+cd LR_batch
+```
+Next, run a batch file to create datasets from the VGLC data. This batch file call will create
+a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this 
+(top 10 rows are filled with blank space to make a perfect square).
+Afterwards, it will create captions for the dataset, tokenizers for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. 
+These files will overwrite the files already in the repo, but they should be identical.
+Run this command:
 
-You can also make the captions explicitly mention things that are absent from each scene with the `--describe_absence` flag:
 ```
-python LR_create_ascii_captions.py --dataset LR_Levels.json --output LR_LevelsAndCaptions-absence.json --describe_absence
+LR-data.bat
 ```
 
 Browse LR data with ascii browser and be able to play some of the Lode Runner levels:
 ```
 python ascii_data_browser.py LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
 ```
+
+
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
