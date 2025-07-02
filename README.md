@@ -399,8 +399,8 @@ advancements made for these games, then follow the links below.
 
 For more information regarding Lode Runner, go to the file named `LR_README.md` 
 within the Mario Diffusion directory.
-```
+
 [View LR_README.md](LR_README.md)
-```
+
 For more For more information regarding Mega Man, go to the file named (whatever Mega Man readme is named) 
 within the Mario Diffusion directory.
