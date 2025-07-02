@@ -1,6 +1,22 @@
+[![arXiv](https://img.shields.io/badge/arXiv-2507.00184-b31b1b.svg)](https://arxiv.org/abs/2507.00184)
+
 # Mario Diffusion
 
 Generate Mario level scenes with a diffusion model conditioned on text input.
+
+## Citation
+
+If you use this code, please cite our paper:  
+[Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros](https://arxiv.org/abs/2507.00184)  
+
+```bibtex
+@article{YourBibtexKey,
+  title   = {Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros},
+  author  = {Jacob Schrum, Olivia Kilday, Emilio Salas, Bess Hagan, Reid Williams},
+  journal = {arXiv preprint arXiv:2507.00184},
+  year    = {2025},
+  url     = {https://arxiv.org/abs/2507.00184}
+}```
 
 ## Set up the repository
 
