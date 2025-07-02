@@ -8,7 +8,7 @@ levels and outputs. The main therory as to why is a small dataset with only 150 
 
 ## Set up the repository
 
-This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username. This should create a folder with the MarioDiffusion folder that contains all needed Lode Runner items:
+This repository is needed to be able to play the Lode Runner levels, but you must fork at the link https://github.com/williamsr03/LodeRunner and then clone repo with your own username. This should create a folder within the MarioDiffusion folder that contains all needed Lode Runner items:
 ```
 git clone --branch Reid --single-branch https://github.com/williamsr03/LodeRunner.git
 ```
@@ -88,7 +88,7 @@ python ascii_data_browser.py LR_LevelsAndCaptions-regular.json datasets\Loderunn
 If the user wanted to play the levels, use the following command line. The following line allows the user to play the first level. If the user wants to play a different level, change the 1 to the level they wish to play.
 Must be in a directory that contains both of the other two directory before using this command line.
 ```
-python LodeRunner\loderunner\main.py LR_LevelsAndCaptions-regular.json 1
+python -m loderunner.main datasets\LR_LevelsAndCaptions-regular.json 1
 ```
 
 But to actually provide captions to guide the level generation, use this command
