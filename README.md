@@ -16,7 +16,8 @@ If you use this code, please cite our paper:
   journal = {arXiv preprint arXiv:2507.00184},
   year    = {2025},
   url     = {https://arxiv.org/abs/2507.00184}
-}```
+}
+```
 
 ## Set up the repository
 
