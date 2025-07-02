@@ -280,7 +280,7 @@ def main():
         args.tileset='datasets\MM_Simple_Tileset.json'
     elif args.game == "MM-Full":
         args.num_tiles = common_settings.MM_FULL_TILE_COUNT
-        args.tileset='..\TheVGLC\MegaMan\MM.json'
+        args.tileset='datasets\MM.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")
 
@@ -827,6 +827,8 @@ def main():
                 visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts)
             elif args.game == "LR":
                 visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts, game='LR')
+            else:
+                visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts, game=args.game)
 
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
