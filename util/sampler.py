@@ -143,11 +143,14 @@ class SampleOutput:
         if game == "loderunner":
             import tempfile, json
             # Convert self.level (list of strings) to Lode Runner JSON format
+            # Needs to be fixed because not creating JSON format
+            #print("self.level:", self.level)
             scene = [[c for c in row] for row in self.level]
             lr_json = [{
                 "scene": scene,
                 "caption": ""
             }]
+            print("lr_json:", lr_json)
             with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
                 json.dump(lr_json, tmp)
                 tmp_path = tmp.name
@@ -156,6 +159,8 @@ class SampleOutput:
             from loderunner import main
             tmp_path = tmp_path if dataset_path is None else dataset_path
             print(f"Playing Lode Runner level interactively -- {tmp_path}!")
+            print("level_idx: ", level_idx)
+            #level_idx = level_idx + 2
             main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
             # simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
             # simulator.interactive()

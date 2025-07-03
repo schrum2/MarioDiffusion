@@ -743,13 +743,13 @@ class TileViewer(tk.Tk):
         player_found = any(self.id_to_char[tile] == 'M' for row in scene for tile in row)
         if not player_found:
             print("No player spawn found!")
-            #return False
+            return False
 
         # Check for at least one gold (if required)
         gold_found = any(self.id_to_char[tile] == 'G' for row in scene for tile in row)
         if not gold_found:
             print("No gold found!")
-            # return False  # Uncomment if gold is required
+            return False  # Uncomment if gold is required
 
         # Check for at least one valid move for the player
         # (You can expand this to check for actual valid moves if needed)

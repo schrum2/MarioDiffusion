@@ -10,6 +10,7 @@ from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
 from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
+from captions.LR_caption_match import compare_captions as lr_compare_captions
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.util import extract_tileset
@@ -18,6 +19,7 @@ from util.sampler import scene_to_ascii
 from models.pipeline_loader import get_pipeline
 from level_dataset import append_absence_captions, remove_duplicate_phrases
 from captions.caption_match import TOPIC_KEYWORDS
+from ascii_data_browser import TileViewer
 
 
 # Add the parent directory to sys.path so sibling folders can be imported
@@ -475,7 +477,7 @@ class CaptionBuilder(ParentBuilder):
             if game_selected == "Lode Runner":
                 number_of_tiles = common_settings.LR_TILE_COUNT
                 scene = [[x % number_of_tiles for x in row] for row in scene]
-                tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+                tileset_path = common_settings.LR_TILESET
             self.generated_scenes.append(scene)
             #selected_game = self.game_var.get()
             if game_selected == "Lode Runner":
@@ -487,8 +489,10 @@ class CaptionBuilder(ParentBuilder):
 
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
-
-            compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+            if game_selected == 'Mario':
+                compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+            elif game_selected == 'Lode Runner':
+                compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
@@ -545,7 +549,7 @@ class CaptionBuilder(ParentBuilder):
 
             # Check if the scene is wider than standard number of tiles and process segments if necessary
             avg_segment_score = None
-            if game_selected != "Lode Runner":
+            if game_selected == "Mario":
                 if len(scene[0]) > common_settings.MARIO_WIDTH:
                     from captions.caption_match import process_scene_segments
                     avg_segment_score, _, _ = process_scene_segments(
@@ -560,8 +564,8 @@ class CaptionBuilder(ParentBuilder):
                     )
             if game_selected == "Lode Runner":
                 if len(scene[0]) > common_settings.LR_WIDTH:
-                    from captions.caption_match import process_scene_segments
-                    avg_segment_score, _, _ = process_scene_segments(
+                    from captions.LR_caption_match import process_scene_segments as lr_process_scene_segments
+                    avg_segment_score, _, _ = lr_process_scene_segments(
                         scene=scene,
                         segment_width=common_settings.LR_WIDTH,
                         prompt=prompt,
@@ -626,7 +630,7 @@ Average Segment Score: {avg_segment_score}"""
         if game_selected == "Lode Runner":
                 number_of_tiles = common_settings.LR_TILE_COUNT
                 scene = [[x % number_of_tiles for x in row] for row in scene]
-                tileset_path = '..\TheVGLC\Lode Runner\LodeRunner.json'
+                tileset_path = common_settings.LR_TILESET
         self.composed_scenes.append(scene)
 
         # Create and store the thumbnail
@@ -762,6 +766,7 @@ Average Segment Score: {avg_segment_score}"""
             tensor = torch.tensor(self.current_levels[idx_or_scene])
             tile_numbers = torch.argmax(tensor, dim=0).numpy()
             if game_selected == "Lode Runner":
+                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in tile_numbers]
                 char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
             else:
                 char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
@@ -769,7 +774,11 @@ Average Segment Score: {avg_segment_score}"""
             return level
         else:
             # Assume idx_or_scene is a scene (list of lists of tile indices)
-            char_grid = scene_to_ascii(idx_or_scene, self.id_to_char)
+            if game_selected == "Lode Runner":
+                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in tile_numbers]
+                char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
+            else:
+                char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
       
@@ -779,7 +788,7 @@ Average Segment Score: {avg_segment_score}"""
             import tempfile, json
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             #print("Level to play:", level)
-            level.play(game="loderunner", level_idx=idx)
+            level.play(game="loderunner", level_idx=1)
         else:
             #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
