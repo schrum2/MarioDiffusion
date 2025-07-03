@@ -10,6 +10,7 @@ import level_dataset
 import torch
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from MM_create_ascii_captions import assign_caption as mm_assign_caption
 from captions.util import extract_tileset 
 import util.common_settings as common_settings
 import random
@@ -98,7 +99,7 @@ class TileViewer(tk.Tk):
             return
         sample = self.dataset[self.current_sample_idx]
         # Example: check for Lode Runner by a property or filename
-        if hasattr(self, "is_lode_runner") and self.is_lode_runner:
+        if self.game.get()=="LR":
             caption, details = lr_assign_caption(
                 sample['scene'],
                 self.id_to_char,
@@ -109,7 +110,18 @@ class TileViewer(tk.Tk):
                 debug=True,
                 return_details=True
             )
-        # If not Lode Runner than Mario
+        if self.game.get()=="MM-Full" or self.game.get()=="MM-Simple":
+            caption, details = mm_assign_caption(
+                sample['scene'],
+                self.id_to_char,
+                self.char_to_id,
+                self.tile_descriptors,
+                describe_locations=False,
+                describe_absence=self.describe_absence.get(),
+                debug=True,
+                return_details=True
+            )
+        # If not Lode Runner or Mega Man than Mario
         else:
             caption, details = assign_caption(
                 sample['scene'],
@@ -260,6 +272,31 @@ class TileViewer(tk.Tk):
         self.composed_thumb_frame = tk.Frame(self)
         self.composed_thumb_frame.pack(fill=tk.X)
 
+        
+        # Game selection
+        # Mapping from the game on the display, to the actual internal names of each game
+        self.game_display_to_real_mapping = {
+            "Mario": "Mario",
+            "Lode Runner": "LR",
+            "Mega Man (Simple)": "MM-Simple",
+            "Mega Man (Full)": "MM-Full"
+        }
+        
+        #Method called every time the dropdown is updated to use the mapping, and putting it in self.game
+        def on_game_select(Event=None):
+            game_display_var = self.game_display_var.get()
+            self.game.set(self.game_display_to_real_mapping.get(game_display_var, game_display_var))
+        
+        #Creating the game dropdown
+        self.game_display_var = tk.StringVar(value="Mario")
+        self.game = tk.StringVar(value=self.game_display_to_real_mapping[self.game_display_var.get()])
+        self.game_label = ttk.Label(self.composed_frame, text="Select Game:", style="TLabel")
+        self.game_label.pack()
+        self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)"], state="readonly")
+        self.game_dropdown.pack()
+        self.game_dropdown.bind("<<ComboboxSelected>>", on_game_select)
+
+
     # method to enter txt file name and save composed level
     def save_composed_level(self):
         scene = self.merge_selected_scenes()
@@ -304,12 +341,6 @@ class TileViewer(tk.Tk):
     def load_files_from_paths(self, dataset_path, tileset_path):
         self.dataset_path = dataset_path
         try:
-            # Set Lode Runner flag based on filename
-            lr_flag = ("lr" in os.path.basename(dataset_path).lower() or
-                       "lode" in os.path.basename(dataset_path).lower() or
-                       "lr" in os.path.basename(tileset_path).lower() or
-                       "lode" in os.path.basename(tileset_path).lower())
-            self.is_lode_runner = lr_flag
             with open(dataset_path, 'r') as f:
                 self.dataset = json.load(f)
 
@@ -377,10 +408,7 @@ class TileViewer(tk.Tk):
             )
             print(f"Generated new level from scene using {num_steps} steps.")
             from level_dataset import visualize_samples
-            if self.is_lode_runner:
-                generated_image = visualize_samples(output.images, game='LR')
-            else:
-                generated_image = visualize_samples(output.images)
+            generated_image = visualize_samples(output.images, game=self.game.get())
             if isinstance(generated_image, list):
                 generated_image = generated_image[0]
             generated_image.show()
@@ -451,7 +479,7 @@ class TileViewer(tk.Tk):
         from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
         # Generate a palette of distinct colors algorithmically
         # See if running Lode Runner
-        if hasattr(self, "is_lode_runner") and self.is_lode_runner:
+        if self.game.get()=="LR":
             TOPIC_KEYWORDS = LR_TOPIC_KEYWORDS
         # If not Lode Runner, use the default topic keywords of Mario
         else:
@@ -489,15 +517,23 @@ class TileViewer(tk.Tk):
             import PIL.ImageTk
             from PIL import Image
 
+            #Get the right size for the one-hot encoding
+            if self.game.get()=="Mario":
+                num_classes = common_settings.MARIO_TILE_COUNT
+            elif self.game.get()=="LR":
+                num_classes = common_settings.LR_TILE_COUNT
+            elif self.game.get()=="MM-Simple":
+                num_classes = common_settings.MM_SIMPLE_TILE_COUNT
+            else: #Goes to MM-Full if all other cases fail
+                num_classes = common_settings.MM_FULL_TILE_COUNT
+            
+            
             one_hot_scene = torch.nn.functional.one_hot(
                 torch.tensor(sample['scene'], dtype=torch.long),
-                num_classes=common_settings.MARIO_TILE_COUNT
+                num_classes=num_classes
             ).float().permute(2, 0, 1).unsqueeze(0)  # Add batch dimension
 
-            if self.is_lode_runner:
-                image = visualize_samples(one_hot_scene, game='LR')
-            else:
-                image = visualize_samples(one_hot_scene)
+            image = visualize_samples(one_hot_scene, game=self.game.get())
             if isinstance(image, list):
                 image = image[0]  # Handle list case by taking the first element
             # Convert to PIL Image if needed
@@ -624,10 +660,7 @@ class TileViewer(tk.Tk):
             torch.tensor(scene, dtype=torch.long),
             num_classes=len(self.id_to_char)
         ).float().permute(2, 0, 1).unsqueeze(0)
-        if self.is_lode_runner:
-                image = visualize_samples(one_hot_scene, game='LR')
-        else:
-            image = visualize_samples(one_hot_scene)
+        image = visualize_samples(one_hot_scene, game=self.game.get())
         if isinstance(image, list):
             image = image[0]
         # Convert to PIL Image if needed
@@ -710,11 +743,11 @@ class TileViewer(tk.Tk):
         scene = self.merge_selected_scenes()
         if scene:
             level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
-            if hasattr(self, 'is_lode_runner') and self.is_lode_runner and not self.validate_lode_runner_level(scene):
+            if self.game.get()=="LR" and not self.validate_lode_runner_level(scene):
                 print("Invalid Lode Runner level. Cannot play.")
                 return  # Stop playing if level is invalid
             level.play(
-                game="loderunner" if self.is_lode_runner else "mario",
+                game=self.game.get(),
                 level_idx=(self.added_sample_indexes[0] + 1) if self.added_sample_indexes else 1,
                 dataset_path=self.dataset_path if hasattr(self, 'dataset_path') else None
             )

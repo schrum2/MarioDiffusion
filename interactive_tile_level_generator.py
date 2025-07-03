@@ -437,6 +437,7 @@ class CaptionBuilder(ParentBuilder):
     
     def generate_image(self):
         global tileset_path, game_selected
+        game_selected = self.game_var.get()
         # # cannot use multiple generations of levels in one composed level
         # self.clear_composed_level()
         # print("Clearing previously composed level for newly generated scenes.")
@@ -815,7 +816,7 @@ Average Segment Score: {avg_segment_score}"""
             import tempfile, json
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             #print("Level to play:", level)
-            level.play(game="loderunner", level_idx=idx)
+            level.play(game="LR", level_idx=idx)
         else:
             #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())

@@ -135,12 +135,12 @@ class SampleOutput:
         level = load_level(filename)
         return SampleOutput(level=level)
 
-    def play(self, game="mario", level_idx=None, dataset_path=None):
+    def play(self, game="Mario", level_idx=None, dataset_path=None):
         """
         Play the level using the specified game engine.
-        game: "mario" (default) or "loderunner"
+        game: "Mario" (default) or "LR"
         """
-        if game == "loderunner":
+        if game == "LR":
             import tempfile, json
             # Convert self.level (list of strings) to Lode Runner JSON format
             scene = [[c for c in row] for row in self.level]
