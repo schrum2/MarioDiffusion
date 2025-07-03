@@ -18,6 +18,7 @@ from util.sampler import scene_to_ascii
 from models.pipeline_loader import get_pipeline
 from level_dataset import append_absence_captions, remove_duplicate_phrases
 from captions.caption_match import TOPIC_KEYWORDS
+from models.fdm_pipeline import FDMPipeline
 
 
 # Add the parent directory to sys.path so sibling folders can be imported
@@ -246,6 +247,38 @@ class CaptionBuilder(ParentBuilder):
             self.automatic_absence_caption_checkbox.config(state=tk.DISABLED)
             self.automatic_absence_caption.set(False)
 
+    def probe_diffusion_args_support(self):
+        """Test if the loaded model can use our diffusion-specific args, greys them out if it can't"""
+        if isinstance(self.pipe, FDMPipeline):
+            #We're using an FDM model here, so we remove support for negative prompts, guidance scale, inference steps, and control over the width/height of the output.
+            self.negative_prompt_entry.delete("1.0", tk.END)
+            self.negative_prompt_entry.config(state=tk.DISABLED)
+
+            self.automatic_negative_caption.set(False)
+            self.automatic_negative_caption_checkbox.config(state=tk.DISABLED)
+
+            self.guidance_entry.config(state=tk.DISABLED)
+
+            self.num_steps_entry.config(state=tk.DISABLED)
+
+            self.width_entry.config(state=tk.DISABLED)
+
+            self.height_entry.config(state=tk.DISABLED)
+        else:
+            #If this isn't the case, return everything back to normal
+            self.negative_prompt_entry.config(state=tk.NORMAL)
+
+            self.automatic_negative_caption_checkbox.config(state=tk.NORMAL)
+
+            self.guidance_entry.config(state=tk.NORMAL)
+
+            self.num_steps_entry.config(state=tk.NORMAL)
+
+            self.width_entry.config(state=tk.NORMAL)
+
+            self.height_entry.config(state=tk.NORMAL)
+
+
     def create_image_context_menu(self, pil_image, image_index):
         """Create a context menu for right-clicking on images"""
         context_menu = tk.Menu(self.master, tearoff=0)
@@ -349,6 +382,9 @@ class CaptionBuilder(ParentBuilder):
             
             # Probe for absence caption support before updating GUI
             self.probe_absence_caption_support()
+
+            # Probe to grey out diffusion args if we're using the FDM model
+            self.probe_diffusion_args_support()
 
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"
