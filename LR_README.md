@@ -1,10 +1,7 @@
 # Lode Runner Generation
 
 Generate Lode Runner level scenes with a diffusion model conditioned on text input.
-
-## Getting Lode Runner Data
-This Lode Runner data is still experimental and on-going and the current results are not as good as the Mario
-levels and outputs. The main therory as to why is a small dataset with only 150 samples.
+This Lode Runner data is still experimental and on-going and the current results are not as good as the Mario levels and outputs. The main therory as to why is a small dataset with only 150 samples.
 
 ## Set up the repository
 
@@ -46,7 +43,7 @@ LR-data.bat
 
 Now you can browse level scenes and their captions with a command like this (the json file can be replaced by any levels and captions json file in datasets):
 ```
-python ascii_data_browser.py LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
+python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
 ```
 
 ## Complete training and evaluation sequence
