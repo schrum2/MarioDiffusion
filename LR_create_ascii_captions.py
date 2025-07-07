@@ -339,54 +339,54 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     floor_caption = analyze_floor(scene, id_to_char, tile_descriptors, describe_absence)
     add_to_caption(floor_caption + "." if floor_caption else "", list(floor_tiles))
 
-    def bigger_ceiling(ceiling_higher, ceiling_regular):
-        if ceiling_higher == None:
-            return False
-        ceiling_order = ["full ceiling.", "ceiling with one gap.", "ceiling with two gaps.", "ceiling with a few gaps.", "ceiling with several gaps.", "ceiling with many gaps.", "no ceiling.", ""]
-        return ceiling_order.index(ceiling_higher.strip()) <= ceiling_order.index(ceiling_regular.strip())
+    # def bigger_ceiling(ceiling_higher, ceiling_regular):
+    #     if ceiling_higher == None:
+    #         return False
+    #     ceiling_order = ["full ceiling.", "ceiling with one gap.", "ceiling with two gaps.", "ceiling with a few gaps.", "ceiling with several gaps.", "ceiling with many gaps.", "no ceiling.", ""]
+    #     return ceiling_order.index(ceiling_higher.strip()) <= ceiling_order.index(ceiling_regular.strip())
 
-    # Analyze ceiling
-    for c in range(CEILING, 0, -1):
-        ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = c)
-        ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = c - 1)
-        ceiling_start = c
-        #print(f"{c} ceiling_regular: {ceiling_regular}, ceiling_higher: {ceiling_higher}")
-        if describe_absence and (ceiling_regular != " no ceiling." or ceiling_higher != " no ceiling."):
-            break
-        if not describe_absence and (ceiling_regular != "" or ceiling_higher != ""):
-            break
+    # # Analyze ceiling
+    # for c in range(CEILING, 0, -1):
+    #     ceiling_regular = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = c)
+    #     ceiling_higher = analyze_ceiling(scene, id_to_char, tile_descriptors, describe_absence, ceiling_row = c - 1)
+    #     ceiling_start = c
+    #     #print(f"{c} ceiling_regular: {ceiling_regular}, ceiling_higher: {ceiling_higher}")
+    #     if describe_absence and (ceiling_regular != " no ceiling." or ceiling_higher != " no ceiling."):
+    #         break
+    #     if not describe_absence and (ceiling_regular != "" or ceiling_higher != ""):
+    #         break
 
-    #print(f"END ceiling_regular: {ceiling_regular}, ceiling_higher: {ceiling_higher}")
+    # #print(f"END ceiling_regular: {ceiling_regular}, ceiling_higher: {ceiling_higher}")
         
-    ceiling_phrase = None
-    ceiling_row = None
-    if (ceiling_regular == " no ceiling." and ceiling_higher == " no ceiling.") or (ceiling_regular == "" and ceiling_higher == ""):
-        ceiling_row = None
-        ceiling_phrase = ceiling_regular
-        add_to_caption(ceiling_regular, []) # No ceiling at all
-    elif ceiling_regular and ceiling_regular != " no ceiling." and ceiling_regular != "" and not bigger_ceiling(ceiling_higher, ceiling_regular):
-        ceiling_row = ceiling_start
-        ceiling_phrase = ceiling_regular
-        add_to_caption(ceiling_regular, [(ceiling_start, x) for x in range(WIDTH)])
-        for x in range(WIDTH):
-            already_accounted.add((ceiling_start, x))
-    elif ceiling_higher and ceiling_higher != " no ceiling." and ceiling_higher != "" and ceiling_start != 0:
-        ceiling_row = ceiling_start - 1
-        ceiling_phrase = ceiling_higher
-        add_to_caption(ceiling_higher, [(ceiling_start - 1, x) for x in range(WIDTH)])
-        for x in range(WIDTH):
-            already_accounted.add((ceiling_start - 1, x))
+    # ceiling_phrase = None
+    # ceiling_row = None
+    # if (ceiling_regular == " no ceiling." and ceiling_higher == " no ceiling.") or (ceiling_regular == "" and ceiling_higher == ""):
+    #     ceiling_row = None
+    #     ceiling_phrase = ceiling_regular
+    #     add_to_caption(ceiling_regular, []) # No ceiling at all
+    # elif ceiling_regular and ceiling_regular != " no ceiling." and ceiling_regular != "" and not bigger_ceiling(ceiling_higher, ceiling_regular):
+    #     ceiling_row = ceiling_start
+    #     ceiling_phrase = ceiling_regular
+    #     add_to_caption(ceiling_regular, [(ceiling_start, x) for x in range(WIDTH)])
+    #     for x in range(WIDTH):
+    #         already_accounted.add((ceiling_start, x))
+    # elif ceiling_higher and ceiling_higher != " no ceiling." and ceiling_higher != "" and ceiling_start != 0:
+    #     ceiling_row = ceiling_start - 1
+    #     ceiling_phrase = ceiling_higher
+    #     add_to_caption(ceiling_higher, [(ceiling_start - 1, x) for x in range(WIDTH)])
+    #     for x in range(WIDTH):
+    #         already_accounted.add((ceiling_start - 1, x))
     
-    #print("after ceiling", (10,0) in already_accounted)
+    # #print("after ceiling", (10,0) in already_accounted)
     
-    # Is the ceiling filled in even more? 
-    if ceiling_row and ceiling_phrase:
-        for r in range(ceiling_row - 1, -1, -1):
-            #print(r ,f"also ceiling '{ceiling_phrase.strip()}'", details)
-            if scene[r] == scene[ceiling_row]:
-                if details:
-                    details[ceiling_phrase.strip()].extend([(r, x) for x in range(WIDTH)])
-                already_accounted.update((r, x) for x in range(WIDTH))
+    # # Is the ceiling filled in even more? 
+    # if ceiling_row and ceiling_phrase:
+    #     for r in range(ceiling_row - 1, -1, -1):
+    #         #print(r ,f"also ceiling '{ceiling_phrase.strip()}'", details)
+    #         if scene[r] == scene[ceiling_row]:
+    #             if details:
+    #                 details[ceiling_phrase.strip()].extend([(r, x) for x in range(WIDTH)])
+    #             already_accounted.update((r, x) for x in range(WIDTH))
             
     # Count enemies
     enemy_phrase = count_caption_phrase(scene, [char_to_id['E']], "enemy", "enemies", describe_absence=describe_absence)
@@ -486,17 +486,17 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         #add_to_caption(spawn_phrase, spawn_positions)
 
     # Platforms
-    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[] if ceiling_row == None else [ceiling_row])
+    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[])
     #print("after platform_lines", (10,0) in already_accounted)
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations, describe_absence=describe_absence)
-    add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
+    #add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
 
 
     # Solid structures
 
     #print(already_accounted)
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
-    structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, ceiling_row=ceiling_row, floor_row=floor_row)
+    structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, ceiling_row=CEILING, floor_row=floor_row)
     for phrase, coords in structure_phrase:
         add_to_caption(phrase, coords)
 

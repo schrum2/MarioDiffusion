@@ -12,11 +12,11 @@ class GrammarGenerator:
         self.topic_phrases = {
             "floor": ["full floor", "floor with one gap", "floor with two gaps", "floor with a few gaps", "floor with several gaps",
                      "giant gap with one chunk of floor", "giant gap with two chunks of floor", "giant gap with a few chunks of floor", "giant gap with several chunks of floor"],
-            "ceiling": ["full ceiling", "ceiling with one gap", "ceiling with two gaps", "ceiling with a few gaps"],
+            # "ceiling": ["full ceiling", "ceiling with one gap", "ceiling with two gaps", "ceiling with a few gaps"],
             # "broken pipe": ["one broken pipe", "two broken pipes"],
             "gold line": ["one gold line", "two gold lines", "a few gold lines"],
             "gold": ["one gold", "two gold", "several gold", "a few gold", "many gold"],
-            "platform": ["one platform", "two platforms", "a few platforms", "several platforms"],
+            #"platform": ["one platform", "two platforms", "a few platforms", "several platforms"],
             "ladder cluster": ["one ladder cluster", "two ladder clusters", "a few ladder clusters", "several ladder clusters"],
             "lone ladder tile": ["one lone ladder tile", "two lone ladder tiles", "a few lone ladder tiles", "several lone ladder tiles"],
             "short ladder": ["one short ladder", "two short ladders", "a few short ladders", "several short ladders"],
@@ -35,7 +35,7 @@ class GrammarGenerator:
         # Topic absence descriptions
         self.absence_phrases = {
             "floor": "no floor",
-            "ceiling": "no ceiling",
+            # "ceiling": "no ceiling",
             "gold line": "no gold lines", 
             "gold": "no gold",
             "ladder cluster": "no ladder clusters",
@@ -44,7 +44,7 @@ class GrammarGenerator:
             "tall ladder": "no tall ladders",
             "chamber": "no chamber",
             "rope": "no ropes",
-            "platform": "no platforms",
+            #"platform": "no platforms",
             "rectangular": "no rectangular block clusters",
             "irregular": "no irregular block clusters",
             "loose block": "no loose blocks",
@@ -56,13 +56,13 @@ class GrammarGenerator:
         
         # These are the keywords used to identify topics
         self.topic_keywords = [
-            "floor", "ceiling",
+            "floor", # "ceiling",
             "gold line", "gold",
             "ladder cluster",
             "lone ladder tile", "short ladder", "tall ladder",
             "chamber",
             "rope",
-            "platform",
+            #"platform",
             "rectangular",
             "irregular", 
             "loose block",
@@ -213,15 +213,15 @@ if __name__ == "__main__":
     
     # Test with example sentences
     lr_example_sentences = [
-        "full floor. one enemy. a few ladders. one platform. one rope.",
+        "full floor. one enemy. a few ladders. one rope.",
         "full floor. one enemy. two ropes.",
-        "floor with one gap. one enemy. one gold. two platforms.",
-        "full floor. a few enemies. two ladders. two platforms.",
-        "full floor. full ceiling. two enemies. several ladders. one platform. one irregular block cluster.",
-        "floor with one gap. full ceiling. two enemies. one irregular block cluster. one gold.",
-        "giant gap with one chunk of floor. two platforms.",
-        "giant gap with two chunks of floor. one enemy. one ladder. two gold. one gold line. two platforms.",
-        "giant gap with one chunk of floor. one enemy. several gold. two gold lines. a few platforms.",
+        "floor with one gap. one enemy. one gold.",
+        "full floor. a few enemies. two ladders.",
+        "full floor. two enemies. several ladders. one irregular block cluster.",
+        "floor with one gap. two enemies. one irregular block cluster. one gold.",
+        "giant gap with one chunk of floor.",
+        "giant gap with two chunks of floor. one enemy. one ladder. two gold. one gold line.",
+        "giant gap with one chunk of floor. one enemy. several gold. two gold lines.",
         "full floor. a few enemies. one ladder.",
         "full floor. two enemies. one ladder. one gold line."
     ]
