@@ -6,6 +6,23 @@ from captions.util import extract_tileset, describe_size, describe_quantity, get
 
 import util.common_settings as common_settings
 
+#Ideas:
+#Walls for each size/exit directions
+#Some kind of data transfer telling us which way the level is moving
+    #Encode "enter:", "exit:", and "blocked:", all giving us a direction
+#Check for ladders, enemies, powerups, water/air, spikes, moving/dissapearing blocks
+    #Ladders: count number of vertical strips
+    #enemies: same as mario, raw count
+    #powerups: same
+    #water:a little, a lot, half, mostly, all: mesures water/air ratio, 0-10% water, 10-40%, 40-60%, 60-99%, 100% respectivly
+    #Spikes: a few:0-5, a lot:6+
+    #Moving platforms: one, two, several, for 1, 2, 3+ continuous horizantal platforms
+    #Dissapearing blocks: a few: 0-3, a lot:4+
+#Base checks, mostly unchanged
+    #Platforms (slightly expand definition of a platform)
+    #Loose blocks (same as mario)
+
+
 # The floor is the last row of the scene (0-indexed)
 FLOOR = common_settings.MEGAMAN_HEIGHT - 1
 CEILING = common_settings.MEGAMAN_HEIGHT - 12 #  4
