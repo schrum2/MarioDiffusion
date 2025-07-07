@@ -55,7 +55,7 @@ cd LR_batch
 ```
 Run this command:
 ```
-LR-unconditional.bat regular 0
+LR-unconditional.bat 0 regular
 ```
 
 To train and run a conditional diffusion model without any text embeddings, go within the 
@@ -66,7 +66,7 @@ cd LR_batch
 The following command trains an MLM model on the Lode Runner data, trains a conditional diffusion model,
 runs the diffusion model, and evaluates the caption adherence based on the generated levels and captions:
 ```
-LR-conditional.bat regular 0
+LR-conditional.bat 0 regular
 ```
 ## Generating and playing Lode Runner levels
 If the user wants to see the captions and play all of the original levels, use the following command line:
