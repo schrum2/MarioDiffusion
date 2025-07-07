@@ -131,7 +131,7 @@ def main():
             if args.num_tiles == common_settings.MARIO_TILE_COUNT:
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
             elif args.num_tiles == common_settings.LR_TILE_COUNT:
-                tileset = '..\\TheVGLC\\Lode Runner\\Loderunner.json'
+                tileset = common_settings.LR_TILESET
                 scenes = [
                             [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
                             for scene in scenes
