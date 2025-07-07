@@ -151,7 +151,7 @@ class SampleOutput:
                 "caption": ""
             }]
             with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-                json.dump(lr_json, tmp)
+                json.dump(lr_json, tmp, indent = 2)
                 tmp_path = tmp.name
             import sys, os
             #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
