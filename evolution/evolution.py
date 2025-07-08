@@ -5,7 +5,8 @@ from abc import ABC, abstractmethod
 import util.common_settings as common_settings
 
 class Evolver(ABC):
-    def __init__(self, population_size = 9):
+    def __init__(self, args, population_size = 9):
+        self.args = args
         self.population_size = population_size
         self.steps = common_settings.NUM_INFERENCE_STEPS
         self.guidance_scale = common_settings.GUIDANCE_SCALE
@@ -27,7 +28,8 @@ class Evolver(ABC):
             back_fn=self.previous_generation,
             generation_fn=self.get_generation,
             allow_prompt=allow_prompt,
-            allow_negative_prompt=allow_negative_prompt
+            allow_negative_prompt=allow_negative_prompt,
+            args = self.args
         )
         # Start the GUI event loop
         self.root.mainloop()

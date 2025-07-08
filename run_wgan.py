@@ -32,11 +32,34 @@ def parse_args():
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
+
     return parser.parse_args()
 
 def main():
     args = parse_args()
     
+    if args.game == "Mario":
+        args.num_tiles = common_settings.MARIO_TILE_COUNT
+        isize = common_settings.MARIO_HEIGHT
+    elif args.game == "LR":
+        args.num_tiles = common_settings.LR_TILE_COUNT
+        isize = common_settings.LR_HEIGHT
+    elif args.game == "MM-Simple":
+        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+    elif args.game == "MM-Full":
+        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+    else:
+        raise ValueError(f"Unknown game: {args.game}")
+
     # Set random seed if provided
     if args.seed is not None:
         random.seed(args.seed)
@@ -52,9 +75,6 @@ def main():
     # Get device
     device = torch.device(args.device if torch.cuda.is_available() and args.device == "cuda" else "cpu")
     print(f"Using device: {device}")
-        
-    # Set input image size (assumes square)
-    isize = common_settings.MARIO_HEIGHT
     
     # Initialize generator
     netG = WGAN_Generator(isize, args.nz, args.num_tiles, args.ngf, n_extra_layers=args.n_extra_layers)
@@ -98,7 +118,7 @@ def main():
     all_samples = torch.cat(all_samples, dim=0)[:samples_generated]
 
     # Visualize and save samples
-    visualize_samples(all_samples, args.output_dir)
+    visualize_samples(all_samples, args.output_dir, game = args.game)
 
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)

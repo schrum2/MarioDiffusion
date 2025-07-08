@@ -12,7 +12,7 @@ from models.pipeline_loader import get_pipeline
 
 class DiffusionEvolver(Evolver):
     def __init__(self, model_path, width, tileset_path=common_settings.MARIO_TILESET, args=None):
-        Evolver.__init__(self)
+        Evolver.__init__(self, args)
 
         self.args = args
         self.width = width
@@ -20,17 +20,7 @@ class DiffusionEvolver(Evolver):
         self.pipe = get_pipeline(model_path).to(self.device)
 
         #self.pipe.print_unet_architecture()
-        if args.game == "Mario":
-            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-        elif args.game == 'LR':
-            tileset_path = common_settings.LR_TILESET
-            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-        elif args.game == 'MM-Simple':
-            tileset_path = 'datasets\MM_Simple_Tileset.json'
-            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-        elif args.game == 'MM-Full':
-            tileset_path = '..\TheVGLC\MegaMan\MM.json'
-            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+        _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
         
     def random_latent(self, seed=1):
         if args.game == "Mario":
@@ -128,5 +118,16 @@ def parse_args():
 
 if __name__ == "__main__": 
     args = parse_args()
+
+    if args.game == "Mario":
+        args.tileset_path = common_settings.MARIO_TILESET
+    elif args.game == 'LR':
+        args.tileset_path = common_settings.LR_TILESET
+    elif args.game == 'MM-Simple':
+        args.tileset_path = 'datasets\MM_Simple_Tileset.json'
+    elif args.game == 'MM-Full':
+        args.tileset_path = '..\TheVGLC\MegaMan\MM.json'
+        
+
     evolver = DiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
     evolver.start_evolution()

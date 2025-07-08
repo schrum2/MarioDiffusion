@@ -12,7 +12,7 @@ Handles evolution in the latent space for generating level scenes.
 """
 
 class ImageGridViewer:
-    def __init__(self, root, callback_fn=None, back_fn=None, generation_fn = None, allow_prompt = False, allow_negative_prompt = False):
+    def __init__(self, root, callback_fn=None, back_fn=None, generation_fn = None, allow_prompt = False, allow_negative_prompt = False, args=None):
         self.root = root
         self.root.title("Generated Images")
         self.images = []  # Stores PIL Image objects
@@ -31,6 +31,8 @@ class ImageGridViewer:
         self.composed_thumbnails = []
         self.composed_thumbnail_labels = []
         self.selected_composed_index = None
+
+        self.args = args
         
         self.id_to_char = None # Will come later
 
@@ -276,16 +278,28 @@ class ImageGridViewer:
         return concatenated_scene
 
     def get_sample_output(self, scene, use_snes_graphics=None):
-        if use_snes_graphics is None:
-            use_snes_graphics = self.use_snes_graphics.get()
-        char_grid = scene_to_ascii(scene, self.id_to_char)
-        return SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+        if self.args.game == 'LR':
+            char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
+            level = SampleOutput(level=scene, use_snes_graphics=use_snes_graphics)
+        elif self.args.game == 'Mario':
+            # Mario
+            if use_snes_graphics is None:
+                use_snes_graphics = self.use_snes_graphics.get()
+            char_grid = scene_to_ascii(scene, self.id_to_char)
+            level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+        return level
 
     def _play_composed_level(self):
         composed_scene = self._merge_composed_scenes()
         if composed_scene:
-            level = self.get_sample_output(composed_scene, use_snes_graphics=self.use_snes_graphics.get())
-            level.play()
+            if self.args.game == "LR":
+                level = self.get_sample_output(composed_scene, use_snes_graphics=self.use_snes_graphics.get())
+                #print("Level to play:", level)
+                level.play(game="loderunner", level_idx=1)
+            else:
+                #Default: Mario play logic
+                level = self.get_sample_output(composed_scene, use_snes_graphics=self.use_snes_graphics.get())
+                level.play()
 
     def _astar_composed_level(self):
         composed_scene = self._merge_composed_scenes()
@@ -612,8 +626,15 @@ class ImageGridViewer:
 
     def _play_genome(self, genome):
         # level = self.get_sample_output(genome.scene)
-        level = self.get_sample_output(genome.scene, use_snes_graphics=self.use_snes_graphics.get())
-        level.play()
+        if self.args.game == "LR":
+            import tempfile, json
+            level = self.get_sample_output(genome.scene, use_snes_graphics=self.use_snes_graphics.get())
+            #print("Level to play:", level)
+            level.play(game="loderunner", level_idx=1)
+        else:
+            #Default: Mario play logic
+            level = self.get_sample_output(genome.scene, use_snes_graphics=self.use_snes_graphics.get())
+            level.play()
 
     def _run_astar_agent(self, genome):
         # level = self.get_sample_output(genome.scene)

@@ -7,11 +7,12 @@ from models.wgan_model import WGAN_Generator
 from run_wgan import generate_level_scene_from_latent
 from evolution.genome import LatentGenome
 from create_ascii_captions import assign_caption
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
 import util.common_settings as common_settings
 
 class WGANEvolver(Evolver):
     def __init__(self, args):
-        Evolver.__init__(self)
+        Evolver.__init__(self, args)
 
         self.args = args
 
@@ -19,7 +20,21 @@ class WGANEvolver(Evolver):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Set input image size (assumes square samples)
-        isize = common_settings.MARIO_HEIGHT
+        if args.game == "Mario":
+            args.num_tiles = common_settings.MARIO_TILE_COUNT
+            isize = common_settings.MARIO_HEIGHT
+        elif args.game == "LR":
+            args.num_tiles = common_settings.LR_TILE_COUNT
+            isize = common_settings.LR_HEIGHT
+        elif args.game == "MM-Simple":
+            args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+            isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+        elif args.game == "MM-Full":
+            args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+            isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+        else:
+            raise ValueError(f"Unknown game: {args.game}")
+        
         self.netG = WGAN_Generator(isize, args.nz, args.num_tiles, args.ngf, n_extra_layers=args.n_extra_layers)
 
         # Load trained model
@@ -63,16 +78,19 @@ class WGANEvolver(Evolver):
         #print(scene)
         g.scene = scene 
 
-        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        if args.game == 'Mario':
+            actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        elif args.game == 'LR':
+            actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
         g.caption = actual_caption
 
         #print(f"Describe resulting image: {actual_caption}")
         #compare_score = compare_captions(self.prompt, actual_caption)
         #print(f"Comparison score: {compare_score}")
 
-        if args.tileset == common_settings.MARIO_TILESET:
+        if args.game == 'Mario':
             samples = visualize_samples(samples_cpu)
-        elif args.tileset == common_settings.LR_TILESET:
+        elif args.game == 'LR':
             samples = visualize_samples(samples_cpu, game='LR')
         return samples
 
@@ -93,9 +111,32 @@ def parse_args():
     parser.add_argument("--ngf", type=int, default=64, help="Size of feature maps in generator")
     parser.add_argument("--n_extra_layers", type=int, default=0, help="Number of extra layers in generator")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
+
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
+
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
+    if args.game == "Mario":
+        args.num_tiles = common_settings.MARIO_TILE_COUNT
+        isize = common_settings.MARIO_HEIGHT
+    elif args.game == "LR":
+        args.num_tiles = common_settings.LR_TILE_COUNT
+        isize = common_settings.LR_HEIGHT
+    elif args.game == "MM-Simple":
+        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+    elif args.game == "MM-Full":
+        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+    else:
+        raise ValueError(f"Unknown game: {args.game}")
     evolver = WGANEvolver(args)
     evolver.start_evolution()

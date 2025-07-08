@@ -804,7 +804,7 @@ Average Segment Score: {avg_segment_score}"""
             tile_numbers = torch.argmax(tensor, dim=0).numpy()
             if game_selected == "Lode Runner":
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in tile_numbers]
-                char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
+                #char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
             else:
                 char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
