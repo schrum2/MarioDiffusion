@@ -145,22 +145,23 @@ class SampleOutput:
             # Convert self.level (list of strings) to Lode Runner JSON format
             # Needs to be fixed because not creating JSON format
             #print("self.level:", self.level)
+            is_spawn = self.is_lr_spawn()
             scene = [[c for c in row] for row in self.level]
             lr_json = [{
                 "scene": scene,
                 "caption": ""
             }]
+            #is_spawn = self.is_lr_spawn()
             with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
                 json.dump(lr_json, tmp, indent = 2)
                 tmp_path = tmp.name
             import sys, os
             #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
             from loderunner import main
-            from ascii_data_browser import TileViewer
             tmp_path = tmp_path if dataset_path is None else dataset_path
-            #if TileViewer.validate_lode_runner_level(self.level):
-            print(f"Playing Lode Runner level interactively -- {tmp_path}!")
-            main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
+            if is_spawn:
+                print(f"Playing Lode Runner level interactively -- {tmp_path}!")
+                main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
         else:
             if self.use_snes_graphics:
                 simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
@@ -174,6 +175,38 @@ class SampleOutput:
         else:
             simulator = CustomSimulator(level=self.level, jar_path="NESMarioEval.jar")
         return simulator.astar(render)
+    
+    def is_lr_spawn(self, spawn_id=6, empty_id=2, gold_id=5):
+        """
+        Ensures there is a spawn point in self.level. If not, randomly selects an empty space and places the spawn point there.
+        Returns True if a spawn point is present or was added, False if no empty space was found.
+        """
+        import random
+        if self.level is None:
+            print("No level found!")
+            return False
+        # Check if spawn point exists
+        for row in self.level:
+            if spawn_id in row:
+                print("Found spawn point!")
+            if gold_id in row:
+                print("Found gold!")
+                return True
+        # Find all empty spaces
+        empty_positions = []
+        for y, row in enumerate(self.level):
+            for x, tile in enumerate(row):
+                if tile == empty_id:
+                    empty_positions.append((y, x))
+        if not empty_positions:
+            print("No empty spaces")
+            return False
+        # Randomly select one and place spawn
+        y, x = random.choice(empty_positions)
+        self.level[y][x] = spawn_id
+        self.level[y][x+1] = gold_id
+        print("Adding spawn point!")
+        return True
 
 class CustomSimulator:
     """
