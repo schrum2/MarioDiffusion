@@ -84,12 +84,16 @@ def main():
 
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
+        isize = common_settings.MARIO_HEIGHT
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
+        isize = common_settings.LR_HEIGHT
     elif args.game == "MM-Simple":
         args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
     elif args.game == "MM-Full":
         args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
     else:
         raise ValueError(f"Unknown game: {args.game}")
     
@@ -127,9 +131,6 @@ def main():
                                         negative_prompt_training=None,
                                         block_embeddings=None, batch_size=args.batch_size)
     
-
-    # Set input image size (assume square)
-    isize = common_settings.MARIO_HEIGHT
     
     # Initialize generator and discriminator
     netG = WGAN_Generator(isize, args.nz, args.num_tiles, args.ngf, n_extra_layers=args.n_extra_layers)
@@ -241,6 +242,8 @@ def main():
             else:
                 scenes = batch
             
+            # print(scenes.shape) # For LR: (B,8,32,32)
+
             scenes = scenes.to(device)
             batch_size = scenes.size(0)
             
