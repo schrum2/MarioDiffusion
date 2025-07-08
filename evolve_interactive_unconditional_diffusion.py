@@ -5,6 +5,7 @@ import argparse
 import torch
 from evolution.genome import LatentGenome
 from create_ascii_captions import assign_caption
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
 import util.common_settings as common_settings
 from models.pipeline_loader import get_pipeline
 
@@ -19,14 +20,36 @@ class DiffusionEvolver(Evolver):
         self.pipe = get_pipeline(model_path).to(self.device)
 
         #self.pipe.print_unet_architecture()
-
-        _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-
+        if args.game == "Mario":
+            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+        elif args.game == 'LR':
+            tileset_path = common_settings.LR_TILESET
+            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+        elif args.game == 'MM-Simple':
+            tileset_path = 'datasets\MM_Simple_Tileset.json'
+            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+        elif args.game == 'MM-Full':
+            tileset_path = '..\TheVGLC\MegaMan\MM.json'
+            _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+        
     def random_latent(self, seed=1):
+        if args.game == "Mario":
+            height = common_settings.MARIO_HEIGHT
+            width = common_settings.MARIO_WIDTH
+            num_channels_latents = common_settings.MARIO_TILE_COUNT
+        elif args.game == 'LR':
+            height = common_settings.LR_HEIGHT
+            width = common_settings.LR_WIDTH
+            num_channels_latents = common_settings.LR_TILE_COUNT
+        elif args.game == 'MM-Simple':
+            height = common_settings.MEGAMAN_HEIGHT
+            width = common_settings.MEGAMAN_WIDTH
+            num_channels_latents = common_settings.MM_SIMPLE_TILE_COUNT
+        elif args.game == 'MM-Full':
+            height = common_settings.MEGAMAN_HEIGHT
+            width = common_settings.MEGAMAN_WIDTH
+            num_channels_latents = common_settings.MM_FULL_TILE_COUNT
         # Create the initial noise latents (this is what the pipeline does internally)
-        height = common_settings.MARIO_HEIGHT
-        width = self.width
-        num_channels_latents = common_settings.MARIO_TILE_COUNT
         latents_shape = (1, num_channels_latents, height, width)
         latents = torch.randn(
             latents_shape, 
@@ -67,17 +90,19 @@ class DiffusionEvolver(Evolver):
         scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
         #print(scene)
         g.scene = scene 
-
-        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        if args.game == 'Mario':
+            actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        elif args.game == 'LR':
+            actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
         g.caption = actual_caption
 
         #print(f"Describe resulting image: {actual_caption}")
         #compare_score = compare_captions(self.prompt, actual_caption)
         #print(f"Comparison score: {compare_score}")
 
-        if self.args.tileset == common_settings.MARIO_TILESET:
+        if args.game == 'Mario':
             samples = visualize_samples(images)
-        elif self.args.tileset == common_settings.LR_TILESET:
+        elif args.game == 'LR':
             samples = visualize_samples(images, game='LR')
         return samples
 
@@ -90,6 +115,14 @@ def parse_args():
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Tile width of generated level")
+
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
 
     return parser.parse_args()
 
