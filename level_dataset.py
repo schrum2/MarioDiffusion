@@ -17,6 +17,7 @@ import re
 
 # Global variable to store the loaded sprite sheet
 _sprite_sheet = None
+_sprite_sheet_name = None
 
 def samples_to_scenes(all_samples, block_embeddings=None):
     # Convert to list
@@ -106,7 +107,30 @@ def colors():
         (1.0, 1.0, 0.0),    # 12 = yellow: coin
         (1.0, 1.0, 1.0),    # 13 = white
         (0.6, 0.0, 0.9),    # 14 = violet
-        (0.3, 0.3, 0.3)     # 15 (extra color just in case)
+        (0.3, 0.3, 0.3),    # 15 (extra color just in case)
+        (0.72, 0.031, 0.753),
+        (0.912, 0.215, 0.708),
+        (0.82, 0.672, 0.166),
+        (0.342, 0.25, 0.571),
+        (0.013, 0.055, 0.842),
+        (0.078, 0.938, 0.688),
+        (0.172, 0.056, 0.087),
+        (0.062, 0.608, 0.968), #Extra randomly-generated colors for long mega man data
+        (0.001, 0.478, 0.136),
+        (0.542, 0.81, 0.345),
+        (0.541, 0.478, 0.703),
+        (0.596, 0.108, 0.466),
+        (0.27, 0.453, 0.655),
+        (0.187, 0.037, 0.295),
+        (0.783, 0.744, 0.474),
+        (0.333, 0.036, 0.349),
+        (0.491, 0.736, 0.145),
+        (0.362, 0.128, 0.78),
+        (0.401, 0.028, 0.866),
+        (0.486, 0.748, 0.975),
+        (0.787, 0.462, 0.722),
+        (0.694, 0.804, 0.86),
+        (0.647, 0.801, 0.301)
     ]
 
     return colorslist
@@ -123,10 +147,13 @@ def mario_tiles():
     #raise ValueError("Why is this being called!")
 
     global _sprite_sheet
+    global _sprite_sheet_name
+
 
     # Load the sprite sheet only once
-    if _sprite_sheet is None:
-        _sprite_sheet = Image.open("mapsheet.png")
+    if _sprite_sheet_name != "mapsheet.png":
+        _sprite_sheet_name = "mapsheet.png" #Done to ensure we can change the sprite sheet after code execution
+        _sprite_sheet = Image.open(_sprite_sheet_name)
 
     # Hardcoded coordinates for the first 16 tiles (row, col)
     tile_coordinates = [
@@ -177,10 +204,12 @@ def lr_tiles():
         A list of 8x8 pixel tile images for Lode Runner.
     """
     global _sprite_sheet
+    global _sprite_sheet_name
 
     # Load the sprite sheet only once
-    if _sprite_sheet is None:
-        _sprite_sheet = Image.open("LR_mapsheet.png")
+    if _sprite_sheet_name != "LR_mapsheet.png":
+        _sprite_sheet_name = "LR_mapsheet.png" #Done to ensure we can change the sprite sheet after code execution
+        _sprite_sheet = Image.open(_sprite_sheet_name)
 
     # Hardcoded coordinates for the first 10 tiles (row, col)
     LR_tile_coordinates = [
@@ -224,10 +253,12 @@ def mm_tiles(game):
         A list of 16x16 pixel tile images for Mega Man.
     """
     global _sprite_sheet
+    global _sprite_sheet_name
 
     # Load the sprite sheet only once
-    if _sprite_sheet is None:
-        _sprite_sheet = Image.open("MM_mapsheet.png")
+    if _sprite_sheet_name != "MM_mapsheet.png":
+        _sprite_sheet_name = "MM_mapsheet.png" #Done to ensure we can change the sprite sheet after code execution
+        _sprite_sheet = Image.open(_sprite_sheet_name)
 
     # Hardcoded coordinates for the first 10 tiles (row, col)
     if game == 'MM-Full':
