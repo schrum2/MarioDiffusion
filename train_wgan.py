@@ -335,7 +335,7 @@ def main():
             samples_cpu = fake_samples.detach().cpu()
             
             # Visualize samples
-            visualize_samples(samples_cpu, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), args.game)
+            visualize_samples(samples_cpu, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), game=args.game)
             netG.train()
         
         # Save checkpoints at specified intervals
