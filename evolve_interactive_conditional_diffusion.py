@@ -5,13 +5,14 @@ import argparse
 import torch
 from evolution.genome import LatentGenome
 from create_ascii_captions import assign_caption
+from LR_create_ascii_captions import assign_caption as lr_assign_caption
 import util.common_settings as common_settings
 from models.pipeline_loader import get_pipeline
 
 
 class TextDiffusionEvolver(Evolver):
     def __init__(self, model_path, width, tileset_path=common_settings.MARIO_TILESET, args = None):
-        Evolver.__init__(self)
+        Evolver.__init__(self, args)
         # args = parse_args()
         # if args.tileset_path != "":
         #     tileset_path = args.tileset_path
@@ -29,10 +30,10 @@ class TextDiffusionEvolver(Evolver):
 
     def random_latent(self, seed=1):
         # Create the initial noise latents (this is what the pipeline does internally)
-        if self.args.tileset == common_settings.MARIO_TILESET:
+        if self.args.game == 'Mario':
             height = common_settings.MARIO_HEIGHT
             width = self.width
-        elif self.args.tileset == common_settings.LR_TILESET:
+        elif self.args.game == 'LR':
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
         num_channels_latents = len(self.id_to_char)
@@ -79,13 +80,15 @@ class TextDiffusionEvolver(Evolver):
         # Add level data to the list
         scene = sample_indices[0].tolist() # Always just one scene: (1,16,16)
         g.scene = scene 
-
-        actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        if args.game == 'Mario':
+            actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        elif args.game == 'LR':
+            actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
         g.caption = actual_caption
 
-        if args.tileset == common_settings.MARIO_TILESET:
+        if args.game == 'Mario':
             samples = visualize_samples(images)
-        elif args.tileset == common_settings.LR_TILESET:
+        elif args.game == 'LR':
             samples = visualize_samples(images, game='LR')
         return samples
 
@@ -98,10 +101,29 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Tile width of generated level")
 
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
+
     return parser.parse_args()
 
 if __name__ == "__main__": 
     args = parse_args()
+
+    if args.game == "Mario":
+        args.tileset_path = common_settings.MARIO_TILESET
+    elif args.game == 'LR':
+        args.tileset_path = common_settings.LR_TILESET
+        args.width = common_settings.LR_WIDTH
+    elif args.game == 'MM-Simple':
+        args.tileset_path = 'datasets\MM_Simple_Tileset.json'
+    elif args.game == 'MM-Full':
+        args.tileset_path = '..\TheVGLC\MegaMan\MM.json'
+
     evolver = TextDiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
     allow_negative_prompt = getattr(evolver.pipe, "supports_negative_prompt", False)
     evolver.start_evolution(allow_prompt=True, allow_negative_prompt=allow_negative_prompt)
