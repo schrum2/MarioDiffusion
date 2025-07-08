@@ -322,29 +322,28 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     enemy_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'enemy' in value]
     powerup_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'powerup' in value]
     empty_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'empty' in value] #Used for water ratio calculation
+    water_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'water' in value] #Used for water ratio calculation
     hazard_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'hazard' in value]
     moving_plat_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'moving' in value]
     null_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'null' in value]
     wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
-
-    dissapearing_char = "A"
-    water_char = "~" #Won't exist in simple tileset
+    dissapearing_ids = [char_to_id["A"]]
 
     #Ideas:
     #Walls for each size/exit directions
     #Some kind of data transfer telling us which way the level is moving
-        #Encode "enter:", "exit:", and "blocked:", all giving us a direction
+        #DONE Encode "enter:", "exit:", and "blocked:", all giving us a direction
     #Check for ladders, enemies, powerups, water/air, spikes, moving/dissapearing blocks
         #Ladders: count number of vertical strips
-        #enemies: same as mario, raw count
-        #powerups: same
+        #DONE enemies: same as mario, raw count
+        #DONE powerups: same 
         #water:a little, a lot, half, mostly, all: mesures water/air ratio, 0-10% water, 10-40%, 40-60%, 60-99%, 100% respectivly
-        #Spikes: a few:0-5, a lot:6+
-        #Moving platforms: one, two, several, for 1, 2, 3+ continuous horizantal platforms
-        #Dissapearing blocks: a few: 0-3, a lot:4+
+        #DONE Spikes: a few:0-5, a lot:6+
+        #Add continuous support? Moving platforms: one, two, several, for 1, 2, 3+ continuous horizantal platforms
+        #DONE Dissapearing blocks: a few: 0-3, a lot:4+
     #Base checks, mostly unchanged
-        #Platforms (slightly expand definition of a platform)
-        #Loose blocks (same as mario)    
+        #Still need to expand definition Platforms (slightly expand definition of a platform)
+        #DONE Loose blocks (same as mario)    
     
 
     def add_to_caption(phrase, contributing_blocks):
@@ -372,9 +371,13 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     #TODO: Add the blocks on the ceiling/ground to the add_to_caption block debug register
     if ceiling_exists:
         add_to_caption(" full ceiling.", None)
+    elif describe_absence:
+        add_to_caption(" no ceiling.", None)
     
     if bottomless_pit_exists:
         add_to_caption(" bottomless pit.", None)
+    elif describe_absence:
+        add_to_caption(" no bottomless pit.", None)
 
 
     
@@ -383,8 +386,29 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     add_to_caption(enemy_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in enemy_ids])
 
 
+    # Count powerups
+    powerup_phrase = count_caption_phrase(scene, powerup_ids, "powerup", "powerups", describe_absence=describe_absence)
+    add_to_caption(powerup_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in powerup_ids])
+
+    # Count hazards
+    hazard_phrase = count_caption_phrase(scene, hazard_ids, "hazard", "hazards", describe_absence=describe_absence)
+    add_to_caption(hazard_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in hazard_ids])
+
+
+    # Count dissapearing blocks
+    dissapearing_phrase = count_caption_phrase(scene, dissapearing_ids, "dissapearing block", "dissapearing blocks", describe_absence=describe_absence)
+    add_to_caption(dissapearing_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in dissapearing_ids])
+
+
+
     # Platforms
-    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[])
+    # Count moving platforms
+    moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[])
+    moving_plat_phrase = describe_horizontal_lines(moving_plat_lines, "moving platform", describe_locations, describe_absence=describe_absence)
+    add_to_caption(moving_plat_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in moving_plat_ids])
+
+    #Count regular platforms
+    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=False, already_accounted=already_accounted, exclude_rows=[])
     #print("after platform_lines", (10,0) in already_accounted)
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations, describe_absence=describe_absence)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
