@@ -63,24 +63,25 @@ class Direction(Enum):
 
 
     #Check if it's possible to move in a given direction, optionally checking if there's anything blocking MegaMan from moving that way
-    def is_possible_to_move_direction(self, level, check_for_walls = False):
-        #Check if we're about to move into an out of bounds reigion
-        if self.axis==Axis.VERT:
-            if level.is_out_of_bounds(y=level.y_idx+self.offset_for_axis):
-                return False
-        else:
-            if level.is_out_of_bounds(x=level.x_idx+self.offset_for_axis):
-                return False
-        #Check to see if moving in the given direction would put us in contact with null chars
-        index = self.get_index_of_side(level) + self.offset_for_axis #We want 1 row in that direction
-        row = self.get_row_or_col(level, index)
+    def is_possible_to_move_direction(self, level, check_for_walls = False, check_for_possible=True):
+        if check_for_possible: #Should always be true exept for when we are recording blocked passages for the json file
+            #Check if we're about to move into an out of bounds reigion
+            if self.axis==Axis.VERT:
+                if level.is_out_of_bounds(y=level.y_idx+self.offset_for_axis):
+                    return False
+            else:
+                if level.is_out_of_bounds(x=level.x_idx+self.offset_for_axis):
+                    return False
+            #Check to see if moving in the given direction would put us in contact with null chars
+            index = self.get_index_of_side(level) + self.offset_for_axis #We want 1 row in that direction
+            row = self.get_row_or_col(level, index)
 
-        if any(x in row for x in level.null_chars):
-            return False
+            if any(x in row for x in level.null_chars):
+                return False
         
         #Do a second check to see if there is a hole that Mega Man could move through, lower priority than the other two
         if check_for_walls:
-            walls_index = index-self.offset_for_axis #We only want the wall at the end of the row, not the row behind it
+            walls_index = self.get_index_of_side(level) #We only want the wall at the end of the row, not the row behind it
             walls_row = self.get_row_or_col(level, walls_index)
             if not any(x not in level.wall_chars for x in walls_row):
                 return False
@@ -112,7 +113,7 @@ def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'dataset
             powerups = [x for x in tile_chars if "powerup" in tile_descriptors.get(x)]
         if group_empty_tiles:
             basic_empty_tile_char = "-" #Air tile
-            empty_tiles = [x for x in tile_chars if "empty" in tile_descriptors.get(x)]
+            empty_tiles = [x for x in tile_chars if ("empty" in tile_descriptors.get(x)) and ("water" not in tile_descriptors.get(x))]
         
         #Clearing up grouped data, adding basic examples back in
         cleared_list_of_chars = [x for x in tile_chars if x not in enemies+powerups+empty_tiles]
@@ -150,7 +151,7 @@ def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'dataset
 def parse_args():
     parser = argparse.ArgumentParser(description="Create level json files for megaman")
     
-    parser.add_argument('--tileset', default='..\\TheVGLC\\MegaMan\\MM.json', help='Path to the tile set JSON')
+    parser.add_argument('--tileset', default='datasets\\MM.json', help='Path to the tile set JSON')
     parser.add_argument('--levels', default='..\\TheVGLC\\MegaMan\\Enhanced', help='Directory containing level text files')
 
     parser.add_argument('--output', required=True, help='Path to the output directory')
@@ -186,13 +187,16 @@ def main():
     all_samples = []
     for i in range(len(levels)):
         if i==7: #We need to do some slight overrides on 1-7 to make the level functional
-            samples=parse_level(tile_to_id, levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=False, change_direction_overrides=overrides_1_7)
+            samples, json_caption_data=parse_level(tile_to_id, levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=False, change_direction_overrides=overrides_1_7)
         else:
-            samples=parse_level(tile_to_id, levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=False)
+            samples, json_caption_data=parse_level(tile_to_id, levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=False)
         
         #We do this so each level scene is encoded together, not grouped by level
-        for sample in samples:
-            all_samples.append(sample)    
+        for sample, json_data in zip(samples, json_caption_data):
+            all_samples.append({
+                "sample" :sample,
+                "data": json_data
+                })    
     
     #Move everything to a json file 
     output = args.output
@@ -206,13 +210,45 @@ def main():
 def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
     level_sample=LevelSample(level, width, height, null_chars, wall_chars, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
     samples = []
+    json_caption_data = []
+
+    #Creates a small json dictionary containin information on if there's a ceiling, bottomless pit, and the entrance/exit directions of the sample
+    def get_json_caption_data(level_sample: LevelSample, prev_direction, current_direction):
+        #Check if there is a wall in each direction blocking us from moving that way
+        up_open = Direction.UP.is_possible_to_move_direction(level_sample, check_for_walls=True, check_for_possible=False)
+        
+        down_open = Direction.UP.is_possible_to_move_direction(level_sample, check_for_walls=True, check_for_possible=False)
+        down_possible = Direction.UP.is_possible_to_move_direction(level_sample, check_for_walls=False, check_for_possible=True)
+
+        bottomless_pit = down_open and not down_possible
+
+        sample_json_data = {
+            "ceiling_exists": not up_open,
+            "bottomless_pit_exists": bottomless_pit,
+            "entrance_direction": Direction((prev_direction.value+2)%4).name,
+            "exit_direction": current_direction.name
+        }
+        return sample_json_data
+
+    
+    #Direction info for additional output to the json file
+    prev_direction = start_direction
+    current_direction = prev_direction
 
     moving=True
     samples.append(level_sample.get_sample_from_idx())
+    json_caption_data.append(get_json_caption_data(level_sample, prev_direction, current_direction))
 
     while moving:
+        prev_direction=current_direction
+
         moving=level_sample.move_step()
         samples.append(level_sample.get_sample_from_idx())
+
+        current_direction = level_sample.direction
+
+        json_caption_data.append(get_json_caption_data(level_sample, prev_direction, current_direction))
+
 
     encoded_samples = []
     for sample in samples:
@@ -221,7 +257,7 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
             encoded_sample.append([tile_to_id.get(c) for c in row])
         encoded_samples.append(encoded_sample)
     #level_sample.print_sample()
-    return encoded_samples
+    return encoded_samples, json_caption_data
 
 
 
@@ -408,6 +444,7 @@ class LevelSample():
         for row in self.level[y:y+self.height]:
             sample.append(row[x:x+self.width])
         
+
         return sample
 
     
