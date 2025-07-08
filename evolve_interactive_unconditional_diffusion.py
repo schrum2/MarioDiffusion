@@ -123,6 +123,7 @@ if __name__ == "__main__":
         args.tileset_path = common_settings.MARIO_TILESET
     elif args.game == 'LR':
         args.tileset_path = common_settings.LR_TILESET
+        args.width = common_settings.LR_WIDTH
     elif args.game == 'MM-Simple':
         args.tileset_path = 'datasets\MM_Simple_Tileset.json'
     elif args.game == 'MM-Full':
