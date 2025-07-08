@@ -55,6 +55,14 @@ def parse_args():
     # Optional config file
     parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters")
 
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
+
     return parser.parse_args()
 
 def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, num_cycles=0.5, last_epoch=-1):
@@ -74,6 +82,17 @@ def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
 def main():
     args = parse_args()
 
+    if args.game == "Mario":
+        args.num_tiles = common_settings.MARIO_TILE_COUNT
+    elif args.game == "LR":
+        args.num_tiles = common_settings.LR_TILE_COUNT
+    elif args.game == "MM-Simple":
+        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+    elif args.game == "MM-Full":
+        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+    else:
+        raise ValueError(f"Unknown game: {args.game}")
+    
     # Check if config file is provided
     if args.config:
         config = gen_train_help.load_config_from_json(args.config)
@@ -313,11 +332,7 @@ def main():
             samples_cpu = fake_samples.detach().cpu()
             
             # Visualize samples
-            visualize_samples(samples_cpu, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
-            if args.game == "Mario":
-                visualize_samples(samples_cpu, os.path.join(args.output_dir, f"samples_epoch_{epoch}"))
-            elif args.game == "LR":
-                visualize_samples(samples_cpu, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), game='LR')
+            visualize_samples(samples_cpu, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), args.game)
             netG.train()
         
         # Save checkpoints at specified intervals

@@ -823,12 +823,7 @@ def main():
             # Convert one-hot samples to tile indices and visualize
             # TODO: Add prompt support
             prompts = sample_captions if args.text_conditional else None
-            if args.game == "Mario":
-                visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts)
-            elif args.game == "LR":
-                visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts, game='LR')
-            else:
-                visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts, game=args.game)
+            visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts, game=args.game)
 
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
