@@ -318,9 +318,10 @@ def mm_tiles(game):
             (2,0),     #6 = Spikes
             (0,9),     #7 = Moving platform
             (0,5),     #8 = Ladder
-            (4,4),     #9 = Met enemy
-            (1,3),     #10 = Small health pack
-            (0,2)      #11 = air/empty tile
+            (0,3),     #9 = Water
+            (4,4),     #10 = Met enemy
+            (1,3),     #11 = Small health pack
+            (0,2)      #12 = air/empty tile
         ]
 
     DIM = common_settings.MM_TILE_PIXEL_DIM

@@ -114,8 +114,6 @@ class TileViewer(tk.Tk):
             s = sample['caption'] #Done for clarity
             # mm_assign_caption requires an extra argument for some encoded data that the level parser finds. This code moves those keys along
             data = {
-                "ceiling_exists": "full ceiling." in s,
-                "bottomless_pit_exists": "bottomless pit." in s and "no bottomless pit" not in s,
                 # String parsing to find entrance key
                 "entrance_direction": s[s.find("entrance direction")+len("entrance direction ") : s.find(".", s.find("entrance direction"))],
                 #String parsing to find exit key
@@ -524,7 +522,7 @@ class TileViewer(tk.Tk):
                         phrase_colors[phrase] = topic_colors[topic]
                         break  # Stop at the first matching topic
 
-        print("phrase_colors", phrase_colors)
+        
 
         if getattr(self, 'show_images', False):
             # Display as image using visualize_samples

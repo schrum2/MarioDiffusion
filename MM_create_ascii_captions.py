@@ -441,24 +441,11 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     
     #Add captions from encoded data
-    ceiling_exists = data['ceiling_exists']
-    bottomless_pit_exists = data['bottomless_pit_exists']
     entrance_direction = data['entrance_direction']
     exit_direction = data['exit_direction']
     
     add_to_caption(f" entrance direction {entrance_direction.lower()}.", None)
     add_to_caption(f" exit direction {exit_direction.lower()}.", None)
-
-    #TODO: Add the blocks on the ceiling/ground to the add_to_caption block debug register
-    if ceiling_exists:
-        add_to_caption(" full ceiling.", None)
-    elif describe_absence:
-        add_to_caption(" no ceiling.", None)
-    
-    if bottomless_pit_exists:
-        add_to_caption(" bottomless pit.", None)
-    elif describe_absence:
-        add_to_caption(" no bottomless pit.", None)
 
 
     # Count enemies

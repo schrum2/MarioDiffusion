@@ -223,8 +223,6 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
         bottomless_pit = down_open and not down_possible
 
         sample_json_data = {
-            "ceiling_exists": not up_open,
-            "bottomless_pit_exists": bottomless_pit,
             "entrance_direction": Direction((prev_direction.value+2)%4).name,
             "exit_direction": current_direction.name
         }
