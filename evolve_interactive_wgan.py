@@ -18,23 +18,6 @@ class WGANEvolver(Evolver):
 
         self.width = args.width
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        # Set input image size (assumes square samples)
-        if args.game == "Mario":
-            args.num_tiles = common_settings.MARIO_TILE_COUNT
-            isize = common_settings.MARIO_HEIGHT
-        elif args.game == "LR":
-            args.num_tiles = common_settings.LR_TILE_COUNT
-            isize = common_settings.LR_HEIGHT
-        elif args.game == "MM-Simple":
-            args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
-            isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
-        elif args.game == "MM-Full":
-            args.num_tiles = common_settings.MM_FULL_TILE_COUNT
-            isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
-        else:
-            raise ValueError(f"Unknown game: {args.game}")
-        
         self.netG = WGAN_Generator(isize, args.nz, args.num_tiles, args.ngf, n_extra_layers=args.n_extra_layers)
 
         # Load trained model
@@ -124,19 +107,25 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         isize = common_settings.MARIO_HEIGHT
+        args.width = common_settings.MARIO_WIDTH
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
         isize = common_settings.LR_HEIGHT
+        args.width = common_settings.LR_WIDTH
     elif args.game == "MM-Simple":
         args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
-        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+        isize = common_settings.MEGAMAN_HEIGHT      # Assuming square samples
+        args.width = common_settings.MEGAMAN_WIDTH  # Assuming square samples
     elif args.game == "MM-Full":
         args.num_tiles = common_settings.MM_FULL_TILE_COUNT
-        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+        isize = common_settings.MEGAMAN_HEIGHT      # Assuming square samples
+        args.width = common_settings.MEGAMAN_WIDTH  # Assuming square samples
     else:
         raise ValueError(f"Unknown game: {args.game}")
+    
     evolver = WGANEvolver(args)
     evolver.start_evolution()
