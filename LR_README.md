@@ -101,12 +101,17 @@ Batch file that created regular and absence data associated with Lode Runner:
 LR-data.bat
 ```
 
-Batch file that fully runs unconditional diffusion for Lode Runner (as long as the file do not exist):
+Batch file that fully trains and runs a unconditional diffusion model for Lode Runner (as long as the file do not exist):
 ```
 LR-unconditional.bat
 ```
 
-Batch file that fully runs conditional diffusion for Lode Runner (as long as the file do not exist):
+Batch file that fully trains and runs a conditional diffusion model for Lode Runner (as long as the file do not exist):
 ```
 LR-conditional.bat
+```
+
+Batch file that fully trains and runs a wgan model for Lode Runner (as long as the file do not exist):
+```
+LR-train-wgan.bat
 ```
