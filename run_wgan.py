@@ -128,7 +128,6 @@ def generate_level_scene_from_latent(netG, latent_noise):
     # Generate samples
     with torch.no_grad():
         fake_samples = netG(latent_noise)
-        
     # Convert samples to the right format for visualization
     samples_cpu = fake_samples.detach().cpu()
 

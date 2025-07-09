@@ -15,6 +15,11 @@ SEED_CHANGE_RATE = 0.1
 LATENT_NOISE_SCALE = 0.1
 
 genome_id = 0
+mutate_width = True
+
+def disable_width_mutation():
+    global mutate_width
+    mutate_width = False
 
 def display_embeddings(embeds):
     if embeds == None:
@@ -24,7 +29,7 @@ def display_embeddings(embeds):
 
 def perturb_latents(latents):
     return latents + LATENT_NOISE_SCALE * torch.randn_like(latents)
-
+    
 class LatentGenome:
     def __init__(self, width, seed, steps, guidance_scale, randomize = True, parent_id = None, strength = 0.0, latents = None, scene = None, prompt = None, negative_prompt = None, caption = None, num_segments = 1):
 
@@ -116,6 +121,10 @@ class LatentGenome:
             
     def change_width(self, delta):
         """Change the width of the genome and adjust latents accordingly."""
+        # Does not work for GAN
+        if not mutate_width:
+            return # Exit early
+
         # A width divisible by 4 is required by the unconditional model
         # because it has two downsampling layers with a stride of 2.
         # At least, this is the default configuration. Different architectures

@@ -5,7 +5,7 @@ import argparse
 import torch
 from models.wgan_model import WGAN_Generator
 from run_wgan import generate_level_scene_from_latent
-from evolution.genome import LatentGenome
+from evolution.genome import LatentGenome, disable_width_mutation
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 import util.common_settings as common_settings
@@ -108,14 +108,18 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
+    disable_width_mutation()
+
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         isize = common_settings.MARIO_HEIGHT
         args.width = common_settings.MARIO_WIDTH
+        args.tileset_path = common_settings.MARIO_TILESET
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
         isize = common_settings.LR_HEIGHT
         args.width = common_settings.LR_WIDTH
+        args.tileset_path = common_settings.LR_TILESET
     elif args.game == "MM-Simple":
         args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
         isize = common_settings.MEGAMAN_HEIGHT      # Assuming square samples
