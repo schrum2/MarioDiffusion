@@ -52,6 +52,7 @@ def describe_location(x, y):
 
     return f"{x_desc} {y_desc}"
 
+
 def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False, exclude_rows = [], already_accounted = set()):
     """
     Finds horizontal lines (runs) of tiles with the target descriptor.
@@ -126,6 +127,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
 
     return lines
 
+
 def describe_horizontal_lines(lines, label, describe_locations, describe_absence):
     if not lines:
         if describe_absence:
@@ -180,6 +182,7 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
                     already_accounted.update(structure)
 
     return structures
+
 
 def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, describe_absence=False, describe_locations=False, debug=False):
     """
@@ -264,6 +267,86 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
 
     return result if result else []
 
+
+def find_ladders(scene, ladder_ids, already_accounted = set(), describe_absence=False):
+    """
+    Finds vertical lines (runs) of ladder tiles.
+    Returns a list of (y, start_x, end_x) tuples
+    """
+
+    ladders = []
+    height = len(scene)
+    width = len(scene[0]) if height > 0 else 0
+
+    for x in range(width):
+
+        y = 0
+        while y < height:
+            if scene[y][x] not in ladder_ids:
+                y += 1
+                continue
+
+            # Start of valid run
+            possible_locations = set()
+            run_start = y
+            while y < height:
+
+                if scene[y][x] in ladder_ids:
+                    possible_locations.add( (y,x) )
+                    y += 1
+                else:
+                    break
+            already_accounted.update(possible_locations) # Blocks of the line are now accounted for
+            ladders.append((y-1, run_start, x))
+
+
+    # Return the caption
+    count = len(ladders)
+    if count == 0 and not describe_absence: #If we don't want absence captions we shouldn't add them in
+        return ""
+    else:
+        return f" {describe_quantity(count) if coarse_counts else count} ladder{'s' if pluralize and count != 1 else ''}."
+
+
+def find_water_caption(scene, empty_ids, water_ids, describe_absence=False):
+    """
+        Finds the ratio of water to all empty tiles, and returns the caption for it
+    """
+    height = len(scene)
+    width = len(scene[0]) if height > 0 else 0
+
+    empty_count = 0
+    water_count = 0
+
+    for x in range(width):
+        for y in range(height):
+            id_at_loc = scene[y][x] # Get char at location
+
+            if id_at_loc in empty_ids:
+                empty_count += 1
+                if id_at_loc in water_ids: #Water tiles should always be empty tiles as well, so we nest them to prevent errors
+                    water_count += 1
+    
+    if empty_count==0 or water_count==0: #Need an escape so we don't devide by 0
+        if describe_absence:
+            return " no water."
+        else:
+            return ""
+    
+    ratio = water_count/empty_count
+    
+    if ratio < 0.35:
+        return " some water."
+    elif ratio >= .35 and ratio < .65:
+        return " half water."
+    elif ratio >= .65 and ratio != 1.0:
+        return " mostly water."
+    elif ratio == 1.0:
+        return " all water."
+    
+    raise ValueError(f"It shouldn't be possible to get here. Error in describing water with air/water ratio of {ratio}")
+    
+
 #def count_to_words(n):
 #    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
 #    return words[n - 1] if 1 <= n <= 10 else str(n)
@@ -325,24 +408,23 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     water_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'water' in value] #Used for water ratio calculation
     hazard_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'hazard' in value]
     moving_plat_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'moving' in value]
-    null_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'null' in value]
     wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
-    dissapearing_ids = [char_to_id["A"]]
-
+    dissapearing_ids = [char_to_id["A"]] #There's nothing unique about the descriptors for dissapearing blocks, so we just set it here
+    
     #Ideas:
     #Walls for each size/exit directions
     #Some kind of data transfer telling us which way the level is moving
         #DONE Encode "enter:", "exit:", and "blocked:", all giving us a direction
     #Check for ladders, enemies, powerups, water/air, spikes, moving/dissapearing blocks
-        #Ladders: count number of vertical strips
+        #DONE Ladders: count number of vertical strips
         #DONE enemies: same as mario, raw count
         #DONE powerups: same 
-        #water:a little, a lot, half, mostly, all: mesures water/air ratio, 0-10% water, 10-40%, 40-60%, 60-99%, 100% respectivly
+        #DONE water:a little, a lot, half, mostly, all: mesures water/air ratio, 0-10% water, 10-40%, 40-60%, 60-99%, 100% respectivly
         #DONE Spikes: a few:0-5, a lot:6+
-        #Add continuous support? Moving platforms: one, two, several, for 1, 2, 3+ continuous horizantal platforms
+        #DONE Moving platforms: one, two, several, for 1, 2, 3+ continuous horizantal platforms
         #DONE Dissapearing blocks: a few: 0-3, a lot:4+
     #Base checks, mostly unchanged
-        #Still need to expand definition Platforms (slightly expand definition of a platform)
+        #DONE Platforms (slightly expand definition of a platform)
         #DONE Loose blocks (same as mario)    
     
 
@@ -380,7 +462,6 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         add_to_caption(" no bottomless pit.", None)
 
 
-    
     # Count enemies
     enemy_phrase = count_caption_phrase(scene, enemy_ids, "enemy", "enemies", describe_absence=describe_absence)
     add_to_caption(enemy_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in enemy_ids])
@@ -399,6 +480,9 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     dissapearing_phrase = count_caption_phrase(scene, dissapearing_ids, "dissapearing block", "dissapearing blocks", describe_absence=describe_absence)
     add_to_caption(dissapearing_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in dissapearing_ids])
 
+    #Count water
+    water_phrase = find_water_caption(scene, empty_ids, water_ids, describe_absence)
+    add_to_caption(water_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in water_ids])
 
 
     # Platforms
@@ -415,6 +499,10 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
 
     # Solid structures
+    
+    #Count ladders
+    ladders_phrase = find_ladders(scene, ladder_ids, already_accounted, describe_absence)
+    add_to_caption(ladders_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in ladder_ids])
 
     #print(already_accounted)
     #structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
