@@ -187,9 +187,8 @@ class SampleOutput:
             return False
         # Check if spawn point exists
         for row in self.level:
-            if spawn_id in row:
+            if spawn_id in row and gold_id in row:
                 print("Found spawn point!")
-            if gold_id in row:
                 print("Found gold!")
                 return True
         # Find all empty spaces
