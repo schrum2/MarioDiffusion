@@ -756,7 +756,7 @@ class TileViewer(tk.Tk):
         scene = self.merge_selected_scenes()
         if scene:
             level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
-            if self.game.get()=="LR" and not self.validate_lode_runner_level(scene):
+            if self.game.get() =="LR" and not self.validate_lode_runner_level(scene):
                 print("Invalid Lode Runner level. Cannot play.")
                 return  # Stop playing if level is invalid
             level.play(
@@ -808,8 +808,16 @@ class TileViewer(tk.Tk):
         sys.exit(0)
 
     def get_sample_output(self, scene, use_snes_graphics=False):
-        char_grid = scene_to_ascii(scene, self.id_to_char)
-        return SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+        if self.game.get() == 'LR':
+            char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
+            level = SampleOutput(level=scene, use_snes_graphics=use_snes_graphics)
+        elif self.game.get() == 'Mario':
+            # Mario
+            if use_snes_graphics is None:
+                use_snes_graphics = self.use_snes_graphics.get()
+            char_grid = scene_to_ascii(scene, self.id_to_char)
+            level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+        return level
 
     def show_caption_context_menu(self, event):
         try:

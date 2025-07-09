@@ -140,7 +140,7 @@ class SampleOutput:
         Play the level using the specified game engine.
         game: "Mario" (default) or "LR"
         """
-        if game == "loderunner":
+        if game == "LR" or game == "loderunner":
             import tempfile, json
             # Convert self.level (list of strings) to Lode Runner JSON format
             # Needs to be fixed because not creating JSON format
