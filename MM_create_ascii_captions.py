@@ -1,7 +1,6 @@
 import json
 import sys
 import os
-from collections import Counter
 from captions.util import extract_tileset, describe_size, describe_quantity, get_tile_descriptors, analyze_floor, count_in_scene, count_caption_phrase, in_column, analyze_ceiling, flood_fill
 
 import util.common_settings as common_settings
@@ -347,9 +346,10 @@ def find_water_caption(scene, empty_ids, water_ids, describe_absence=False):
     raise ValueError(f"It shouldn't be possible to get here. Error in describing water with air/water ratio of {ratio}")
     
 
-#def count_to_words(n):
-#    words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
-#    return words[n - 1] if 1 <= n <= 10 else str(n)
+#def find_loose_blocks(scene, wall_ids, empty_ids, describe_absence=False):
+
+
+
 
 def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence):
     """Processes the dataset and generates captions for each level scene."""
@@ -400,7 +400,6 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     """Assigns a caption to a level scene based on its contents."""
     already_accounted = set()
     details = {} if return_details else None
-    WIDTH = len(scene[0])
     ladder_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'climbable' in value]
     enemy_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'enemy' in value]
     powerup_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'powerup' in value]
@@ -487,12 +486,12 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Platforms
     # Count moving platforms
-    moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[])
+    moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="moving", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[])
     moving_plat_phrase = describe_horizontal_lines(moving_plat_lines, "moving platform", describe_locations, describe_absence=describe_absence)
     add_to_caption(moving_plat_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in moving_plat_ids])
 
     #Count regular platforms
-    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=False, already_accounted=already_accounted, exclude_rows=[])
+    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[])
     #print("after platform_lines", (10,0) in already_accounted)
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations, describe_absence=describe_absence)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
@@ -504,9 +503,9 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     ladders_phrase = find_ladders(scene, ladder_ids, already_accounted, describe_absence)
     add_to_caption(ladders_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in ladder_ids])
 
-    #print(already_accounted)
-    #structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
-    #structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, ceiling_row=ceiling_row, floor_row=floor_row)
+
+    structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
+    structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
     #for phrase, coords in structure_phrase:
     #    add_to_caption(phrase, coords)
 
