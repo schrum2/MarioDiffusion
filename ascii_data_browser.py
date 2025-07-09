@@ -111,6 +111,15 @@ class TileViewer(tk.Tk):
                 return_details=True
             )
         if self.game.get()=="MM-Full" or self.game.get()=="MM-Simple":
+            s = sample['caption'] #Done for clarity
+            # mm_assign_caption requires an extra argument for some encoded data that the level parser finds. This code moves those keys along
+            data = {
+                # String parsing to find entrance key
+                "entrance_direction": s[s.find("entrance direction")+len("entrance direction ") : s.find(".", s.find("entrance direction"))],
+                #String parsing to find exit key
+                "exit_direction": s[s.find("exit direction")+len("exit direction ") : s.find(".", s.find("exit direction"))]
+            }
+
             caption, details = mm_assign_caption(
                 sample['scene'],
                 self.id_to_char,
@@ -118,6 +127,7 @@ class TileViewer(tk.Tk):
                 self.tile_descriptors,
                 describe_locations=False,
                 describe_absence=self.describe_absence.get(),
+                data=data,
                 debug=True,
                 return_details=True
             )
@@ -477,11 +487,14 @@ class TileViewer(tk.Tk):
         # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
         from captions.caption_match import TOPIC_KEYWORDS
         from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
+        from captions.MM_caption_match import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
         # Generate a palette of distinct colors algorithmically
         # See if running Lode Runner
         if self.game.get()=="LR":
             TOPIC_KEYWORDS = LR_TOPIC_KEYWORDS
-        # If not Lode Runner, use the default topic keywords of Mario
+        elif self.game.get()=="MM-Simple" or self.game.get()=="MM-Full":
+            TOPIC_KEYWORDS = MM_TOPIC_KEYWORDS
+        # If not Lode Runner or Mega Man, use the default topic keywords of Mario
         else:
             TOPIC_KEYWORDS = TOPIC_KEYWORDS
         num_topics = len(TOPIC_KEYWORDS)
@@ -509,7 +522,7 @@ class TileViewer(tk.Tk):
                         phrase_colors[phrase] = topic_colors[topic]
                         break  # Stop at the first matching topic
 
-        #print("phrase_colors", phrase_colors)
+        
 
         if getattr(self, 'show_images', False):
             # Display as image using visualize_samples
