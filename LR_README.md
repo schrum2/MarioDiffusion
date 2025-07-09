@@ -90,6 +90,92 @@ An easier-to-use GUI interface will let you select and combine known caption phr
 python interactive_tile_level_generator.py --load_data datasets\LR_LevelsAndCaptions-regular.json --model_path LR-conditional-regular0 --game LR 
 ```
 
+## Train text encoder
+
+Masked language modeling is used to train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. It is reccomended to supply the validation and test datasets of the same type as well, though it is optional, and only used for evaluation.
+```
+python train_mlm.py --epochs 100000 --save_checkpoints --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --test_json datasets\LR_LevelsAndCaptions-regular-test.json --pkl datasets\LR_Tokenizer-regular.pkl --output_dir LR-MLM-regular0 --seed 0
+```
+A report evaluating the accuracy of the final model on the training data is provided after training, but you can repeat a similar evaluation with this command:
+```
+python evaluate_masked_token_prediction.py --model_path LR-MLM-regular0 --json datasets\LR_LevelsAndCaptions-regular-train.json
+```
+You can also see how the accuracy on the training set changes throughout training by evaluating all checkpoints with this command:
+```
+python evaluate_masked_token_prediction.py --model_path LR-MLM-regular0 --json datasets\LR_LevelsAndCaptions-regular-train.json --compare_checkpoints
+```
+To see accuracy on the validation set over time instead, run this command:
+```
+python evaluate_masked_token_prediction.py --model_path LR-MLM-regular0 --compare_checkpoints --json datasets\LR_LevelsAndCaptions-regular-validate.json
+```
+
+## Train text-conditional diffusion model
+
+Now that the text embedding model is ready, train a diffusion model conditioned on text embeddings from the descriptive captions. Note that this can take a while. We used relatively modest consumer GPUs, so our models took about 12 hours to train:
+```
+python train_diffusion.py --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 25000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
+```
+Another trick if you care more about speed than seeing intermediate results is to set `--save_image_epochs` to a large number (larger than the number of epochs), like this
+```
+python train_diffusion.py --save_image_epochs 100000 --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 25000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
+```
+You can also train with negative prompting by adding an additional flag like this
+```
+python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 25000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR --negative_prompt_training
+```
+
+## Generate levels from text-conditional diffusion model
+
+To generate unconditional levels (not based on text embeddings), use this command line:
+```
+python run_diffusion.py --model_path LR-conditional-regular0 --num_samples 100 --text_conditional --save_as_json --output_dir "LR-conditional-regular0-unconditional-samples" --game LR
+```
+Captions will be automatically assigned to the levels, and you can browse that data with this command:
+```
+python ascii_data_browser.py LR-conditional-regular0-unconditional-samples\all_levels.json
+```
+But to actually provide captions to guide the level generation, use this command
+```
+python text_to_level_diffusion.py --model_path LR-conditional-regular0 --game LR
+```
+An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
+```
+python interactive_tile_level_generator.py --model_path LR-conditional-regular0 --load_data datasets/LR_LevelsAndCaptions-regular.json --game LR
+```
+
+
+## Train Generative Adversarial Network (GAN) model
+
+GANs are an older technology, but they can also be trained to generate levels:
+```
+python train_wgan.py --augment --json datasets\LR_LevelsAndCaptions-regular.json --num_epochs 20000 --nz 10 --output_dir "LR-wgan0" --seed 0 --save_image_epochs 20 --game LR
+```
+Just like with the diffusion model, you can save a little bit of time by cutting out intermediate results like this
+```
+python train_wgan.py --augment --json datasets\LR_LevelsAndCaptions-regular.json --num_epochs 20000 --nz 10 --output_dir "LR-wgan0" --seed 0 --save_image_epochs 100000 --game LR
+
+```
+You can also use the batch file instead (this will also generate levels with the wgan):
+```
+cd LR-batch
+train-wgan.bat 0 
+```
+
+## Generate levels from GAN
+
+Create samples from the final GAN with this command (assuming the batch file hasn't already)
+```
+python run_wgan.py --model_path "LR-wgan0\final_models\generator.pth" --num_samples 100 --output_dir "LR-wgan0-samples" --save_as_json --game LR --nz 10
+```
+View the saved levels in the data browser
+```
+python ascii_data_browser.py LR-wgan_samples\all_levels.json
+```
+Interactively evolve level scenes in the latent space of the GAN model:
+```
+python evolve_interactive_wgan.py --model_path LR-wgan0\final_models\generator.pth --game LR --nz 10
+```
+
 ## Batch folder and files with Lode Runner
 Batch folder that contains all batch files associated with Lode Runner:
 ```
