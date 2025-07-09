@@ -142,7 +142,37 @@ An easier-to-use GUI interface will let you select and combine known caption phr
 ```
 python interactive_tile_level_generator.py --model_path LR-conditional-regular0 --load_data datasets/LR_LevelsAndCaptions-regular.json --game LR
 ```
+Interactively evolve level scenes in the latent space of the conditional model:
+```
+python evolve_interactive_conditional_diffusion.py --model_path LR-conditional-regular0 --game LR
+```
 
+## Train unconditional diffusion model
+
+To train an unconditional diffusion model without any text embeddings, run this command:
+```
+python train_diffusion.py --augment --output_dir "LR-unconditional0" --num_epochs 25000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --seed 0 --game LR
+```
+You can also use this batch file:
+```
+cd LR-batch
+LR-train-unconditional.bat 0  
+```
+
+## Generate levels from unconditional model
+
+To generate 100 unseen Lode Runner samples, you can simply run this once from the command line:
+```
+python run_diffusion.py --model_path LR-unconditional0 --num_samples 100 --save_as_json --output_dir LR-unconditional0-unconditional-samples
+```
+View the saved levels in the data browser:
+```
+python ascii_data_browser.py LR-unconditional0-unconditional-samples\all_levels.json
+```
+Interactively evolve level scenes in the latent space of the unconditional model:
+```
+python evolve_interactive_unconditional_diffusion.py --model_path LR-unconditional0 --game LR
+```
 
 ## Train Generative Adversarial Network (GAN) model
 
