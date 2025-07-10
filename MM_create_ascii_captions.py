@@ -1,7 +1,7 @@
 import json
 import sys
 import os
-from captions.util import extract_tileset, describe_size, describe_quantity, get_tile_descriptors, analyze_floor, count_in_scene, count_caption_phrase, in_column, analyze_ceiling, flood_fill
+from captions.util import extract_tileset, describe_quantity, count_caption_phrase, flood_fill
 
 import util.common_settings as common_settings
 
@@ -10,7 +10,7 @@ import util.common_settings as common_settings
 
 # The floor is the last row of the scene (0-indexed)
 FLOOR = common_settings.MEGAMAN_HEIGHT - 1
-CEILING = common_settings.MEGAMAN_HEIGHT - 12 #  4
+CEILING = common_settings.MEGAMAN_HEIGHT - 12 #  2
 
 # This is used for describing locations, but it doesn't work well
 STANDARD_WIDTH = common_settings.MEGAMAN_WIDTH
@@ -66,7 +66,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
 
     #print((10,0) in already_accounted)
 
-    for y in range(height - 1):  # Skip FLOOR row
+    for y in range(height):  # Skip FLOOR row
         
         if y in exclude_rows:
             continue # Could skip ceiling
@@ -346,9 +346,86 @@ def find_water_caption(scene, empty_ids, water_ids, describe_absence=False):
     raise ValueError(f"It shouldn't be possible to get here. Error in describing water with air/water ratio of {ratio}")
     
 
-#def find_loose_blocks(scene, wall_ids, empty_ids, describe_absence=False):
+# We need a seperate function so we avoid counting things like spikes as the ceiling
+def analyze_ceiling(scene, wall_ids, describe_absence, ceiling_row = 2):
+    """
+    Analyzes ceiling row (0-based index) to detect a ceiling.
+    Returns a caption phrase or an empty string if no ceiling is detected.
+    """
+    WIDTH = len(scene[0])
 
+    row = scene[ceiling_row]
+    #Count the number of solid tiles in the ceiling row
+    solid_count = sum(1 for tile in row if tile in wall_ids)
+    
+    if solid_count == WIDTH:
+        return " full ceiling."
+    elif solid_count > WIDTH//2:
+        # Count contiguous gaps of passable tiles
+        gaps = 0
+        in_gap = False
+        for tile in row:
+            # Get gaps if the tile at a point isn't a solid block
+            if tile not in wall_ids:
+                if not in_gap:
+                    gaps += 1
+                    in_gap = True
+            else:
+                in_gap = False
+        result = f" ceiling with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s" if pluralize and gaps != 1 else "") + "."
 
+        # Adding the "moving" check should make this code unnecessary
+        #if result == ' ceiling with no gaps.':
+        #    print("This should not happen: ceiling with no gaps")
+        #    print("ceiling_row:", scene[ceiling_row])
+        #    result = " full ceiling."
+
+        return result
+    elif describe_absence:
+        return " no ceiling."
+    else:
+        return ""  # Not enough solid tiles for a ceiling
+
+# We need another seperate function, for the same reason
+def analyze_floor(scene, wall_ids, describe_absence, floor_row = 15):
+    """Analyzes the last row of the 16X16 scene and generates a floor description."""
+    WIDTH = len(scene[0])
+    last_row = scene[floor_row]  # The FLOOR row of the scene
+    solid_count = sum(1 for tile in last_row if tile in wall_ids)
+    passable_count = sum(1 for tile in last_row if tile not in wall_ids)
+
+    if solid_count == WIDTH:
+        return " full floor."
+    elif passable_count == WIDTH:
+        if describe_absence:
+            return " no floor."
+        else:
+            return ""
+    elif solid_count > passable_count:
+        # Count contiguous groups of passable tiles
+        gaps = 0
+        in_gap = False
+        for tile in last_row:
+            # Enemies are also a gap since they immediately fall into the gap
+            if tile not in wall_ids:
+                if not in_gap:
+                    gaps += 1
+                    in_gap = True
+            else:
+                in_gap = False
+        return f" floor with {describe_quantity(gaps) if coarse_counts else gaps} gap" + ("s." if pluralize and gaps != 1 else ".")
+    else:
+        # Count contiguous groups of solid tiles
+        chunks = 0
+        in_chunk = False
+        for tile in last_row:
+            if tile in wall_ids:
+                if not in_chunk:
+                    chunks += 1
+                    in_chunk = True
+            else:
+                in_chunk = False
+        return f" giant gap with {describe_quantity(chunks) if coarse_counts else chunks} chunk"+("s" if pluralize and chunks != 1 else "")+" of floor."
 
 
 def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence):
@@ -407,7 +484,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     water_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'water' in value] #Used for water ratio calculation
     hazard_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'hazard' in value]
     moving_plat_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'moving' in value]
-    wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
+    wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value) and ("hazard" not in value))]
     dissapearing_ids = [char_to_id["A"]] #There's nothing unique about the descriptors for dissapearing blocks, so we just set it here
     
     #Ideas:
@@ -471,14 +548,29 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     add_to_caption(water_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in water_ids])
 
 
+    # Ceiling
+    ceiling_row = None
+    if (exit_direction == "left" or exit_direction == "right"): #Only track ceiling if we're moving horizantally
+        ceiling_row = 2 #Define this here so we don't ignore platforms on row 2 later if we're moving vertically
+        ceiling_phrase = analyze_ceiling(scene, wall_ids, describe_absence, ceiling_row=ceiling_row)
+        add_to_caption(ceiling_phrase, [(ceiling_row, c) for c, t in enumerate(scene[ceiling_row]) if t in wall_ids])
+
+    # Floor
+    floor_row = None
+    if (exit_direction == "left" or exit_direction == "right"): #Only track ceiling if we're moving horizantally
+        floor_row = len(scene)-1
+        floor_phrase = analyze_floor(scene, wall_ids, describe_absence=describe_absence, floor_row=floor_row)
+        add_to_caption(floor_phrase, [(floor_row, c) for c, t in enumerate(scene[floor_row]) if t in wall_ids])
+
+    
     # Platforms
     # Count moving platforms
-    moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="moving", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[])
+    moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="moving", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[ceiling_row, floor_row])
     moving_plat_phrase = describe_horizontal_lines(moving_plat_lines, "moving platform", describe_locations, describe_absence=describe_absence)
     add_to_caption(moving_plat_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in moving_plat_ids])
 
     #Count regular platforms
-    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[])
+    platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[ceiling_row, floor_row])
     #print("after platform_lines", (10,0) in already_accounted)
     platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations, describe_absence=describe_absence)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
