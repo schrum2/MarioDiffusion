@@ -125,9 +125,9 @@ def generate_levels(args):
 
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)
-        if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+        if args.game == "Mario":
             save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
-        elif args.num_tiles == common_settings.LR_TILE_COUNT:
+        elif args.game == "LR":
             tileset = common_settings.LR_TILESET
             lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
