@@ -185,11 +185,18 @@ class SampleOutput:
         if self.level is None:
             print("No level found!")
             return False
+        is_gold = False
+        is_spawn = False
         # Check if spawn point exists
         for row in self.level:
-            if spawn_id in row and gold_id in row:
-                print("Found spawn point!")
-                print("Found gold!")
+            if spawn_id in row:
+                #print("Found spawn point!")
+                is_spawn = True
+            if gold_id in row:
+                #print("Found gold!")
+                is_gold = True
+            if is_gold == True and is_spawn == True:
+                #print("Returned True")
                 return True
         # Find all empty spaces
         empty_positions = []
@@ -198,13 +205,13 @@ class SampleOutput:
                 if tile == empty_id:
                     empty_positions.append((y, x))
         if not empty_positions:
-            print("No empty spaces")
+            #print("No empty spaces")
             return False
         # Randomly select one and place spawn
         y, x = random.choice(empty_positions)
         self.level[y][x] = spawn_id
         self.level[y][x+1] = gold_id
-        print("Adding spawn point!")
+        #print("Adding spawn point!")
         return True
 
 class CustomSimulator:
