@@ -3,8 +3,10 @@ import torch
 from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split, append_absence_captions
 from captions.caption_match import compare_captions, process_scene_segments
 from captions.LR_caption_match import compare_captions as lr_compare_captions, process_scene_segments as lr_process_scene_segments
+from captions.MM_caption_match import compare_captions as mm_compare_captions, process_scene_segments as mm_process_scene_segments
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from MM_create_ascii_captions import assign_caption as mm_assign_caption
 from captions.util import extract_tileset
 from util.sampler import scene_to_ascii
 import argparse
@@ -28,7 +30,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
@@ -118,6 +120,9 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         elif self.args.game == "LR":
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
             level_width = common_settings.LR_WIDTH
+        elif self.args.game == "MM-Simple" or self.args.game == "MM-Full":
+            actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+            level_width = common_settings.MEGAMAN_WIDTH
         else:
             raise ValueError(f"Unknown game: {self.args.game}")
         
@@ -170,10 +175,26 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             else:
                 print("Unknown input: Level not played.")
         
-        if self.args.game == "Mario":
-            samples = visualize_samples(images)
-        elif self.args.game == "LR":
-            samples = visualize_samples(images, game='LR')
+        elif self.args.game == "MM-Simple" or self.args.game == "MM-Full":
+            print(f"Describe resulting image: {actual_caption}")
+            lr_compare_score = mm_compare_captions(param_values.get("caption", ""), actual_caption)
+            print(f"Comparison score: {lr_compare_score}")
+
+            # Use the new function to process scene segments
+            average_score, segment_captions, segment_scores = mm_process_scene_segments(
+                scene=scene,
+                segment_width=level_width,
+                prompt=param_values.get("caption", ""),
+                id_to_char=self.id_to_char,
+                char_to_id=self.char_to_id,
+                tile_descriptors=self.tile_descriptors,
+                describe_locations=False, #self.args.describe_locations,
+                describe_absence=self.args.describe_absence,
+                verbose=True
+            )
+
+        
+        samples = visualize_samples(images, game=self.args.game)
 
         return samples
 
@@ -190,6 +211,9 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         if self.args.game == "LR":
             param_values["height"] = common_settings.LR_HEIGHT
             param_values["width"] = common_settings.LR_WIDTH
+        if self.args.game == "MM-Simple" or self.args.game == "MM-Full":
+            param_values["height"] = common_settings.MEGAMAN_HEIGHT
+            param_values["width"] = common_settings.MEGAMAN_WIDTH
 
         return dict()
 
@@ -209,7 +233,18 @@ if __name__ == "__main__":
         args.tile_size = common_settings.LR_TILE_PIXEL_DIM
         args.tileset = common_settings.LR_TILESET
     else:
-        raise ValueError(f"Unknown game: {args.game}")
+        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+        height = common_settings.MEGAMAN_HEIGHT
+        width = common_settings.MEGAMAN_WIDTH
+        args.tile_size = common_settings.MM_TILE_PIXEL_DIM
+        if args.game == "MM-Simple":
+            args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+            args.tileset = common_settings.MM_SIMPLE_TILESET
+        elif args.game == "MM-Full":
+            args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+            args.tileset = common_settings.MM_FULL_TILESET
+        else:
+            raise ValueError(f"Unknown game: {args.game}")
     
     ig = InteractiveLevelGeneration(args)
     ig.start()

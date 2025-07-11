@@ -1,4 +1,4 @@
-from create_ascii_captions import assign_caption
+from MM_create_ascii_captions import assign_caption
 
 # Quantity order for scoring partial matches
 QUANTITY_TERMS = ["one", "two", "a few", "several", "many", "some", "half", "mostly", "all"]
@@ -9,26 +9,19 @@ TOPIC_KEYWORDS = [
     "dissapearing block", 
     "water", 
     "moving platform", "platform",
-    "ladder", "loose block"
+    "ladder", "loose block",
+    "ceiling", "floor"
 ]
 
 # Need list because the order matters
 KEYWORD_TO_NEGATED_PLURAL = [
-    (" broken pipe.", ""), # If not the first phrase
-    ("broken pipe. ", ""), # If the first phrase (after removing all others)
-    (" broken cannon.", ""), # If not the first phrase
-    ("broken cannon. ", ""), # If the first phrase (after removing all others)
-    ("pipe", "pipes"),
-    ("cannon", "cannons"),
-    ("platform", "platforms"),
-    ("tower", "towers"),
-    ("staircase", "staircases"),
+    ("powerup", "powerups"),
     ("enem", "enemies"),
-    ("rectangular", "rectangular block clusters"),
-    ("irregular", "irregular block clusters"),
-    ("coin line", "coin lines"),
-    ("coin.", "coins."), # Need period to avoid matching "coin line"
-    ("question block", "question blocks"),
+    ("hazard", "hazards"),
+    ("dissapearing block", "dissapearing blocks"),
+    ("moving platform", "moving platforms"),
+    ("platform", "platforms"),
+    ("ladder", "ladders"),
     ("loose block", "loose blocks")
 ]
 
@@ -232,8 +225,8 @@ def process_scene_segments(scene, segment_width, prompt, id_to_char, char_to_id,
 
 if __name__ == '__main__':
 
-    ref = "floor with one gap. two enemies. one platform. one tower."
-    gen = "giant gap with one chunk of floor. two enemies. one platform. one tower."
+    ref = "full floor. many enemies. two platforms."
+    gen = "giant gap with one chunk of floor. two enemies. one platform."
 
     score = compare_captions(ref, gen, debug=True)
     print(f"Should be: {ref}")
