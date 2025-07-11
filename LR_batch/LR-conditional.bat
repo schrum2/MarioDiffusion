@@ -1,8 +1,8 @@
 
 REM @echo off
 REM Usage: LR-conditional.bat <seed> <type>
-REM <type> should be "regular" or "absence"
 REM <seed> is optional, defaults to 0
+REM <type> should be "regular" or "absence"
 cd ..
 
 set SEED=%1

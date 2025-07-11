@@ -1,7 +1,7 @@
 REM @echo off
-REM Usage: LR-ununconditional.bat <type> <seed>
-REM <type> should be "regular" or "absence"
+REM Usage: LR-ununconditional.bat <seed> <type>
 REM <seed> is optional, defaults to 0
+REM <type> should be "regular" or "absence"
 cd ..
 
 set SEED=%1
