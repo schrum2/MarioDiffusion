@@ -94,7 +94,7 @@ python interactive_tile_level_generator.py --load_data datasets\LR_LevelsAndCapt
 
 Masked language modeling is used to train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. It is reccomended to supply the validation and test datasets of the same type as well, though it is optional, and only used for evaluation.
 ```
-python train_mlm.py --epochs 100000 --save_checkpoints --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --test_json datasets\LR_LevelsAndCaptions-regular-test.json --pkl datasets\LR_Tokenizer-regular.pkl --output_dir LR-MLM-regular0 --seed 0
+python train_mlm.py --epochs 80000 --save_checkpoints --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --test_json datasets\LR_LevelsAndCaptions-regular-test.json --pkl datasets\LR_Tokenizer-regular.pkl --output_dir LR-MLM-regular0 --seed 0
 ```
 A report evaluating the accuracy of the final model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```

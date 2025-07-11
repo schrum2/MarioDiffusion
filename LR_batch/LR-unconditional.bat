@@ -4,11 +4,12 @@ REM <type> should be "regular" or "absence"
 REM <seed> is optional, defaults to 0
 cd ..
 
+set SEED=%1
+if "%SEED%"=="" set SEED=0
+
 set TYPE=%2
 if "%TYPE%"=="" set TYPE=regular
 
-set SEED=%1
-if "%SEED%"=="" set SEED=0
 
 set DIFF_OUTPUT=LR-unconditional%SEED%
 set UNCOND_OUTPUT=%DIFF_OUTPUT%-samples
