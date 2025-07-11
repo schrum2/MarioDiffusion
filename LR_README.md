@@ -113,15 +113,15 @@ python evaluate_masked_token_prediction.py --model_path LR-MLM-regular0 --compar
 
 Now that the text embedding model is ready, train a diffusion model conditioned on text embeddings from the descriptive captions. Note that this can take a while. We used relatively modest consumer GPUs, so our models took about 12 hours to train:
 ```
-python train_diffusion.py --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 25000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
+python train_diffusion.py --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 3000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
 ```
 Another trick if you care more about speed than seeing intermediate results is to set `--save_image_epochs` to a large number (larger than the number of epochs), like this
 ```
-python train_diffusion.py --save_image_epochs 100000 --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 25000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
+python train_diffusion.py --save_image_epochs 10000 --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 3000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
 ```
 You can also train with negative prompting by adding an additional flag like this
 ```
-python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 25000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR --negative_prompt_training
+python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 3000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR --negative_prompt_training
 ```
 
 ## Generate levels from text-conditional diffusion model
@@ -151,7 +151,7 @@ python evolve_interactive_conditional_diffusion.py --model_path LR-conditional-r
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --augment --output_dir "LR-unconditional0" --num_epochs 25000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --seed 0 --game LR
+python train_diffusion.py --augment --output_dir "LR-unconditional0" --num_epochs 3000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --seed 0 --game LR
 ```
 You can also use this batch file:
 ```
