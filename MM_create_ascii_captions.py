@@ -473,7 +473,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
 
-def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, data, debug=False, return_details=False):
+def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, data=None, debug=False, return_details=False):
     """Assigns a caption to a level scene based on its contents."""
     already_accounted = set()
     details = {} if return_details else None
@@ -517,12 +517,16 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     caption = ""
 
     
-    #Add captions from encoded data
-    entrance_direction = data['entrance_direction']
-    exit_direction = data['exit_direction']
-    
-    add_to_caption(f" entrance direction {entrance_direction.lower()}.", None)
-    add_to_caption(f" exit direction {exit_direction.lower()}.", None)
+    if data != None: #Some systems cant give us this extra data
+        #Add captions from encoded data
+        entrance_direction = data['entrance_direction']
+        exit_direction = data['exit_direction']
+        
+        add_to_caption(f" entrance direction {entrance_direction.lower()}.", None)
+        add_to_caption(f" exit direction {exit_direction.lower()}.", None)
+    else:
+        entrance_direction = None
+        exit_direction = None
 
 
     # Count enemies
