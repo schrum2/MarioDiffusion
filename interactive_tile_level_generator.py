@@ -11,8 +11,10 @@ from level_dataset import visualize_samples, convert_to_level_format, positive_n
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
+from captions.MM_caption_match import compare_captions as mm_compare_captions
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from MM_create_ascii_captions import assign_caption as mm_assign_caption
 from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.sampler import scene_to_ascii
@@ -122,9 +124,12 @@ class CaptionBuilder(ParentBuilder):
         if game_selected == "Lode Runner":
             self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.LR_HEIGHT}")
-        else:
+        elif game_selected == "Mario":
             self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.MARIO_HEIGHT}")
+        else:
+            self.width_entry.insert(0, f"{common_settings.MEGAMAN_WIDTH}")
+            self.height_entry.insert(0, f"{common_settings.MEGAMAN_HEIGHT}")
 
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
@@ -218,11 +223,12 @@ class CaptionBuilder(ParentBuilder):
         self.bottom_canvas.pack(fill=tk.X, pady=(0, 0))
         self.bottom_scrollbar.pack(fill=tk.X, pady=(0, 10))
 
+
         # Game selection
         self.game_var = tk.StringVar(value="Mario")
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner"], state="readonly", font=GUI_FONT)
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)"], state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
         
     def probe_absence_caption_support(self):
@@ -337,7 +343,13 @@ class CaptionBuilder(ParentBuilder):
                     # Mario patterns
                     "pipe", "coin", "tower", #"wall",
                     "cannon", "staircase", 
-                    "question block", "loose block"]
+                    "question block", "loose block", 
+                    
+                    #Mega Man phrases
+                    "entrance direction", "exit direction",
+                    "powerup", "hazard", "water",
+                    "dissapearing block"
+                    ]
         return patterns
 
     def load_data(self, filepath = None):
@@ -511,18 +523,34 @@ class CaptionBuilder(ParentBuilder):
             sample_indices = convert_to_level_format(sample_tensor)
             #print("images:", images)
             scene = sample_indices[0].tolist()
+
             if game_selected == "Lode Runner":
                 number_of_tiles = common_settings.LR_TILE_COUNT
                 scene = [[x % number_of_tiles for x in row] for row in scene]
                 tileset_path = common_settings.LR_TILESET
+                _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+            elif game_selected == "Mega Man (Simple)":
+                number_of_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+                scene = [[x % number_of_tiles for x in row] for row in scene]
+                tileset_path = common_settings.MM_SIMPLE_TILESET
+                _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+            elif game_selected == "Mega Man (Full)":
+                number_of_tiles = common_settings.MM_FULL_TILE_COUNT
+                scene = [[x % number_of_tiles for x in row] for row in scene]
+                tileset_path = common_settings.MM_FULL_TILESET
+                _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+            
             self.generated_scenes.append(scene)
             #selected_game = self.game_var.get()
             if game_selected == "Lode Runner":
                 actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                 pil_img = visualize_samples(images, game='LR')
-            else:
+            elif game_selected == "Mario":
                 actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                 pil_img = visualize_samples(images)
+            else:
+                actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+                pil_img = visualize_samples(images, game="MM-Simple" if game_selected == "Mega Man (Simple)" else "MM-Full")
 
             self.generated_images.append(pil_img)
             img_tk = ImageTk.PhotoImage(pil_img)
@@ -530,6 +558,8 @@ class CaptionBuilder(ParentBuilder):
                 compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
             elif game_selected == 'Lode Runner':
                 compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+            else:
+                compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
@@ -599,10 +629,23 @@ class CaptionBuilder(ParentBuilder):
                         describe_locations=False,
                         describe_absence=False
                     )
-            if game_selected == "Lode Runner":
+            elif game_selected == "Lode Runner":
                 if len(scene[0]) > common_settings.LR_WIDTH:
                     from captions.LR_caption_match import process_scene_segments as lr_process_scene_segments
                     avg_segment_score, _, _ = lr_process_scene_segments(
+                        scene=scene,
+                        segment_width=common_settings.LR_WIDTH,
+                        prompt=prompt,
+                        id_to_char=self.id_to_char,
+                        char_to_id=self.char_to_id,
+                        tile_descriptors=self.tile_descriptors,
+                        describe_locations=False,
+                        describe_absence=False
+                    )
+            else:
+                if len(scene[0]) > common_settings.MEGAMAN_WIDTH:
+                    from captions.MM_caption_match import process_scene_segments as mm_process_scene_segments
+                    avg_segment_score, _, _ = mm_process_scene_segments(
                         scene=scene,
                         segment_width=common_settings.LR_WIDTH,
                         prompt=prompt,
@@ -668,6 +711,14 @@ Average Segment Score: {avg_segment_score}"""
                 number_of_tiles = common_settings.LR_TILE_COUNT
                 scene = [[x % number_of_tiles for x in row] for row in scene]
                 tileset_path = common_settings.LR_TILESET
+        elif game_selected == "Mega Man (Simple)":
+                number_of_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+                scene = [[x % number_of_tiles for x in row] for row in scene]
+                tileset_path = common_settings.MM_SIMPLE_TILESET
+        elif game_selected == "Mega Man (Full)":
+            number_of_tiles = common_settings.MM_FULL_TILE_COUNT
+            scene = [[x % number_of_tiles for x in row] for row in scene]
+            tileset_path = common_settings.MM_FULL_TILESET
         self.composed_scenes.append(scene)
 
         # Create and store the thumbnail
