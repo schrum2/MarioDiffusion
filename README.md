@@ -419,5 +419,7 @@ within the Mario Diffusion directory.
 
 [View LR_README.md](LR_README.md)
 
-For more For more information regarding Mega Man, go to the file named (whatever Mega Man readme is named) 
+For more For more information regarding Mega Man, go to the file named `MM_README.md` 
 within the Mario Diffusion directory.
+
+[View MM_README.md](MM_README.md)
