@@ -98,7 +98,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 generator=generator,
                 **param_values
             ).images
-            print(f"PARAM VALUES: ", {param_values["caption"]})
+            print(f"PARAM VALUES: ", param_values)
         except Exception as e:
             print(f"Error during image generation: {e}")
             return None
