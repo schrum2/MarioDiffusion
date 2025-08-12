@@ -19,6 +19,9 @@ If you use this code, please cite our paper:
 }
 ```
 
+More content related to this research is also available at this website:
+https://people.southwestern.edu/~schrum2/mario.html
+
 ## Set up the repository
 
 This repository can be checked out with this command:
