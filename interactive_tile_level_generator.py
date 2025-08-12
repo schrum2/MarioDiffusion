@@ -871,6 +871,7 @@ Average Segment Score: {avg_segment_score}"""
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in tile_numbers]
                 char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
             else:
+                tile_numbers = idx_or_scene
                 char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
