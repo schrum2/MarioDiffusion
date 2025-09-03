@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
 
-GUI_FONT_SIZE = 22 
+GUI_FONT_SIZE = 12 
 
 class ParentBuilder:
     def __init__(self, master):

@@ -64,29 +64,29 @@ class CaptionBuilder(ParentBuilder):
         self.last_present_caption = ""
 
         # Frame for caption display
-        self.caption_frame = ttk.Frame(master, width=100, borderwidth=2, relief="solid")  # Add border
+        self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
         self.caption_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False)  # Only fill vertically, don't expand horizontally
         
         self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", style="TLabel", font=GUI_FONT)
-        self.caption_label.pack() # (pady=5)
+        self.caption_label.pack(pady=5)
         
-        self.caption_text = tk.Text(self.caption_frame, height=4, width=40, state=tk.NORMAL, wrap=tk.WORD, font=GUI_FONT)
+        self.caption_text = tk.Text(self.caption_frame, height=8, state=tk.NORMAL, wrap=tk.WORD, font=GUI_FONT)
         self.caption_text.pack() 
                 
         self.negative_prompt_label = ttk.Label(self.caption_frame, text="Negative Prompt:", style="TLabel")
-        #self.negative_prompt_label.pack()
-        self.negative_prompt_entry = tk.Text(self.caption_frame, height=2, width=30, wrap=tk.WORD, font=GUI_FONT)
-        #self.negative_prompt_entry.pack()
+        self.negative_prompt_label.pack()
+        self.negative_prompt_entry = tk.Text(self.caption_frame, height=4, wrap=tk.WORD, font=GUI_FONT)
+        self.negative_prompt_entry.pack()
         self.negative_prompt_entry.insert("1.0", "")
 
         self.automatic_negative_caption = tk.BooleanVar(value=False)
         self.automatic_negative_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Automatic Negative Captions", variable=self.automatic_negative_caption, style="TCheckbutton", command=self.update_negative_prompt_entry)
-        #self.automatic_negative_caption_checkbox.pack()
+        self.automatic_negative_caption_checkbox.pack()
         
         # Automatic absence captions box
         self.automatic_absence_caption = tk.BooleanVar(value=False)
         self.automatic_absence_caption_checkbox = ttk.Checkbutton(self.caption_frame, text ="Automatic Absence Captions", variable=self.automatic_absence_caption, style="TCheckbutton", command=self.update_absence_caption_entry)
-        #self.automatic_absence_caption_checkbox.pack()
+        self.automatic_absence_caption_checkbox.pack()
         self.automatic_absence_caption_checkbox.config(state=tk.DISABLED) # Start with the box disabled
         
         self.num_images_label = ttk.Label(self.caption_frame, text="Number of Images:", style="TLabel")
@@ -192,13 +192,13 @@ class CaptionBuilder(ParentBuilder):
         self.astar_composed_button.pack(side=tk.LEFT, padx=5)
         self.use_snes_graphics = tk.BooleanVar(value=False)
         self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics, style="TCheckbutton")
-        #self.graphics_checkbox.pack(side=tk.LEFT, padx=5)
+        self.graphics_checkbox.pack(side=tk.LEFT, padx=5)
 
-        self.delete_image_button = ttk.Button(row2, text="Delete Scene", command=self.delete_selected_composed_image, style="TButton")
+        self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=self.delete_selected_composed_image, style="TButton")
         self.delete_image_button.pack(side=tk.LEFT, padx=10)
-        self.clear_composed_button = ttk.Button(row2, text="Clear Level", command=self.clear_composed_level, style="TButton")
+        self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level, style="TButton")
         self.clear_composed_button.pack(side=tk.LEFT, padx=10)
-        self.save_composed_button = ttk.Button(row2, text="Save Level", command=self.save_composed_level, style="TButton")
+        self.save_composed_button = ttk.Button(row2, text="Save Composed Level", command=self.save_composed_level, style="TButton")
         self.save_composed_button.pack(side=tk.LEFT, padx=10)
         
         self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1), style="TButton")
@@ -668,41 +668,38 @@ Average Segment Score: {avg_segment_score}"""
                 score_label_text = f"Comparison Score: {compare_score}"
 
             score_label = ttk.Label(img_frame, text=score_label_text, wraplength=300)
-            score_label.pack() #pady=(5, 10))  # Add padding: 5px top, 10px bottom
+            score_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
     
             # Create a frame for buttons
             button_frame = ttk.Frame(img_frame)
-            button_frame.pack() #pady=5)
+            button_frame.pack(pady=5)
     
             # Add Play button
             play_button = ttk.Button(
                 button_frame, 
                 text="Play", 
-                width=len("Play"),
                 command=lambda idx=i: self.play_level(idx),
                 style="TButton"
             )
-            play_button.pack(side=tk.LEFT) #, padx=5)
+            play_button.pack(side=tk.LEFT, padx=5)
     
             # Add Use A* button
             astar_button = ttk.Button(
                 button_frame, 
-                text="A*", 
-                width=len("A*"),
+                text="Use A*", 
                 command=lambda idx=i: self.use_astar(idx),
                 style="TButton"
             )
-            astar_button.pack(side=tk.LEFT) #, padx=5)
+            astar_button.pack(side=tk.LEFT, padx=5)
 
             # Add "Add To Level" button
             add_button = ttk.Button(
                 button_frame,
-                text="Add",
-                width=len("Add"),
+                text="Add To Level",
                 command=lambda idx=i: self.add_to_composed_level(idx),
                 style="TButton"
             )
-            add_button.pack(side=tk.LEFT) #, padx=5)
+            add_button.pack(side=tk.LEFT, padx=5)
 
             del images, sample_tensor, sample_indices, scene  # Delete unused tensors
             torch.cuda.empty_cache()  # Clear the cache
