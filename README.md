@@ -55,7 +55,7 @@ This will download the `MLM-regular` model from [this Hugging Face repo](https:/
 ```
 full floor. one enemy. a few question blocks. one platform. one pipe. one loose block.
 ```
-For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. You can exit the program by providing an input of 'q' to any of the prompts.
+For the rest of the prompts, if you simply press enter, it will skip through the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. You can exit the program by providing an input of 'q' to any of the prompts.
 
 Note that if you use a model trained with absence captions, then more information will be expected in the input caption. For example, you can use the `MLM-absence` model with this command:
 ```
@@ -154,7 +154,7 @@ This command trains one diffusion model that uses `MiniLM` as its text model, an
 batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular MiniLM split
 ```
 
-For the experiments in our paper, we trained different numbers of models with each configuration, based on how computationally intensive the training was. To create all of the models that we trained for the paper, you would need to run all of the following commands (we ran each command on a separate machine to distribute the training, adn then combined the results later for processing):
+For the experiments in our paper, we trained different numbers of models with each configuration, based on how computationally intensive the training was. To create all of the models that we trained for the paper, you would need to run all of the following commands (we ran each command on a separate machine to distribute the training, and then combined the results later for processing):
 ```
 batch_runner.bat train-conditional.bat 0 9 Mar1and2 regular
 batch_runner.bat train-conditional.bat 0 9 Mar1and2 absence
@@ -171,13 +171,20 @@ batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 negative GTE
 train-conditional-pre.bat 0 Mar1and2 regular GTE split
 train-conditional-pre.bat 0 Mar1and2 absence GTE split
 train-conditional-pre.bat 0 Mar1and2 negative GTE split
+batch_runner.bat train-unconditional.bat 0 29 Mar1and2 
+batch_runner.bat train-wgan.bat 0 29 Mar1and2 
+batch_runner.bat train-fdm.bat 0 29 Mar1and2 regular MiniLM
+batch_runner.bat train-fdm.bat 0 29 Mar1and2 absence MiniLM
+batch_runner.bat train-fdm.bat 0 29 Mar1and2 regular GTE
+batch_runner.bat train-fdm.bat 0 29 Mar1and2 absence GTE
 ```
+Note that the list above also mentions `train-unconditional.bat`, `train-fdm.bat`, and `train-wgan.bat`. These are used to train comparison models mentioned in the paper. Their usage is detailed further below.
 
-Now, if you just want to train a model step by step, look at the next sections instead.
+Now, if you just want to train a model step by step, keep reading from here.
 
 ## Train text encoder
 
-Masked language modeling is used to train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. It is reccomended to supply the validation and test datasets of the same type as well, though it is optional, and only used for evaluation.
+Masked language modeling is used to train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. It is recommended to supply the validation and test datasets of the same type as well, though it is optional, and only used for evaluation.
 ```
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --test_json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --output_dir Mar1and2-MLM-regular0 --seed 0
 ```
@@ -277,7 +284,7 @@ Just like with the text conditional model, you can get level samples from the ba
 ```
 batch\run_diffusion_multi.bat Mar1and2-unconditional0 regular Mar1and2
 ```
-As with before, to get more control, you can simply run this once from the command line
+As before, to get more control, you can simply run this once from the command line
 ```
 python run_diffusion.py --model_path Mar1and2-unconditional0 --num_samples 100 --save_as_json --output_dir Mar1and2-unconditional0-unconditional-samples --level_width 16
 ```
@@ -322,6 +329,7 @@ python evolve_interactive_wgan.py --model_path Mar1and2-wgan0\final_models\gener
 ```
 
 ## Train Five Dollar Model (FDM)
+
 The five-dollar-model is a lightweight feedforward network that trains fast, but has a pretty small maximum performance. They can be trained with a call to the batch file, which will run metrics for you
 ```
 cd batch
@@ -339,7 +347,6 @@ Create samples from an FDM with this command
 python text_to_level_fdm.py --model_path Mar1and2-fdm-MiniLM-regular0
 ```
 
-
 ## Generating MarioGPT data for comparison
 
 Most of the MarioGPT data is taken care of in this batch file, which can be run like this
@@ -349,11 +356,11 @@ MarioGPT-data.bat
 ```
 This batch file generates 96 levels of size 128 using MarioGPT, stores, pads and captions them in the same format as our unconditional models, and then runs metrics on both sliced 16x16 level samples, as well as the full 16x128 generated levels.  
 
-If you'd like to do each of these steps seperatly, that can be done with this series of commands:
+If you'd like to do each of these steps separately, that can be done with this series of commands:
 
 First, the level generation can be done with this command, which saves generated levels in a new folder called MarioGPT_Levels, in both text and image format.
 ```
-python run_gpt2.py --output_dir "MarioGPT_Levels" --num_collumns 128
+python run_gpt2.py --output_dir "MarioGPT_Levels" --num_columns 128
 ```
 Afterwards, this command will take those levels, pad them, and store them in new files in the datasets directory. (The stride variable controls how long individual segments are, the batch file runs this twice to get levels of length 128 and 16)
 ```
@@ -426,7 +433,7 @@ python evaluate_models.py --plot_file astar_result_overall_averages.json --modes
 
 Average minimum edit distance (amed) calculates the edit distance for each level in a levelset against a levelset. We calculate amed self, where the min edit distance is calculated for each level against the remaining levels in the set, and amed real, where the min edit distance is calculated for each level in a levelset against the entire real levelset that was used to generate the level.
 
-All amed plots and calculations - as well as broken feature generatsion plots - can be run like this
+All amed plots and calculations - as well as broken feature generation plots - can be run like this
 ```
 cd batch
 plot_metrics.bat
@@ -463,7 +470,8 @@ python evaluate_models.py --modes real random short real_full --full_metrics --m
 Plots and compares broken cannons as a percentage of total cannon mentions
 
 
-## Tiles based games besides Mario
+## Tile based games besides Mario
+
 We are trying to be able to expand these methods to other games such as Lode Runner and Mega Man,
 but these games are still in the preliminary. Nevertheless, if you wish to learn more about the 
 advancements made for these games, then follow the links below.
@@ -473,7 +481,7 @@ within the Mario Diffusion directory.
 
 [View LR_README.md](LR_README.md)
 
-For more For more information regarding Mega Man, go to the file named `MM_README.md` 
+For more information regarding Mega Man, go to the file named `MM_README.md` 
 within the Mario Diffusion directory.
 
 [View MM_README.md](MM_README.md)

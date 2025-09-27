@@ -8,12 +8,12 @@ import os
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate MarioGPT levels")
 
-    parser.add_argument("--num_collumns", type=int, default=128, help="The number of vertical collumns to generate")
+    parser.add_argument("--num_columns", type=int, default=128, help="The number of vertical columns to generate")
     parser.add_argument("--prompt", type=str, default=None, help="A specific prompt to generate if wanted")
     parser.add_argument("--temperature", type=float, default=2.0, help="The temperature (chaos scale) input into the model")
 
     parser.add_argument("--batch_size", type=int, default=5, help="The number of prompts put into the model at once")
-    parser.add_argument("--output_dir", type=str, default="SMB1-gpt-levels", help="The number of vertical collumns to generate")
+    parser.add_argument("--output_dir", type=str, default="SMB1-gpt-levels", help="The number of vertical columns to generate")
 
 
     return parser.parse_args()
@@ -72,7 +72,7 @@ def main():
         #Use the subset to generate levels
         generated_levels = mario_lm.sample(
             prompts=batch,
-            num_steps=args.num_collumns*14,
+            num_steps=args.num_columns*14,
             temperature=args.temperature,
             use_tqdm=True
         )
