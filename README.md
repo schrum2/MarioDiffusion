@@ -41,64 +41,86 @@ Before running any code, install all requirements with pip:
 pip install -r requirements.txt
 ```
 
-## Three paths
+## Use pretrained models: Preview of final results
 
-The text below goes into detail on various ways that you can use the code in this repository, but we anticipate people being interested in three primary ways of using our code. The three links below will take you to a guide suited specifically to your needs:
+We have made various models available on Hugging Face for ease of use. Specifically, one diffusion model of each type described in our paper is available. If you want to use the one that we believe is both the best and easiest to use, then stick to `schrum2/MarioDiffusion-MLM-regular0`. The full list of models is available [here](MODELS.md), but here are instructions on how to use them.
 
-1. [I want to run pretrained models](PRETRAINED.md): If you just want to download pretrained models from Hugging Face and try them out, possibly with our interactive GUI, then this is the path for you.
-2. [I want to train my own models](TRAINING.md): If you want to train models yourself, either to recreate our results or do something slightly different, the the details are in this file.
+### Command line
 
-
-## Preview of final results
-
-Following the instructions below will lead you through training your own diffusion model to create Mario levels. However, if you want to skip past all of that and just see some results from a pre-trained diffusion model now, run the following command:
+To download and interact with a model via the command line, run the following command:
 ```
 python .\text_to_level_diffusion.py --model_path "schrum2/MarioDiffusion-MLM-regular0"
 ```
-This will download one of the models from our paper: `MLM-regular`. The model comes from [this Hugging Face repo](https://huggingface.co/schrum2/MarioDiffusion-MLM-regular0). Once it downloads, you will be asked to enter a caption. Try this:
+This will download the `MLM-regular` model from [this Hugging Face repo](https://huggingface.co/schrum2/MarioDiffusion-MLM-regular0). Once it downloads, you will be asked to enter a caption. Try this:
 ```
 full floor. one enemy. a few question blocks. one platform. one pipe. one loose block.
 ```
-For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. 
+For the rest of the prompts, if you simply press enter, it will skip thorugh the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. You can exit the program by providing an input of 'q' to any of the prompts.
 
-There is also a cool GUI you can work with to build larger levels out of diffusion-generated scenes. Run the following command to load our best pretrained model to create new levels in the interactive tile level generator GUI!
+Note that if you use a model trained with absence captions, then more information will be expected in the input caption. For example, you can use the `MLM-absence` model with this command:
+```
+python .\text_to_level_diffusion.py --model_path "schrum2/MarioDiffusion-MLM-absence0"
+```
+But the caption corresponding to the one above would be:
+```
+full floor. one enemy. a few question blocks. one platform. one pipe. one loose block. no ceiling. no upside down pipes. no coin lines. no coins. no towers. no cannons. no ascending staircases. no descending staircases. no rectangular block clusters. no irregular block clusters. no question blocks. no loose blocks.
+```
+To avoid the need to always provide the absence information, you can use the `--automatic_absence_captions` option like this:
+```
+python .\text_to_level_diffusion.py --model_path "schrum2/MarioDiffusion-MLM-absence0" --automatic_absence_captions
+```
+This means that you can provide input captions without any absence phrases, but they will be added automatically to the input to the model.
+
+If you interact with a model that supports negative text guidance, such as `schrum2/MarioDiffusion-MLM-negative0`, then there will be an additional input called 'negative_prompt'. However, we recommend using the `--automatic_negative_captions` option so that this extra prompt goes away and is instead handled automatically. Simply run this command:
+```
+python .\text_to_level_diffusion.py --model_path "schrum2/MarioDiffusion-MLM-negative0" --automatic_negative_captions
+```
+
+Feel free to experiment with the other input prompts. Here is some information on each value:
+
+1. `width`: You can generate longer or shorter levels. The models may have more trouble following your text guidance in this case, but results will be generated.
+2. `start_seed` and `end_seed`: If you change these, then be sure to set `start_seed <= end_seed`, as the model will be used to generate multiple levels with different random seeds.
+3. `num_inference_steps`: How many times the model is executed. The noise output of the model is subtracted from the input, and the process is repeated with more noise removed each time until a (hopefully) completely denoised result is generated.
+4. `guidance_scale`: Influences the balance between unconditional generation and adherence to the provided text guidance when levels are generated.
+5. `Do you want to play this level? (y/n)`: This is asked after the level is generated but before you see it. If 'y' is selected, then an A* agent will play the level.
+
+As useful as this tool is, we feel that most will have more fun generating levels with the GUI described next.
+
+### Graphical User Interface
+
+There is also a cool GUI you can work with to build larger levels out of diffusion-generated scenes. Run the following command to load the `MLM-regular` model in the GUI and create new levels interactively (**Note**: sufficiently large screen resolution will be needed to view all GUI elements).
 
 ```
 python interactive_tile_level_generator.py --model_path schrum2/MarioDiffusion-MLM-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json
 ```
+
 **DETAILS:**
-1. Adjust the 'Number of Images' or change the 'Random Seed', and click the "Generate Image" button to generate new levels. 
-2. For more control of the content generated, use the drop down menu on the right side of the GUI. Here you can construct a caption for text guidance by checking boxes. 
-3. For larger levels, you can either adjust the 'Width' or you can compose larger levels from generated content by clicking the 'Add to Level' button. 
+1. Adjust the 'Number of Images' or change the 'Random Seed', and click the 'Generate Image' button to generate new levels. 
+2. For more control of the content generated, use the drop down menus on the right side of the GUI. Here you can construct a caption for text guidance by checking boxes. A caption can also be typed directly into the 'Constructed Caption' box.
+3. For larger levels, you can adjust the 'Width' and 'Height', but directly generating unusually shaped levels with the diffusion model can lead to weird results. Alternatively, you can compose larger levels from generated content by clicking the 'Add to Level' button under a specific level scene that was made. 
 4. Once scenes are added to larger composed levels, click on the thumbnails you would like to delete or rearrange.
 5. You may also play or run A* Mario on any generated level or composed larger level, and you can toggle between SNES and NES graphics with the 'Use SNES Graphics' checkbox.
 6. Save composed larger levels as ASCII text files by clicking on 'Save Composed Level.'
+7. There is an input box for a 'Negative Prompt', but you should not expect this to do anything useful unless you are using a model trained with negative guidance, such as `schrum2/MarioDiffusion-MLM-negative0`. Even then, we recommend simply checking the box for 'Automatic Negative Captions' to assure consistent input.
+8. If you are working with a model trained on absence captions, then when launching the GUI, you should specify this with `--load_data datasets/Mar1and2_LevelsAndCaptions-absence.json` so that the phrase options on the right include absence phrases. However, when using models trained on absence captions, we recommend checking the 'Automatic Absence Captions' box.
 
-**For more information, please browse through the instructions below or read our paper to learn more about how our models work. A full list of Hugging Face models you can download are available [here](MODELS.md).**
-
-**NOTE:**
-1. When using "absence" models, text prompts can mention absent entities, such as "no pipes." However, we recommend enabling 'Automatic Absence Captions' when using such models.
-2. When using "negative" models, a separate text prompt can provide negative guidance. However, we recommend enabling 'Automatic Negative Captions' with such models.
+We hope these tools for interacting with pre-trained models provide you with a fun way of seeing what is possible with diffusion models. If you would like to train models yourself, then continue to the instructions below.
 
 ## Create datasets
 
-Data used for training our models already exists in the `datasets` directory of this repo,
-but you can recreate the data using these commands. First, you will need to check out 
-[my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC). Note that the following
-command should be executed in the parent directory of the `MarioDiffusion` repository so that
-the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the same directory:
+All the datasets you need are already in the directory named `datasets`, so you can feel free to skip this section. If you choose to go through these steps, then the content in the `datasets` directory should be overwritten with files that are identical to what is already there.
+
+First, you will need to check out 
+[my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC). Note that the following command should be executed in the parent directory of the `MarioDiffusion` repository so that the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the same directory:
 ```
 git clone https://github.com/schrum2/TheVGLC.git
 ```
-Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `batch` sub-directory in the
-`MarioDiffusion` repo.
+Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `batch` sub-directory in the `MarioDiffusion` repo.
 ```
 cd MarioDiffusion
 cd batch
 ```
-Next, run a batch file to create datasets from the VGLC data. This batch file call will create sets of 16x16 level scenes of both SMB1 and SMB2 (Japan), as well as a combination of both. 
-Afterwards, it will create captions for all 3 datasets, tokenizers for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. 
-These files will overwrite the files already in the repo, but they should be identical.
+Next, run a batch file to create datasets from the VGLC data. This batch file call will create sets of 16x16 level scenes of both SMB1 and SMB2 (Japan), as well as a combination of both. Afterwards, it will create captions for all 3 datasets, tokenizers for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. These files will overwrite the files already in the repo, but they should be identical.
 Run this command:
 ```
 Mar1and2-data.bat
@@ -107,6 +129,7 @@ Now you can browse level scenes and their captions with a command like this (the
 ```
 python ascii_data_browser.py datasets\Mar1and2_LevelsAndCaptions-regular.json 
 ```
+This is not required, but will give you insight into the data.
 
 ## Complete training and evaluation sequence
 
