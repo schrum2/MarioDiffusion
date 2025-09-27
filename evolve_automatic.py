@@ -1,4 +1,9 @@
 """
+    This code does not work very well at all, but you can still give it a try.
+    Automatically evolve level scenes in the latent space of a trained model (must put a caption into the quotations ex "full floor. one enemy."):
+
+    python evolve_automatic.py --model_path Mar1and2-conditional-regular0 --target_caption "full floor. one enemy."
+
     This will start as just a script for evolving diffusion models,
     but hopefully it can generalize to GANs too.
 

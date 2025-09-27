@@ -153,6 +153,26 @@ This command trains one diffusion model that uses `MiniLM` as its text model, an
 ```
 batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular MiniLM split
 ```
+
+For the experiments in our paper, we trained different numbers of models with each configuration, based on how computationally intensive the training was. To create all of the models that we trained for the paper, you would need to run all of the following commands (we ran each command on a separate machine to distribute the training, adn then combined the results later for processing):
+```
+batch_runner.bat train-conditional.bat 0 9 Mar1and2 regular
+batch_runner.bat train-conditional.bat 0 9 Mar1and2 absence
+batch_runner.bat train-conditional.bat 0 9 Mar1and2 negative
+batch_runner.bat train-conditional-pre.bat 0 9 Mar1and2 regular MiniLM
+batch_runner.bat train-conditional-pre.bat 0 9 Mar1and2 absence MiniLM
+batch_runner.bat train-conditional-pre.bat 0 9 Mar1and2 negative MiniLM
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular MiniLM split
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 absence MiniLM split
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 negative MiniLM split
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular GTE
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 absence GTE
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 negative GTE
+train-conditional-pre.bat 0 Mar1and2 regular GTE split
+train-conditional-pre.bat 0 Mar1and2 absence GTE split
+train-conditional-pre.bat 0 Mar1and2 negative GTE split
+```
+
 Now, if you just want to train a model step by step, look at the next sections instead.
 
 ## Train text encoder
@@ -207,21 +227,17 @@ But to actually provide captions to guide the level generation, use this command
 ```
 python text_to_level_diffusion.py --model_path Mar1and2-conditional-regular0
 ```
-An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
+This is the same command that was discussed in detail earlier with respect to pretrained models from Hugging Face, but now the locally trained model is being used. Similarly, the GUI described earlier in this README can also be used with locally trained models, like so:
 ```
 python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json
 ```
+As indicated in the instructions earlier, additionaly settings are recommended when working with models trained on absence captions or negative captions.
 
-**NOTE: MLM-absence has addtional checkboxes like 'no pipes'. MLM-negative has a negative prompt text box where you simply write 'pipes' to exclude pipes.**
-
-Interactively evolve level scenes in the latent space of the conditional model:
+You can also interactively evolve level scenes in the latent space of the conditional model:
 ```
 python evolve_interactive_conditional_diffusion.py --model_path Mar1and2-conditional-regular0
 ```
-Automatically evolve level scenes in the latent space of the model (must put a caption into the quotations ex "full floor. one enemy."):
-```
-python evolve_automatic.py --model_path Mar1and2-conditional-regular0 --target_caption " "
-```
+This tool is a prototype that was not mentioned in the paper, but is another fun way to generate levels.
 
 ## Evaluate caption adherence of text-conditional diffusion model
 
@@ -229,27 +245,27 @@ You can evaluate the final model's ability to adhere to input captions with this
 ```
 python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_LevelsAndCaptions-regular.json --output_dir text-to-level-final
 ```
-
-You can also evaluate the how caption adherence changed during training with respect to the testing set:
+You can also evaluate how caption adherence changed during training with respect to the testing set:
 ```
 python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --compare_checkpoints 
 ```
-However, it is easy to match the captions used during training. You can evaluate the how caption adherence changed during training with respect to a previously unseen randomly generated captions too:
+However, it is easy to match captions that are similar to real game captions. You can evaluate how caption adherence changed during training with respect to previously unseen randomly generated captions too:
 ```
 python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_RandomTest-regular.json --compare_checkpoints 
 ```
-If you'd like to do all 3 of these commands at once (as well as automatically generate example level samples), you can do so by running the batch file like this:
+If you'd like to create all the generated data used to evaluate caption adherence, as in our paper, you can do so by running the batch file like this:
 ```
 batch\evaluate_caption_adherence_multi.bat Mar1and2-conditional-regular0 regular Mar1and2
 ```
+If you used either `train-conditional.bat` or `train-conditional-pre.bat` to train models (mentioned earlier), then the caption adherence checked mentioned above were already carried out automatically after training.
 
-## Train unconditional diffusion model
+## Train unconditional diffusion models
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
 python train_diffusion.py --augment --output_dir Mar1and2-unconditional0 --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --seed 0 
 ```
-You can also use this batch file (it also 100 short and 100 long samples from the model once it's trained):
+You can also use this batch file:
 ```
 cd batch
 train-unconditional.bat 0 Mar1and2 
