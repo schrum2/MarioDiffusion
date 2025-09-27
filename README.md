@@ -19,10 +19,14 @@ If you use this code, please cite our paper:
 }
 ```
 
+**Note:** This paper has been accepted to [AIIDE 2025](https://sites.google.com/ualberta.ca/aiide2025). An updated bibtex citation is coming soon!
+
 More content related to this research is also available at this website:
 https://people.southwestern.edu/~schrum2/mario.html
 
 ## Set up the repository
+
+**Note:** We developed this code using Python 3.10, but we believe it will work fine with more recent versions. We also used [Anaconda](https://www.anaconda.com/) to create a Python environment for the code, though this is not strictly required.
 
 This repository can be checked out with this command:
 ```
@@ -36,6 +40,14 @@ Before running any code, install all requirements with pip:
 ```
 pip install -r requirements.txt
 ```
+
+## Three paths
+
+The text below goes into detail on various ways that you can use the code in this repository, but we anticipate people being interested in three primary ways of using our code. The three links below will take you to a guide suited specifically to your needs:
+
+1. [I want to run pretrained models](PRETRAINED.md): If you just want to download pretrained models from Hugging Face and try them out, possibly with our interactive GUI, then this is the path for you.
+2. [I want to train my own models](TRAINING.md): If you want to train models yourself, either to recreate our results or do something slightly different, the the details are in this file.
+
 
 ## Preview of final results
 
