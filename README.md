@@ -107,6 +107,10 @@ python interactive_tile_level_generator.py --model_path schrum2/MarioDiffusion-M
 
 We hope these tools for interacting with pre-trained models provide you with a fun way of seeing what is possible with diffusion models. If you would like to train models yourself, then continue to the instructions below.
 
+## Batch Files
+
+Our code was developed on Windows machines, so we have made extensive use of batch files for convenience. However, these will not work on Linux/Mac systems. The Python scripts that are called from these batch files should work on any system, though this has not been fully tested. The instructions below describe how to use the batch files first, but later in this file, details on using the various Python scripts directly are provided.
+
 ## Create datasets
 
 All the datasets you need are already in the directory named `datasets`, so you can feel free to skip this section. If you choose to go through these steps, then the content in the `datasets` directory should be overwritten with files that are identical to what is already there.
@@ -142,7 +146,9 @@ Once here, you can train both a text encoder and its corresponding diffusion mod
 ```
 train-conditional.bat 0 Mar1and2 regular 
 ```
-The `0` is an experiment number which can be replaced with any integer. Both `Mar1and2` and `regular` are referring to portions of the dataset file names that will be used for training, though they also indicate some settings for the model. For example, you can switch `regular` to `absence` and a different style of captions will be used for training. If you switch it to `negative` then negative guidance will be used during training, allowing for negative prompts during inference. If you know you want to repeat an experiment multiple times and train multiple copies of the same model, then you can use this command:
+The `0` is an experiment number which can be replaced with any integer. Both `Mar1and2` and `regular` are referring to portions of the dataset file names that will be used for training, though they also indicate some settings for the model. For example, you can switch `regular` to `absence` and a different style of captions will be used for training. If you switch it to `negative` then negative guidance will be used during training, allowing for negative prompts during inference. 
+Note that immediately after training, this batch file will create various output samples and also evaluate the performance of the model in terms of caption adherence score, which takes a while extra.
+If you know you want to repeat an experiment multiple times and train multiple copies of the same model (and evaluate all of them), then you can use this command:
 ```
 batch_runner.bat train-conditional.bat 0 4 Mar1and2 regular
 ```
@@ -150,7 +156,7 @@ This trains models for experiment numbers 0 through 4 in sequence. Also, the pri
 ```
 train-conditional-pre.bat 0 Mar1and2 regular MiniLM split
 ```
-This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Mario captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE`, which is a larger embedding model. It takes longer to train, and is not really worth the extra time, but you are welcome to experiment. The `train-conditional-pre.bat` file can also be used with `batch_runner.bat train-conditional.bat` in a similar way:
+This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Mario captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE`, which is a larger embedding model. Note that the first time either `MiniLM` or `GTE` is used, the corresponding text embedding model will need to be downloaded from Hugging Face. The associated diffusion models also take longer to train, and it is not really worth the extra time, but you are welcome to experiment. The `train-conditional-pre.bat` file can also be used with `batch_runner.bat` in a similar way:
 ```
 batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular MiniLM split
 ```
