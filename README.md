@@ -40,6 +40,7 @@ Before running any code, install all requirements with pip:
 ```
 pip install -r requirements.txt
 ```
+**NOTE:** Our code was developed on Windows machines using NVIDIA GPUs with CUDA support, and this requirements file will try to install PyTorch with CUDA 12.6 support. If this does not work, then you can install [PyTorch](https://pytorch.org/) on your own. Although it will be slower, we suspect that inference using pre-trained models will work even without CUDA support, though training models will likely be too slow to be feasible. 
 
 ## Use pretrained models: Preview of final results
 
