@@ -702,7 +702,8 @@ Average Segment Score: {avg_segment_score}"""
             add_button.pack(side=tk.LEFT, padx=5)
 
             del images, sample_tensor, sample_indices, scene  # Delete unused tensors
-            torch.cuda.empty_cache()  # Clear the cache
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()  # Clear the cache
             gc.collect()  # Force garbage collection
 
         print("Image generation completed.")

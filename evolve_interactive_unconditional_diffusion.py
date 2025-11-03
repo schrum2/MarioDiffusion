@@ -55,7 +55,7 @@ class DiffusionEvolver(Evolver):
     def generate_image(self, g):
         # generate fresh new image
         print(f"Generate new image for {g}")
-        generator = torch.Generator("cuda").manual_seed(g.seed)
+        generator = torch.Generator("cuda" if torch.cuda.is_available() else "cpu").manual_seed(g.seed)
 
         settings = {
             "batch_size" : 1,
@@ -63,7 +63,7 @@ class DiffusionEvolver(Evolver):
             "num_inference_steps" : g.num_inference_steps,
             # "strength" : g.strength, # Definitely don't need this
             "output_type" : "tensor",
-            "latents" : g.latents.to("cuda")
+            "latents" : g.latents.to("cuda" if torch.cuda.is_available() else "cpu")
         }
         
         images = self.pipe(

@@ -31,13 +31,13 @@ def caption_fitness(x):
     # Convert x to a scene representation
     latent_input = torch.tensor(x.reshape((1, C, H, W)), dtype=torch.float32)
     # Currently seed matches simulation seed, but a fixed seed could be carried with each genome
-    generator = torch.Generator("cuda").manual_seed(args.seed)
+    generator = torch.Generator("cuda" if torch.cuda.is_available() else "cpu").manual_seed(args.seed)
 
     settings = {
         "guidance_scale": args.guidance_scale, 
         "num_inference_steps": args.num_inference_steps,
         "output_type": "tensor",
-        "raw_latent_sample": latent_input.to("cuda")
+        "raw_latent_sample": latent_input.to("cuda" if torch.cuda.is_available() else "cpu")
     }
         
     # Include caption if desired
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     C = args.num_tiles
 
     global pipe
-    pipe = get_pipeline(args.model_path).to("cuda")
+    pipe = get_pipeline(args.model_path).to("cuda" if torch.cuda.is_available() else "cpu")
 
     global id_to_char, char_to_id, tile_descriptors
     _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)

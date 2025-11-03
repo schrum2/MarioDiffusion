@@ -52,12 +52,12 @@ class TextDiffusionEvolver(Evolver):
     def generate_image(self, g):
         # generate fresh new image
         print(f"Generate new image for {g}")
-        generator = torch.Generator("cuda").manual_seed(g.seed)
+        generator = torch.Generator("cuda" if torch.cuda.is_available() else "cpu").manual_seed(g.seed)
         settings = {
             "guidance_scale": g.guidance_scale, 
             "num_inference_steps": g.num_inference_steps,
             "output_type": "tensor",
-            "raw_latent_sample": g.latents.to("cuda")
+            "raw_latent_sample": g.latents.to("cuda" if torch.cuda.is_available() else "cpu")
         }
         # Include caption if desired
         if g.prompt and g.prompt.strip() != "":

@@ -323,7 +323,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 all_samples.append(sample)  # Append the generated sample to the list
                 del sample, sample_indices, scene, actual_caption  # Remove unused variables
 
-        torch.cuda.empty_cache()  # Clear GPU VRAM cache
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()  # Clear GPU VRAM cache
 
         if output: print(f"Batch {batch_idx+1}/{len(dataloader)}:")
 
