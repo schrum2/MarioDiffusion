@@ -65,7 +65,7 @@ def main():
             tileset = common_settings.LR_TILESET
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
-            path_to_json = "datasets\LR_LevelsAndCaptions-regular.json"
+            path_to_json = "datasets/LR_LevelsAndCaptions-regular.json"
 
 
     if not args.compare_checkpoints:
@@ -150,7 +150,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             tileset = common_settings.LR_TILESET
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
-            path_to_json = "datasets\LR_LevelsAndCaptions-regular.json"
+            path_to_json = "datasets/LR_LevelsAndCaptions-regular.json"
 
     checkpoint_dirs = [
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))

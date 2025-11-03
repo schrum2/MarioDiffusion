@@ -18,7 +18,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train a WGAN for tile-based level generation")
     
     # Dataset args
-    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets/SMB1_LevelsAndCaptions-regular.json", help="Path to dataset json file")
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")

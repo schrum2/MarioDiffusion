@@ -3,7 +3,7 @@ import json
 import os
 import shutil
 
-# add_prompts_to_json.py --source_json datasets\\Mar1and2_LevelsAndCaptions-regular.json --target_json Mar1and2-conditional-regular0\\samples-from-real-Mar1and2-captions-OLD\\all_levels.json
+# add_prompts_to_json.py --source_json datasets/Mar1and2_LevelsAndCaptions-regular.json --target_json Mar1and2-conditional-regular0/samples-from-real-Mar1and2-captions-OLD/all_levels.json
 
 def parse_args():
     parser = argparse.ArgumentParser()

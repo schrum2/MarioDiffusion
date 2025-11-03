@@ -120,9 +120,9 @@ if __name__ == "__main__":
         args.tileset_path = common_settings.LR_TILESET
         args.width = common_settings.LR_WIDTH
     elif args.game == 'MM-Simple':
-        args.tileset_path = 'datasets\MM_Simple_Tileset.json'
+        args.tileset_path = 'datasets/MM_Simple_Tileset.json'
     elif args.game == 'MM-Full':
-        args.tileset_path = '..\TheVGLC\MegaMan\MM.json'
+        args.tileset_path = '../TheVGLC/MegaMan/MM.json'
 
     evolver = TextDiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
     allow_negative_prompt = getattr(evolver.pipe, "supports_negative_prompt", False)
