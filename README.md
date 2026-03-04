@@ -10,16 +10,19 @@ If you use this code, please cite our paper:
 [Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros](https://arxiv.org/abs/2507.00184)  
 
 ```bibtex
-@article{schrum:mario2025,
-  title   = {{Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros}},
-  author  = {Jacob Schrum, Olivia Kilday, Emilio Salas, Bess Hagan, Reid Williams},
-  journal = {arXiv preprint arXiv:2507.00184},
-  year    = {2025},
-  url     = {https://arxiv.org/abs/2507.00184}
+@article{schrum:aiide2025,
+  title={Text-to-Level Diffusion Models with Various Text Encoders for Super Mario Bros},
+  volume={21},
+  url={https://ojs.aaai.org/index.php/AIIDE/article/view/36815},
+  DOI={10.1609/aiide.v21i1.36815},
+  number={1},
+  journal={Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment},
+  author={Schrum, Jacob and Kilday, Olivia and Salas, Emilio and Hagan, Bess and Williams, Reid},
+  year={2025},
+  month={Nov.},
+  pages={110-120}
 }
 ```
-
-**Note:** This paper has been accepted to [AIIDE 2025](https://sites.google.com/ualberta.ca/aiide2025). An updated bibtex citation is coming soon!
 
 More content related to this research is also available at this website:
 https://people.southwestern.edu/~schrum2/mario.html
