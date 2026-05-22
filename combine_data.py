@@ -2,6 +2,18 @@ import json
 import sys
 
 def combine_json_files(output_file, input_files):
+    '''
+    Combines multiple properly formatted JSON files into a single JSON file. 
+    Each input file should contain a JSON array of objects. The combined output will be a single 
+    JSON array containing all objects from the input files.
+
+    Parameters:
+    output_file (str): The path to the output JSON file.
+    input_files (list (str)): A list of paths to the input JSON files.
+
+    Returns:
+    None
+    '''
     combined_data = []
 
     for file in input_files:
