@@ -130,8 +130,9 @@ def parse_args():
     # Dataset augmentation / checkpointed dataset saving
     parser.add_argument("--auto_augment", action="store_true", help="Enable dataset growth from generated captions after reaching a target caption score")
     parser.add_argument("--auto_augment_threshold", type=float, default=0.8, help="Validation caption score threshold to begin dataset augmentation")
+
+    # figure these out later
     parser.add_argument("--auto_augment_every_epochs", type=int, default=5, help="Run auto-augmentation every N epochs after threshold is reached")
-    parser.add_argument("--auto_augment_samples_per_run", type=int, default=16, help="Number of generated samples to caption during each augmentation run")
     parser.add_argument("--auto_augment_save_images", action="store_true", help="Save images for newly added augmented samples")
     parser.add_argument("--auto_augment_json", type=str, default=None, help="Path to save the augmented training dataset JSON")
     parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
@@ -695,6 +696,7 @@ def main():
                     output=False, height=scene_height, width=scene_width
                 )
 
+                # If auto-augmentation is enabled and the caption score meets the threshold, identify bad samples and add them to the training dataset
                 if args.auto_augment and avg_caption_score is not None and avg_caption_score >= args.auto_augment_threshold:
                     bad_indices = [i for i, score in enumerate(compare_all_scores) if score < 1.0]
                     if bad_indices:
@@ -705,6 +707,14 @@ def main():
                                 "scene": bad_scenes[i],
                                 "score": compare_all_scores[i],
                             })
+
+                    # TEMP FOR DEBUGGING: Save bad_generated_scenes to JSON after each validation run
+                    if bad_generated_scenes:
+                        bad_samples_path = os.path.join(args.output_dir, f"bad_generated_scenes_epoch_{epoch+1}.json")
+                        with open(bad_samples_path, 'w') as f:
+                            json.dump(bad_generated_scenes, f, indent=4)
+                        print(f"Saved {len(bad_generated_scenes)} bad generated scenes to {bad_samples_path}")
+
             else:
                 # Is this how this should behave in the unconditional case?
                 # Or should I justs use 0 or -1?
