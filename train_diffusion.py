@@ -7,7 +7,7 @@ from tqdm.auto import tqdm
 import random
 import numpy as np
 from accelerate import Accelerator
-from level_dataset import visualize_samples
+from level_dataset import visualize_samples, convert_to_level_format
 from tokenizer import Tokenizer 
 import json
 from datetime import datetime
@@ -656,6 +656,7 @@ def main():
         # Calculate validation loss if validation dataset exists and it's time to validate
         val_loss = None
         avg_caption_score = None
+        bad_generated_scenes = []
         val_loss_improved = False
         caption_score_improved = False
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
@@ -688,11 +689,22 @@ def main():
                 inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
                 guidance_scale = common_settings.GUIDANCE_SCALE
-                avg_caption_score, _, _, _= calculate_caption_score_and_samples(
+                avg_caption_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width
                 )
+
+                if args.auto_augment and avg_caption_score is not None and avg_caption_score >= args.auto_augment_threshold:
+                    bad_indices = [i for i, score in enumerate(compare_all_scores) if score < 1.0]
+                    if bad_indices:
+                        bad_scenes = convert_to_level_format(all_samples).tolist()
+                        for i in bad_indices:
+                            bad_generated_scenes.append({
+                                "prompt": all_prompts[i],
+                                "scene": bad_scenes[i],
+                                "score": compare_all_scores[i],
+                            })
             else:
                 # Is this how this should behave in the unconditional case?
                 # Or should I justs use 0 or -1?
