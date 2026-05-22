@@ -38,6 +38,8 @@ game_selected = None  # Global variable for selected game
 GUI_FONT = ("Arial", GUI_FONT_SIZE)
 
 class CaptionBuilder(ParentBuilder):
+
+
     global tileset_path, game_selected
     def __init__(self, master):
         global tileset_path, game_selected
@@ -904,6 +906,7 @@ Average Segment Score: {avg_segment_score}"""
         editor_window = tk.Toplevel(self.master)
         editor_window.title("Level Editor")
         editor = LevelEditor(editor_window, level, self.id_to_char, self.char_to_id, self.tile_descriptors)
+
         # opens up empty window for now, but the LevelEditor class is where the editing logic will go
 
         
@@ -973,6 +976,10 @@ Average Segment Score: {avg_segment_score}"""
             #self.negative_prompt_entry.insert(tk.END, self.last_present_neg_caption)
             self.negative_prompt_entry.config(state=tk.NORMAL)
 
+
+def levelEditor():
+    # Placeholder for level editor functionality
+    pass
 
 import argparse
 def parse_args():
