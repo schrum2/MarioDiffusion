@@ -188,6 +188,7 @@ class CaptionBuilder(ParentBuilder):
 
         self.play_composed_button = ttk.Button(row1, text="Play Composed Level", command=self.play_composed_level, style="TButton")
         self.play_composed_button.pack(side=tk.LEFT, padx=5)
+
         self.astar_composed_button = ttk.Button(row1, text="Use A* on Composed Level", command=self.astar_composed_level, style="TButton")
         self.astar_composed_button.pack(side=tk.LEFT, padx=5)
         self.use_snes_graphics = tk.BooleanVar(value=False)
@@ -701,6 +702,14 @@ Average Segment Score: {avg_segment_score}"""
             )
             add_button.pack(side=tk.LEFT, padx=5)
 
+            edit_button = ttk.Button(
+                button_frame,
+                text="Edit",
+                command=lambda idx=i: self.edit_level(idx),
+                style="TButton"
+            )
+            edit_button.pack(side=tk.LEFT, padx=5)
+
             del images, sample_tensor, sample_indices, scene  # Delete unused tensors
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()  # Clear the cache
@@ -888,6 +897,10 @@ Average Segment Score: {avg_segment_score}"""
             #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
+
+    def edit_level(self, idx):
+        level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
+        # TODO
 
     def use_astar(self, idx):
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
