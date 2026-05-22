@@ -902,6 +902,9 @@ Average Segment Score: {avg_segment_score}"""
 
     def edit_level(self, idx):
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
+        # TODO: Figure out what SampleOutput type is and how to use it 
+        print(type(level))
+
         # TODO - open a new window with a grid of buttons representing the level, allowing the user to click to cycle through tile types and edit the level before playing or saving
         editor_window = tk.Toplevel(self.master)
         editor_window.title("Level Editor")
@@ -976,10 +979,16 @@ Average Segment Score: {avg_segment_score}"""
             #self.negative_prompt_entry.insert(tk.END, self.last_present_neg_caption)
             self.negative_prompt_entry.config(state=tk.NORMAL)
 
+# TODO: RESUME HERE
+class LevelEditor:
+    def __init__(self, master, level, id_to_char, char_to_id, tile_descriptors):
+        self.master = master
+        self.level = level
+        self.id_to_char = id_to_char
+        self.char_to_id = char_to_id
+        self.tile_descriptors = tile_descriptors
 
-def levelEditor():
-    # Placeholder for level editor functionality
-    pass
+
 
 import argparse
 def parse_args():
