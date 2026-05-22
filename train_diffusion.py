@@ -134,6 +134,7 @@ def parse_args():
     parser.add_argument("--auto_augment_samples_per_run", type=int, default=16, help="Number of generated samples to caption during each augmentation run")
     parser.add_argument("--auto_augment_save_images", action="store_true", help="Save images for newly added augmented samples")
     parser.add_argument("--auto_augment_json", type=str, default=None, help="Path to save the augmented training dataset JSON")
+    parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
 
     # For block2vec embedding model
     parser.add_argument("--block_embedding_model_path", type=str, default=None, help="Path to trained block embedding model (.pt)")
