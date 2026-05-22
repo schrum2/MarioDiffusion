@@ -15,6 +15,15 @@ VALID_MODES_BY_TYPE = {
 }
 
 def detect_model_type(model_name):
+    """
+    Detects model type based on the given model name. This function looks for specific substrings in the model name to classify it into one of the known types. Returns "unknown" if no known type is detected.
+    
+    Args:
+        model_name (str): The name of the model, typically derived from the directory name.
+
+    Returns:
+        str: The detected model type, which can be "conditional", "unconditional", "wgan", "fdm", "MarioGPT", or "unknown".
+    """
     if "-conditional-" in model_name:
         return "conditional"
     elif "-unconditional" in model_name:
