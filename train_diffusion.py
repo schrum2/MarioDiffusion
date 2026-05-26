@@ -396,6 +396,26 @@ def main():
                                         negative_prompt_training=args.negative_prompt_training,
                                         block_embeddings=block_embeddings, batch_size=args.batch_size)
 
+    # Also, if the caption is already present in the training dataset, we can skip it to avoid duplicates
+    # Important: two captions could have their phrases in different orders but still be essentially the same, so we should check for that as well
+    # Idea: at start of training, get all the captions, sort the phrases in a cannonical form and store in a set.
+    # Then for each new caption, we can check if it's already in the set before adding to the dataset and only add if it's new. 
+    # Make sure this caption is also put in cannonical form first.
+    
+    def canonicalize_caption(caption):
+        phrases = [phrase.strip() for phrase in caption.split('.') if phrase.strip()]
+        phrases = sorted(set(phrases))
+        return ". ".join(phrases) + "." if phrases else ""
+
+    seen_caption_set = set() 
+    train_dataset = train_dataloader.dataset 
+    for i in range(len(train_dataset)): 
+        sample = train_dataset[i] 
+        if isinstance(sample, (list, tuple)) and len(sample) > 1: 
+            caption_text = sample[1] 
+        else:
+            caption_text = str(sample) 
+        seen_caption_set.add(canonicalize_caption(caption_text)) 
 
     first_sample = train_dataloader.dataset[0]
     scene_height = first_sample[0].shape[1]
@@ -718,6 +738,12 @@ def main():
                             if "broken" in caption:
                                 continue
 
+
+                            canonical_caption = canonicalize_caption(caption)
+                            if canonical_caption in seen_caption_set:
+                                continue
+                            seen_caption_set.add(canonical_caption)
+
                             bad_generated_scenes.append({
                                 "prompt": all_prompts[i],
                                 "scene": bad_scenes[i],
@@ -725,6 +751,7 @@ def main():
                                 "caption": caption
                             })
 
+                    
 
                     # TEMP FOR DEBUGGING: Save bad_generated_scenes to JSON after each validation run
                     if bad_generated_scenes:
