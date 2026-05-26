@@ -6,6 +6,22 @@ from torch.utils.data import DataLoader
 import models.text_model as text_model
 
 def masked_inputs(input_batch, tokenizer, device, mask_prob=0.15, generator=None):
+    """
+    Randomly masks tokens in the input batch with a specified probability, excluding [PAD] tokens. 
+    This simulates the masked language modeling task, where each token has a chance to be replaced 
+    with the [MASK] token, allowing us to evaluate the model's ability to predict masked tokens.
+
+    Parameters:
+     input_batch (torch.Tensor): Batch of token IDs to be masked.
+     tokenizer: Tokenizer object to access special token IDs.
+     device: Device to move tensors to.
+     mask_prob (float): Probability of masking a token.
+     generator (torch.Generator, optional): Random number generator.
+
+    Returns:
+     torch.Tensor: tensor with randomly selected tokens replaced with [MASK] tokens.
+
+    """
     mask_token = tokenizer.token_to_id["[MASK]"]
     pad_token = tokenizer.token_to_id["[PAD]"]  # Don't mask [PAD] tokens
     input_batch = input_batch.to(device)
