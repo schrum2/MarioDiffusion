@@ -56,6 +56,8 @@ class CaptionBuilder(ParentBuilder):
         self.current_levels = []
         self.generated_images = []
         self.generated_scenes = []
+        self.generated_widget_refs = []
+
 
         # For tracking composed scenes and thumbnails
         self.composed_scenes = []
@@ -467,6 +469,8 @@ class CaptionBuilder(ParentBuilder):
         self.generated_images = []
         self.generated_scenes = []
 
+        self.generated_widget_refs = [] 
+
         print("Generating")
         
         if self.automatic_absence_caption.get():
@@ -672,7 +676,13 @@ Average Segment Score: {avg_segment_score}"""
 
             score_label = ttk.Label(img_frame, text=score_label_text, wraplength=300)
             score_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
-    
+
+            self.generated_widget_refs.append({
+                "image_label": label,
+                "caption_text": caption_text,
+                "score_label": score_label,
+            })
+
             # Create a frame for buttons
             button_frame = ttk.Frame(img_frame)
             button_frame.pack(pady=5)
@@ -901,7 +911,7 @@ Average Segment Score: {avg_segment_score}"""
             level.play()
 
     def edit_level(self, idx):
-        scene = self.generated_scenes[idx] 
+        scene = self.generated_scenes[idx]
         editor_window = tk.Toplevel(self.master)
         editor_window.title("Level Editor")
 
@@ -914,8 +924,39 @@ Average Segment Score: {avg_segment_score}"""
             on_save=lambda updated_scene: self._replace_generated_scene(idx, updated_scene)
         )
 
-        def _replace_generated_scene(self, idx, updated_scene):
-            self.generated_scenes[idx] = updated_scene
+    def _replace_generated_scene(self, idx, updated_scene):
+        self.generated_scenes[idx] = updated_scene
+        self.generated_images[idx] = self._render_scene_image(updated_scene)
+        self._refresh_generated_image(idx)
+
+    def _render_scene_image(self, scene):
+        if game_selected == "Lode Runner":
+            game_name = "LR"
+            num_classes = common_settings.LR_TILE_COUNT
+        elif game_selected == "Mega Man (Simple)":
+            game_name = "MM-Simple"
+            num_classes = common_settings.MM_SIMPLE_TILE_COUNT
+        elif game_selected == "Mega Man (Full)":
+            game_name = "MM-Full"
+            num_classes = common_settings.MM_FULL_TILE_COUNT
+        else:
+            game_name = "Mario"
+            num_classes = common_settings.MARIO_TILE_COUNT
+
+        one_hot = torch.nn.functional.one_hot(
+            torch.tensor(scene, dtype=torch.long),
+            num_classes=num_classes
+        ).float().permute(2, 0, 1).unsqueeze(0)
+
+        pil_img = visualize_samples(one_hot, game=game_name)
+        return pil_img[0] if isinstance(pil_img, list) else pil_img
+
+    def _refresh_generated_image(self, idx):
+        refs = self.generated_widget_refs[idx]
+        pil_img = self.generated_images[idx]
+        tk_img = ImageTk.PhotoImage(pil_img)
+        refs["image_label"].config(image=tk_img)
+        refs["image_label"].image = tk_img
 
     def use_astar(self, idx):
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
@@ -986,7 +1027,7 @@ Average Segment Score: {avg_segment_score}"""
 class LevelEditor:
     def __init__(self, master, scene, id_to_char, char_to_id, tile_descriptors, on_save=None):
         self.master = master
-        self.scene = [list(row) for row in scene]  # mutable copy
+        self.scene = [list(row) for row in scene]
         self.id_to_char = id_to_char
         self.char_to_id = char_to_id
         self.tile_descriptors = tile_descriptors
@@ -1023,10 +1064,11 @@ class LevelEditor:
         self.tile_buttons[row][col].config(text=self.id_to_char[next_id])
 
     def save(self):
-        if self.on_save:
-            self.on_save(self.scene)
         self.master.destroy()
+        self.on_save(self.scene)
 
+    def cancel(self):
+        self.master.destroy()
 
 import argparse
 def parse_args():
