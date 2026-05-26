@@ -1,7 +1,7 @@
 cd ..
 
 
-python run_gpt2.py --output_dir "MarioGPT_Levels" --num_collumns 128
+python run_gpt2.py --output_dir "MarioGPT_Levels" --num_columns 128
 python create_level_json_data.py --output "datasets\\MarioGPT_Levels.json" --levels "MarioGPT_Levels\levels" --stride 16
 python create_level_json_data.py --output "datasets\\MarioGPT_Levels_Long.json" --levels "MarioGPT_Levels\levels" --stride 128 --target_width 128
 

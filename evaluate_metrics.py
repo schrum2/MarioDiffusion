@@ -12,7 +12,7 @@ from util.metrics import (
 from captions.caption_match import TOPIC_KEYWORDS
 
 def real_data():
-    real_levels_file_path = "datasets\\Mar1and2_LevelsAndCaptions-regular.json"
+    real_levels_file_path = "datasets/Mar1and2_LevelsAndCaptions-regular.json"
     # Open full dataset
     with open(real_levels_file_path, "r") as game_levels_file:
         game_data = json.load(game_levels_file)

@@ -786,7 +786,7 @@ if __name__ == "__main__":
     torch.manual_seed(0)  # Add PyTorch seed for DataLoader determinism
 
     tokenizer = Tokenizer()
-    tokenizer.load('datasets\Mar1and2_Tokenizer-regular.pkl')
+    tokenizer.load('datasets/Mar1and2_Tokenizer-regular.pkl')
 
     # Load block embeddings
     block2vec = Block2Vec.from_pretrained("SMB1-block2vec-embeddings")

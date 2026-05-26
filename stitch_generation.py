@@ -50,7 +50,7 @@ def generate_right_half_samples(
     dataset: List[Dict],
     output_path: str,
     model_path: str,
-    device: str = "cuda"
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
 ):
     
 

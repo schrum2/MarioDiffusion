@@ -603,13 +603,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate captions for Mega Man screenshots")
     parser.add_argument("--dataset", required=True, help="json with level scenes")
     
-    # Fix unsupported escape sequence in argument parser
-    def escape_path(path):
-        return path.replace("\\", "\\\\")
-
-    parser.add_argument("--tileset", default=escape_path('datasets\\MM.json'), help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default='datasets/MM.json', help="Descriptions of individual tile types")
     parser.add_argument("--output", required=True, help="Output JSON file path")
-    #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     global args
     args = parser.parse_args()

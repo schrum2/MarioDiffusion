@@ -108,7 +108,7 @@ def get_embeddings_from_split(caption_batch, tokenizer, model, device='cpu'):
 if __name__ == "__main__":
     cap = split_sentences(["Hello. My name is George. How. Are you doing. Today?", "I am doing. Just fine. Thanks."])
     model_url = "sentence-transformers/multi-qa-MiniLM-L6-cos-v1"
-    device = 'cuda'
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     tokenizer = AutoTokenizer.from_pretrained(model_url)
     model = AutoModel.from_pretrained(model_url, trust_remote_code=True).to(device)
     get_embeddings_from_split(cap, tokenizer, model, device)

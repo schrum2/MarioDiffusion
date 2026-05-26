@@ -36,7 +36,7 @@ class InteractiveGeneration:
 
             extra_params = self.get_extra_params(param_values)
             for seed in range(start_seed, end_seed+1):
-                generator = torch.Generator("cuda").manual_seed(seed)
+                generator = torch.Generator("cuda" if torch.cuda.is_available() else "cpu").manual_seed(seed)
                 image = self.generate_image(param_values, generator, **extra_params)
                 if isinstance(image, list):
                     # Assume this represents an animation

@@ -1,21 +1,21 @@
 --index-url https://download.pytorch.org/whl/cu126
-torch
-torchvision
-torchaudio
-torchview
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+torchview==0.2.6
 
 --extra-index-url https://pypi.org/simple
-numpy
-diffusers
-transformers
-accelerate
-safetensors
-datasets
-matplotlib
-mario-gpt
-send2trash
-cmaes
-huggingface_hub
+numpy==1.26.4
+diffusers==0.32.2
+transformers==4.48.3
+accelerate==1.3.0
+safetensors==0.5.2
+datasets==3.2.0
+huggingface_hub==0.28.1
+matplotlib==3.10.0
 timm==0.9.12
+mario-gpt==0.1.3
+send2trash==1.8.3
+cmaes==0.11.1
 
 git+https://github.com/williamsr03/LodeRunner.git@Reid#egg=LodeRunner

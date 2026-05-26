@@ -25,7 +25,7 @@ def parse_args():
     
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
-    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets/SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
@@ -104,7 +104,8 @@ def main():
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
 
     # Setup accelerator
     accelerator = Accelerator(

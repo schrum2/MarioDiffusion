@@ -72,7 +72,7 @@ def parse_args():
     
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
-    parser.add_argument("--json", type=str, default="datasets\\SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="datasets/SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=13, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
@@ -277,10 +277,10 @@ def main():
         args.tileset = common_settings.LR_TILESET
     elif args.game == "MM-Simple":
         args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
-        args.tileset = 'datasets\MM_Simple_Tileset.json'
+        args.tileset = 'datasets/MM_Simple_Tileset.json'
     elif args.game == "MM-Full":
         args.num_tiles = common_settings.MM_FULL_TILE_COUNT
-        args.tileset = '..\TheVGLC\MegaMan\MM.json'
+        args.tileset = '../TheVGLC/MegaMan/MM.json'
     else:
         raise ValueError(f"Unknown game: {args.game}")
 
@@ -330,7 +330,8 @@ def main():
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     
     # Setup accelerator
     accelerator = Accelerator(

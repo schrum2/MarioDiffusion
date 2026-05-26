@@ -8,7 +8,7 @@ MARIO_WIDTH = 16
 MARIO_TILE_PIXEL_DIM = 16
 MARIO_TILE_COUNT = 13
 
-MARIO_TILESET = 'datasets\smb.json'
+MARIO_TILESET = 'datasets/smb.json'
 
 LR_HEIGHT = 32
 LR_WIDTH = 32
@@ -16,7 +16,7 @@ LR_WIDTH = 32
 LR_TILE_PIXEL_DIM = 8
 LR_TILE_COUNT = 8
 
-LR_TILESET = 'datasets\Loderunner.json'
+LR_TILESET = 'datasets/Loderunner.json'
 
 MEGAMAN_HEIGHT = 14
 MEGAMAN_WIDTH = 16
@@ -25,5 +25,5 @@ MM_TILE_PIXEL_DIM = 16
 MM_SIMPLE_TILE_COUNT = 13
 MM_FULL_TILE_COUNT = 39
 
-MM_FULL_TILESET = 'datasets\MM.json'
-MM_SIMPLE_TILESET = 'datasets\MM_Simple_Tileset.json'
+MM_FULL_TILESET = 'datasets/MM.json'
+MM_SIMPLE_TILESET = 'datasets/MM_Simple_Tileset.json'

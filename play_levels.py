@@ -17,7 +17,7 @@ title_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_
 def parse_args():
     parser = argparse.ArgumentParser(description="Arguments for MarioGPT metrics")
 
-    parser.add_argument("--generated_levels", type=str, default="datasets\\MarioGPT_LevelsAndCaptions-regular-long.json", help="The filepath of the LevelsAndCaptions format for MarioGPT generated data")
+    parser.add_argument("--generated_levels", type=str, default="datasets/MarioGPT_LevelsAndCaptions-regular-long.json", help="The filepath of the LevelsAndCaptions format for MarioGPT generated data")
     parser.add_argument("--start_index", type=int, default=12, help="The start location of the astar testing")
     parser.add_argument("--only_play_unbeaten", action='store_true', help="If true, only play levels that have not been beaten before")
     parser.add_argument("--num_trials", type=int, default=1, help="Number of trials to run for each level")
