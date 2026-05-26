@@ -877,25 +877,28 @@ Average Segment Score: {avg_segment_score}"""
 
     def get_sample_output(self, idx_or_scene, use_snes_graphics=False):
         if isinstance(idx_or_scene, int):
-            tensor = torch.tensor(self.current_levels[idx_or_scene])
-            tile_numbers = torch.argmax(tensor, dim=0).numpy()
+            if idx_or_scene < len(self.generated_scenes):
+                scene = self.generated_scenes[idx_or_scene]
+            else:
+                tensor = torch.tensor(self.current_levels[idx_or_scene])
+                scene = torch.argmax(tensor, dim=0).numpy().tolist()
+
             if game_selected == "Lode Runner":
-                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in tile_numbers]
-                #char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
+                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
             else:
-                char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
+                char_grid = scene_to_ascii(scene, self.id_to_char)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
             # Assume idx_or_scene is a scene (list of lists of tile indices)
+            scene = idx_or_scene
             if game_selected == "Lode Runner":
-                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in tile_numbers]
-                char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
+                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
+                level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
             else:
-                tile_numbers = idx_or_scene
-                char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
-            level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+                char_grid = scene_to_ascii(scene, self.id_to_char)
+                level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
       
     def play_level(self, idx):
