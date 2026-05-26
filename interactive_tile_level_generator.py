@@ -4,10 +4,10 @@ import os
 import json
 import torch
 import gc
-from PIL import ImageTk
+from PIL import ImageTk, Image
 import sys
 from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
-from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
+from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split, mario_tiles, lr_tiles, mm_tiles
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
@@ -921,15 +921,16 @@ Average Segment Score: {avg_segment_score}"""
             self.id_to_char,
             self.char_to_id,
             self.tile_descriptors,
+            self.game_var.get(),
             on_save=lambda updated_scene: self._replace_generated_scene(idx, updated_scene)
         )
 
     def _replace_generated_scene(self, idx, updated_scene):
-        self.generated_scenes[idx] = updated_scene
-        self.generated_images[idx] = self._render_scene_image(updated_scene)
-        self._refresh_generated_image(idx)
+        self.generated_scenes[idx] = updated_scene 
+        self.generated_images[idx] = self._render_scene_image(updated_scene) 
+        self._refresh_generated_image(idx) 
 
-    def _render_scene_image(self, scene):
+    def _render_scene_image(self, scene): 
         if game_selected == "Lode Runner":
             game_name = "LR"
             num_classes = common_settings.LR_TILE_COUNT
@@ -1023,32 +1024,36 @@ Average Segment Score: {avg_segment_score}"""
             #self.negative_prompt_entry.insert(tk.END, self.last_present_neg_caption)
             self.negative_prompt_entry.config(state=tk.NORMAL)
 
-# TODO: RESUME HERE
 class LevelEditor:
-    def __init__(self, master, scene, id_to_char, char_to_id, tile_descriptors, on_save=None):
+    def __init__(self, master, scene, id_to_char, char_to_id, tile_descriptors, game, on_save=None):
         self.master = master
         self.scene = [list(row) for row in scene]
         self.id_to_char = id_to_char
         self.char_to_id = char_to_id
         self.tile_descriptors = tile_descriptors
+        self.game = game
         self.on_save = on_save
 
         self.master.title("Level Editor")
         self.grid_frame = ttk.Frame(master)
         self.grid_frame.pack(padx=10, pady=10)
 
+        self.tile_images = self._load_tile_images(game)
         self.tile_buttons = []
+        self.tile_photo_images = []
+
         for r, row in enumerate(self.scene):
             button_row = []
             for c, tile_id in enumerate(row):
-                text = self.id_to_char[tile_id]
+                photo = ImageTk.PhotoImage(self.tile_images[tile_id])
                 btn = ttk.Button(
                     self.grid_frame,
-                    text=text,
-                    width=3,
+                    image=photo,
                     command=lambda r=r, c=c: self.cycle_tile(r, c)
                 )
+                btn.image = photo
                 btn.grid(row=r, column=c, padx=1, pady=1)
+                self.tile_photo_images.append(photo)
                 button_row.append(btn)
             self.tile_buttons.append(button_row)
 
@@ -1061,14 +1066,28 @@ class LevelEditor:
         current_id = self.scene[row][col]
         next_id = (current_id + 1) % len(self.id_to_char)
         self.scene[row][col] = next_id
-        self.tile_buttons[row][col].config(text=self.id_to_char[next_id])
+        photo = ImageTk.PhotoImage(self.tile_images[next_id])
+        btn = self.tile_buttons[row][col]
+        btn.config(image=photo)
+        btn.image = photo
+        self.tile_photo_images.append(photo)
 
     def save(self):
         self.master.destroy()
-        self.on_save(self.scene)
+        if self.on_save:
+            self.on_save(self.scene)
 
     def cancel(self):
         self.master.destroy()
+
+    def _load_tile_images(self, game):
+        if game == "Lode Runner":
+            return lr_tiles()
+        elif game == "Mega Man (Simple)":
+            return mm_tiles("MM-Simple")
+        elif game == "Mega Man (Full)":
+            return mm_tiles("MM-Full")
+        return mario_tiles()
 
 import argparse
 def parse_args():
