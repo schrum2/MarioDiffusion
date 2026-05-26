@@ -910,6 +910,9 @@ Average Segment Score: {avg_segment_score}"""
         editor_window.title("Level Editor")
         editor = LevelEditor(editor_window, level, self.id_to_char, self.char_to_id, self.tile_descriptors)
 
+
+
+
         # opens up empty window for now, but the LevelEditor class is where the editing logic will go
 
         
@@ -987,6 +990,21 @@ class LevelEditor:
         self.id_to_char = id_to_char
         self.char_to_id = char_to_id
         self.tile_descriptors = tile_descriptors
+
+        editor_label = ttk.Label(master, text="Level Editor - Click tiles to change them")
+        editor_label.pack(pady=10)
+        
+        editor = levelEditor(
+            editor_window,
+            scene,
+            self.id_to_char,
+            self.char_to_id,
+            self.tile_descriptors
+        )
+
+
+
+    
 
 
 
