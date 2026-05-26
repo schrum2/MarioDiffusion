@@ -407,6 +407,7 @@ def main():
         phrases = sorted(set(phrases))
         return ". ".join(phrases) + "." if phrases else ""
 
+    # TODO: Only do the following code if using augment
     seen_caption_set = set() 
     train_dataset = train_dataloader.dataset 
     for i in range(len(train_dataset)): 
