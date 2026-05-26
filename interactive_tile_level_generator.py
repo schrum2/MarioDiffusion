@@ -901,21 +901,21 @@ Average Segment Score: {avg_segment_score}"""
             level.play()
 
     def edit_level(self, idx):
-        level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
-        # TODO: Figure out what SampleOutput type is and how to use it 
-        print(type(level))
-
-        # TODO - open a new window with a grid of buttons representing the level, allowing the user to click to cycle through tile types and edit the level before playing or saving
+        scene = self.generated_scenes[idx] 
         editor_window = tk.Toplevel(self.master)
         editor_window.title("Level Editor")
-        editor = LevelEditor(editor_window, level, self.id_to_char, self.char_to_id, self.tile_descriptors)
 
+        LevelEditor(
+            editor_window,
+            scene,
+            self.id_to_char,
+            self.char_to_id,
+            self.tile_descriptors,
+            on_save=lambda updated_scene: self._replace_generated_scene(idx, updated_scene)
+        )
 
-
-
-        # opens up empty window for now, but the LevelEditor class is where the editing logic will go
-
-        
+        def _replace_generated_scene(self, idx, updated_scene):
+            self.generated_scenes[idx] = updated_scene
 
     def use_astar(self, idx):
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
@@ -984,28 +984,48 @@ Average Segment Score: {avg_segment_score}"""
 
 # TODO: RESUME HERE
 class LevelEditor:
-    def __init__(self, master, level, id_to_char, char_to_id, tile_descriptors):
+    def __init__(self, master, scene, id_to_char, char_to_id, tile_descriptors, on_save=None):
         self.master = master
-        self.level = level
+        self.scene = [list(row) for row in scene]  # mutable copy
         self.id_to_char = id_to_char
         self.char_to_id = char_to_id
         self.tile_descriptors = tile_descriptors
+        self.on_save = on_save
 
-        editor_label = ttk.Label(master, text="Level Editor - Click tiles to change them")
-        editor_label.pack(pady=10)
-        
-        editor = levelEditor(
-            editor_window,
-            scene,
-            self.id_to_char,
-            self.char_to_id,
-            self.tile_descriptors
-        )
+        self.master.title("Level Editor")
+        self.grid_frame = ttk.Frame(master)
+        self.grid_frame.pack(padx=10, pady=10)
 
+        self.tile_buttons = []
+        for r, row in enumerate(self.scene):
+            button_row = []
+            for c, tile_id in enumerate(row):
+                text = self.id_to_char[tile_id]
+                btn = ttk.Button(
+                    self.grid_frame,
+                    text=text,
+                    width=3,
+                    command=lambda r=r, c=c: self.cycle_tile(r, c)
+                )
+                btn.grid(row=r, column=c, padx=1, pady=1)
+                button_row.append(btn)
+            self.tile_buttons.append(button_row)
 
+        controls = ttk.Frame(master)
+        controls.pack(pady=8)
+        ttk.Button(controls, text="Save", command=self.save).pack(side=tk.LEFT, padx=4)
+        ttk.Button(controls, text="Cancel", command=master.destroy).pack(side=tk.LEFT, padx=4)
 
-    
+    def cycle_tile(self, row, col):
+        current_id = self.scene[row][col]
+        next_id = (current_id + 1) % len(self.id_to_char)
+        self.scene[row][col] = next_id
+        self.tile_buttons[row][col].config(text=self.id_to_char[next_id])
 
+    def save(self):
+        if self.on_save:
+            self.on_save(self.scene)
+        self.master.destroy()
 
 
 import argparse
