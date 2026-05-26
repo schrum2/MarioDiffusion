@@ -702,11 +702,28 @@ def main():
                     if bad_indices:
                         bad_scenes = convert_to_level_format(all_samples).tolist()
                         for i in bad_indices:
+
+                            caption, details = assign_caption(
+                                bad_scenes[i],
+                                id_to_char,
+                                char_to_id,
+                                tile_descriptors,
+                                describe_locations=False,
+                                describe_absence=args.describe_absence,
+                                debug=True,
+                                return_details=True
+                            )
+
+                            if "broken" in caption:
+                                continue
+
                             bad_generated_scenes.append({
                                 "prompt": all_prompts[i],
                                 "scene": bad_scenes[i],
                                 "score": compare_all_scores[i],
+                                "caption": caption
                             })
+
 
                     # TEMP FOR DEBUGGING: Save bad_generated_scenes to JSON after each validation run
                     if bad_generated_scenes:
