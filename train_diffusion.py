@@ -26,6 +26,7 @@ import glob
 import models.general_training_helper as gen_train_help
 import re
 from models.pipeline_loader import get_pipeline
+from create_ascii_captions import assign_caption
 
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
