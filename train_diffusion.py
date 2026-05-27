@@ -761,6 +761,31 @@ def main():
                             json.dump(bad_generated_scenes, f, indent=4)
                         print(f"Saved {len(bad_generated_scenes)} bad generated scenes to {bad_samples_path}")
 
+                        MAX_NEW_SAMPLES = 100 
+                        bad_generated_scenes = bad_generated_scenes[:MAX_NEW_SAMPLES] 
+
+                        for sample in bad_generated_scenes:
+                            new_entry = {
+                                "level": sample["scene"],
+                                "caption": sample["caption"]
+                            }
+                            train_dataset.data.append(new_entry)
+
+                        from torch.utils.data import DataLoader
+
+                        train_dataloader = DataLoader(
+                            train_dataloader.dataset,
+                            batch_size=args.batch_size,
+                            shuffle=True
+                        )
+
+                        model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+                            model,
+                            optimizer,
+                            train_dataloader,
+                            lr_scheduler
+                        )
+
             else:
                 # Is this how this should behave in the unconditional case?
                 # Or should I justs use 0 or -1?
