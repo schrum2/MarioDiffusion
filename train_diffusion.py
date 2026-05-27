@@ -396,6 +396,16 @@ def main():
                                         negative_prompt_training=args.negative_prompt_training,
                                         block_embeddings=block_embeddings, batch_size=args.batch_size)
 
+    #print(train_dataloader.dataset)
+    #input("Press Enter to continue...")
+    #print(train_dataloader.dataset[0])
+    #input("Press Enter to continue...")
+    #print(train_dataloader.dataset.data)
+    #input("Press Enter to continue...")
+    #print(train_dataloader.dataset.data[0])
+    #input("Press Enter to continue...")
+
+
     # Also, if the caption is already present in the training dataset, we can skip it to avoid duplicates
     # Important: two captions could have their phrases in different orders but still be essentially the same, so we should check for that as well
     # Idea: at start of training, get all the captions, sort the phrases in a cannonical form and store in a set.
@@ -731,7 +741,7 @@ def main():
                                 tile_descriptors,
                                 describe_locations=False,
                                 describe_absence=args.describe_absence,
-                                debug=True,
+                                debug=False,
                                 return_details=True
                             )
 
@@ -777,7 +787,7 @@ def main():
                         # Mutating train_dataset.data here is safe; the new DataLoader shares the same object.
                         for sample in bad_generated_scenes:
                             train_dataset.data.append({
-                                "level": sample["scene"],
+                                "scene": sample["scene"],
                                 "caption": sample["caption"]
                             })
 
