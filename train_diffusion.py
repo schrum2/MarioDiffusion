@@ -134,6 +134,7 @@ def parse_args():
 
     # figure these out later
     parser.add_argument("--auto_augment_max_new_samples", type=int, default=100, help="Max new samples to add per augmentation run")    
+    parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7800,help="Maximum total size the training dataset is allowed to grow to")
     parser.add_argument("--auto_augment_save_images", action="store_true", help="Save images for newly added augmented samples")
     parser.add_argument("--auto_augment_json", type=str, default=None, help="Path to save the augmented training dataset JSON")
     parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
@@ -517,12 +518,27 @@ def main():
     log_file = os.path.join(args.output_dir, f"training_log_{formatted_date}.jsonl")
     config_file = os.path.join(args.output_dir, f"hyperparams_{formatted_date}.json")
 
+    dataset_growth_log_file = None
+    if args.auto_augment:
+        dataset_growth_log_file = os.path.join(
+            args.output_dir,
+            f"dataset_growth_log_{formatted_date}.jsonl"
+        )
+
     # Save hyperparameters to JSON file
     if accelerator.is_local_main_process:
         hyperparams = vars(args)
         with open(config_file, "w") as f:
             json.dump(hyperparams, f, indent=4)
         print(f"Saved configuration to: {config_file}")
+
+    if args.auto_augment:
+        augmented_samples_dir = os.path.join(
+            args.output_dir,
+            "augmented_samples"
+        )
+
+        os.makedirs(augmented_samples_dir, exist_ok=True)
   
     # Add function to log metrics
     def log_metrics(epoch, loss, lr, step=None, val_loss=None):
@@ -539,10 +555,26 @@ def main():
             with open(log_file, 'a') as f:
                 f.write(json.dumps(log_entry) + '\n')
 
+    def log_dataset_growth(epoch, dataset_size, added_samples=0):
+        if (
+            accelerator.is_local_main_process and
+            dataset_growth_log_file is not None
+        ):
+            log_entry = {
+                "epoch": epoch,
+                "dataset_size": dataset_size,
+                "new_samples_added": added_samples,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+
+            with open(dataset_growth_log_file, 'a') as f:
+                    f.write(json.dumps(log_entry) + '\n')
+
     # Initialize plotter if we're on the main process
     plotter, plot_thread = None, None
 
     caption_score_plotter, caption_score_plot_thread = None, None
+    dataset_growth_plotter, dataset_growth_plot_thread = None, None
     
     caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
 
@@ -560,6 +592,17 @@ def main():
                                             right_label=None, png_name='caption_score')
             
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+        
+        if args.auto_augment:
+            dataset_growth_plotter, dataset_growth_plot_thread = gen_train_help.start_plotter(
+                log_file=dataset_growth_log_file,
+                output_dir=args.output_dir,
+                left_key='dataset_size',
+                right_key=None,
+                left_label='Dataset Size',
+                right_label=None,
+                png_name='dataset_growth'
+            )
     
     # Only used with early stopping
     patience = args.patience if hasattr(args, 'patience') else 30
@@ -581,6 +624,15 @@ def main():
         copy_log_up_to_epoch(args.output_dir, log_file, latest_epoch, "training_log_*.jsonl")
         if args.text_conditional and args.plot_validation_caption_score and caption_score_log_file:
             copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch, "caption_score_log_*.jsonl")
+
+        if args.auto_augment and dataset_growth_log_file:
+            copy_log_up_to_epoch(
+                args.output_dir,
+                dataset_growth_log_file,
+                latest_epoch,
+                "dataset_growth_log_*.jsonl"
+            )
+
         if latest_ckpt is not None:
             # Use pipeline's from_pretrained to load everything from the checkpoint directory
             pipeline = get_pipeline(latest_ckpt)
@@ -761,8 +813,46 @@ def main():
                             })
 
                     if bad_generated_scenes:
-                        bad_generated_scenes = bad_generated_scenes[:args.auto_augment_max_new_samples]
+                        remaining_capacity = (
+                            args.auto_augment_max_dataset_size
+                            - len(train_dataset.data)
+                        )
+
+                        if remaining_capacity <= 0:
+                            print("[Auto-Augment] Maximum dataset size reached.")
+                            bad_generated_scenes = []
+                        else:
+                            max_to_add = min(
+                                args.auto_augment_max_new_samples,
+                                remaining_capacity
+                            )
+
+                            bad_generated_scenes = bad_generated_scenes[:max_to_add]
+                        
                         old_dataset_size = len(train_dataset.data)
+
+                        if accelerator.is_local_main_process:
+                            added_samples_path = os.path.join(
+                                augmented_samples_dir,
+                                f"added_samples_epoch_{epoch}.json"
+                            )
+
+                            with open(added_samples_path, 'w') as f:
+                                json.dump(
+                                    [
+                                        {
+                                            "level": sample["scene"],
+                                            "caption": sample["caption"],
+                                            "score": sample["score"],
+                                            "prompt": sample["prompt"]
+                                        }
+                                        for sample in bad_generated_scenes
+                                    ],
+                                    f,
+                                    indent=4
+                                )
+
+                            print(f"[Auto-Augment] Saved added samples to {added_samples_path}")
 
                         # Save augmented samples to JSON if requested
                         if args.auto_augment_json and accelerator.is_local_main_process:
@@ -793,17 +883,6 @@ def main():
 
                         new_dataset_size = len(train_dataset.data)
                         print(f"[Auto-Augment] Dataset grown to {new_dataset_size} samples (+{len(bad_generated_scenes)})")
-
-                        # Log dataset size event separately from regular epoch metrics
-                        if accelerator.is_local_main_process:
-                            with open(log_file, 'a') as f:
-                                f.write(json.dumps({
-                                    "epoch": epoch,
-                                    "event": "auto_augment",
-                                    "dataset_size": new_dataset_size,
-                                    "new_samples_added": len(bad_generated_scenes),
-                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                }) + '\n')
 
                         # Recreate DataLoader only — do NOT re-prepare model/optimizer/scheduler
                         from torch.utils.data import DataLoader
@@ -887,7 +966,14 @@ def main():
         
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
-        
+
+        if args.auto_augment:
+            log_dataset_growth(
+                epoch,
+                len(train_dataset.data),
+                len(bad_generated_scenes)
+            )
+
         # Print epoch summary (similar to train_mlm.py)
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             val_result = f"{val_loss:.4f}" if val_loss is not None else "N/A"
@@ -1026,6 +1112,11 @@ def main():
             gen_train_help.kill_plotter(plotter, plot_thread)
 
             gen_train_help.kill_plotter(caption_score_plotter, caption_score_plot_thread)
+
+            gen_train_help.kill_plotter(
+                dataset_growth_plotter,
+                dataset_growth_plot_thread
+            )
 
         # Force CUDA cleanup
         if torch.cuda.is_available():
