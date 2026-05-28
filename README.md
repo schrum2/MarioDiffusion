@@ -313,6 +313,36 @@ Interactively evolve level scenes in the latent space of the unconditional model
 python evolve_interactive_unconditional_diffusion.py --model_path Mar1and2-unconditional0
 ```
 
+
+
+
+## Train and generate levels from unconditional model with block2vec tile embedding model
+
+By default, unconditional diffusion models represent each tile as a one-hot vector. Block2Vec replaces this representation with learned embedding vectors for each tile type. It is trained on 3×3 tile windows so that tiles that are contextually similar in the game end up with similar vectors. 
+
+To train and run an unconditional model with tile embeddings, you can run this batch file
+and opt to include an argument for the size of the latent embedding space by including an integer for the number of embedding dimensions (default 16)
+```
+batch\Mar1and2-unconditional-embedding.bat (embedding_dims)
+```
+
+You can gain more control in the process and train a tile embedding model from 3x3 tile samples:
+``` 
+python create_tile_level_json_data.py --output datasets\SMB1_3x3_tiles.json --tile_size 3
+python create_tile_level_json_data.py --output datasets\SMB2_3x3_tiles.json --tile_size 3 --levels "..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
+python combine_data.py datasets\Mar1and2_3x3_tiles.json datasets\SMB1_3x3_tiles.json datasets\SMB2_3x3_tiles.json
+
+python train_block2vec.py --json_file datasets\Mar1and2_3x3_tiles.json --output_dir "Mar1and2-block2vec-embeddings" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
+```
+Training diffusion model with block2vec tile embeddings instead of one-hot encoding
+``` 
+python train_diffusion.py --augment --output_dir "Mar1and2-unconditional-block2vec" --num_epochs 500 --json datasets\\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\\Mar1and2_LevelsAndCaptions-regular-validate.json --block_embedding_model_path "Mar1and2-block2vec-embeddings"
+```
+Generating levels
+``` 
+python run_diffusion.py --model_path "Mar1and2-unconditional-block2vec" --num_samples 100 --save_as_json --output_dir "Mar1and2-unconditional-block2vec-samples"
+```
+
 ## Train Generative Adversarial Network (GAN) model
 
 GANs are an older technology, but they can also be trained to generate levels:

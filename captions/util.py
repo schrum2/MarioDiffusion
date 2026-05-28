@@ -10,18 +10,28 @@ coarse_locations = True
 coarse_counts = True
 pluralize = True
 give_staircase_lengths = False
+small_levels = False # original behavior from AIIDE 2025 paper
 
 def describe_size(count):
     if count <= 4: return "small"
     else: return "big"
 
 def describe_quantity(count):
-    if count == 0: return "no"
-    elif count == 1: return "one"
-    elif count == 2: return "two"
-    elif count < 5: return "a few"
-    elif count < 10: return "several"
-    else: return "many"
+    if small_levels: # Original Mario Diffusion
+        if count == 0: return "no"
+        elif count == 1: return "one"
+        elif count == 2: return "two"
+        elif count < 5: return "a few"
+        elif count < 10: return "several"
+        else: return "many"
+    else: # Bigger levels
+        if count == 0: return "no"
+        elif count == 1: return "one"
+        elif count == 2: return "two"
+        elif count < 5: return "a few"
+        elif count < 10: return "several"
+        elif count < 15: return "many"
+        else: return "a ton of"
 
 def get_tile_descriptors(tileset):
     """Creates a mapping from tile character to its list of descriptors."""
