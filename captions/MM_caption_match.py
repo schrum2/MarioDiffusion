@@ -10,7 +10,8 @@ TOPIC_KEYWORDS = [
     "water", 
     "moving platform", "platform",
     "ladder", "loose block",
-    "ceiling", "floor"
+    "ceiling", "floor",
+    "wall"
 ]
 
 # Need list because the order matters
