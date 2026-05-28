@@ -139,6 +139,12 @@ python ascii_data_browser.py datasets\Mar1and2_LevelsAndCaptions-regular.json
 ```
 This is not required, but will give you insight into the data.
 
+To create larger datasets with custom level width, simply call the same batch file above with an additional integer width argument:
+```
+Mar1and2-data.bat (width) 
+```
+
+
 ## Complete training and evaluation sequence
 
 The next two sections go into detail on training both the text encoder and the diffusion model, but if you want to train the whole thing all at once and use default settings from our paper, we have some batch files you can use. Be forewarned that after training, these batch files will also embark on a somewhat lengthy data collection process used to evaluate the models, so if you just want to train a model and then play with it yourself, you might want to skip to the more specific instructions below. If you want to use these batch files, you will need to be in the actual batch directory first:
