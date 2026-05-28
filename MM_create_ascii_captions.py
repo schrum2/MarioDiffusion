@@ -475,33 +475,27 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
 
-def find_walls(scene, wall_ids, min_height=4):
-    """
-    Detect tall vertical wall columns.
-    Returns number of walls found.
-    """
-
+def find_walls(scene, wall_ids, min_height=3):
     height = len(scene)
     width = len(scene[0])
-
-    wall_count = 0
+    wall_coords = set()
 
     for x in range(width):
-
         run = 0
-
+        run_coords = []
         for y in range(height):
-
             if scene[y][x] in wall_ids:
                 run += 1
+                run_coords.append((y, x))
             else:
                 run = 0
+                run_coords = []
 
             if run >= min_height:
-                wall_count += 1
-                break
+                wall_coords.update(run_coords)
+                break  # column already counts as a wall
 
-    return wall_count
+    return wall_coords 
 
 def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, data=None, debug=False, return_details=False):
     """Assigns a caption to a level scene based on its contents."""
@@ -602,15 +596,15 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         [(floor_row, c) for c, t in enumerate(scene[floor_row]) if t in wall_ids]
     )
     
-    #walls (tall vertical columns)
-    wall_count = find_walls(scene, wall_ids)
+    wall_coords = find_walls(scene, wall_ids)
+    wall_count = len({x for _, x in wall_coords})  # count distinct columns
 
     if wall_count > 0:
         add_to_caption(
             f" {describe_quantity(wall_count) if coarse_counts else wall_count} wall{'s' if wall_count != 1 else ''}.",
-            None
+            list(wall_coords)   # ← now passes real coords
         )
-
+        
     # Platforms
     # Count moving platforms
     moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="moving", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[ceiling_row, floor_row])
