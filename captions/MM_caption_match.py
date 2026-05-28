@@ -11,7 +11,10 @@ TOPIC_KEYWORDS = [
     "moving platform", "platform",
     "ladder", "loose block",
     "ceiling", "floor",
-    "wall"
+    "wall",
+    "rectangular block cluster",  
+    "irregular block cluster",    
+    "tower"
 ]
 
 # Need list because the order matters
