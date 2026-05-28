@@ -4,10 +4,10 @@ import os
 import json
 import torch
 import gc
-from PIL import ImageTk
+from PIL import ImageTk, Image
 import sys
 from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
-from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split
+from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split, mario_tiles, lr_tiles, mm_tiles
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
@@ -38,6 +38,8 @@ game_selected = None  # Global variable for selected game
 GUI_FONT = ("Arial", GUI_FONT_SIZE)
 
 class CaptionBuilder(ParentBuilder):
+
+
     global tileset_path, game_selected
     def __init__(self, master):
         global tileset_path, game_selected
@@ -54,6 +56,8 @@ class CaptionBuilder(ParentBuilder):
         self.current_levels = []
         self.generated_images = []
         self.generated_scenes = []
+        self.generated_widget_refs = []
+
 
         # For tracking composed scenes and thumbnails
         self.composed_scenes = []
@@ -188,6 +192,7 @@ class CaptionBuilder(ParentBuilder):
 
         self.play_composed_button = ttk.Button(row1, text="Play Composed Level", command=self.play_composed_level, style="TButton")
         self.play_composed_button.pack(side=tk.LEFT, padx=5)
+
         self.astar_composed_button = ttk.Button(row1, text="Use A* on Composed Level", command=self.astar_composed_level, style="TButton")
         self.astar_composed_button.pack(side=tk.LEFT, padx=5)
         self.use_snes_graphics = tk.BooleanVar(value=False)
@@ -464,6 +469,8 @@ class CaptionBuilder(ParentBuilder):
         self.generated_images = []
         self.generated_scenes = []
 
+        self.generated_widget_refs = [] 
+
         print("Generating")
         
         if self.automatic_absence_caption.get():
@@ -669,7 +676,13 @@ Average Segment Score: {avg_segment_score}"""
 
             score_label = ttk.Label(img_frame, text=score_label_text, wraplength=300)
             score_label.pack(pady=(5, 10))  # Add padding: 5px top, 10px bottom
-    
+
+            self.generated_widget_refs.append({
+                "image_label": label,
+                "caption_text": caption_text,
+                "score_label": score_label,
+            })
+
             # Create a frame for buttons
             button_frame = ttk.Frame(img_frame)
             button_frame.pack(pady=5)
@@ -700,6 +713,14 @@ Average Segment Score: {avg_segment_score}"""
                 style="TButton"
             )
             add_button.pack(side=tk.LEFT, padx=5)
+
+            edit_button = ttk.Button(
+                button_frame,
+                text="Edit",
+                command=lambda idx=i: self.edit_level(idx),
+                style="TButton"
+            )
+            edit_button.pack(side=tk.LEFT, padx=5)
 
             del images, sample_tensor, sample_indices, scene  # Delete unused tensors
             if torch.cuda.is_available():
@@ -856,25 +877,28 @@ Average Segment Score: {avg_segment_score}"""
 
     def get_sample_output(self, idx_or_scene, use_snes_graphics=False):
         if isinstance(idx_or_scene, int):
-            tensor = torch.tensor(self.current_levels[idx_or_scene])
-            tile_numbers = torch.argmax(tensor, dim=0).numpy()
+            if idx_or_scene < len(self.generated_scenes):
+                scene = self.generated_scenes[idx_or_scene]
+            else:
+                tensor = torch.tensor(self.current_levels[idx_or_scene])
+                scene = torch.argmax(tensor, dim=0).numpy().tolist()
+
             if game_selected == "Lode Runner":
-                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in tile_numbers]
-                #char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
+                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
             else:
-                char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
+                char_grid = scene_to_ascii(scene, self.id_to_char)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
             # Assume idx_or_scene is a scene (list of lists of tile indices)
+            scene = idx_or_scene
             if game_selected == "Lode Runner":
-                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in tile_numbers]
-                char_grid = scene_to_ascii(tile_numbers, self.id_to_char, shorten=False)
+                tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
+                level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
             else:
-                tile_numbers = idx_or_scene
-                char_grid = scene_to_ascii(tile_numbers, self.id_to_char)
-            level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+                char_grid = scene_to_ascii(scene, self.id_to_char)
+                level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
       
     def play_level(self, idx):
@@ -888,6 +912,55 @@ Average Segment Score: {avg_segment_score}"""
             #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
+
+    def edit_level(self, idx):
+        scene = self.generated_scenes[idx]
+        editor_window = tk.Toplevel(self.master)
+        editor_window.title("Level Editor")
+
+        LevelEditor(
+            editor_window,
+            scene,
+            self.id_to_char,
+            self.char_to_id,
+            self.tile_descriptors,
+            self.game_var.get(),
+            on_save=lambda updated_scene: self._replace_generated_scene(idx, updated_scene)
+        )
+
+    def _replace_generated_scene(self, idx, updated_scene):
+        self.generated_scenes[idx] = updated_scene 
+        self.generated_images[idx] = self._render_scene_image(updated_scene) 
+        self._refresh_generated_image(idx) 
+
+    def _render_scene_image(self, scene): 
+        if game_selected == "Lode Runner":
+            game_name = "LR"
+            num_classes = common_settings.LR_TILE_COUNT
+        elif game_selected == "Mega Man (Simple)":
+            game_name = "MM-Simple"
+            num_classes = common_settings.MM_SIMPLE_TILE_COUNT
+        elif game_selected == "Mega Man (Full)":
+            game_name = "MM-Full"
+            num_classes = common_settings.MM_FULL_TILE_COUNT
+        else:
+            game_name = "Mario"
+            num_classes = common_settings.MARIO_TILE_COUNT
+
+        one_hot = torch.nn.functional.one_hot(
+            torch.tensor(scene, dtype=torch.long),
+            num_classes=num_classes
+        ).float().permute(2, 0, 1).unsqueeze(0)
+
+        pil_img = visualize_samples(one_hot, game=game_name)
+        return pil_img[0] if isinstance(pil_img, list) else pil_img
+
+    def _refresh_generated_image(self, idx):
+        refs = self.generated_widget_refs[idx]
+        pil_img = self.generated_images[idx]
+        tk_img = ImageTk.PhotoImage(pil_img)
+        refs["image_label"].config(image=tk_img)
+        refs["image_label"].image = tk_img
 
     def use_astar(self, idx):
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
@@ -954,6 +1027,70 @@ Average Segment Score: {avg_segment_score}"""
             #self.negative_prompt_entry.insert(tk.END, self.last_present_neg_caption)
             self.negative_prompt_entry.config(state=tk.NORMAL)
 
+class LevelEditor:
+    def __init__(self, master, scene, id_to_char, char_to_id, tile_descriptors, game, on_save=None):
+        self.master = master
+        self.scene = [list(row) for row in scene]
+        self.id_to_char = id_to_char
+        self.char_to_id = char_to_id
+        self.tile_descriptors = tile_descriptors
+        self.game = game
+        self.on_save = on_save
+
+        self.master.title("Level Editor")
+        self.grid_frame = ttk.Frame(master)
+        self.grid_frame.pack(padx=10, pady=10)
+
+        self.tile_images = self._load_tile_images(game)
+        self.tile_buttons = []
+        self.tile_photo_images = []
+
+        for r, row in enumerate(self.scene):
+            button_row = []
+            for c, tile_id in enumerate(row):
+                photo = ImageTk.PhotoImage(self.tile_images[tile_id])
+                btn = ttk.Button(
+                    self.grid_frame,
+                    image=photo,
+                    command=lambda r=r, c=c: self.cycle_tile(r, c)
+                )
+                btn.image = photo
+                btn.grid(row=r, column=c, padx=1, pady=1)
+                self.tile_photo_images.append(photo)
+                button_row.append(btn)
+            self.tile_buttons.append(button_row)
+
+        controls = ttk.Frame(master)
+        controls.pack(pady=8)
+        ttk.Button(controls, text="Save", command=self.save).pack(side=tk.LEFT, padx=4)
+        ttk.Button(controls, text="Cancel", command=master.destroy).pack(side=tk.LEFT, padx=4)
+
+    def cycle_tile(self, row, col):
+        current_id = self.scene[row][col]
+        next_id = (current_id + 1) % len(self.id_to_char)
+        self.scene[row][col] = next_id
+        photo = ImageTk.PhotoImage(self.tile_images[next_id])
+        btn = self.tile_buttons[row][col]
+        btn.config(image=photo)
+        btn.image = photo
+        self.tile_photo_images.append(photo)
+
+    def save(self):
+        self.master.destroy()
+        if self.on_save:
+            self.on_save(self.scene)
+
+    def cancel(self):
+        self.master.destroy()
+
+    def _load_tile_images(self, game):
+        if game == "Lode Runner":
+            return lr_tiles()
+        elif game == "Mega Man (Simple)":
+            return mm_tiles("MM-Simple")
+        elif game == "Mega Man (Full)":
+            return mm_tiles("MM-Full")
+        return mario_tiles()
 
 import argparse
 def parse_args():

@@ -110,7 +110,7 @@ class TileViewer(tk.Tk):
                 debug=True,
                 return_details=True
             )
-        if self.game.get()=="MM-Full" or self.game.get()=="MM-Simple":
+        elif self.game.get()=="MM-Full" or self.game.get()=="MM-Simple":
             s = sample['caption'] #Done for clarity
             # mm_assign_caption requires an extra argument for some encoded data that the level parser finds. This code moves those keys along
             data = {
