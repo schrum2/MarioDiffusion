@@ -14,6 +14,22 @@ import torch
 
 def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles, 
                        negative_prompt_training, block_embeddings, batch_size):
+    """
+    Create PyTorch dataloaders for training and validation datasets.
+
+    Args:
+        json_path (str): Path to the training dataset JSON file.
+        val_json (str or None): Path to the validation dataset JSON file, or None to skip validation.
+        tokenizer: Tokenizer to use for processing captions.
+        mode (str): "text" for just the text captions, 
+                    "diff_text" for level scenes and text captions (used with a pretrained model).
+        augment (bool): Whether to apply data augmentation to the training dataset.
+        num_tiles (int): Number of tiles to use in the level representation (for "diff_text" mode).
+        negative_prompt_training (bool): Whether to include negative captions for training.
+        block_embeddings (torch.Tensor or None): Precomputed block embeddings for "diff_text" mode, or None if not using.
+        batch_size (int): Batch size for the dataloaders.
+    """
+
     # Initialize dataset
     train_dataset = LevelDataset(
         json_path=json_path,
@@ -63,6 +79,18 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
 
 
 def get_random_training_samples(train_dataloader, negative_prompt_training, output_dir = None):
+    """
+    Get random training samples from the dataloader and print them to the console.
+    Args:
+        train_dataloader: The PyTorch dataloader for the training dataset.
+        negative_prompt_training (bool): Whether the dataset includes negative captions.
+        output_dir (str or None): If provided, a directory to save the sample captions to a text file.
+
+    Returns:
+        sample_captions (list of str): A list of randomly sampled captions from the training dataset.
+        sample_negative_captions (list of str or str): If negative_prompt_training is True, a list of randomly sampled negative captions. Otherwise, an empty string.
+    """
+
     train_dataset = train_dataloader.dataset
     # Sample four random captions from the dataset
     sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]

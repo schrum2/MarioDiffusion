@@ -7,7 +7,7 @@ from tqdm.auto import tqdm
 import random
 import numpy as np
 from accelerate import Accelerator
-from level_dataset import visualize_samples
+from level_dataset import visualize_samples, convert_to_level_format
 from tokenizer import Tokenizer 
 import json
 from datetime import datetime
@@ -26,6 +26,7 @@ import glob
 import models.general_training_helper as gen_train_help
 import re
 from models.pipeline_loader import get_pipeline
+from create_ascii_captions import assign_caption
 
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
@@ -126,6 +127,17 @@ def parse_args():
     parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
+
+    # Dataset augmentation / checkpointed dataset saving
+    parser.add_argument("--auto_augment", action="store_true", help="Enable dataset growth from generated captions after reaching a target caption score")
+    parser.add_argument("--auto_augment_threshold", type=float, default=0.8, help="Validation caption score threshold to begin dataset augmentation")
+
+    # figure these out later
+    parser.add_argument("--auto_augment_max_new_samples", type=int, default=100, help="Max new samples to add per augmentation run")    
+    parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7800,help="Maximum total size the training dataset is allowed to grow to")
+    parser.add_argument("--auto_augment_save_images", action="store_true", help="Save images for newly added augmented samples")
+    parser.add_argument("--auto_augment_json", type=str, default=None, help="Path to save the augmented training dataset JSON")
+    parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
 
     # For block2vec embedding model
     parser.add_argument("--block_embedding_model_path", type=str, default=None, help="Path to trained block embedding model (.pt)")
@@ -385,6 +397,37 @@ def main():
                                         negative_prompt_training=args.negative_prompt_training,
                                         block_embeddings=block_embeddings, batch_size=args.batch_size)
 
+    #print(train_dataloader.dataset)
+    #input("Press Enter to continue...")
+    #print(train_dataloader.dataset[0])
+    #input("Press Enter to continue...")
+    #print(train_dataloader.dataset.data)
+    #input("Press Enter to continue...")
+    #print(train_dataloader.dataset.data[0])
+    #input("Press Enter to continue...")
+
+
+    # Also, if the caption is already present in the training dataset, we can skip it to avoid duplicates
+    # Important: two captions could have their phrases in different orders but still be essentially the same, so we should check for that as well
+    # Idea: at start of training, get all the captions, sort the phrases in a cannonical form and store in a set.
+    # Then for each new caption, we can check if it's already in the set before adding to the dataset and only add if it's new. 
+    # Make sure this caption is also put in cannonical form first.
+    
+    def canonicalize_caption(caption):
+        phrases = [phrase.strip() for phrase in caption.split('.') if phrase.strip()]
+        phrases = sorted(set(phrases))
+        return ". ".join(phrases) + "." if phrases else ""
+
+    # TODO: Only do the following code if using augment
+    seen_caption_set = set() 
+    train_dataset = train_dataloader.dataset 
+    for i in range(len(train_dataset)): 
+        sample = train_dataset[i] 
+        if isinstance(sample, (list, tuple)) and len(sample) > 1: 
+            caption_text = sample[1] 
+        else:
+            caption_text = str(sample) 
+        seen_caption_set.add(canonicalize_caption(caption_text)) 
 
     first_sample = train_dataloader.dataset[0]
     scene_height = first_sample[0].shape[1]
@@ -475,12 +518,27 @@ def main():
     log_file = os.path.join(args.output_dir, f"training_log_{formatted_date}.jsonl")
     config_file = os.path.join(args.output_dir, f"hyperparams_{formatted_date}.json")
 
+    dataset_growth_log_file = None
+    if args.auto_augment:
+        dataset_growth_log_file = os.path.join(
+            args.output_dir,
+            f"dataset_growth_log_{formatted_date}.jsonl"
+        )
+
     # Save hyperparameters to JSON file
     if accelerator.is_local_main_process:
         hyperparams = vars(args)
         with open(config_file, "w") as f:
             json.dump(hyperparams, f, indent=4)
         print(f"Saved configuration to: {config_file}")
+
+    if args.auto_augment:
+        augmented_samples_dir = os.path.join(
+            args.output_dir,
+            "augmented_samples"
+        )
+
+        os.makedirs(augmented_samples_dir, exist_ok=True)
   
     # Add function to log metrics
     def log_metrics(epoch, loss, lr, step=None, val_loss=None):
@@ -497,10 +555,26 @@ def main():
             with open(log_file, 'a') as f:
                 f.write(json.dumps(log_entry) + '\n')
 
+    def log_dataset_growth(epoch, dataset_size, added_samples=0):
+        if (
+            accelerator.is_local_main_process and
+            dataset_growth_log_file is not None
+        ):
+            log_entry = {
+                "epoch": epoch,
+                "dataset_size": dataset_size,
+                "new_samples_added": added_samples,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+
+            with open(dataset_growth_log_file, 'a') as f:
+                    f.write(json.dumps(log_entry) + '\n')
+
     # Initialize plotter if we're on the main process
     plotter, plot_thread = None, None
 
     caption_score_plotter, caption_score_plot_thread = None, None
+    dataset_growth_plotter, dataset_growth_plot_thread = None, None
     
     caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
 
@@ -518,6 +592,17 @@ def main():
                                             right_label=None, png_name='caption_score')
             
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+        
+        if args.auto_augment:
+            dataset_growth_plotter, dataset_growth_plot_thread = gen_train_help.start_plotter(
+                log_file=dataset_growth_log_file,
+                output_dir=args.output_dir,
+                left_key='dataset_size',
+                right_key=None,
+                left_label='Dataset Size',
+                right_label=None,
+                png_name='dataset_growth'
+            )
     
     # Only used with early stopping
     patience = args.patience if hasattr(args, 'patience') else 30
@@ -539,6 +624,15 @@ def main():
         copy_log_up_to_epoch(args.output_dir, log_file, latest_epoch, "training_log_*.jsonl")
         if args.text_conditional and args.plot_validation_caption_score and caption_score_log_file:
             copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch, "caption_score_log_*.jsonl")
+
+        if args.auto_augment and dataset_growth_log_file:
+            copy_log_up_to_epoch(
+                args.output_dir,
+                dataset_growth_log_file,
+                latest_epoch,
+                "dataset_growth_log_*.jsonl"
+            )
+
         if latest_ckpt is not None:
             # Use pipeline's from_pretrained to load everything from the checkpoint directory
             pipeline = get_pipeline(latest_ckpt)
@@ -647,6 +741,7 @@ def main():
         # Calculate validation loss if validation dataset exists and it's time to validate
         val_loss = None
         avg_caption_score = None
+        bad_generated_scenes = []
         val_loss_improved = False
         caption_score_improved = False
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
@@ -679,11 +774,134 @@ def main():
                 inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
                 guidance_scale = common_settings.GUIDANCE_SCALE
-                avg_caption_score, _, _, _= calculate_caption_score_and_samples(
+                avg_caption_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width
                 )
+
+                # If auto-augmentation is enabled and the caption score meets the threshold, identify bad samples and add them to the training dataset
+                if args.auto_augment and avg_caption_score is not None and avg_caption_score >= args.auto_augment_threshold:
+                    bad_indices = [i for i, score in enumerate(compare_all_scores) if score < 1.0]
+                    if bad_indices:
+                        bad_scenes = convert_to_level_format(all_samples).tolist()
+                        for i in bad_indices:
+                            caption, details = assign_caption(
+                                bad_scenes[i],
+                                id_to_char,
+                                char_to_id,
+                                tile_descriptors,
+                                describe_locations=False,
+                                describe_absence=args.describe_absence,
+                                debug=False,
+                                return_details=True
+                            )
+
+                            if "broken" in caption:
+                                continue
+
+                            canonical_caption = canonicalize_caption(caption)
+                            if canonical_caption in seen_caption_set:
+                                continue
+                            seen_caption_set.add(canonical_caption)
+
+                            bad_generated_scenes.append({
+                                "prompt": all_prompts[i],
+                                "scene": bad_scenes[i],
+                                "score": compare_all_scores[i],
+                                "caption": caption
+                            })
+
+                    if bad_generated_scenes:
+                        remaining_capacity = (
+                            args.auto_augment_max_dataset_size
+                            - len(train_dataset.data)
+                        )
+
+                        if remaining_capacity <= 0:
+                            print("[Auto-Augment] Maximum dataset size reached.")
+                            bad_generated_scenes = []
+                        else:
+                            max_to_add = min(
+                                args.auto_augment_max_new_samples,
+                                remaining_capacity
+                            )
+
+                            bad_generated_scenes = bad_generated_scenes[:max_to_add]
+                        
+                        old_dataset_size = len(train_dataset.data)
+
+                        if accelerator.is_local_main_process:
+                            added_samples_path = os.path.join(
+                                augmented_samples_dir,
+                                f"added_samples_epoch_{epoch}.json"
+                            )
+
+                            with open(added_samples_path, 'w') as f:
+                                json.dump(
+                                    [
+                                        {
+                                            "level": sample["scene"],
+                                            "caption": sample["caption"],
+                                            "score": sample["score"],
+                                            "prompt": sample["prompt"]
+                                        }
+                                        for sample in bad_generated_scenes
+                                    ],
+                                    f,
+                                    indent=4
+                                )
+
+                            print(f"[Auto-Augment] Saved added samples to {added_samples_path}")
+
+                        # Save augmented samples to JSON if requested
+                        if args.auto_augment_json and accelerator.is_local_main_process:
+                            save_path = args.auto_augment_json
+                            if args.auto_augment_save_checkpoints_dataset:
+                                base, ext = os.path.splitext(args.auto_augment_json)
+                                save_path = f"{base}_epoch_{epoch}{ext}"
+                            existing_data = []
+                            if os.path.exists(save_path):
+                                with open(save_path, 'r') as f:
+                                    existing_data = json.load(f)
+                            for sample in bad_generated_scenes:
+                                existing_data.append({
+                                    "level": sample["scene"],
+                                    "caption": sample["caption"]
+                                })
+                            with open(save_path, 'w') as f:
+                                json.dump(existing_data, f, indent=4)
+                            print(f"[Auto-Augment] Saved augmented dataset to {save_path}")
+
+                        # train_dataset holds a direct reference to the underlying dataset object.
+                        # Mutating train_dataset.data here is safe; the new DataLoader shares the same object.
+                        for sample in bad_generated_scenes:
+                            train_dataset.data.append({
+                                "scene": sample["scene"],
+                                "caption": sample["caption"]
+                            })
+
+                        new_dataset_size = len(train_dataset.data)
+                        print(f"[Auto-Augment] Dataset grown to {new_dataset_size} samples (+{len(bad_generated_scenes)})")
+
+                        # Recreate DataLoader only — do NOT re-prepare model/optimizer/scheduler
+                        from torch.utils.data import DataLoader
+                        raw_new_loader = DataLoader(
+                            train_dataset,
+                            batch_size=args.batch_size,
+                            shuffle=True,
+                            num_workers=4,
+                            drop_last=True,
+                            persistent_workers=True
+                        )
+                        train_dataloader = accelerator.prepare(raw_new_loader)
+
+                        # Update progress bar total to reflect the larger dataset for remaining epochs
+                        added_batches = (new_dataset_size - old_dataset_size) // args.batch_size
+                        remaining_epochs = args.num_epochs - epoch - 1
+                        progress_bar.total += added_batches * remaining_epochs
+                        progress_bar.refresh()
+
             else:
                 # Is this how this should behave in the unconditional case?
                 # Or should I justs use 0 or -1?
@@ -748,7 +966,14 @@ def main():
         
         # Log metrics including validation loss
         log_metrics(epoch, avg_train_loss, lr_scheduler.get_last_lr()[0], val_loss=val_loss, step=global_step)
-        
+
+        if args.auto_augment:
+            log_dataset_growth(
+                epoch,
+                len(train_dataset.data),
+                len(bad_generated_scenes)
+            )
+
         # Print epoch summary (similar to train_mlm.py)
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             val_result = f"{val_loss:.4f}" if val_loss is not None else "N/A"
@@ -887,6 +1112,11 @@ def main():
             gen_train_help.kill_plotter(plotter, plot_thread)
 
             gen_train_help.kill_plotter(caption_score_plotter, caption_score_plot_thread)
+
+            gen_train_help.kill_plotter(
+                dataset_growth_plotter,
+                dataset_growth_plot_thread
+            )
 
         # Force CUDA cleanup
         if torch.cuda.is_available():
