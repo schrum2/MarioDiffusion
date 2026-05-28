@@ -85,8 +85,9 @@ def main():
     for epoch in range(args.epochs):
         total_loss = 0
         for center, context in dataloader:
+            optimizer.zero_grad() # Claude said to move this before the loss calculation
             loss = model(center, context)
-            optimizer.zero_grad()
+            #optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             total_loss += loss.item()

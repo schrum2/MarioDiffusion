@@ -23,6 +23,11 @@ class Block2Vec(nn.Module):
         self.in_embed = nn.Embedding(vocab_size, embedding_dim)
         self.out_embed = nn.Embedding(vocab_size, embedding_dim)
 
+        ### Claude Advice: Standard Word2Vec initialization
+        initrange = 0.5 / embedding_dim
+        nn.init.uniform_(self.in_embed.weight.data, -initrange, initrange)
+        nn.init.constant_(self.out_embed.weight.data, 0)
+
     def forward(self, center_ids, context_ids):
         """
         Forward pass computing loss for predicting context tiles given center tile
@@ -43,13 +48,29 @@ class Block2Vec(nn.Module):
         center_vec = self.in_embed(center_ids_expanded)  # (batch * context_len, dim)
         context_vec = self.out_embed(context_ids_flat)   # (batch * context_len, dim)
 
-        scores = (center_vec * context_vec).sum(dim=1)  # dot product
+        # -----------------------------------------------------------
+
+        #scores = (center_vec * context_vec).sum(dim=1)  # dot product
         #print(scores.shape, center_vec.shape, context_vec.shape)
 
         #print("\nOutput:\n", f"center_vec: {center_vec}", f"context_vec: {context_vec}", f"scores: {scores}")
-        loss = F.binary_cross_entropy_with_logits(scores, torch.ones_like(scores))  # positive pairs
+        #loss = F.binary_cross_entropy_with_logits(scores, torch.ones_like(scores))  # positive pairs
         #print(f"loss: {loss}")
-        return loss
+        #return loss
+
+        ## Claude advice below ###################
+
+        # Positive pairs: center with its actual context
+        pos_scores = (center_vec * context_vec).sum(dim=1)
+        pos_loss = F.binary_cross_entropy_with_logits(pos_scores, torch.ones_like(pos_scores))
+
+        # Negative sampling: center with random noise tiles
+        neg_ids = torch.randint(0, self.vocab_size, context_ids_flat.shape, device=center_ids.device)
+        neg_vec = self.out_embed(neg_ids)
+        neg_scores = (center_vec * neg_vec).sum(dim=1)
+        neg_loss = F.binary_cross_entropy_with_logits(neg_scores, torch.zeros_like(neg_scores))
+
+        return pos_loss + neg_loss
 
     def get_embeddings(self):
         """Returns the learned embeddings for all tiles"""
