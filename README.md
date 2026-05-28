@@ -328,11 +328,11 @@ batch\Mar1and2-unconditional-embedding.bat (embedding_dims)
 
 You can gain more control in the process and train a tile embedding model from 3x3 tile samples:
 ``` 
-python create_tile_level_json_data.py --output datasets\\SMB1_3x3_tiles.json --tile_size 3
-python create_tile_level_json_data.py --output datasets\\SMB2_3x3_tiles.json --tile_size 3 --levels "..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
-python combine_json_data.py --input_files datasets\\SMB1_3x3_tiles.json datasets\\SMB2_3x3_tiles.json --output_file datasets\\Mar1and2_3x3_tiles.json
+python create_tile_level_json_data.py --output datasets\SMB1_3x3_tiles.json --tile_size 3
+python create_tile_level_json_data.py --output datasets\SMB2_3x3_tiles.json --tile_size 3 --levels "..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
+python combine_data.py datasets\Mar1and2_3x3_tiles.json datasets\SMB1_3x3_tiles.json datasets\SMB2_3x3_tiles.json
 
-python train_block2vec.py --json_file datasets\\Mar1and2_3x3_tiles.json --output_dir "Mar1and2-block2vec-embeddings" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
+python train_block2vec.py --json_file datasets\Mar1and2_3x3_tiles.json --output_dir "Mar1and2-block2vec-embeddings" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
 ```
 Training diffusion model with block2vec tile embeddings instead of one-hot encoding
 ``` 
