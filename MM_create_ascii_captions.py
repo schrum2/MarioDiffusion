@@ -481,26 +481,25 @@ def find_walls(scene, wall_ids, min_height=4):
     wall_coords = set()
 
     for x in range(width):
-        # Count solid tiles in this column
+        # First collect ALL solid tiles in this column
+        full_col_coords = []
+        max_run = 0
         run = 0
-        col_coords = []
+
         for y in range(height):
             if scene[y][x] in wall_ids:
                 run += 1
-                col_coords.append((y, x))
+                full_col_coords.append((y, x))
             else:
                 run = 0
-                col_coords = []
+            max_run = max(max_run, run)
 
-            if run >= min_height:
-                # Check neighbors — if adjacent columns are also solid at same rows,
-                # this is part of a cluster, not a standalone wall
-                left_solid = x > 0 and any(scene[r][x-1] in wall_ids for r, _ in col_coords)
-                right_solid = x < width - 1 and any(scene[r][x+1] in wall_ids for r, _ in col_coords)
+        if max_run >= min_height:
+            left_solid = x > 0 and any(scene[r][x-1] in wall_ids for r, c in full_col_coords)
+            right_solid = x < width - 1 and any(scene[r][x+1] in wall_ids for r, c in full_col_coords)
 
-                if not left_solid and not right_solid:
-                    wall_coords.update(col_coords)
-                break
+            if not left_solid and not right_solid:
+                wall_coords.update(full_col_coords)
 
     return wall_coords
 
