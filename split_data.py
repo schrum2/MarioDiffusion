@@ -5,6 +5,7 @@ import random
 from captions.caption_match import TOPIC_KEYWORDS as MARIO_TOPIC_KEYWORDS
 from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
 
+
 """
 COMMAND LINE: python split_data.py --json SMB1_LevelsAndCaptions-regular-test.json --train_pct 0.8 --val_pct 0.1 --test_pct 0.1
 """
@@ -150,6 +151,9 @@ if __name__ == "__main__":
         required_structures = LR_TOPIC_KEYWORDS
         required_structures = [kw for kw in required_structures if "loose block" not in kw]
         required_structures = [kw for kw in required_structures if "ceiling" not in kw]
+
+
+
     else:
         raise ValueError("Unsupported game specified")
     train_split, val_split, test_split = verify_coverage(required_structures)

@@ -5,7 +5,9 @@ from captions.caption_generator import GrammarGenerator
 from captions.LR_caption_generator import GrammarGenerator as LR_GrammarGenerator
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
+
 import util.common_settings as common_settings
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Create random set of captions")
@@ -36,6 +38,7 @@ def parse_args():
 def main():
     args = parse_args()
 
+
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = common_settings.MARIO_TILESET
@@ -52,8 +55,7 @@ def main():
             describe_absence=args.describe_absence,
             no_upside_down_pipes=args.no_upside_down_pipes
         )
-
-    # Initialize dataset
+# Initialize dataset
     dataset = LevelDataset(
         json_path=args.json,
         tokenizer=None,
@@ -76,7 +78,7 @@ def main():
             caption_is_new = compare_score != 1.0 # Perfect score of 1.0 if captions are the same
             if not caption_is_new:
                 break
-
+                
         if not caption_is_new:
             print(f"Discarded duplicate: {new_caption} same as {caption}")
             continue
