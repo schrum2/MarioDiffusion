@@ -5,7 +5,9 @@ from captions.caption_generator import GrammarGenerator
 from captions.LR_caption_generator import GrammarGenerator as LR_GrammarGenerator
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
+from captions.MM_caption_match import compare_captions as mm_compare_captions
 import util.common_settings as common_settings
+import random
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Create random set of captions")
@@ -27,7 +29,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR"],
+        choices=["Mario", "LR", "MM-Simple"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
     
@@ -35,6 +37,7 @@ def parse_args():
 
 def main():
     args = parse_args()
+    random.seed(args.seed)
 
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
@@ -52,6 +55,10 @@ def main():
             describe_absence=args.describe_absence,
             no_upside_down_pipes=args.no_upside_down_pipes
         )
+    elif args.game == "MM-Simple":
+        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+        args.tileset = common_settings.MM_SIMPLE_TILESET if hasattr(common_settings, 'MM_SIMPLE_TILESET') else 'datasets/MM_Simple_Tileset.json'
+        generator = None  # MM does not have a grammar generator; we sample from the dataset instead
 
     # Initialize dataset
     dataset = LevelDataset(
@@ -63,28 +70,47 @@ def main():
         num_tiles=args.num_tiles
     )
 
-    validation_captions = []
-    while len(validation_captions) < args.validation_set_size:
-        new_caption = generator.generate_sentence()
-        caption_is_new = True
-        # Compare against every caption of original dataset
-        for caption in dataset:
-            if args.game == "Mario": 
-                compare_score = compare_captions(caption, new_caption)
-            elif args.game == "LR":
-                compare_score = lr_compare_captions(caption, new_caption)
-            caption_is_new = compare_score != 1.0 # Perfect score of 1.0 if captions are the same
-            if not caption_is_new:
+    all_dataset_captions = list(dataset)
+
+    if args.game == "MM-Simple":
+        # MM has no grammar generator, so we randomly sample unique captions from the dataset itself.
+        # This gives a held-out set of real captions not seen during training (when used with the train split).
+        random.shuffle(all_dataset_captions)
+        validation_captions = []
+        seen = set()
+        for caption in all_dataset_captions:
+            if len(validation_captions) >= args.validation_set_size:
                 break
+            # Deduplicate by exact caption string
+            if caption not in seen:
+                seen.add(caption)
+                validation_captions.append(caption)
+        if len(validation_captions) < args.validation_set_size:
+            print(f"Warning: only {len(validation_captions)} unique captions available in the dataset "
+                  f"(requested {args.validation_set_size}).")
+    else:
+        validation_captions = []
+        while len(validation_captions) < args.validation_set_size:
+            new_caption = generator.generate_sentence()
+            caption_is_new = True
+            # Compare against every caption of original dataset
+            for caption in all_dataset_captions:
+                if args.game == "Mario":
+                    compare_score = compare_captions(caption, new_caption)
+                elif args.game == "LR":
+                    compare_score = lr_compare_captions(caption, new_caption)
+                caption_is_new = compare_score != 1.0 # Perfect score of 1.0 if captions are the same
+                if not caption_is_new:
+                    break
 
-        if not caption_is_new:
-            print(f"Discarded duplicate: {new_caption} same as {caption}")
-            continue
-        else:
-            validation_captions.append(new_caption)
+            if not caption_is_new:
+                print(f"Discarded duplicate: {new_caption} same as {caption}")
+                continue
+            else:
+                validation_captions.append(new_caption)
 
-        if len(validation_captions) % 10 == 0:
-            print(f"Valid captions so far {len(validation_captions)}")
+            if len(validation_captions) % 10 == 0:
+                print(f"Valid captions so far {len(validation_captions)}")
 
     new_validation_captions = [{"caption": caption} for caption in validation_captions]
     with open(args.save_file, 'w') as f:
