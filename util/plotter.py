@@ -8,6 +8,8 @@ import json
 import tempfile
 import shutil
 from pathlib import Path
+import matplotlib
+matplotlib.use('Agg')  # before importing pyplot anywhere
 
 
 def parse_args():
