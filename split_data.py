@@ -4,15 +4,15 @@ import json
 import random
 from captions.caption_match import TOPIC_KEYWORDS as MARIO_TOPIC_KEYWORDS
 from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
-from captions.MM_caption_generator import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
+from captions.MM_caption_match import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
 
 
 """
-COMMAND LINE: python split_data.py --json SMB1_LevelsAndCaptions-regular-test.json --train_pct 0.8 --val_pct 0.1 --test_pct 0.1
+COMMAND LINE: python split_data.py --json_file SMB1_LevelsAndCaptions-regular-test.json --train_pct 0.8 --val_pct 0.1 --test_pct 0.1
 """
 def parse_args():
     parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
-    parser.add_argument("--json", type=str, required=True, help="Path to dataset JSON file")
+    parser.add_argument("--json_file", type=str, required=True, help="Path to dataset JSON file")
     parser.add_argument("--game", type=str, required=True, choices=["mario", "loderunner", "mm-simple", "mm-full"], help="Game name")
     parser.add_argument("--train_pct", type=float, default=0.8, help="Train split percentage")
     parser.add_argument("--val_pct", type=float, default=0.1, help="Validation split percentage")
@@ -76,7 +76,7 @@ def verify_coverage(required_structures):
     """
     
     # Split the dataset
-    train_path, val_path, test_path = split_dataset(args.json, args.train_pct, args.val_pct, args.test_pct)
+    train_path, val_path, test_path = split_dataset(args.json_file, args.train_pct, args.val_pct, args.test_pct)
     
     def check_coverage(split, required_structures):
         """Checks which required structures are present in a split."""
@@ -152,6 +152,8 @@ if __name__ == "__main__":
         required_structures = LR_TOPIC_KEYWORDS
         required_structures = [kw for kw in required_structures if "loose block" not in kw]
         required_structures = [kw for kw in required_structures if "ceiling" not in kw]
+    elif args.game.lower() in ["mm-simple", "mm-full"]:
+        required_structures = MM_TOPIC_KEYWORDS
     else:
         raise ValueError("Unsupported game specified")
     train_split, val_split, test_split = verify_coverage(required_structures)

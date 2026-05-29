@@ -49,10 +49,10 @@ class GrammarGenerator:
                 "a few hazards",
                 "several hazards",
             ],
-            "dissapearing block": [
-                "one dissapearing block",
-                "two dissapearing blocks",
-                "a few dissapearing blocks",
+            "disappearing block": [
+                "one disappearing block",
+                "two disappearing blocks",
+                "a few disappearing blocks",
             ],
             "water": [
                 "some water",
@@ -108,7 +108,7 @@ class GrammarGenerator:
             "enem": "no enemies",
             "powerup": "no powerups",
             "hazard": "no hazards",
-            "dissapearing block": "no dissapearing blocks",
+            "disappearing block": "no disappearing blocks",
             "water": "no water",
             "moving platform": "no moving platforms",
             "platform": "no platforms",
@@ -126,7 +126,7 @@ class GrammarGenerator:
             "enem",
             "powerup",
             "hazard",
-            "dissapearing block",
+            "disappearing block",
             "water",
             "moving platform",
             "platform",
