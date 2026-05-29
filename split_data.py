@@ -4,12 +4,8 @@ import json
 import random
 from captions.caption_match import TOPIC_KEYWORDS as MARIO_TOPIC_KEYWORDS
 from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
-<<<<<<< HEAD
 from captions.MM_caption_generator import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
 
-=======
-from captions.MM_caption_match import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
->>>>>>> 0473f63a95131002b4d2059c4b61669ff0289d3f
 
 """
 COMMAND LINE: python split_data.py --json SMB1_LevelsAndCaptions-regular-test.json --train_pct 0.8 --val_pct 0.1 --test_pct 0.1
@@ -17,11 +13,7 @@ COMMAND LINE: python split_data.py --json SMB1_LevelsAndCaptions-regular-test.js
 def parse_args():
     parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
     parser.add_argument("--json", type=str, required=True, help="Path to dataset JSON file")
-<<<<<<< HEAD
     parser.add_argument("--game", type=str, required=True, choices=["mario", "loderunner", "mm-simple", "mm-full"], help="Game name")
-=======
-    parser.add_argument("--game", type=str, required=True, choices=["mario", "loderunner", "megaman"], help="Game name")
->>>>>>> 0473f63a95131002b4d2059c4b61669ff0289d3f
     parser.add_argument("--train_pct", type=float, default=0.8, help="Train split percentage")
     parser.add_argument("--val_pct", type=float, default=0.1, help="Validation split percentage")
     parser.add_argument("--test_pct", type=float, default=0.1, help="Test split percentage")
@@ -160,14 +152,6 @@ if __name__ == "__main__":
         required_structures = LR_TOPIC_KEYWORDS
         required_structures = [kw for kw in required_structures if "loose block" not in kw]
         required_structures = [kw for kw in required_structures if "ceiling" not in kw]
-<<<<<<< HEAD
-    elif args.game.lower() in ["mm-simple", "mm-full"]:
-        required_structures = MM_TOPIC_KEYWORDS
-=======
-    elif args.game.lower() == "megaman":
-        required_structures = MM_TOPIC_KEYWORDS
-        required_structures = [kw for kw in required_structures if "broken" not in kw]
->>>>>>> 0473f63a95131002b4d2059c4b61669ff0289d3f
     else:
         raise ValueError("Unsupported game specified")
     train_split, val_split, test_split = verify_coverage(required_structures)
