@@ -5,9 +5,15 @@ from captions.caption_generator import GrammarGenerator
 from captions.LR_caption_generator import GrammarGenerator as LR_GrammarGenerator
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
+from captions.MM_caption_generator import GrammarGenerator as MM_GrammarGenerator
+from captions.MM_caption_match import compare_captions as mm_compare_captions
 
 import util.common_settings as common_settings
 
+MM_SIMPLE_TILE_COUNT = common_settings.MM_SIMPLE_TILE_COUNT
+MM_FULL_TILE_COUNT = common_settings.MM_FULL_TILE_COUNT
+MM_FULL_TILESET = common_settings.MM_FULL_TILESET
+MM_SIMPLE_TILESET = common_settings.MM_SIMPLE_TILESET
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Create random set of captions")
@@ -29,7 +35,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
     
@@ -55,6 +61,21 @@ def main():
             describe_absence=args.describe_absence,
             no_upside_down_pipes=args.no_upside_down_pipes
         )
+    elif args.game == "MM-Simple":
+        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+        args.tileset = common_settings.MM_SIMPLE_TILESET
+        generator = MM_GrammarGenerator(
+            seed=args.seed,
+            describe_absence=args.describe_absence
+        )
+    elif args.game == "MM-Full":
+        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+        args.tileset = common_settings.MM_FULL_TILESET
+        generator = MM_GrammarGenerator(
+            seed=args.seed,
+            describe_absence=args.describe_absence
+        )
+
 # Initialize dataset
     dataset = LevelDataset(
         json_path=args.json,
@@ -75,6 +96,8 @@ def main():
                 compare_score = compare_captions(caption, new_caption)
             elif args.game == "LR":
                 compare_score = lr_compare_captions(caption, new_caption)
+            elif args.game in ["MM-Simple", "MM-Full"]:
+                compare_score = mm_compare_captions(caption, new_caption)
             caption_is_new = compare_score != 1.0 # Perfect score of 1.0 if captions are the same
             if not caption_is_new:
                 break
