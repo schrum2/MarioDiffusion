@@ -10,6 +10,8 @@ import json
 from models.fdm_pipeline import FDMPipeline
 from level_dataset import visualize_samples, convert_to_level_format, samples_to_scenes
 from create_ascii_captions import assign_caption, save_level_data
+from MM_create_ascii_captions import assign_caption as mm_assign_caption
+from captions.MM_caption_match import compare_captions as mm_compare_captions
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from LR_create_ascii_captions import save_level_data as lr_save_level_data
 from captions.util import extract_tileset 
@@ -66,6 +68,11 @@ def main():
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
             path_to_json = "datasets/LR_LevelsAndCaptions-regular.json"
+    elif args.num_tiles in [common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_FULL_TILE_COUNT]:
+            tileset = common_settings.MM_SIMPLE_TILESET
+            height = common_settings.MEGAMAN_HEIGHT
+            width = common_settings.MEGAMAN_WIDTH
+            path_to_json = args.json
 
 
     if not args.compare_checkpoints:
@@ -151,6 +158,11 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
             path_to_json = "datasets/LR_LevelsAndCaptions-regular.json"
+    elif args.num_tiles in [common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_FULL_TILE_COUNT]:
+            tileset = common_settings.MM_SIMPLE_TILESET
+            height = common_settings.MEGAMAN_HEIGHT
+            width = common_settings.MEGAMAN_WIDTH
+            path_to_json = args.json
 
     checkpoint_dirs = [
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))
@@ -302,15 +314,21 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 #print("first sample_indices", sample_indices[0])
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
                 #quit()
+
+
                 if height == common_settings.LR_HEIGHT:
                     scene = [[tile % common_settings.LR_TILE_COUNT for tile in s] for s in scene]
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
+                elif height == common_settings.MEGAMAN_HEIGHT:
+                    actual_caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 elif height == common_settings.MARIO_HEIGHT:
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
 
                 if output: print(f"\t{caption}")
                 if height == common_settings.LR_HEIGHT:
                     compare_score = lr_compare_captions(caption, actual_caption)
+                elif height == common_settings.MEGAMAN_HEIGHT:
+                    compare_score = mm_compare_captions(caption, actual_caption)
                 elif height == common_settings.MARIO_HEIGHT:
                     compare_score = compare_captions(caption, actual_caption)
 

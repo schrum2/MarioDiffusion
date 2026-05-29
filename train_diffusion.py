@@ -15,6 +15,7 @@ from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
+from MM_create_ascii_captions import assign_caption as mm_assign_caption ##test
 from captions.util import extract_tileset 
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
@@ -786,16 +787,28 @@ def main():
                     if bad_indices:
                         bad_scenes = convert_to_level_format(all_samples).tolist()
                         for i in bad_indices:
-                            caption, details = assign_caption(
-                                bad_scenes[i],
-                                id_to_char,
-                                char_to_id,
-                                tile_descriptors,
-                                describe_locations=False,
-                                describe_absence=args.describe_absence,
-                                debug=False,
-                                return_details=True
-                            )
+                            if args.game in ["MM-Simple", "MM-Full"]:
+                                caption, details = mm_assign_caption(
+                                    bad_scenes[i],
+                                    id_to_char,
+                                    char_to_id,
+                                    tile_descriptors,
+                                    False,
+                                    args.describe_absence,
+                                    debug=False,
+                                    return_details=True
+                                )
+                            else:
+                                caption, details = assign_caption(
+                                    bad_scenes[i],
+                                    id_to_char,
+                                    char_to_id,
+                                    tile_descriptors,
+                                    describe_locations=False,
+                                    describe_absence=args.describe_absence,
+                                    debug=False,
+                                    return_details=True
+                                )
 
                             if "broken" in caption:
                                 continue
