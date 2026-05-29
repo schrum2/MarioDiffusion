@@ -60,8 +60,6 @@ Now you can browse level scenes and their captions with a command like this (the
 ```
 python ascii_data_browser.py datasets\MM_LevelsAndCaptions-full-regular.json datasets\MM.json
 
-@@ -65,41 +77,60 @@ python ascii_data_browser.py datasets\MM_LevelsAndCaptions-full-regular.json dat
-
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
 python train_diffusion.py --json datasets\\MM_LevelsAndCaptions-simple-regular.json --augment --output_dir MM_unconditional_simple0 --seed 0 --game MM-Simple
