@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import argparse
@@ -8,7 +7,6 @@ import json
 import threading
 from util.plotter import Plotter  # Import the Plotter class
 from patch_dataset import PatchDataset
-import torch.nn.functional as F
 from models.block2vec_model import Block2Vec
 import util.common_settings as common_settings
 
@@ -17,6 +15,7 @@ EMBEDDING_DIM = 16
 BATCH_SIZE = 32
 EPOCHS = 100
 LR = 1e-3
+NEGATIVE_SAMPLES = 5
 VOCAB_SIZE = common_settings.MARIO_TILE_COUNT 
 
 def print_nearest_neighbors(model, tile_id, k=5):
@@ -37,6 +36,7 @@ def main():
     parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size')
     parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=LR, help='Learning rate')
+    parser.add_argument('--negative_samples', type=int, default=NEGATIVE_SAMPLES, help='Number of negative context tiles per positive pair')
 
     args = parser.parse_args()
 
@@ -69,7 +69,7 @@ def main():
 
 
     # Model, optimizer
-    model = Block2Vec(vocab_size=vocab_size, embedding_dim=args.embedding_dim)
+    model = Block2Vec(vocab_size=vocab_size, embedding_dim=args.embedding_dim, negative_samples=args.negative_samples)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # Initialize Plotter

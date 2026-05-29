@@ -4,20 +4,24 @@ import torch.nn.functional as F
 import os
 import json
 from safetensors.torch import save_file, load_file
-import time
 
 class Block2Vec(nn.Module):
     """Block2Vec model that learns tile embeddings through context prediction"""
     
-    def __init__(self, vocab_size, embedding_dim):
+    def __init__(self, vocab_size, embedding_dim, negative_samples=5):
         """
         Args:
             vocab_size (int): Number of unique tiles
             embedding_dim (int): Size of embedding vectors
+            negative_samples (int): Number of negative context tiles per positive pair
         """
         super().__init__()
+        if negative_samples < 1:
+            raise ValueError("negative_samples must be >= 1")
+
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
+        self.negative_samples = negative_samples
         
         # Two embedding layers - one for target tiles, one for context tiles
         self.in_embed = nn.Embedding(vocab_size, embedding_dim)
@@ -64,13 +68,34 @@ class Block2Vec(nn.Module):
         pos_scores = (center_vec * context_vec).sum(dim=1)
         pos_loss = F.binary_cross_entropy_with_logits(pos_scores, torch.ones_like(pos_scores))
 
-        # Negative sampling: center with random noise tiles
-        neg_ids = torch.randint(0, self.vocab_size, context_ids_flat.shape, device=center_ids.device)
+        # Negative sampling: center with noise tiles that are not the positive context tile
+        neg_ids = self._sample_negative_ids(context_ids_flat)
         neg_vec = self.out_embed(neg_ids)
-        neg_scores = (center_vec * neg_vec).sum(dim=1)
+        neg_scores = (center_vec.unsqueeze(1) * neg_vec).sum(dim=2)
         neg_loss = F.binary_cross_entropy_with_logits(neg_scores, torch.zeros_like(neg_scores))
 
         return pos_loss + neg_loss
+
+    def _sample_negative_ids(self, positive_context_ids):
+        """Sample negatives for each pair, excluding that pair's true context tile."""
+        if self.vocab_size < 2:
+            raise ValueError("Negative sampling requires vocab_size >= 2")
+
+        shape = (positive_context_ids.numel(), self.negative_samples)
+        neg_ids = torch.randint(0, self.vocab_size, shape, device=positive_context_ids.device)
+        positives = positive_context_ids.unsqueeze(1)
+        matches_positive = neg_ids.eq(positives)
+
+        while matches_positive.any():
+            neg_ids[matches_positive] = torch.randint(
+                0,
+                self.vocab_size,
+                (matches_positive.sum().item(),),
+                device=positive_context_ids.device,
+            )
+            matches_positive = neg_ids.eq(positives)
+
+        return neg_ids
 
     def get_embeddings(self):
         """Returns the learned embeddings for all tiles"""
@@ -84,6 +109,7 @@ class Block2Vec(nn.Module):
         config = {
             "vocab_size": self.vocab_size,
             "embedding_dim": self.embedding_dim,
+            "negative_samples": self.negative_samples,
         }
         with open(os.path.join(save_directory, "config.json"), "w") as f:
             json.dump(config, f, indent=2)
