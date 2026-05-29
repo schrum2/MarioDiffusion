@@ -767,7 +767,8 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
                     tokenizer=tokenizer_hf if args.pretrained_language_model else None,
-                    supports_pretrained_split=args.split_pretrained_sentences
+                    supports_pretrained_split=args.split_pretrained_sentences,
+                    block_embeddings=block_embeddings
                 ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
