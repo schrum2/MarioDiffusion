@@ -13,7 +13,7 @@ python combine_data.py datasets\Mar1and2_3x3_tiles.json datasets\SMB1_3x3_tiles.
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --test_json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --output_dir TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-MLM-regular0 --seed 0
 python train_block2vec.py --json_file datasets\Mar1and2_3x3_tiles.json --output_dir "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-block2vec-embeddings" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
 python train_diffusion.py --augment --text_conditional --output_dir "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec" --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --mlm_model_dir "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-MLM-regular0" --block_embedding_model_path "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-block2vec-embeddings" --plot_validation_caption_score
-python run_diffusion.py --model_path "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec" --num_samples 100 --save_as_json --output_dir "TILE_EMBEDDING_Mar1and2-conditional-block2vec-samples"
+python run_diffusion.py --model_path "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec" --num_samples 100 --save_as_json --output_dir "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec-samples"
 
 
 
