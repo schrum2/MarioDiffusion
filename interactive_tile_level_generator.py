@@ -137,6 +137,11 @@ class CaptionBuilder(ParentBuilder):
 
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
+
+        # TODO: Currently the code produces errors if you try to generate images when the wrong game is selected.
+        # Instead of printing a stack trace error in the console, make the code produce a friendly pop-up error 
+        # indicating that the wrong game might be selected.
+
                 
         self.model_button = ttk.Button(self.checkbox_frame, text="Load Model", command=self.load_model, style="TButton")
         self.model_button.pack(anchor=tk.E)
@@ -239,6 +244,8 @@ class CaptionBuilder(ParentBuilder):
         self.game_label.pack()
         self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)"], state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
+        self.game_dropdown.bind("<<ComboboxSelected>>", lambda e: self.update_mario_only_buttons()) 
+        self.update_mario_only_buttons() 
         
     def probe_absence_caption_support(self):
         """Test if the loaded model supports absence captions by running a quick, hidden generation."""
@@ -524,53 +531,63 @@ class CaptionBuilder(ParentBuilder):
             print(f"Caching frame width: {frame_width}")
 
         for i in range(num_images):
-            print(f"Generating image {i + 1} of {num_images}...")
-            if "caption" in param_values: print(f"Caption: {param_values['caption']}")
-            else: print("No caption")
-            images = self.pipe(generator=generator, **param_values).images
-            self.current_levels.append(images[0].cpu().detach().numpy())
+            try:
+                print(f"Generating image {i + 1} of {num_images}...")
+                if "caption" in param_values: print(f"Caption: {param_values['caption']}")
+                else: print("No caption")
+                images = self.pipe(generator=generator, **param_values).images
+                self.current_levels.append(images[0].cpu().detach().numpy()) 
+                
+                sample_tensor = images[0].unsqueeze(0)
+                sample_indices = convert_to_level_format(sample_tensor)
+                #print("images:", images)
+                scene = sample_indices[0].tolist()
 
-            sample_tensor = images[0].unsqueeze(0)
-            sample_indices = convert_to_level_format(sample_tensor)
-            #print("images:", images)
-            scene = sample_indices[0].tolist()
+                if game_selected == "Lode Runner":
+                    number_of_tiles = common_settings.LR_TILE_COUNT
+                    scene = [[x % number_of_tiles for x in row] for row in scene]
+                    tileset_path = common_settings.LR_TILESET
+                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+                elif game_selected == "Mega Man (Simple)":
+                    number_of_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+                    scene = [[x % number_of_tiles for x in row] for row in scene]
+                    tileset_path = common_settings.MM_SIMPLE_TILESET
+                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+                elif game_selected == "Mega Man (Full)":
+                    number_of_tiles = common_settings.MM_FULL_TILE_COUNT
+                    scene = [[x % number_of_tiles for x in row] for row in scene]
+                    tileset_path = common_settings.MM_FULL_TILESET
+                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+                
+                self.generated_scenes.append(scene)
+                #selected_game = self.game_var.get()
+                if game_selected == "Lode Runner":
+                    actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+                    pil_img = visualize_samples(images, game='LR')
+                elif game_selected == "Mario":
+                    actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+                    pil_img = visualize_samples(images)
+                else:
+                    actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+                    pil_img = visualize_samples(images, game="MM-Simple" if game_selected == "Mega Man (Simple)" else "MM-Full")
 
-            if game_selected == "Lode Runner":
-                number_of_tiles = common_settings.LR_TILE_COUNT
-                scene = [[x % number_of_tiles for x in row] for row in scene]
-                tileset_path = common_settings.LR_TILESET
-                _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-            elif game_selected == "Mega Man (Simple)":
-                number_of_tiles = common_settings.MM_SIMPLE_TILE_COUNT
-                scene = [[x % number_of_tiles for x in row] for row in scene]
-                tileset_path = common_settings.MM_SIMPLE_TILESET
-                _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-            elif game_selected == "Mega Man (Full)":
-                number_of_tiles = common_settings.MM_FULL_TILE_COUNT
-                scene = [[x % number_of_tiles for x in row] for row in scene]
-                tileset_path = common_settings.MM_FULL_TILESET
-                _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-            
-            self.generated_scenes.append(scene)
-            #selected_game = self.game_var.get()
-            if game_selected == "Lode Runner":
-                actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-                pil_img = visualize_samples(images, game='LR')
-            elif game_selected == "Mario":
-                actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-                pil_img = visualize_samples(images)
-            else:
-                actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-                pil_img = visualize_samples(images, game="MM-Simple" if game_selected == "Mega Man (Simple)" else "MM-Full")
+                self.generated_images.append(pil_img)
+                img_tk = ImageTk.PhotoImage(pil_img)
+                if game_selected == 'Mario':
+                    compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+                elif game_selected == 'Lode Runner':
+                    compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+                else:
+                    compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
-            self.generated_images.append(pil_img)
-            img_tk = ImageTk.PhotoImage(pil_img)
-            if game_selected == 'Mario':
-                compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-            elif game_selected == 'Lode Runner':
-                compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-            else:
-                compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+            except Exception as e:
+                messagebox.showerror(
+                    "Generation Error",
+                    f"Failed to generate image {i + 1}.\n\n"
+                    f"This may be caused by selecting the wrong game for the loaded model.\n\n"
+                    f"Details: {str(e)}"
+                )
+                break
 
             img_frame = ttk.Frame(self.image_inner_frame)
             img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
@@ -687,12 +704,16 @@ Average Segment Score: {avg_segment_score}"""
             button_frame = ttk.Frame(img_frame)
             button_frame.pack(pady=5)
     
+            is_mario = game_selected == "Mario"
+
             # Add Play button
             play_button = ttk.Button(
                 button_frame, 
                 text="Play", 
                 command=lambda idx=i: self.play_level(idx),
-                style="TButton"
+                style="TButton",
+                state=tk.NORMAL if is_mario else tk.DISABLED 
+
             )
             play_button.pack(side=tk.LEFT, padx=5)
     
@@ -701,7 +722,8 @@ Average Segment Score: {avg_segment_score}"""
                 button_frame, 
                 text="Use A*", 
                 command=lambda idx=i: self.use_astar(idx),
-                style="TButton"
+                style="TButton",
+                state=tk.NORMAL if is_mario else tk.DISABLED
             )
             astar_button.pack(side=tk.LEFT, padx=5)
 
@@ -1026,6 +1048,13 @@ Average Segment Score: {avg_segment_score}"""
             self.negative_prompt_entry.delete(1.0, tk.END)
             #self.negative_prompt_entry.insert(tk.END, self.last_present_neg_caption)
             self.negative_prompt_entry.config(state=tk.NORMAL)
+
+    def update_mario_only_buttons(self):
+        is_mario = self.game_var.get() == "Mario"
+        state = tk.NORMAL if is_mario else tk.DISABLED
+        self.play_composed_button.config(state=state)
+        self.astar_composed_button.config(state=state)
+    
 
 class LevelEditor:
     def __init__(self, master, scene, id_to_char, char_to_id, tile_descriptors, game, on_save=None):
