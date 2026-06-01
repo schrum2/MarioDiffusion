@@ -315,11 +315,12 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
                 #quit()
 
+                # TODO: More reliable way to detect if we are in Mega Man vs Mario, rather than relying on the presence of the "A" tile in char_to_id? Maybe just pass in a game type argument?
 
                 if height == common_settings.LR_HEIGHT:
                     scene = [[tile % common_settings.LR_TILE_COUNT for tile in s] for s in scene]
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-                elif height == common_settings.MEGAMAN_HEIGHT:
+                elif height == common_settings.MEGAMAN_HEIGHT and "A" in char_to_id: # Mario does not have an "A" tile, though Mario and Mega Man have the same height:
                     actual_caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 elif height == common_settings.MARIO_HEIGHT:
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
@@ -327,7 +328,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 if output: print(f"\t{caption}")
                 if height == common_settings.LR_HEIGHT:
                     compare_score = lr_compare_captions(caption, actual_caption)
-                elif height == common_settings.MEGAMAN_HEIGHT:
+                elif height == common_settings.MEGAMAN_HEIGHT and "A" in char_to_id: # Mario does not have an "A" tile, though Mario and Mega Man have the same height:
                     compare_score = mm_compare_captions(caption, actual_caption)
                 elif height == common_settings.MARIO_HEIGHT:
                     compare_score = compare_captions(caption, actual_caption)
