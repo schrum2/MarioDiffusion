@@ -15,6 +15,7 @@ from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
+from MM_create_ascii_captions import assign_caption as mm_assign_caption ##test
 from captions.util import extract_tileset 
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
@@ -59,35 +60,6 @@ def reconstruction_loss(pred, target, scene_oh, noisy_scenes, timesteps=None, sc
     dist = Categorical(logits=logits)
     rec_loss = -dist.log_prob(target_indices).sum(dim=(1,2)).mean()
     return rec_loss
-
-def has_broken_pipe(level):
-    rows = len(level)
-    cols = len(level[0])
-    
-    for r in range(rows):
-        for c in range(cols):
-            tile = level[r][c]
-            if tile == 6:
-                if c + 1 >= cols or level[r][c+1] != 7:
-                    return True
-                if r + 1 >= rows or level[r+1][c] != 8:
-                    return True
-            if tile == 7:
-                if c - 1 < 0 or level[r][c-1] != 6:
-                    return True
-                if r + 1 >= rows or level[r+1][c] != 9:
-                    return True
-            if tile == 8:
-                if c + 1 >= cols or level[r][c+1] != 9:
-                    return True
-                if r - 1 < 0 or level[r-1][c] not in (6, 8):
-                    return True
-            if tile == 9:
-                if c - 1 < 0 or level[r][c-1] != 8:
-                    return True
-                if r - 1 < 0 or level[r-1][c] not in (7, 9):
-                    return True
-    return False
 
 
 def combined_loss(pred, target, scene_oh=None, noisy_scenes=None, timesteps=None, scheduler=None, **kwargs):
@@ -162,8 +134,8 @@ def parse_args():
     parser.add_argument("--auto_augment_threshold", type=float, default=0.8, help="Validation caption score threshold to begin dataset augmentation")
 
     # figure these out later
-    parser.add_argument("--auto_augment_max_new_samples", type=int, default=10, help="Max new samples to add per augmentation run")  #tried 50, trying 10
-    parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7000,help="Maximum total size the training dataset is allowed to grow to") #trying 7000
+    parser.add_argument("--auto_augment_max_new_samples", type=int, default=10, help="Max new samples to add per augmentation run")    
+    parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7000,help="Maximum total size the training dataset is allowed to grow to")
     parser.add_argument("--auto_augment_save_images", action="store_true", help="Save images for newly added augmented samples")
     parser.add_argument("--auto_augment_json", type=str, default=None, help="Path to save the augmented training dataset JSON")
     parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
@@ -831,9 +803,6 @@ def main():
                         bad_scenes = convert_to_level_format(all_samples).tolist()
 
                         for i in bad_indices:
-                            if len(bad_generated_scenes) >= max_to_add:  
-                                break
-
                             caption, details = assign_caption(
                                 bad_scenes[i],
                                 id_to_char,
@@ -853,6 +822,7 @@ def main():
 
                             canonical_caption = canonicalize_caption(caption)
 
+                            canonical_caption = canonicalize_caption(caption)
                             if canonical_caption in seen_caption_set:
                                 continue
 
@@ -864,8 +834,8 @@ def main():
                                 "score": compare_all_scores[i],
                                 "caption": caption
                             })
-
-                        bad_scenes = None  # Free memory
+                        
+                        bad_scenes = None # Free memory
 
                         if bad_generated_scenes:
                             old_dataset_size = len(train_dataset.data)
@@ -882,7 +852,7 @@ def main():
                                 json.dump(
                                     [
                                         {
-                                            "scene": sample["scene"],
+                                            "level": sample["scene"],
                                             "caption": sample["caption"],
                                             "score": sample["score"],
                                             "prompt": sample["prompt"]
@@ -931,7 +901,7 @@ def main():
                             train_dataset,
                             batch_size=args.batch_size,
                             shuffle=True,
-                            num_workers=2, # Was 4 before. Original value in gen_train_helper also 4. This change might solve memory issues.
+                            num_workers=4,
                             drop_last=True,
                             persistent_workers=True
                         )
@@ -942,8 +912,6 @@ def main():
                         remaining_epochs = args.num_epochs - epoch - 1
                         progress_bar.total += added_batches * remaining_epochs
                         progress_bar.refresh()
-
-                        bad_generated_scenes = [] # Clear the list for the next epoch (free memory)
 
             else:
                 # Is this how this should behave in the unconditional case?
