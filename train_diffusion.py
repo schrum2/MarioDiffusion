@@ -162,8 +162,8 @@ def parse_args():
     parser.add_argument("--auto_augment_threshold", type=float, default=0.8, help="Validation caption score threshold to begin dataset augmentation")
 
     # figure these out later
-    parser.add_argument("--auto_augment_max_new_samples", type=int, default=50, help="Max new samples to add per augmentation run")    
-    parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7500,help="Maximum total size the training dataset is allowed to grow to")
+    parser.add_argument("--auto_augment_max_new_samples", type=int, default=10, help="Max new samples to add per augmentation run")  #tried 50, trying 10
+    parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7000,help="Maximum total size the training dataset is allowed to grow to") #trying 7000
     parser.add_argument("--auto_augment_save_images", action="store_true", help="Save images for newly added augmented samples")
     parser.add_argument("--auto_augment_json", type=str, default=None, help="Path to save the augmented training dataset JSON")
     parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
@@ -811,10 +811,29 @@ def main():
 
                 # If auto-augmentation is enabled and the caption score meets the threshold, identify bad samples and add them to the training dataset
                 if args.auto_augment and avg_caption_score is not None and avg_caption_score >= args.auto_augment_threshold:
+                    # Calculate how many samples we can add without exceeding the max dataset size
+                    remaining_capacity = ( 
+                        args.auto_augment_max_dataset_size 
+                        - len(train_dataset.data)
+                    )
+                    
+                    max_to_add = max(
+                        0,
+                        min( 
+                            args.auto_augment_max_new_samples,
+                            remaining_capacity
+                        )
+                    )
+
                     bad_indices = [i for i, score in enumerate(compare_all_scores) if score < 1.0]
-                    if bad_indices:
+
+                    if bad_indices and max_to_add > 0: # Only proceed if there are bad samples and we have capacity to add them
                         bad_scenes = convert_to_level_format(all_samples).tolist()
+
                         for i in bad_indices:
+                            if len(bad_generated_scenes) >= max_to_add:  
+                                break
+
                             caption, details = assign_caption(
                                 bad_scenes[i],
                                 id_to_char,
@@ -834,9 +853,9 @@ def main():
 
                             canonical_caption = canonicalize_caption(caption)
 
-                            canonical_caption = canonicalize_caption(caption)
                             if canonical_caption in seen_caption_set:
                                 continue
+
                             seen_caption_set.add(canonical_caption)
 
                             bad_generated_scenes.append({
@@ -845,25 +864,11 @@ def main():
                                 "score": compare_all_scores[i],
                                 "caption": caption
                             })
-                        
-                        bad_scenes = None # Free memory
 
-                    if bad_generated_scenes:
-                        remaining_capacity = (
-                            args.auto_augment_max_dataset_size
-                            - len(train_dataset.data)
-                        )
+                        bad_scenes = None  # Free memory
 
-                        if remaining_capacity <= 0:
-                            print("[Auto-Augment] Maximum dataset size reached.")
-                            bad_generated_scenes = []
-                        else:
-                            max_to_add = min(
-                                args.auto_augment_max_new_samples,
-                                remaining_capacity
-                            )
-
-                            bad_generated_scenes = bad_generated_scenes[:max_to_add]
+                        if bad_generated_scenes:
+                            old_dataset_size = len(train_dataset.data)
                         
                         old_dataset_size = len(train_dataset.data)
 
