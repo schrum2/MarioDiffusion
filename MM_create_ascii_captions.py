@@ -475,27 +475,33 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
 
-def find_walls(scene, wall_ids, min_height=3):
+def find_walls(scene, wall_ids, min_height=4):
     height = len(scene)
     width = len(scene[0])
     wall_coords = set()
 
     for x in range(width):
+        # First collect ALL solid tiles in this column
+        full_col_coords = []
+        max_run = 0
         run = 0
-        run_coords = []
+
         for y in range(height):
             if scene[y][x] in wall_ids:
                 run += 1
-                run_coords.append((y, x))
+                full_col_coords.append((y, x))
             else:
                 run = 0
-                run_coords = []
+            max_run = max(max_run, run)
 
-            if run >= min_height:
-                wall_coords.update(run_coords)
-                break  # column already counts as a wall
+        if max_run >= min_height:
+            left_solid = x > 0 and any(scene[r][x-1] in wall_ids for r, c in full_col_coords)
+            right_solid = x < width - 1 and any(scene[r][x+1] in wall_ids for r, c in full_col_coords)
 
-    return wall_coords 
+            if not left_solid and not right_solid:
+                wall_coords.update(full_col_coords)
+
+    return wall_coords
 
 def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, data=None, debug=False, return_details=False):
     """Assigns a caption to a level scene based on its contents."""
@@ -602,9 +608,9 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     if wall_count > 0:
         add_to_caption(
             f" {describe_quantity(wall_count) if coarse_counts else wall_count} wall{'s' if wall_count != 1 else ''}.",
-            list(wall_coords)   # ← now passes real coords
+            list(wall_coords) 
         )
-        
+
     # Platforms
     # Count moving platforms
     moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="moving", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[ceiling_row, floor_row])
@@ -628,8 +634,8 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
     structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
 
-    #for phrase, coords in structure_phrase:
-        #add_to_caption(phrase, coords)
+    for phrase, coords in structure_phrase:
+        add_to_caption(phrase, coords)
 
     #print(already_accounted)
     loose_block_phrase = count_caption_phrase(scene, wall_ids, "loose block", "loose blocks", describe_absence=describe_absence, exclude=already_accounted)

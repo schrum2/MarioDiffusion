@@ -1099,7 +1099,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
@@ -1115,6 +1115,12 @@ if __name__ == "__main__":
     elif args.game == "LR":
         game_selected = "Lode Runner"
         tileset_path = common_settings.LR_TILESET
+    elif args.game == "MM-Simple":
+        game_selected = "Mega Man (Simple)"
+        tileset_path = common_settings.MM_SIMPLE_TILESET
+    elif args.game == "MM-Full":
+        game_selected = "Mega Man (Full)"
+        tileset_path = common_settings.MM_FULL_TILESET
 
     root = tk.Tk()
     app = CaptionBuilder(root)
