@@ -1054,6 +1054,9 @@ Average Segment Score: {avg_segment_score}"""
         state = tk.NORMAL if is_mario else tk.DISABLED
         self.play_composed_button.config(state=state)
         self.astar_composed_button.config(state=state)
+        self.graphics_checkbox.config(state=state)
+        if not is_mario:
+            self.use_snes_graphics.set(False)
     
 
 class LevelEditor:
