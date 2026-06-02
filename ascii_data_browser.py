@@ -158,8 +158,11 @@ class TileViewer(tk.Tk):
         frame = tk.Frame(self)
         frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
 
-        load_button = tk.Button(frame, text="Load Dataset & Tileset", command=self.load_files)
-        load_button.pack()
+        load_dataset_button = tk.Button(frame, text="Select Dataset", command=self.load_dataset)
+        load_dataset_button.pack(side=tk.LEFT, padx=2)
+
+        load_tileset_button = tk.Button(frame, text="Select Tileset", command=self.load_tileset)
+        load_tileset_button.pack(side=tk.LEFT, padx=2)
 
         # Add a button to load a trained diffusion model
         self.load_model_button = tk.Button(frame, text="Load Model", command=self.load_model)
@@ -347,6 +350,22 @@ class TileViewer(tk.Tk):
         if not dataset_path or not tileset_path:
             return
         self.load_files_from_paths(dataset_path, tileset_path)
+
+    def load_dataset(self):
+        path = filedialog.askopenfilename(title="Select dataset JSON")
+        if not path:
+            return
+        self._pending_dataset_path = path
+        if hasattr(self, '_pending_tileset_path'):
+            self.load_files_from_paths(self._pending_dataset_path, self._pending_tileset_path)
+
+    def load_tileset(self):
+        path = filedialog.askopenfilename(title="Select tileset JSON")
+        if not path:
+            return
+        self._pending_tileset_path = path
+        if hasattr(self, '_pending_dataset_path'):
+            self.load_files_from_paths(self._pending_dataset_path, self._pending_tileset_path)
 
     def load_files_from_paths(self, dataset_path, tileset_path):
         self.dataset_path = dataset_path
