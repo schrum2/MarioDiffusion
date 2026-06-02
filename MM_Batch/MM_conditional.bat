@@ -11,11 +11,13 @@ if /I "%VARIANT%"=="full" (
     set DATASET_INFIX=full
     set TILESET=datasets\MM.json
     set RAW_JSON=datasets\MM_Levels_Full.json
+    set NUM_TILES=39
 ) else (
     set GAME=MM-Simple
     set DATASET_INFIX=simple
     set TILESET=datasets\MM_Simple_Tileset.json
     set RAW_JSON=datasets\MM_Levels_Simple.json
+    set NUM_TILES=13
 )
 
 set JSON_TRAIN=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular.json
