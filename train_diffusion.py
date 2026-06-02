@@ -26,6 +26,8 @@ import models.text_model as text_model
 import glob
 import models.general_training_helper as gen_train_help
 import re
+import gc
+from torch.utils.data import DataLoader
 from models.pipeline_loader import get_pipeline
 from create_ascii_captions import assign_caption
 
@@ -396,7 +398,8 @@ def main():
                                         val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
                                         augment=args.augment, num_tiles=args.num_tiles,
                                         negative_prompt_training=args.negative_prompt_training,
-                                        block_embeddings=block_embeddings, batch_size=args.batch_size)
+                                        block_embeddings=block_embeddings, batch_size=args.batch_size,
+                                        persistent_workers=(not args.auto_augment))
 
     #print(train_dataloader.dataset)
     #input("Press Enter to continue...")
@@ -780,6 +783,12 @@ def main():
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width
                 )
+                
+                # MEMORY FIX: Explicitly delete pipeline to free GPU memory
+                # Claude suggested this, but I'm skeptical that it is necessary and it would cause slowdown
+                #del pipeline
+                #if torch.cuda.is_available():
+                #    torch.cuda.empty_cache()
 
                 # If auto-augmentation is enabled and the caption score meets the threshold, identify bad samples and add them to the training dataset
                 if args.auto_augment and avg_caption_score is not None and avg_caption_score >= args.auto_augment_threshold:
@@ -800,7 +809,8 @@ def main():
                     bad_indices = [i for i, score in enumerate(compare_all_scores) if score < 1.0]
 
                     if bad_indices and max_to_add > 0:  # Only proceed if there are bad samples and we have capacity to add them
-                        bad_scenes = convert_to_level_format(all_samples).tolist()
+                        # MEMORY FIX: Convert all_samples only once and process incrementally
+                        bad_scenes_list = convert_to_level_format(all_samples).tolist()
 
                         for i in bad_indices:
                             # Stop once we've collected enough samples
@@ -808,7 +818,7 @@ def main():
                                 break
                             try:
                                 caption, details = assign_caption(
-                                    bad_scenes[i],
+                                    bad_scenes_list[i],
                                     id_to_char,
                                     char_to_id,
                                     tile_descriptors,
@@ -829,7 +839,7 @@ def main():
 
                                 bad_generated_scenes.append({
                                     "prompt": all_prompts[i],
-                                    "scene": bad_scenes[i],
+                                    "scene": bad_scenes_list[i],
                                     "score": compare_all_scores[i],
                                     "caption": caption
                                 })
@@ -838,7 +848,13 @@ def main():
                                 print(f"[Auto-Augment] Failed processing sample {i}: {e}")
                                 continue
 
-                        bad_scenes = None  # Free memory
+                        # MEMORY FIX: Explicitly free large intermediate tensors
+                        del bad_scenes_list
+                        del all_samples
+                        del all_prompts
+                        del compare_all_scores
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
 
                     old_dataset_size = len(train_dataset.data)
 
@@ -902,18 +918,44 @@ def main():
                     print(f"[Auto-Augment] Dataset grown to {new_dataset_size} samples (+{len(bad_generated_scenes)})")
 
                     # Recreate DataLoader only — do NOT re-prepare model/optimizer/scheduler
-                    from torch.utils.data import DataLoader
+                    
+                    # Try to gracefully shutdown workers from the previous DataLoader to avoid leaking
+                    def _shutdown_dataloader_workers(dataloader):
+                        try:
+                            iterator = getattr(dataloader, "_iterator", None)
+                            if iterator is not None:
+                                shutdown = getattr(iterator, "_shutdown_workers", None)
+                                if callable(shutdown):
+                                    shutdown()
+                            shutdown_fn = getattr(dataloader, "_shutdown_workers", None)
+                            if callable(shutdown_fn):
+                                shutdown_fn()
+                        except Exception as e:
+                            print(f"[Auto-Augment] Warning shutting down previous dataloader workers: {e}")
 
+                    try:
+                        _shutdown_dataloader_workers(train_dataloader)
+                    except Exception:
+                        pass
+
+                    # Create a new DataLoader with multiple workers, but do NOT use persistent_workers.
+                    # This retains parallel data loading without keeping worker processes and dataset copies alive across
+                    # augmentation steps (safer memory usage than persistent_workers=True).
                     raw_new_loader = DataLoader(
                         train_dataset,
                         batch_size=args.batch_size,
                         shuffle=True,
                         num_workers=4,
                         drop_last=True,
-                        persistent_workers=True
+                        persistent_workers=False,
                     )
 
                     train_dataloader = accelerator.prepare(raw_new_loader)
+
+                    # Force garbage collection and GPU cache cleanup
+                    gc.collect()
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
 
                     # Update progress bar total to reflect the larger dataset for remaining epochs
                     added_batches = (new_dataset_size - old_dataset_size) // args.batch_size
