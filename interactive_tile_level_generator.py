@@ -271,6 +271,7 @@ class CaptionBuilder(ParentBuilder):
             self.automatic_absence_caption_checkbox.config(state=tk.DISABLED)
             self.automatic_absence_caption.set(False)
 
+
     def probe_diffusion_args_support(self):
         """Test if the loaded model can use our diffusion-specific args, greys them out if it can't"""
         if isinstance(self.pipe, FDMPipeline):
@@ -409,6 +410,13 @@ class CaptionBuilder(ParentBuilder):
         if model:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.pipe = get_pipeline(model).to(self.device)
+
+            detected_game = self.detect_game_from_model()
+            if detected_game:
+                self.game_var.set(detected_game)
+                self.update_mario_only_buttons()
+                # Also update width/height entries to match
+                self._apply_game_defaults(detected_game)
             
             # Probe for absence caption support before updating GUI
             self.probe_absence_caption_support()
@@ -427,6 +435,48 @@ class CaptionBuilder(ParentBuilder):
                 self.negative_prompt_entry.delete("1.0", tk.END)
                 self.negative_prompt_entry.config(state=tk.DISABLED)
                 self.automatic_negative_caption_checkbox.config(state=tk.DISABLED)
+
+    # creates a pop-up window to ask the user to confirm if the detected game is correct when the tile count is ambiguous (e.g. 13 tiles could be either Mario or Mega)
+    #but, we dont like how it pops up every time so for now were commenting it out and for future if yall can find a more elegant way to handle ambiguous tile counts that would be great
+  '''  def detect_game_from_model(self):
+        try:
+            if hasattr(self.pipe, 'unet'):
+                tile_count = self.pipe.unet.config.out_channels
+            elif hasattr(self.pipe, 'model'):
+                tile_count = self.pipe.model.config.out_channels  # adjust if FDM differs
+            else:
+                return None  # can't detect
+
+            if tile_count == common_settings.LR_TILE_COUNT:        # 8
+                return "Lode Runner"
+            elif tile_count == common_settings.MM_FULL_TILE_COUNT:  # 39
+                return "Mega Man (Full)"
+            elif tile_count == 13:
+                # Ambiguous — ask the user to confirm
+                answer = messagebox.askyesno(
+                    "Confirm Game",
+                    "Is this a Mario model?\n\n"
+                    "Click Yes for Mario, No for Mega Man (Simple)."
+                )
+                return "Mario" if answer else "Mega Man (Simple)"
+            else:
+                return None  # unknown tile count
+        except Exception:
+            return None  # silently fail if attributes aren't there
+
+    def _apply_game_defaults(self, game):
+        self.width_entry.config(state=tk.NORMAL)
+        self.height_entry.config(state=tk.NORMAL)
+        if game == "Lode Runner":
+            w, h = common_settings.LR_WIDTH, common_settings.LR_HEIGHT
+        elif game == "Mario":
+            w, h = common_settings.MARIO_WIDTH, common_settings.MARIO_HEIGHT
+        else:
+            w, h = common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT
+        self.width_entry.delete(0, tk.END)
+        self.width_entry.insert(0, str(w))
+        self.height_entry.delete(0, tk.END)
+        self.height_entry.insert(0, str(h)) '''
 
     def update_caption(self):
         self.selected_phrases = [phrase for phrase, var in self.checkbox_vars.items() if var.get()]
