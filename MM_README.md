@@ -50,7 +50,7 @@ python tokenizer.py save --json datasets\\MM_LevelsAndCaptions-full-regular.json
 python tokenizer.py save --json datasets\\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
 ```
 
-All of this can be done with this batch file, which runs each of these commands in sequence
+All of this can be done with this batch file, which runs each of these commands in sequence:
 ```
 cd MM_Batch
 MM-data.bat
@@ -59,6 +59,7 @@ MM-data.bat
 Now you can browse level scenes and their captions with a command like this (the json file can be replaced by any levels and captions json file in datasets):
 ```
 python ascii_data_browser.py datasets\MM_LevelsAndCaptions-full-regular.json datasets\MM.json
+```
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
@@ -67,7 +68,7 @@ python train_diffusion.py --json datasets\\MM_LevelsAndCaptions-simple-regular.j
 
 ## Train text encoder
 
-Masked language modeling is used to train the text embedding model. Use any dataset with an appropriate tokenizer, we will default to the ones for MM-Simple for the rest of the commands here, though both sub-games work fine.
+Masked language modeling is used to train the text embedding model. Use any dataset with an appropriate tokenizer, we will default to the ones for MM-Simple for the rest of the commands here, though both sub-games work fine:
 ```
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple-regular --seed 0
 ```
@@ -78,7 +79,7 @@ Now that the text embedding model is ready, train a diffusion model conditioned 
 ```
 python train_diffusion.py --pkl datasets\MM_Tokenizer-simple-regular.pkl --json datasets\\MM_LevelsAndCaptions-simple-regular.json --augment --mlm_model_dir MM-MLM-simple-regular --text_conditional --output_dir MM_conditional_simple_regular0 --seed 0 --game MM-Simple
 ```
-Another trick if you care more about speed than seeing intermediate results is to set `--save_image_epochs` to a large number (larger than the number of epochs), like this
+Another trick if you care more about speed than seeing intermediate results is to set `--save_image_epochs` to a large number (larger than the number of epochs), like this:
 
 ```
 python train_diffusion.py --pkl datasets\MM_Tokenizer-simple-regular.pkl --json datasets\\MM_LevelsAndCaptions-simple-regular.json --augment --mlm_model_dir MM-MLM-simple-regular --text_conditional --output_dir MM_conditional_simple_regular0 --seed 0 --game MM-Simple --save_image_epochs 100000
@@ -93,11 +94,12 @@ MM_conditional.bat
 
 ## Generate levels from text-conditional diffusion model
 
-In order to generate levels from a base caption, use this command
+In order to generate levels from a base caption, use this command:
 ```
 python text_to_level_diffusion.py --model_path MM_conditional_simple_regular0 --game MM-Simple
 ```
-An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
+An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on:
 
 ```
 python interactive_tile_level_generator.py --model_path MM_conditional_simple_regular0 --load_data datasets\\MM_LevelsAndCaptions-simple-regular.json --game MM-Simple
+```
