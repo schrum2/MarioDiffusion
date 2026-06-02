@@ -108,17 +108,18 @@ python interactive_tile_level_generator.py --model_path MM_conditional_simple_re
 
 To generate a batch of levels from an unconditional MM-Simple model:
 
-'''
-python run_diffusion.py --model_path MM_unconditional_simple0 --num_samples 100 --save_as_json --output_dir MM_unconditional_simple0-samples --level_width 16 --game MM-Simple
-'''
+```
+python run_diffusion.py --model_path MM_unconditional_simple0 --num_samples 100 --save_as_json --output_dir MM_unconditional_simple0-samples --level_width 16 -```
+-game MM-Simple
+```
 For a text-conditional model, add `--text_conditional`:
 
-'''
+```
 python run_diffusion.py --model_path MM_conditional_simple_regular0 --num_samples 100 --text_conditional --save_as_json --output_dir MM_conditional_simple_regular0-samples --level_width 16 --game MM-Simple
-'''
+```
 Browse the generated levels with:
 
-'''
+```
 python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.json datasets\MM_Simple_Tileset.json
-'''
+```
 For the full tileset, swap `MM-Simple` with `MM-Full` and point to the appropriate model and tileset.
