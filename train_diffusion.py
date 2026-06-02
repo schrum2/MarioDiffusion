@@ -964,11 +964,6 @@ def main():
                     progress_bar.total += added_batches * remaining_epochs
                     progress_bar.refresh()
 
-                else:
-                    # Is this how this should behave in the unconditional case?
-                    # Or should I just use 0 or -1?
-                    avg_caption_score = None
-
             model.train()
 
             # Log caption match score
