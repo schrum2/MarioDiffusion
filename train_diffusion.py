@@ -799,51 +799,46 @@ def main():
 
                     bad_indices = [i for i, score in enumerate(compare_all_scores) if score < 1.0]
 
-                if bad_indices and max_to_add > 0:  # Only proceed if there are bad samples and we have capacity to add them
-                    bad_scenes = convert_to_level_format(all_samples).tolist()
+                    if bad_indices and max_to_add > 0:  # Only proceed if there are bad samples and we have capacity to add them
+                        bad_scenes = convert_to_level_format(all_samples).tolist()
 
-                    for i in bad_indices:
+                        for i in bad_indices:
+                            # Stop once we've collected enough samples
+                            if len(bad_generated_scenes) >= max_to_add:
+                                break
+                            try:
+                                caption, details = assign_caption(
+                                    bad_scenes[i],
+                                    id_to_char,
+                                    char_to_id,
+                                    tile_descriptors,
+                                    describe_locations=False,
+                                    describe_absence=args.describe_absence,
+                                    debug=False,
+                                    return_details=True
+                                )
 
-                        # Stop once we've collected enough samples
-                        if len(bad_generated_scenes) >= max_to_add:
-                            break
+                                if "broken" in caption:
+                                    continue
 
-                        try:
-                            caption, details = assign_caption(
-                                bad_scenes[i],
-                                id_to_char,
-                                char_to_id,
-                                tile_descriptors,
-                                describe_locations=False,
-                                describe_absence=args.describe_absence,
-                                debug=False,
-                                return_details=True
-                            )
+                                canonical_caption = canonicalize_caption(caption)
+                                if canonical_caption in seen_caption_set:
+                                    continue
 
-                            if "broken" in caption:
+                                seen_caption_set.add(canonical_caption)
+
+                                bad_generated_scenes.append({
+                                    "prompt": all_prompts[i],
+                                    "scene": bad_scenes[i],
+                                    "score": compare_all_scores[i],
+                                    "caption": caption
+                                })
+
+                            except Exception as e:
+                                print(f"[Auto-Augment] Failed processing sample {i}: {e}")
                                 continue
 
-                            canonical_caption = canonicalize_caption(caption)
-                            if canonical_caption in seen_caption_set:
-                                continue
-
-                            seen_caption_set.add(canonical_caption)
-
-                            bad_generated_scenes.append({
-                                "prompt": all_prompts[i],
-                                "scene": bad_scenes[i],
-                                "score": compare_all_scores[i],
-                                "caption": caption
-                            })
-
-                        except Exception as e:
-                            print(f"[Auto-Augment] Failed processing sample {i}: {e}")
-                            continue
-
-                    bad_scenes = None  # Free memory
-
-                    if bad_generated_scenes:
-                        old_dataset_size = len(train_dataset.data)
+                        bad_scenes = None  # Free memory
 
                     old_dataset_size = len(train_dataset.data)
 
