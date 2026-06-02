@@ -13,7 +13,8 @@ import torch
 
 
 def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles, 
-                       negative_prompt_training, block_embeddings, batch_size):
+                       negative_prompt_training, block_embeddings, batch_size,
+                       persistent_workers=True):
     """
     Create PyTorch dataloaders for training and validation datasets.
 
@@ -61,7 +62,7 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
         shuffle=True,
         num_workers=4,
         drop_last=True,
-        persistent_workers=True
+        persistent_workers=persistent_workers
     )
     
     val_dataloader = None
@@ -72,7 +73,7 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
             shuffle=False,
             num_workers=4,
             drop_last=False,
-            persistent_workers=True
+            persistent_workers=True # Always true since validation dataset never changes
         )
     
     return train_dataloader, val_dataloader
