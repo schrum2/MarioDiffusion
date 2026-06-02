@@ -59,6 +59,7 @@ MM-data.bat
 Now you can browse level scenes and their captions with a command like this (the json file can be replaced by any levels and captions json file in datasets):
 ```
 python ascii_data_browser.py datasets\MM_LevelsAndCaptions-full-regular.json datasets\MM.json
+```
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
