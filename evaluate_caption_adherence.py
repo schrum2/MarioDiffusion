@@ -319,18 +319,19 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 if height == common_settings.LR_HEIGHT:
                     scene = [[tile % common_settings.LR_TILE_COUNT for tile in s] for s in scene]
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-                elif height == common_settings.MEGAMAN_HEIGHT:
-                    actual_caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 elif height == common_settings.MARIO_HEIGHT:
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
+                elif height == common_settings.MEGAMAN_HEIGHT:
+                    actual_caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
 
                 if output: print(f"\t{caption}")
                 if height == common_settings.LR_HEIGHT:
                     compare_score = lr_compare_captions(caption, actual_caption)
-                elif height == common_settings.MEGAMAN_HEIGHT:
-                    compare_score = mm_compare_captions(caption, actual_caption)
                 elif height == common_settings.MARIO_HEIGHT:
                     compare_score = compare_captions(caption, actual_caption)
+                elif height == common_settings.MEGAMAN_HEIGHT:
+                    compare_score = mm_compare_captions(caption, actual_caption)
+                
 
                 if output: print(f"\tcompare_score: {compare_score}")
                 compare_all_scores.append(compare_score)
