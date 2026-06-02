@@ -447,8 +447,12 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     captioned_dataset = []
     for i, combined_scene in enumerate(dataset):
         # Blank for Mega Man
-        scene = combined_scene['sample']
-        data = combined_scene['data']
+        if isinstance(combined_scene, dict):
+            scene = combined_scene['sample']
+            data = combined_scene.get('data', None)
+        else:
+            scene = combined_scene
+            data = None
         caption = ""
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, data)
 
