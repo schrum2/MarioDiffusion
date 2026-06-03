@@ -771,7 +771,8 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
                     tokenizer=tokenizer_hf if args.pretrained_language_model else None,
-                    supports_pretrained_split=args.split_pretrained_sentences
+                    supports_pretrained_split=args.split_pretrained_sentences,
+                    block_embeddings=block_embeddings
                 ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
@@ -868,7 +869,7 @@ def main():
                             json.dump(
                                 [
                                     {
-                                        "level": sample["scene"],
+                                        "scene": sample["scene"],
                                         "caption": sample["caption"],
                                         "score": sample["score"],
                                         "prompt": sample["prompt"]
@@ -1064,7 +1065,8 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
                     tokenizer=tokenizer_hf if args.pretrained_language_model else None, 
-                    supports_pretrained_split=args.split_pretrained_sentences
+                    supports_pretrained_split=args.split_pretrained_sentences, 
+                    block_embeddings=block_embeddings
                 ).to(accelerator.device)
                                 
                 # Use the raw negative captions instead of tokens
@@ -1118,7 +1120,8 @@ def main():
                     scheduler=noise_scheduler,
                     text_encoder=text_encoder,
                     tokenizer=tokenizer_hf if args.pretrained_language_model else None,
-                    supports_pretrained_split=args.split_pretrained_sentences
+                    supports_pretrained_split=args.split_pretrained_sentences, 
+                    block_embeddings=block_embeddings
                 ).to(accelerator.device)
                 # Save negative prompt support flag if enabled
                 if args.negative_prompt_training:
@@ -1212,7 +1215,8 @@ def main():
                 scheduler=noise_scheduler,
                 text_encoder=text_encoder,
                 tokenizer=tokenizer_hf if args.pretrained_language_model else None,
-                supports_pretrained_split=args.split_pretrained_sentences
+                supports_pretrained_split=args.split_pretrained_sentences, 
+                block_embeddings=block_embeddings
             ).to(accelerator.device)
         else:
             pipeline = UnconditionalDDPMPipeline(

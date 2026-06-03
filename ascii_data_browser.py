@@ -48,9 +48,12 @@ class TileViewer(tk.Tk):
         self.create_widgets()
         self.bind_keys()
 
+        self.dataset_path = dataset_path
+        self.tileset_path = tileset_path
+
         # Optional initial load from command-line
-        if dataset_path and tileset_path:
-            self.load_files_from_paths(dataset_path, tileset_path)
+        if self.dataset_path and self.tileset_path:
+            self.load_files_from_paths(self.dataset_path, self.tileset_path)
 
         # Lists to added level segments to the composed level
         self.added_sample_indexes = []
@@ -158,8 +161,11 @@ class TileViewer(tk.Tk):
         frame = tk.Frame(self)
         frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
 
-        load_button = tk.Button(frame, text="Load Dataset & Tileset", command=self.load_files)
-        load_button.pack()
+        load_dataset_button = tk.Button(frame, text="Select Dataset", command=self.load_dataset)
+        load_dataset_button.pack(side=tk.LEFT, padx=2)
+
+        load_tileset_button = tk.Button(frame, text="Select Tileset", command=self.load_tileset)
+        load_tileset_button.pack(side=tk.LEFT, padx=2)
 
         # Add a button to load a trained diffusion model
         self.load_model_button = tk.Button(frame, text="Load Model", command=self.load_model)
@@ -347,6 +353,22 @@ class TileViewer(tk.Tk):
         if not dataset_path or not tileset_path:
             return
         self.load_files_from_paths(dataset_path, tileset_path)
+
+    def load_dataset(self):
+        path = filedialog.askopenfilename(title="Select dataset JSON")
+        if not path:
+            return
+        self.dataset_path = path
+        if self.dataset_path and self.tileset_path:
+            self.load_files_from_paths(self.dataset_path, self.tileset_path)
+
+    def load_tileset(self):
+        path = filedialog.askopenfilename(title="Select tileset JSON")
+        if not path:
+            return
+        self.tileset_path = path
+        if self.dataset_path and self.tileset_path:
+            self.load_files_from_paths(self.dataset_path, self.tileset_path)
 
     def load_files_from_paths(self, dataset_path, tileset_path):
         self.dataset_path = dataset_path
@@ -839,12 +861,18 @@ if __name__ == "__main__":
     # Command-line argument parsing
     dataset_path = None
     tileset_path = None
-    if len(sys.argv) == 3 or len(sys.argv) == 2:
+    if len(sys.argv) >= 2:
         dataset_path = sys.argv[1]
-        tileset_path = sys.argv[2] if len(sys.argv) == 3 else common_settings.MARIO_TILESET
-        if not os.path.isfile(dataset_path) or not os.path.isfile(tileset_path):
-            print("Invalid file paths provided. Ignoring command-line files.")
-            dataset_path = tileset_path = None
+
+    tileset_path = sys.argv[2] if len(sys.argv) == 3 else common_settings.MARIO_TILESET
+        
+    if dataset_path and not os.path.isfile(dataset_path):
+        print("Invalid dataset path provided.")
+        dataset_path = None
+
+    if tileset_path and not os.path.isfile(tileset_path):
+        print("Invalid tileset path provided.")
+        tileset_path = None
 
     # Debugging
     #print("dataset_path", dataset_path)

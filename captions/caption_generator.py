@@ -10,26 +10,26 @@ class GrammarGenerator:
 
         # Define topics and their valid variations
         self.topic_phrases = {
-            "floor": ["full floor", "floor with one gap", "floor with two gaps", "floor with a few gaps", "floor with several gaps",
-                     "giant gap with one chunk of floor", "giant gap with two chunks of floor", "giant gap with a few chunks of floor", "giant gap with several chunks of floor"],
-            "ceiling": ["full ceiling", "ceiling with one gap", "ceiling with two gaps", "ceiling with a few gaps"],
+            "floor": ["full floor", "floor with one gap", "floor with two gaps", "floor with a few gaps", "floor with several gaps", "floor with many gaps", "floor with a ton of gaps",
+                     "giant gap with one chunk of floor", "giant gap with two chunks of floor", "giant gap with a few chunks of floor", "giant gap with several chunks of floor", "giant gap with many chunks of floor", "giant gap with a ton of chunks of floor" ],
+            "ceiling": ["full ceiling", "ceiling with one gap", "ceiling with two gaps", "ceiling with a few gaps", "ceiling with several gaps", "ceiling with many gaps", "ceiling with a ton of gaps"],
             # "broken pipe": ["one broken pipe", "two broken pipes"],
-            "upside down pipe": ["one upside down pipe", "two upside down pipes", "a few upside down pipes", "several upside down pipes"],
-            "pipe": ["one pipe", "two pipes", "a few pipes", "several pipes"],
-            "coin line": ["one coin line", "two coin lines", "a few coin lines"],
-            "coin": ["one coin", "two coins", "several coins", "a few coins", "many coins"],
-            "platform": ["one platform", "two platforms", "a few platforms", "several platforms"],
-            "tower": ["one tower", "two towers", "a few towers"],
+            "upside down pipe": ["one upside down pipe", "two upside down pipes", "a few upside down pipes", "several upside down pipes", "many upside down pipes"],
+            "pipe": ["one pipe", "two pipes", "a few pipes", "several pipes", "many pipes", "a ton of pipes"],
+            "coin line": ["one coin line", "two coin lines", "a few coin lines", "several coin lines", "many coin lines", "a ton of coin lines"],
+            "coin": ["one coin", "two coins", "several coins", "a few coins", "many coins", "a ton of coins"],
+            "platform": ["one platform", "two platforms", "a few platforms", "several platforms", "many platforms", "a ton of platforms"],
+            "tower": ["one tower", "two towers", "a few towers", "several towers", "many towers"],
             #"wall": ["one wall"], # "walls" is not a token in the original data # , "two walls"],
             # "broken cannon": ["one broken cannon", "two broken cannons"],
-            "cannon": ["one cannon", "two cannons", "a few cannons"],
-            "ascending staircase": ["one ascending staircase", "two ascending staircases"],
-            "descending staircase": ["one descending staircase", "two descending staircases"],
-            "rectangular": ["one rectangular block cluster", "two rectangular block clusters", "a few rectangular block clusters"],
-            "irregular": ["one irregular block cluster", "two irregular block clusters", "a few irregular block clusters"],
-            "question block": ["one question block", "two question blocks", "several question blocks", "a few question blocks", "many question blocks"],
-            "loose block": ["one loose block", "two loose blocks", "several loose blocks", "a few loose blocks", "many loose blocks"],
-            "enem": ["one enemy", "two enemies", "a few enemies", "several enemies"]
+            "cannon": ["one cannon", "two cannons", "a few cannons", "several cannons", "many cannons"],
+            "ascending staircase": ["one ascending staircase", "two ascending staircases", "a few ascending staircases", "several ascending staircases"],
+            "descending staircase": ["one descending staircase", "two descending staircases", "a few descending staircases", "several descending staircases"],
+            "rectangular": ["one rectangular block cluster", "two rectangular block clusters", "a few rectangular block clusters", "several rectangular block clusters"],
+            "irregular": ["one irregular block cluster", "two irregular block clusters", "a few irregular block clusters", "several irregular block clusters", "many irregular block clusters"],
+            "question block": ["one question block", "two question blocks", "several question blocks", "a few question blocks", "many question blocks", "a ton of question blocks"],
+            "loose block": ["one loose block", "two loose blocks", "several loose blocks", "a few loose blocks", "many loose blocks", "a ton of loose blocks"],
+            "enem": ["one enemy", "two enemies", "a few enemies", "several enemies", "many enemies", "a ton of enemies"]
         }
 
         # Topic absence descriptions
