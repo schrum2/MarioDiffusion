@@ -26,6 +26,8 @@ import models.text_model as text_model
 import glob
 import models.general_training_helper as gen_train_help
 import re
+import gc
+from torch.utils.data import DataLoader
 from models.pipeline_loader import get_pipeline
 from create_ascii_captions import assign_caption
 
@@ -134,8 +136,8 @@ def parse_args():
     parser.add_argument("--auto_augment_threshold", type=float, default=0.8, help="Validation caption score threshold to begin dataset augmentation")
 
     # figure these out later
-    parser.add_argument("--auto_augment_max_new_samples", type=int, default=100, help="Max new samples to add per augmentation run")    
-    parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7800,help="Maximum total size the training dataset is allowed to grow to")
+    parser.add_argument("--auto_augment_max_new_samples", type=int, default=10, help="Max new samples to add per augmentation run")    
+    parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7000,help="Maximum total size the training dataset is allowed to grow to")
     parser.add_argument("--auto_augment_save_images", action="store_true", help="Save images for newly added augmented samples")
     parser.add_argument("--auto_augment_json", type=str, default=None, help="Path to save the augmented training dataset JSON")
     parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
@@ -396,7 +398,8 @@ def main():
                                         val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
                                         augment=args.augment, num_tiles=args.num_tiles,
                                         negative_prompt_training=args.negative_prompt_training,
-                                        block_embeddings=block_embeddings, batch_size=args.batch_size)
+                                        block_embeddings=block_embeddings, batch_size=args.batch_size,
+                                        persistent_workers=(not args.auto_augment))
 
     #print(train_dataloader.dataset)
     #input("Press Enter to continue...")
@@ -781,27 +784,42 @@ def main():
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width
                 )
+                
+                # MEMORY FIX: Explicitly delete pipeline to free GPU memory
+                # Claude suggested this, but I'm skeptical that it is necessary and it would cause slowdown
+                #del pipeline
+                #if torch.cuda.is_available():
+                #    torch.cuda.empty_cache()
 
                 # If auto-augmentation is enabled and the caption score meets the threshold, identify bad samples and add them to the training dataset
                 if args.auto_augment and avg_caption_score is not None and avg_caption_score >= args.auto_augment_threshold:
+                    # Calculate how many samples we can add without exceeding the max dataset size
+                    remaining_capacity = ( 
+                        args.auto_augment_max_dataset_size 
+                        - len(train_dataset.data)
+                    )
+                    
+                    max_to_add = max(
+                        0,
+                        min( 
+                            args.auto_augment_max_new_samples,
+                            remaining_capacity
+                        )
+                    )
+
                     bad_indices = [i for i, score in enumerate(compare_all_scores) if score < 1.0]
-                    if bad_indices:
-                        bad_scenes = convert_to_level_format(all_samples).tolist()
+
+                    if bad_indices and max_to_add > 0:  # Only proceed if there are bad samples and we have capacity to add them
+                        # MEMORY FIX: Convert all_samples only once and process incrementally
+                        bad_scenes_list = convert_to_level_format(all_samples).tolist()
+
                         for i in bad_indices:
-                            if args.game in ["MM-Simple", "MM-Full"]:
-                                caption, details = mm_assign_caption(
-                                    bad_scenes[i],
-                                    id_to_char,
-                                    char_to_id,
-                                    tile_descriptors,
-                                    False,
-                                    args.describe_absence,
-                                    debug=False,
-                                    return_details=True
-                                )
-                            else:
+                            # Stop once we've collected enough samples
+                            if len(bad_generated_scenes) >= max_to_add:
+                                break
+                            try:
                                 caption, details = assign_caption(
-                                    bad_scenes[i],
+                                    bad_scenes_list[i],
                                     id_to_char,
                                     char_to_id,
                                     tile_descriptors,
@@ -811,115 +829,141 @@ def main():
                                     return_details=True
                                 )
 
-                            if "broken" in caption:
+                                if "broken" in caption:
+                                    continue
+
+                                canonical_caption = canonicalize_caption(caption)
+                                if canonical_caption in seen_caption_set:
+                                    continue
+
+                                seen_caption_set.add(canonical_caption)
+
+                                bad_generated_scenes.append({
+                                    "prompt": all_prompts[i],
+                                    "scene": bad_scenes_list[i],
+                                    "score": compare_all_scores[i],
+                                    "caption": caption
+                                })
+
+                            except Exception as e:
+                                print(f"[Auto-Augment] Failed processing sample {i}: {e}")
                                 continue
 
-                            canonical_caption = canonicalize_caption(caption)
-                            if canonical_caption in seen_caption_set:
-                                continue
-                            seen_caption_set.add(canonical_caption)
+                        # MEMORY FIX: Explicitly free large intermediate tensors
+                        del bad_scenes_list
+                        del all_samples
+                        del all_prompts
+                        del compare_all_scores
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
 
-                            bad_generated_scenes.append({
-                                "prompt": all_prompts[i],
-                                "scene": bad_scenes[i],
-                                "score": compare_all_scores[i],
-                                "caption": caption
-                            })
+                    old_dataset_size = len(train_dataset.data)
 
-                    if bad_generated_scenes:
-                        remaining_capacity = (
-                            args.auto_augment_max_dataset_size
-                            - len(train_dataset.data)
+                    if accelerator.is_local_main_process:
+                        added_samples_path = os.path.join(
+                            augmented_samples_dir,
+                            f"added_samples_epoch_{epoch}.json"
                         )
 
-                        if remaining_capacity <= 0:
-                            print("[Auto-Augment] Maximum dataset size reached.")
-                            bad_generated_scenes = []
-                        else:
-                            max_to_add = min(
-                                args.auto_augment_max_new_samples,
-                                remaining_capacity
+                        with open(added_samples_path, 'w') as f:
+                            json.dump(
+                                [
+                                    {
+                                        "scene": sample["scene"],
+                                        "caption": sample["caption"],
+                                        "score": sample["score"],
+                                        "prompt": sample["prompt"]
+                                    }
+                                    for sample in bad_generated_scenes
+                                ],
+                                f,
+                                indent=4
                             )
 
-                            bad_generated_scenes = bad_generated_scenes[:max_to_add]
-                        
-                        old_dataset_size = len(train_dataset.data)
+                        print(f"[Auto-Augment] Saved added samples to {added_samples_path}")
 
-                        if accelerator.is_local_main_process:
-                            added_samples_path = os.path.join(
-                                augmented_samples_dir,
-                                f"added_samples_epoch_{epoch}.json"
-                            )
+                    # Save augmented samples to JSON if requested
+                    if args.auto_augment_json and accelerator.is_local_main_process:
+                        save_path = args.auto_augment_json
+                        if args.auto_augment_save_checkpoints_dataset:
+                            base, ext = os.path.splitext(args.auto_augment_json)
+                            save_path = f"{base}_epoch_{epoch}{ext}"
 
-                            with open(added_samples_path, 'w') as f:
-                                json.dump(
-                                    [
-                                        {
-                                            "level": sample["scene"],
-                                            "caption": sample["caption"],
-                                            "score": sample["score"],
-                                            "prompt": sample["prompt"]
-                                        }
-                                        for sample in bad_generated_scenes
-                                    ],
-                                    f,
-                                    indent=4
-                                )
+                        existing_data = []
 
-                            print(f"[Auto-Augment] Saved added samples to {added_samples_path}")
+                        if os.path.exists(save_path):
+                            with open(save_path, 'r') as f:
+                                existing_data = json.load(f)
 
-                        # Save augmented samples to JSON if requested
-                        if args.auto_augment_json and accelerator.is_local_main_process:
-                            save_path = args.auto_augment_json
-                            if args.auto_augment_save_checkpoints_dataset:
-                                base, ext = os.path.splitext(args.auto_augment_json)
-                                save_path = f"{base}_epoch_{epoch}{ext}"
-                            existing_data = []
-                            if os.path.exists(save_path):
-                                with open(save_path, 'r') as f:
-                                    existing_data = json.load(f)
-                            for sample in bad_generated_scenes:
-                                existing_data.append({
-                                    "level": sample["scene"],
-                                    "caption": sample["caption"]
-                                })
-                            with open(save_path, 'w') as f:
-                                json.dump(existing_data, f, indent=4)
-                            print(f"[Auto-Augment] Saved augmented dataset to {save_path}")
-
-                        # train_dataset holds a direct reference to the underlying dataset object.
-                        # Mutating train_dataset.data here is safe; the new DataLoader shares the same object.
                         for sample in bad_generated_scenes:
-                            train_dataset.data.append({
-                                "scene": sample["scene"],
+                            existing_data.append({
+                                "level": sample["scene"],
                                 "caption": sample["caption"]
                             })
 
-                        new_dataset_size = len(train_dataset.data)
-                        print(f"[Auto-Augment] Dataset grown to {new_dataset_size} samples (+{len(bad_generated_scenes)})")
+                        with open(save_path, 'w') as f:
+                            json.dump(existing_data, f, indent=4)
 
-                        # Recreate DataLoader only — do NOT re-prepare model/optimizer/scheduler
-                        from torch.utils.data import DataLoader
-                        raw_new_loader = DataLoader(
-                            train_dataset,
-                            batch_size=args.batch_size,
-                            shuffle=True,
-                            num_workers=4,
-                            drop_last=True,
-                            persistent_workers=True
-                        )
-                        train_dataloader = accelerator.prepare(raw_new_loader)
+                        print(f"[Auto-Augment] Saved augmented dataset to {save_path}")
 
-                        # Update progress bar total to reflect the larger dataset for remaining epochs
-                        added_batches = (new_dataset_size - old_dataset_size) // args.batch_size
-                        remaining_epochs = args.num_epochs - epoch - 1
-                        progress_bar.total += added_batches * remaining_epochs
-                        progress_bar.refresh()
+                    # train_dataset holds a direct reference to the underlying dataset object.
+                    # Mutating train_dataset.data here is safe; the new DataLoader shares the same object.
+                    for sample in bad_generated_scenes:
+                        train_dataset.data.append({
+                            "scene": sample["scene"],
+                            "caption": sample["caption"]
+                        })
 
-            else:
-                # Is this how this should behave in the unconditional case?
-                # Or should I justs use 0 or -1?
-                avg_caption_score = None
+                    new_dataset_size = len(train_dataset.data)
+
+                    print(f"[Auto-Augment] Dataset grown to {new_dataset_size} samples (+{len(bad_generated_scenes)})")
+
+                    # Recreate DataLoader only — do NOT re-prepare model/optimizer/scheduler
+                    
+                    # Try to gracefully shutdown workers from the previous DataLoader to avoid leaking
+                    def _shutdown_dataloader_workers(dataloader):
+                        try:
+                            iterator = getattr(dataloader, "_iterator", None)
+                            if iterator is not None:
+                                shutdown = getattr(iterator, "_shutdown_workers", None)
+                                if callable(shutdown):
+                                    shutdown()
+                            shutdown_fn = getattr(dataloader, "_shutdown_workers", None)
+                            if callable(shutdown_fn):
+                                shutdown_fn()
+                        except Exception as e:
+                            print(f"[Auto-Augment] Warning shutting down previous dataloader workers: {e}")
+
+                    try:
+                        _shutdown_dataloader_workers(train_dataloader)
+                    except Exception:
+                        pass
+
+                    # Create a new DataLoader with multiple workers, but do NOT use persistent_workers.
+                    # This retains parallel data loading without keeping worker processes and dataset copies alive across
+                    # augmentation steps (safer memory usage than persistent_workers=True).
+                    raw_new_loader = DataLoader(
+                        train_dataset,
+                        batch_size=args.batch_size,
+                        shuffle=True,
+                        num_workers=4,
+                        drop_last=True,
+                        persistent_workers=False,
+                    )
+
+                    train_dataloader = accelerator.prepare(raw_new_loader)
+
+                    # Force garbage collection and GPU cache cleanup
+                    gc.collect()
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+
+                    # Update progress bar total to reflect the larger dataset for remaining epochs
+                    added_batches = (new_dataset_size - old_dataset_size) // args.batch_size
+                    remaining_epochs = args.num_epochs - epoch - 1
+
+                    progress_bar.total += added_batches * remaining_epochs
+                    progress_bar.refresh()
 
             model.train()
 

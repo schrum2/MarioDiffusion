@@ -1,18 +1,47 @@
-
-REM @echo off
-REM Usage: MM-conditional.bat <seed> <type>
-REM <type> should be "regular" or "absence"
-REM <seed> is optional, defaults to 0
-
-
-
-
+@echo off
+REM Usage: MM_conditional.bat [simple|full]
+REM Defaults to "simple" if no argument provided
 cd ..
 
-python create_megaman_json_data.py --output datasets\\MM_Levels_Simple.json --group_encodings
-python MM_create_ascii_captions.py --dataset datasets\\MM_Levels_Simple.json --tileset datasets\\MM_Simple_Tileset.json --output datasets\\MM_LevelsAndCaptions-simple-regular.json
-python tokenizer.py save --json datasets\\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
-python train_mlm.py --json datasets\\MM_LevelsAndCaptions-simple-regular.json --output_dir MM-MLM-simple-regular --save_checkpoints --pkl datasets\MM_Tokenizer-simple-regular.pkl
-python train_diffusion.py --pkl datasets\MM_Tokenizer-simple-regular.pkl --json datasets\\MM_LevelsAndCaptions-simple-regular.json --augment --mlm_model_dir MM-MLM-simple-regular --text_conditional --output_dir MM_conditional_simple_regular0 --seed 0 --game MM-Simple
+set VARIANT=%1
+if "%VARIANT%"=="" set VARIANT=simple
 
+if /I "%VARIANT%"=="full" (
+    set GAME=MM-Full
+    set DATASET_INFIX=full
+    set TILESET=datasets\MM.json
+    set RAW_JSON=datasets\MM_Levels_Full.json
+    set NUM_TILES=39
+) else (
+    set GAME=MM-Simple
+    set DATASET_INFIX=simple
+    set TILESET=datasets\MM_Simple_Tileset.json
+    set RAW_JSON=datasets\MM_Levels_Simple.json
+    set NUM_TILES=13
+)
 
+set JSON_TRAIN=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular.json
+set JSON_TEST=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular-test.json
+set JSON_RANDOM=datasets\MM_RandomTest-%DATASET_INFIX%-regular.json
+set PKL=datasets\MM_Tokenizer-%DATASET_INFIX%-regular.pkl
+set MLM_OUTPUT=MM-MLM-%DATASET_INFIX%-regular0
+set DIFF_OUTPUT=MM_conditional_%DATASET_INFIX%_regular0
+
+if /I "%VARIANT%"=="full" (
+    python create_megaman_json_data.py --output %RAW_JSON%
+) else (
+    python create_megaman_json_data.py --output %RAW_JSON% --group_encodings
+)
+python MM_create_ascii_captions.py --dataset %RAW_JSON% --tileset %TILESET% --output %JSON_TRAIN%
+python tokenizer.py save --json %JSON_TRAIN% --pkl_file %PKL%
+python train_mlm.py --epochs 300 --save_checkpoints --json %JSON_TRAIN% --pkl %PKL% --output_dir %MLM_OUTPUT% --seed 0
+python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir %DIFF_OUTPUT% --num_epochs 500 --json %JSON_TRAIN% --pkl %PKL% --mlm_model_dir %MLM_OUTPUT% --plot_validation_caption_score --seed 0 --game %GAME%
+
+REM call to run_diffusion that generates 100 unconditional samples
+python run_diffusion.py --model_path %DIFF_OUTPUT% --num_samples 100 --text_conditional --save_as_json --output_dir "%DIFF_OUTPUT%-unconditional-samples" --game %GAME%
+
+REM calls for evaluating caption adherence
+python evaluate_caption_adherence.py --model_path %DIFF_OUTPUT% --save_as_json --json %JSON_TEST% --compare_checkpoints --num_tiles %NUM_TILES%
+python evaluate_caption_adherence.py --model_path %DIFF_OUTPUT% --save_as_json --json %JSON_TEST% --output_dir "%DIFF_OUTPUT%-caption-adherence-test" --num_tiles %NUM_TILES%
+python evaluate_caption_adherence.py --model_path %DIFF_OUTPUT% --save_as_json --json %JSON_RANDOM% --compare_checkpoints --num_tiles %NUM_TILES%
+python evaluate_caption_adherence.py --model_path %DIFF_OUTPUT% --save_as_json --json %JSON_RANDOM% --output_dir "%DIFF_OUTPUT%-caption-adherence-random" --num_tiles %NUM_TILES%
