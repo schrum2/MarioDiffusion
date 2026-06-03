@@ -9,6 +9,7 @@ from create_ascii_captions import save_level_data
 import util.common_settings as common_settings
 from models.pipeline_loader import get_pipeline
 from LR_create_ascii_captions import save_level_data as lr_save_level_data
+from MM_create_ascii_captions import save_level_data as mm_save_level_data
 
 
 def parse_args():
@@ -30,7 +31,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
@@ -113,6 +114,8 @@ def generate_levels(args):
                 visualize_samples(samples, args.output_dir, True, start_index)
             elif args.game == "LR":
                 visualize_samples(samples, args.output_dir, True, start_index, game='LR')
+            elif args.game in ("MM-Simple", "MM-Full"):
+                visualize_samples(samples, args.output_dir, True, start_index, game=args.game)
             else:
                 raise ValueError(f"Unknown game: {args.game}")
     
@@ -130,6 +133,8 @@ def generate_levels(args):
         elif args.game == "LR":
             tileset = common_settings.LR_TILESET
             lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
+        elif args.game in ("MM-Simple", "MM-Full"):
+            mm_save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
 
 if __name__ == "__main__":
     args = parse_args()
@@ -139,6 +144,12 @@ if __name__ == "__main__":
     elif args.game == "LR":
         args.num_tiles = common_settings.LR_TILE_COUNT
         args.tileset = common_settings.LR_TILESET
+    elif args.game == "MM-Simple":
+        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+        args.tileset = common_settings.MM_SIMPLE_TILESET
+    elif args.game == "MM-Full":
+        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+        args.tileset = common_settings.MM_FULL_TILESET
     else:
         raise ValueError(f"Unknown game: {args.game}")
     generate_levels(args)
