@@ -241,6 +241,10 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
         prev_direction=current_direction
 
         moving=level_sample.move_step()
+        
+        if not moving: 
+            break
+
         samples.append(level_sample.get_sample_from_idx())
 
         current_direction = level_sample.direction
@@ -282,7 +286,7 @@ def find_start(level_sample):
     for i in range(start_y, lowest_possible_start):
         if level_sample.level[i][start_x]=='@':
             start_y=i
-            start_y=start_y-level_sample.height #This is needed because we expect a top left index, not a bottom left
+            start_y=max(0, start_y-level_sample.height) #This is needed because we expect a top left index, not a bottom left
             lowest_found=True
             break
     
@@ -292,7 +296,7 @@ def find_start(level_sample):
         #Did we reach the bottom of the level?
         if lowest_possible_start==len(level_sample.level):
             start_y=lowest_possible_start
-            start_y=start_y-level_sample.height
+            start_y=max(0, start_y-level_sample.height)
         #If not, the level is vertical downwards, so we need to go up to reach the top
         else:
             #Pretty much the same sequence of checks again, just going up this time, this should only rarely be needed
@@ -430,7 +434,7 @@ class LevelSample():
             y = self.y_idx
 
         #Make sure the level sample is in bounds
-        if x<0 or x<0:
+        if x<0 or y<0:
             raise ValueError(f"X value ({x}) and Y value ({y}) all must be positive.")
         if (y + self.height)>len(self.level) or (x+self.width)>len(self.level[0]):
             raise ValueError(f"This level sample is out of bounds at the bottom or right, with height index {y+self.height}/{len(self.level)} and width index {x+self.width}/{len(self.level[0])}.")
