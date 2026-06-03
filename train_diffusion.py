@@ -942,12 +942,11 @@ def main():
                     # Create a new DataLoader with multiple workers, but do NOT use persistent_workers.
                     # This retains parallel data loading without keeping worker processes and dataset copies alive across
                     # augmentation steps (safer memory usage than persistent_workers=True).
+                    # Rebuild with BucketBatchSampler so newly added samples are re-bucketed by width
                     raw_new_loader = DataLoader(
                         train_dataset,
-                        batch_size=args.batch_size,
-                        shuffle=True,
+                        batch_sampler=gen_train_help.BucketBatchSampler(train_dataset, args.batch_size, drop_last=True, shuffle=True),
                         num_workers=4,
-                        drop_last=True,
                         persistent_workers=False,
                     )
 
