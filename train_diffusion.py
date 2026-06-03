@@ -869,7 +869,7 @@ def main():
                             json.dump(
                                 [
                                     {
-                                        "level": sample["scene"],
+                                        "scene": sample["scene"],
                                         "caption": sample["caption"],
                                         "score": sample["score"],
                                         "prompt": sample["prompt"]
