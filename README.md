@@ -139,11 +139,16 @@ python ascii_data_browser.py datasets\Mar1and2_LevelsAndCaptions-regular.json
 ```
 This is not required, but will give you insight into the data.
 
+
+### Datasets with longer levels
 To create larger datasets with custom level width, simply call the same batch file above with an additional integer width argument:
 ```
-Mar1and2-data.bat (width) 
+Mar1and2-data.bat {width} 
 ```
-
+This will create the same group of datasets, but will append the width after Mar1and2, e.g., Mar1and2_32 for 32x16 levels. To train models with these larger datasets, simply modify the --game arg to contain the width when calling either training batch file:
+```
+--game Mar1and2_{width}
+```  
 
 ## Complete training and evaluation sequence
 
