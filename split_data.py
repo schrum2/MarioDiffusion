@@ -144,7 +144,7 @@ if __name__ == "__main__":
     if args.game.lower() == "mario":
         required_structures = MARIO_TOPIC_KEYWORDS
         required_structures = [kw for kw in required_structures if "broken" not in kw]
-        with open(args.json, 'r') as f:
+        with open(args.json_file, 'r') as f:
             full_dataset = json.load(f)
         if not upside_down_pipes(full_dataset):
             required_structures = [kw for kw in required_structures if "upside down pipe" not in kw]
