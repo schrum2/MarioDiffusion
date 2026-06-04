@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("--output_png", type=str, default="output.png", help="The output png file")
     parser.add_argument("--update_interval", type=int, default=1.0, help="The update inteval in epochs")
     parser.add_argument("--start_point", type=int, default=None, help="The start point for the plot")
+    parser.add_argument("--x_key", type=str, default="epoch", help="The key to use for the x-axis ('epoch' or 'step')")
 
     return parser.parse_args()
 
@@ -37,11 +38,20 @@ def main():
     output_png = args.output_png
     update_interval = args.update_interval
     start_point = args.start_point
+    x_key = args.x_key
 
-    general_update_plot(log_file, left_key, right_key, left_label, right_label, output_png, update_interval=update_interval, startPoint=start_point)
+    general_update_plot(log_file, left_key, right_key, left_label, right_label, output_png,
+                        update_interval=update_interval, startPoint=start_point, x_key=x_key)
 
 
-def general_update_plot(log_file, left_key, right_key, left_label, right_label, output_png, update_interval=1.0, startPoint=None):
+def _step_png_path(output_png):
+    p = Path(output_png)
+    return str(p.with_stem(p.stem + "_by_step"))
+
+
+def general_update_plot(log_file, left_key, right_key, left_label, right_label, output_png,
+                        update_interval=1.0, startPoint=None, x_key="epoch"):
+
     log_dir = os.path.dirname(log_file)
     
     # Create figure here and ensure it's closed
@@ -56,41 +66,43 @@ def general_update_plot(log_file, left_key, right_key, left_label, right_label, 
             if not data:
                 return
             
+            # Filter to entries that have the requested x_key
+            data = [entry for entry in data if x_key in entry]
+
             if startPoint is not None:
-                data = [entry for entry in data if entry.get('epoch', 0) >= startPoint]
+                data = [entry for entry in data if entry.get(x_key, 0) >= startPoint]
             
             if not data:
                 return
 
-            epochs = [entry.get('epoch', 0) for entry in data]
+            x_values = [entry[x_key] for entry in data]
             left = [entry.get(left_key, 0) for entry in data]
 
-            # For right axis (e.g., lr), only include points where right_key exists
-            right_points = [(entry.get('epoch', 0), entry.get(right_key))
+            # For right axis, only include points where right_key exists
+            right_points = [(entry[x_key], entry.get(right_key))
                             for entry in data if right_key in entry]
             if right_points:
-                right_epochs, right_values = zip(*right_points)
+                right_x, right_values = zip(*right_points)
             else:
-                right_epochs, right_values = [], []
+                right_x, right_values = [], []
 
             # Clear axis
             ax.clear()
             
             # Plot both metrics on the same axis
-            ax.plot(epochs, left, 'b-', label=left_label)
-            if right_epochs:
-                ax.plot(right_epochs, right_values, 'r-', label=right_label)
+            ax.plot(x_values, left, 'b-', label=left_label)
+            if right_x:
+                ax.plot(right_x, right_values, 'r-', label=right_label)
             
-            ax.set_xlabel('Epoch')
-            ax.set_ylabel(left_label) # "Loss" as y-axis label
+            x_label = "Epoch" if x_key == "epoch" else "Step"
+            ax.set_xlabel(x_label)
+            ax.set_ylabel(left_label)
             ax.set_title('Training Progress')
             ax.legend(loc='upper left')
-            #Limit x-axis to startPoint if provided
             if startPoint is not None:
                 ax.set_xlim(left=startPoint)
             fig.tight_layout()
 
-            # Use the stored base directory instead of getting it from log_file
             if os.path.isabs(output_png) or os.path.dirname(output_png):
                 output_path = output_png
             else:
@@ -136,6 +148,7 @@ class Plotter:
         self.update_interval = update_interval
         self.running = True
         self.output_png = output_png
+        self.step_png = _step_png_path(output_png)
         self.left_key = left_key
         self.right_key = right_key
         self.left_label = left_label
@@ -153,9 +166,13 @@ class Plotter:
         self.stop_plotting()
 
     def update_plot(self):
-        general_update_plot(self.log_file, self.left_key, self.right_key, 
-                          self.left_label, self.right_label, self.output_png, 
-                          update_interval=self.update_interval)
+        general_update_plot(self.log_file, self.left_key, self.right_key,
+                            self.left_label, self.right_label, self.output_png,
+                            update_interval=self.update_interval, x_key="epoch")
+
+        general_update_plot(self.log_file, self.left_key, self.right_key,
+                            self.left_label, self.right_label, self.step_png,
+                            update_interval=self.update_interval, x_key="step")
     
     def start_plotting(self):
         print("Starting plotting in background")

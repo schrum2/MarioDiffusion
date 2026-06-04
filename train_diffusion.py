@@ -112,6 +112,7 @@ def parse_args():
     parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help="Mixed precision type")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--validate_epochs", type=int, default=5, help="Calculate validation loss every N epochs")
+    parser.add_argument("--max_iterations", type=float, default=float("inf"), help="Maximum number of training iterations (global steps). Training will stop when this is exceeded. Default is infinity (no limit).")
     
     # Output args
     parser.add_argument("--output_dir", type=str, default="level-diffusion-output", help="Output directory")
@@ -559,7 +560,7 @@ def main():
             with open(log_file, 'a') as f:
                 f.write(json.dumps(log_entry) + '\n')
 
-    def log_dataset_growth(epoch, dataset_size, added_samples=0):
+    def log_dataset_growth(epoch, dataset_size, added_samples=0, step=None):
         if (
             accelerator.is_local_main_process and
             dataset_growth_log_file is not None
@@ -568,6 +569,7 @@ def main():
                 "epoch": epoch,
                 "dataset_size": dataset_size,
                 "new_samples_added": added_samples,
+                "step": step if step is not None else global_step,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
 
@@ -1029,7 +1031,8 @@ def main():
             log_dataset_growth(
                 epoch,
                 len(train_dataset.data),
-                len(bad_generated_scenes)
+                len(bad_generated_scenes),
+                step=global_step
             )
 
         # Print epoch summary (similar to train_mlm.py)
