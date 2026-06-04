@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 from level_dataset import LevelDataset
 import random
-from util.plotter import Plotter
+from util.plotter import Plotter, _step_png_path
 from datetime import datetime
 import os
 import threading
@@ -171,12 +171,15 @@ def get_random_training_samples(train_dataloader, negative_prompt_training, outp
 def start_plotter(log_file, output_dir, left_key, right_key, left_label, right_label, png_name):
     formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
 
+    epoch_png = f'{png_name}_{formatted_date}.png'
     plotter = Plotter(log_file, update_interval=5.0, left_key=left_key, right_key=right_key,
-                            left_label=left_label, right_label=right_label, output_png=f'{png_name}_{formatted_date}.png')
+                            left_label=left_label, right_label=right_label, output_png=epoch_png)
     plot_thread = threading.Thread(target=plotter.start_plotting)
     plot_thread.daemon = True
     plot_thread.start()
-    print(f"{png_name} plotting enabled. Progress will be saved to {os.path.join(output_dir, f'{png_name}_{formatted_date}.png')}")
+    print(f"{png_name} plotting enabled.")
+    print(f"  Epoch-based plot : {os.path.join(output_dir, epoch_png)}")
+    print(f"  Step-based plot  : {os.path.join(output_dir, _step_png_path(epoch_png))}")
     return plotter, plot_thread
 
 
@@ -239,5 +242,3 @@ def get_scene_from_embeddings(image, block_embeddings):
 
     image=indices.detach().cpu()
     return image
-
-
