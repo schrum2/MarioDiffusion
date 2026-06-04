@@ -283,47 +283,58 @@ def valid_pipe(top_row, left_column, scene, char_to_id):
     if left_column == 0 and scene[top_row][left_column] == char_to_id['>']:
         # go down looking for ] or >
         row = top_row+1
+        found_body = False
         while row < len(scene):
-            # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
             if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]: #, char_to_id['-']]: # emptiness under base also invalid
                 return False
             elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
+                found_body = True
                 row += 1
             else:
-                return True
-
-        return True
+                if scene[row][left_column] == char_to_id['-']:
+                    return False  # pipe is floating
+                return found_body
+        return found_body
+        
     # Case: right edge of screen
     elif left_column == len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<']:
         # go down looking for [ or <
         row = top_row+1
+        found_body = False
         while row < len(scene):
             if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
+                found_body = True
                 row += 1
             # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
             elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]: #, char_to_id['-']]:
                 return False
             else:
-                return True
+                if scene[row][left_column] == char_to_id['-']:
+                    return False  # pipe is floating
+                return found_body
 
-        return True
+        return found_body
 
     # Case: Full pipe
     elif left_column < len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<'] and scene[top_row][left_column+1] == char_to_id['>']:
         # go down looking for [] or <>
         row = top_row+1
+        found_body = False
         while row < len(scene):
             if (scene[row][left_column] == char_to_id['<'] and scene[row][left_column+1] == char_to_id['>']) or (scene[row][left_column] == char_to_id['['] and scene[row][left_column+1] == char_to_id[']']):
+                found_body = True
                 row += 1
             # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
             elif scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']] or scene[row][left_column+1] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']]:
                 return False
             else:
-                return True
+                if scene[row][left_column] == char_to_id['-']:
+                    return False  # pipe is floating
+                return found_body
 
-        return True
+        return found_body
 
-    return False
+    return False 
 
 def valid_upside_down_pipe(bottom_row, left_column, scene, char_to_id):
     """
