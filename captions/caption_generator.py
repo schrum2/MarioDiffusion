@@ -55,10 +55,10 @@ class GrammarGenerator:
         # These are the keywords used to identify topics
         self.topic_keywords = [
             "floor", "ceiling", 
-            # "broken pipe", 
+            "broken pipe", 
             "upside down pipe", "pipe", 
             "coin line", "coin",
-            "platform", "tower", #"wall", 
+            "platform", "tower", "wall", 
             # "broken cannon", 
             "cannon",
             "ascending staircase", "descending staircase",
