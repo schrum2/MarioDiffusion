@@ -99,6 +99,16 @@ class GrammarGenerator:
                 "a few loose blocks",
                 "several loose blocks",
             ],
+            "entrance direction": [
+                "entrance direction left",
+                "entrance direction bottom",
+                "entrance direction top",
+            ],
+            "exit direction": [
+                "exit direction right",
+                "exit direction bottom",
+                "exit direction top",
+            ],
         }
 
         self.absence_phrases = {
@@ -117,6 +127,8 @@ class GrammarGenerator:
             "rectangular block cluster": "no rectangular block clusters",
             "irregular block cluster": "no irregular block clusters",
             "loose block": "no loose blocks",
+            "entrance direction": "no entrance direction",
+            "exit direction": "no exit direction",
         }
 
         self.topic_keywords = [
@@ -135,9 +147,14 @@ class GrammarGenerator:
             "rectangular block cluster",
             "irregular block cluster",
             "loose block",
+            "entrance direction",
+            "exit direction",
         ]
 
         self.exclusive_groups = []
+        self.horizontal_entrance = "entrance direction left"
+        self.horizontal_exit = "exit direction right"
+        self.vertical_directions = ["top", "bottom"]
 
     def get_topic_from_phrase(self, phrase: str) -> Optional[str]:
         for keyword in self.topic_keywords:
@@ -147,9 +164,10 @@ class GrammarGenerator:
 
     def generate_sentence(self, min_topics: int = 1, max_topics: int = 10) -> str:
         num_topics = random.randint(min_topics, max_topics)
-        available_topics = self.topic_keywords.copy()
-        used_topics = set()
-        selected_phrases = []
+        entrance_phrase, exit_phrase = self.generate_entrance_exit()
+        selected_phrases = [entrance_phrase, exit_phrase]
+        used_topics = {"entrance direction", "exit direction"}
+        available_topics = [t for t in self.topic_keywords if t not in used_topics]
 
         for _ in range(num_topics):
             if not available_topics:
@@ -175,6 +193,19 @@ class GrammarGenerator:
 
         random.shuffle(selected_phrases)
         return ". ".join(selected_phrases) + "."
+
+    def generate_entrance_exit(self):
+        """Generate sensible entrance/exit direction pair matching training data conventions."""
+        # Randomly decide if movement is horizontal or vertical
+        if random.random() < 0.5:
+            # Horizontal: training data always has entrance left, exit right
+            return "entrance direction left", "exit direction right"
+        else:
+            # Vertical: entrance and exit can be top/bottom but not the same
+            entrance = random.choice(["top", "bottom"])
+            exit_choices = [d for d in ["top", "bottom"] if d != entrance]
+            exit_dir = random.choice(exit_choices)
+            return f"entrance direction {entrance}", f"exit direction {exit_dir}"
 
     def parse_sentence(self, sentence: str) -> Dict[str, str]:
         result = {}
