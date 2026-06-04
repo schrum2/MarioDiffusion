@@ -6,7 +6,7 @@ QUANTITY_TERMS = ["one", "two", "a few", "several", "many", "some", "half", "mos
 # Topics to compare
 TOPIC_KEYWORDS = [
     "powerup", "enem", "hazard",
-    "disappearing block", 
+    "dissapearing block", 
     "water", 
     "moving platform", "platform",
     "ladder", "loose block",
@@ -22,7 +22,7 @@ KEYWORD_TO_NEGATED_PLURAL = [
     ("powerup", "powerups"),
     ("enem", "enemies"),
     ("hazard", "hazards"),
-    ("disappearing block", "disappearing blocks"),
+    ("dissapearing block", "dissapearing blocks"),
     ("moving platform", "moving platforms"),
     ("platform", "platforms"),
     ("ladder", "ladders"),
