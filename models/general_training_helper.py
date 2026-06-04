@@ -8,8 +8,52 @@ import threading
 import json
 import torch.nn.functional as F
 import torch
+from collections import defaultdict
 
 
+
+
+
+class BucketBatchSampler:
+    """
+    Groups dataset samples into batches by scene width so that every batch contains
+    same-width scenes. This allows training on datasets with variable-width scenes
+    since torch.stack requires uniform shapes within a batch.
+
+    Args:
+        dataset: A LevelDataset whose samples are (scene_tensor, ...) with scene shape (Channels, H, W)
+        batch_size (int): Number of samples per batch
+        drop_last (bool): If True, discard incomplete batches at the end of each width bucket
+        shuffle (bool): If True, shuffle samples within buckets and shuffle the batch order
+    """
+    def __init__(self, dataset, batch_size, drop_last=True, shuffle=True):
+        self.shuffle = shuffle
+        # Group dataset indices by scene width
+        buckets = defaultdict(list)
+        for idx in range(len(dataset)):
+            w = dataset[idx][0].shape[2]  # scene tensor is (C, H, W)
+            buckets[w].append(idx)
+
+        self.batches = []
+        for indices in buckets.values():
+            for i in range(0, len(indices), batch_size):
+                batch = indices[i:i + batch_size]
+                # Skip incomplete batches at the tail of each bucket when drop_last is set
+                if drop_last and len(batch) < batch_size:
+                    continue
+                self.batches.append(batch)
+
+    def __iter__(self):
+        # Re-shuffle every epoch so sample order varies across epochs, matching DataLoader(shuffle=True) behavior.
+        # A uniform-width dataset produces one bucket, making this equivalent to the standard DataLoader shuffle path.
+        if self.shuffle:
+            batches = self.batches.copy()
+            random.shuffle(batches)
+            return iter(batches)
+        return iter(self.batches)
+
+    def __len__(self):
+        return len(self.batches)
 
 
 def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles, 
@@ -55,25 +99,23 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
             block_embeddings=block_embeddings
         )
 
-    # Create dataloader
+    # BucketBatchSampler groups same-width scenes into each batch, allowing mixed-width datasets.
+    # batch_size/shuffle/drop_last are owned by the sampler, not passed directly to DataLoader.
     train_dataloader = DataLoader(
         train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
+        batch_sampler=BucketBatchSampler(train_dataset, batch_size, drop_last=True, shuffle=True),
         num_workers=4,
-        drop_last=True,
         persistent_workers=persistent_workers
     )
-    
+
     val_dataloader = None
     if val_dataset is not None:
+        # drop_last=False so all validation samples are evaluated regardless of bucket remainder size
         val_dataloader = DataLoader(
             val_dataset,
-            batch_size=batch_size,
-            shuffle=False,
+            batch_sampler=BucketBatchSampler(val_dataset, batch_size, drop_last=False, shuffle=False),
             num_workers=4,
-            drop_last=False,
-            persistent_workers=True # Always true since validation dataset never changes
+            persistent_workers=True
         )
     
     return train_dataloader, val_dataloader
