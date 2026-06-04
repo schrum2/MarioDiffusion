@@ -365,7 +365,7 @@ class CaptionBuilder(ParentBuilder):
                     #Mega Man phrases
                     "entrance direction", "exit direction",
                     "powerup", "hazard", "water",
-                    "dissapearing block"
+                    "disappearing block"
                     ]
         return patterns
 
