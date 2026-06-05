@@ -235,11 +235,9 @@ class CaptionBuilder(ParentBuilder):
 
 
         # Game selection
-        self.game_var = tk.StringVar(value="Mario")
-        if args.game == 'Mario':
-            self.game_var = tk.StringVar(value="Mario")
-        elif args.game == 'LR':
-            self.game_var = tk.StringVar(value="Lode Runner")
+        # Game selection
+        self.game_var = tk.StringVar(value=game_selected if game_selected else "Mario")
+        
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
         self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)"], state="readonly", font=GUI_FONT)
