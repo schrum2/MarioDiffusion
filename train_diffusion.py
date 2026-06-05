@@ -395,7 +395,7 @@ def main():
     else:
         print("No block embedding model specified. One-hot encoding enabled.")
 
-    train_dataloader, val_dataloader = gen_train_help.create_dataloaders(json_path=args.json,
+    train_dataloader, val_dataloader, sample_widths = gen_train_help.create_dataloaders(json_path=args.json,
                                         val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
                                         augment=args.augment, num_tiles=args.num_tiles,
                                         negative_prompt_training=args.negative_prompt_training,
@@ -945,12 +945,15 @@ def main():
                     # This retains parallel data loading without keeping worker processes and dataset copies alive across
                     # augmentation steps (safer memory usage than persistent_workers=True).
                     # Rebuild with BucketBatchSampler so newly added samples are re-bucketed by width
+                    new_sampler = gen_train_help.BucketBatchSampler(train_dataset, args.batch_size, drop_last=True, shuffle=True)
                     raw_new_loader = DataLoader(
                         train_dataset,
-                        batch_sampler=gen_train_help.BucketBatchSampler(train_dataset, args.batch_size, drop_last=True, shuffle=True),
+                        batch_sampler=new_sampler,
                         num_workers=4,
                         persistent_workers=False,
                     )
+                    # Re-bucketing may surface new widths from augmented samples; refresh benchmark widths.
+                    sample_widths = new_sampler.shapes
 
                     train_dataloader = accelerator.prepare(raw_new_loader)
 
@@ -1095,22 +1098,27 @@ def main():
                     pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
 
                 
-                # Generate sample levels
-                with torch.no_grad():
-                    samples = pipeline(
-                        batch_size=4,
-                        height=scene_height,
-                        width=scene_width,
-                        generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
-                        num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
-                        output_type="tensor",
-                        show_progress_bar=False,
-                    ).images
+                # Generate sample levels at up to the first four scene widths present in the dataset
+                # so mixed-size training is benchmarked across sizes. A single-width dataset loops
+                # once and is unchanged. start_index keeps filenames unique within the one dir.
+                for i, width in enumerate(sample_widths[:4]):
+                    with torch.no_grad():
+                        samples = pipeline(
+                            batch_size=1,
+                            height=scene_height,
+                            width=width,
+                            generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
+                            num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
+                            output_type="tensor",
+                            show_progress_bar=False,
+                        ).images
+                    visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), start_index = i, game=args.game)
 
             # Convert one-hot samples to tile indices and visualize
+            # (the unconditional branch already visualizes per width above)
             # TODO: Add prompt support
-            prompts = sample_captions if args.text_conditional else None
-            visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=prompts, game=args.game)
+            if args.text_conditional:
+                visualize_samples(samples, os.path.join(args.output_dir, f"samples_epoch_{epoch}"), prompts=sample_captions, game=args.game)
 
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
