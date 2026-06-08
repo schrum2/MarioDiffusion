@@ -1,31 +1,52 @@
-Megaman converters (minimal)
-============================
+# Mega Man Level Converters
 
-This folder contains small, Python-native utilities to convert between
-VGLC-style ASCII Mega Man levels and a simple MMLV JSON representation.
+Convert Mega Man levels between the [VGLC](https://github.com/TheVGLC/TheVGLC) ASCII format and the native Mega Man Maker `.mmlv` format.
 
-Files:
+## Scripts
 
-- `vglc_to_mmlv.py`: Read a VGLC `.txt` file and write a compact `.mmlv.json`.
-- `mmlv_to_vglc.py`: Read `.mmlv.json` and reconstruct a lossy ASCII `.txt` file.
+- `vglc_to_mmlv.py`: Read a VGLC `.txt` level and write a `.mmlv` file that Mega Man Maker can open.
+- `mmlv_to_vglc.py`: Read a `.mmlv` file and write a simplified VGLC-style `.txt` file.
 
-Usage examples:
+## Usage
 
-```bash
-python -m megaman.vglc_to_mmlv path/to/level.txt           
-python -m megaman.mmlv_to_vglc path/to/level.txt.mmlv.json  
+Run all commands from the repo root (`MarioDiffusion`):
+
+```
+conda activate myenv
+cd C:\Users\<YourName>\Documents\GitHub\MarioDiffusion
 ```
 
-What this does:
+Convert a VGLC text level to a Mega Man Maker level file:
 
-- Reads the ASCII Mega Man level from the VGLC-style text file.
-- Converts each character into a numeric tile id and saves the result as JSON.
-- Writes a new file named `file.txt.mmlv.json`.
-
-used to reconstruct a text version from the JSON with:
-
-```powershell
-python -m megaman.mmlv_to_vglc "file.txt.mmlv.json"
+```
+python -m megaman.vglc_to_mmlv levels\myLevel.txt
 ```
 
-The reverse step is lossy because it recreates the ASCII layout from the saved mapping.
+You can also set a level name and author that appear inside Mega Man Maker:
+
+```
+python -m megaman.vglc_to_mmlv levels\myLevel.txt --name "My Level" --author "YourName"
+```
+
+Convert a `.mmlv` file back to VGLC text:
+
+```
+python -m megaman.mmlv_to_vglc levels\SUMegaManStudy001.mmlv
+```
+
+Both scripts accept an optional second argument for a custom output path:
+
+```
+python -m megaman.vglc_to_mmlv input.txt output.mmlv
+python -m megaman.mmlv_to_vglc input.mmlv output.txt
+```
+
+## Loading a level in Mega Man Maker
+
+After running `vglc_to_mmlv.py`, copy the output `.mmlv` file to:
+
+```
+C:\Users\<YourName>\AppData\Local\MegaMaker\Levels\
+```
+Then open Mega Man Maker and go to **Level Select** — your level will appear under local levels.
+
