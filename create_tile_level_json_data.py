@@ -2,6 +2,7 @@ import json
 import argparse
 from pathlib import Path
 import util.common_settings as common_settings
+from captions.util import extract_tileset
 
 def load_tileset(tileset_path):
     """
@@ -13,17 +14,57 @@ def load_tileset(tileset_path):
     Returns:
         dict: A dictionary mapping tile characters to unique integer IDs.
     """
-    with open(tileset_path, 'r') as f:
-        tileset_data = json.load(f)
-    # tile_chars = sorted(tileset_data['tiles'].keys())
-    # tile_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-    tile_chars = sorted(tileset_data['tiles'].keys())
+    # Use the project's shared tileset loader so the character->id assignment matches
+    # every other dataset. extract_tileset deliberately preserves the tileset file's
+    # order for MegaMan tilesets (so '@'=null is id 1, etc.); sorting the characters
+    # here instead produced a different, incompatible id scheme that decoded to the
+    # wrong tiles.
+    _, _, tile_to_id, _ = extract_tileset(tileset_path)
     global extra_tile
-    if extra_tile not in tile_chars:
-        tile_chars.append(extra_tile)
-    tile_chars = sorted(tile_chars)  # re-sort to maintain order
-    tile_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+    if extra_tile not in tile_to_id:
+        raise ValueError(
+            f"Tileset {tileset_path} has no '{extra_tile}' tile, so characters outside the "
+            f"tileset cannot be encoded. Add it to the tileset or choose a different extra_tile."
+        )
     return tile_to_id
+
+def load_char_map(char_map_path, tile_to_id):
+    """
+    Loads a character remapping from a JSON file.
+
+    The map translates characters found in the raw VGLC level data into the
+    characters of the (simplified) tileset, e.g. mapping every enemy character
+    in the full MegaMan tileset to the single enemy character "a" in the
+    simplified tileset. Without this, characters absent from the simplified
+    tileset are silently treated as the empty/extra tile, which discards
+    enemies, powerups, etc.
+
+    Args:
+        char_map_path (str): Path to a JSON file of {source_char: target_char}.
+        tile_to_id (dict): The id mapping for the (simplified) tileset, used to
+            validate that every target character is actually in the tileset.
+
+    Returns:
+        dict: A dictionary mapping source characters to target characters. Empty
+            if char_map_path is None.
+    """
+    if char_map_path is None:
+        return {}
+
+    with open(char_map_path, 'r') as f:
+        char_map = json.load(f)
+
+    # Fail loudly on a target that the tileset can't represent, so a typo in the
+    # map doesn't silently fall through to the extra tile.
+    bad_targets = {src: tgt for src, tgt in char_map.items() if tgt not in tile_to_id}
+    if bad_targets:
+        raise ValueError(
+            f"Character map targets not present in the tileset: {bad_targets}. "
+            f"Valid target characters are: {sorted(tile_to_id.keys())}"
+        )
+
+    return char_map
+
 
 def load_levels(levels_dir):
     """
@@ -47,7 +88,7 @@ def load_levels(levels_dir):
     return [list(level) for level in levels]  # Convert back to list-of-lists for compatibility
 
 
-def pad_and_sample(level, tile_to_id, window_size):
+def pad_and_sample(level, tile_to_id, window_size, char_map=None, unmapped_chars=None):
     """
     Extracts tile samples of a specified window size from a level.
 
@@ -55,10 +96,17 @@ def pad_and_sample(level, tile_to_id, window_size):
         level (list): A 2D list representing the level layout.
         tile_to_id (dict): A dictionary mapping tile characters to unique IDs.
         window_size (int): The size of the square window to extract.
+        char_map (dict): Optional {source_char: target_char} remapping applied to
+            each character before the id lookup (see load_char_map).
+        unmapped_chars (set): Optional set that collects any characters that were
+            neither in the tileset nor in char_map and so fell back to the extra
+            tile. Used to warn the caller that the map is incomplete.
 
     Returns:
         list: A list of 2D lists, each representing a sampled window of tiles.
     """
+    if char_map is None:
+        char_map = {}
     height = len(level)
     width = len(level[0])
     samples = set()  # Use a set to avoid duplicates
@@ -70,7 +118,12 @@ def pad_and_sample(level, tile_to_id, window_size):
             for row_idx in range(y, y + window_size):
                 window_row = []
                 for col_idx in range(x, x + window_size):
-                    char = level[row_idx][col_idx]
+                    raw_char = level[row_idx][col_idx]
+                    # Remap the raw VGLC character to the tileset's character set
+                    # (identity if it has no entry), then look up its id.
+                    char = char_map.get(raw_char, raw_char)
+                    if char not in tile_to_id and unmapped_chars is not None:
+                        unmapped_chars.add(raw_char)
                     tile_id = tile_to_id.get(char, tile_to_id[extra_tile])
                     window_row.append(tile_id)
                 sample.append(tuple(window_row))  # Convert row to tuple
@@ -79,7 +132,7 @@ def pad_and_sample(level, tile_to_id, window_size):
     print(f"Extracted {len(samples)} unique samples.")
     return samples
 
-def main(tileset_path, levels_dir, output_path, window_size):
+def main(tileset_path, levels_dir, output_path, window_size, char_map_path=None):
     """
     Orchestrates the process of loading tilesets and levels, generating samples, and saving them to a JSON file.
 
@@ -88,20 +141,33 @@ def main(tileset_path, levels_dir, output_path, window_size):
         levels_dir (str): Path to the directory containing level text files.
         output_path (str): Path to save the output JSON file.
         window_size (int): The size of the square window to extract.
+        char_map_path (str): Optional path to a {source_char: target_char} JSON
+            file remapping raw VGLC characters onto the tileset (see load_char_map).
 
     Returns:
         None
     """
     tile_to_id = load_tileset(tileset_path)
+    char_map = load_char_map(char_map_path, tile_to_id)
     levels = load_levels(levels_dir)
-    
+
     dataset = []
     unique_set = set()
+    unmapped_chars = set()
     for level in levels:
-        samples = pad_and_sample(level, tile_to_id, window_size)
+        samples = pad_and_sample(level, tile_to_id, window_size, char_map=char_map, unmapped_chars=unmapped_chars)
         for sample in samples:
             dataset.append([list(row) for row in sample])
             unique_set.add(sample)
+
+    # These characters appeared in the level data but were neither in the tileset
+    # nor in the character map, so they were encoded as the extra tile ('{extra_tile}').
+    # That is usually a sign the character map is incomplete.
+    if unmapped_chars:
+        print(
+            f"WARNING: {len(unmapped_chars)} character(s) not in the tileset or character map "
+            f"were encoded as the extra tile '{extra_tile}': {sorted(unmapped_chars)}"
+        )
 
     print(f"Total samples: {len(dataset)}")
     print(f"Unique samples: {len(unique_set)}")
@@ -122,11 +188,12 @@ def main(tileset_path, levels_dir, output_path, window_size):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--tileset', default=common_settings.MARIO_TILESET, help='Path to the tile set JSON')
-    parser.add_argument('--levels', default='..\TheVGLC\Super Mario Bros\Processed', help='Directory containing level text files')
+    parser.add_argument('--levels', default=r'..\TheVGLC\Super Mario Bros\Processed', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output JSON file')
     parser.add_argument('--tile_size', type=int, required=False, help='Size of the tile (window) to extract')
+    parser.add_argument('--char_map', default=None, help='Optional path to a {source_char: target_char} JSON that remaps raw VGLC characters onto the (simplified) tileset')
     args = parser.parse_args()
-    
+
     global extra_tile
     extra_tile = "-"
 
@@ -135,6 +202,7 @@ if __name__ == "__main__":
     print(f"Loading levels from: {args.levels}")
     print(f"Output will be saved to: {args.output}")
     print(f"Using tile size: {args.tile_size}")
+    print(f"Using character map: {args.char_map}")
 
     # Call main with parsed arguments
-    main(args.tileset, args.levels, args.output, args.tile_size)
+    main(args.tileset, args.levels, args.output, args.tile_size, args.char_map)
