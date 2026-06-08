@@ -12,14 +12,8 @@ Files:
 Usage examples:
 
 ```bash
-python -m megaman.vglc_to_mmlv path/to/level.txt            # -> level.txt.mmlv.json
-python -m megaman.mmlv_to_vglc path/to/level.txt.mmlv.json  # -> level.txt.reconstructed.txt
-```
-
-Example with your file:
-
-```powershell 
-python -m megaman.vglc_to_mmlv "file.txt"
+python -m megaman.vglc_to_mmlv path/to/level.txt           
+python -m megaman.mmlv_to_vglc path/to/level.txt.mmlv.json  
 ```
 
 What this does:
