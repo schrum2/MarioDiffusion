@@ -22,7 +22,7 @@ What this does:
 - Converts each character into a numeric tile id and saves the result as JSON.
 - Writes a new file named `file.txt.mmlv.json`.
 
-You can then reconstruct a text version from the JSON with:
+used to reconstruct a text version from the JSON with:
 
 ```powershell
 python -m megaman.mmlv_to_vglc "file.txt.mmlv.json"
