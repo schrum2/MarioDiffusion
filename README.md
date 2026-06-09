@@ -493,7 +493,7 @@ python evaluate_models.py --modes real random short real_full --full_metrics --m
 Plots and compares broken cannons as a percentage of total cannon mentions
 
 
-## Train and generate levels from unconditional model with block2vec tile embedding model
+## Train and generate levels from unconditional model with block2vec tile embedding model (experimental)
 
 By default, unconditional diffusion models represent each tile as a one-hot vector. Block2Vec replaces this representation with learned embedding vectors for each tile type. It is trained on 3×3 tile windows so that tiles that are contextually similar in the game end up with similar vectors. 
 
