@@ -25,9 +25,25 @@ class MegaManState:
         self.jump_velocity = jump_velocity;
         self.fall_horizontal_mod_int = fall_horizontal_mod_int
 
+    @classmethod
+    def from_level(cls, level):
+        """Build a start state from a level alone"""
+
+        scanner = cls(level, 0, 0, (-1, -1), 0, 0)  # temporary, only to run the scanners
+        spawn = scanner.getSpawnFromVGLC()          # (x, y); also blanks the spawn tile
+        return cls.from_level_and_start(level, spawn)
+
+    @classmethod
+    def from_level_and_start(cls, level, start):
+        """Build a start state from a level and an explicit (x, y) start point"""
+        
+        scanner = cls(level, 0, 0, (-1, -1), 0, 0)
+        orb = scanner.find_orb()                    # (x, y)
+        return cls(level, start[0], start[1], orb, 0, 0)
+
     # distance to level orb
     def orb_heuristic(self):
-        return max(abs(self.x - self.orb[1]), abs(self.y - self.orb[0]));
+        return max(abs(self.x - self.orb[0]), abs(self.y - self.orb[1]))
 
     
     class MegaManAction:
@@ -45,9 +61,12 @@ class MegaManState:
             return self.move
 
         def __eq__(self, other):
-            return self.move == other.getMOVE()
+            return isinstance(other, MegaManState.MegaManAction) and self.move == other.move
 
-        def to_string(self):
+        def __hash__(self):
+            return hash(self.move)
+
+        def __str__(self):
             if self.move == self.MOVE.RIGHT:
                 return "RIGHT"
             elif self.move == self.MOVE.LEFT:
@@ -58,6 +77,8 @@ class MegaManState:
                 return "DOWN"
             elif self.move == self.MOVE.JUMP:
                 return "JUMP"
+            
+        
 
     # scan level to get orb position
     def find_orb(self):
@@ -91,7 +112,7 @@ class MegaManState:
             new_jump_velocity = 0
         
         if new_jump_velocity > 0:
-            if (self.passable(new_x, new_y - 1) and self.tileAtPosition(new_x, new_y - 1) != MEGA_MAN_TILE_BREAKABLE or (self.inBounds(new_x, new_y) and self.tileAtPosition(new_x, new_y - 1) == MEGA_MAN_TILE_MOVING_PLATFORM)):
+            if (self.passable(new_x, new_y - 1) and self.tileAtPosition(new_x, new_y - 1) != MEGA_MAN_TILE_BREAKABLE or (self.inBounds(new_x, new_y - 1) and self.tileAtPosition(new_x, new_y - 1) == MEGA_MAN_TILE_MOVING_PLATFORM)):
                 jumping = True
                 new_y -= 1
                 new_jump_velocity -= 1
@@ -125,7 +146,7 @@ class MegaManState:
         # right movement
         if action.getMOVE() == self.MegaManAction.MOVE.RIGHT:
             if ((not jumping
-                and (((falling or self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER) and self.passable(new_x + 1, new_y) and self.passable(new_x + 1, new_y - 1) and new_fall_horizontal_mod_int & FALL_STEPS_PER_SIDEWAYS_MOVE == 0) or
+                and (((falling or self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER) and self.passable(new_x + 1, new_y) and self.passable(new_x + 1, new_y - 1) and new_fall_horizontal_mod_int % FALL_STEPS_PER_SIDEWAYS_MOVE == 0) or
                 (self.tileAtPosition(new_x, new_y) != MEGA_MAN_TILE_LADDER and not falling and self.passable(new_x + 1, new_y) and (not self.passable(new_x, new_y + 1) or self.tileAtPosition(new_x, new_y + 1) == MEGA_MAN_TILE_LADDER or self.tileAtPosition(new_x, new_y + 1) == MEGA_MAN_TILE_MOVING_PLATFORM)))) or
                 (jumping and self.passable(new_x + 1, new_y) and ((self.passable(new_x + 1, new_y - 1) and self.passable(new_x, new_y - 1)) or self.passable(new_x + 1, new_y + 1) and self.passable(new_x, new_y + 1)))):
 
@@ -136,7 +157,7 @@ class MegaManState:
         # left movement
         if action.getMOVE() == self.MegaManAction.MOVE.LEFT:
             if ((not jumping
-                and (((falling or self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER) and self.passable(new_x - 1, new_y) and self.passable(new_x - 1, new_y - 1) and new_fall_horizontal_mod_int & FALL_STEPS_PER_SIDEWAYS_MOVE == 0) or
+                and (((falling or self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER) and self.passable(new_x - 1, new_y) and self.passable(new_x - 1, new_y - 1) and new_fall_horizontal_mod_int % FALL_STEPS_PER_SIDEWAYS_MOVE == 0) or
                 (self.tileAtPosition(new_x, new_y) != MEGA_MAN_TILE_LADDER and not falling and self.passable(new_x - 1, new_y) and (not self.passable(new_x, new_y + 1) or self.tileAtPosition(new_x, new_y + 1) == MEGA_MAN_TILE_LADDER or self.tileAtPosition(new_x, new_y + 1) == MEGA_MAN_TILE_MOVING_PLATFORM)))) or
                 (jumping and self.passable(new_x - 1, new_y) and ((self.passable(new_x - 1, new_y - 1) and self.passable(new_x, new_y - 1)) or self.passable(new_x - 1, new_y + 1) and self.passable(new_x, new_y + 1)))):
 
@@ -164,7 +185,17 @@ class MegaManState:
 
         result = MegaManState(self.level, new_x, new_y, self.orb, new_jump_velocity, new_fall_horizontal_mod_int)
         return result
-    
+
+    def get_successors(self):
+        """List of (next_state, action, step_cost) reachable from this state.
+
+        Mirrors State.getSuccessors in MM-NEAT; this is what the search loop consumes.
+        """
+        successors = []
+        for a in self.getLegalActions(self):
+            successor = self.get_successor(a)
+            successors.append((successor, a, self.stepCost()))
+        return successors
 
     def noHazardBeneath(self, x, y):
         if self.tileAtPosition(x, y) != MEGA_MAN_TILE_HAZARD and self.tileAtPosition(x, y) <= 10:
@@ -174,31 +205,30 @@ class MegaManState:
     
 
     def getSpawnFromVGLC(self):
+        """Find the spawn tile, replace it with empty space, and return it as (x, y).
+
+        NOTE: mutates self.level (matches the Java version).
+        """
         start = (-1, -1)
-        tile = -1
-        done = False
-        i = 0
-        while i < len(self.level) and not done:
-            j = 0
-            while j < len(self.level[i]) and not done:
-                tile = self.level[i][j]
-                if tile == MEGA_MAN_TILE_SPAWN:
+        for i in range(len(self.level)):
+            for j in range(len(self.level[i])):
+                if self.level[i][j] == MEGA_MAN_TILE_SPAWN:
                     start = (j, i)
                     self.level[i][j] = MEGA_MAN_TILE_EMPTY
-                    done = True
+                    return start
         return start
 
 
     def getLegalActions(self, mmstate):
         valid_actions = []
         for move in self.MegaManAction.MOVE:
-            if mmstate.getSuccessor(self.MegaManAction(move) != None):
+            if mmstate.get_successor(self.MegaManAction(move)) is not None:
                 valid_actions.append(self.MegaManAction(move))
         return valid_actions
     
 
     def isGoal(self):
-        return self.x == self.orb[1] and self.y == self.orb[0]
+        return self.x == self.orb[0] and self.y == self.orb[1]
 
 
     def  __hash__(self):
@@ -233,7 +263,7 @@ class MegaManState:
 
     
     def inBounds(self, x, y):
-        return x >= 0 and x < len(self.level[0]) and y >= 0 and y < len(self.level) and self.level[y][x] != ONE_ENEMY_NULL  and self.noHazardBeneath(x, y)
+        return x >= 0 and x < len(self.level[y]) and y >= 0 and y < len(self.level) and self.level[y][x] != ONE_ENEMY_NULL  and self.noHazardBeneath(x, y)
     
     def tileAtPosition(self, x, y):
         return self.level[y][x]
