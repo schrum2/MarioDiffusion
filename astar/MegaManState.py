@@ -1,19 +1,20 @@
 from enum import Enum
 
 MEGA_MAN_ASTAR_JUMP_HEIGHT = 4
-MEGA_MAN_TILE_EMPTY = 0;
-MEGA_MAN_TILE_GROUND = 1;
-MEGA_MAN_TILE_LADDER = 2;
-MEGA_MAN_TILE_HAZARD = 3;
-MEGA_MAN_TILE_BREAKABLE = 4;
-MEGA_MAN_TILE_MOVING_PLATFORM = 5;
-MEGA_MAN_TILE_CANNON = 6;
-MEGA_MAN_TILE_ORB = 7;
-MEGA_MAN_TILE_NULL = 9;
-MEGA_MAN_TILE_SPAWN = 8;
-MEGA_MAN_TILE_WATER = 10;
-FOOTHOLDER_ENEMY = 27;
-FALL_STEPS_PER_SIDEWAYS_MOVE = 3;
+MEGA_MAN_TILE_EMPTY = 0
+MEGA_MAN_TILE_GROUND = 1
+MEGA_MAN_TILE_LADDER = 2
+MEGA_MAN_TILE_HAZARD = 3
+MEGA_MAN_TILE_BREAKABLE = 4
+MEGA_MAN_TILE_MOVING_PLATFORM = 5
+MEGA_MAN_TILE_CANNON = 6
+MEGA_MAN_TILE_ORB = 7
+MEGA_MAN_TILE_NULL = 9
+MEGA_MAN_TILE_SPAWN = 8
+MEGA_MAN_TILE_WATER = 10
+FOOTHOLDER_ENEMY = 27
+FALL_STEPS_PER_SIDEWAYS_MOVE = 3
+ONE_ENEMY_NULL = 9
 
 class MegaManState:
     def __init__(self, level, x, y, orb, jump_velocity, fall_horizontal_mod_int):
@@ -26,7 +27,7 @@ class MegaManState:
 
     # distance to level orb
     def orb_heuristic(self):
-        return max(abs(self.x - self.orbx), abs(self.y - self.orby));
+        return max(abs(self.x - self.orb[1]), abs(self.y - self.orb[0]));
 
     
     class MegaManAction:
@@ -43,7 +44,7 @@ class MegaManState:
         def getMOVE(self):
             return self.move
 
-        def equals(self, other):
+        def __eq__(self, other):
             return self.move == other.getMOVE()
 
         def to_string(self):
@@ -64,7 +65,7 @@ class MegaManState:
         for y in range(len(self.level)):
             for x in range(len(self.level[y])):
                 if self.level[y][x] == MEGA_MAN_TILE_ORB:
-                    orb = (y, x)
+                    orb = (x, y)
         return orb
     
     def get_successor(self, action):
@@ -199,11 +200,21 @@ class MegaManState:
     def isGoal(self):
         return self.x == self.orb[1] and self.y == self.orb[0]
 
+
+    def  __hash__(self):
+        prime = 31
+        result = 1
+        result = prime * result + self.fall_horizontal_mod_int
+        result = prime * result + self.x
+        result = prime * result + self.y
+        result = prime * result + self.jump_velocity
+        return result
+	
     
     def stepCost(self):
         return 1
     
-    def equals(self, other):
+    def __eq__(self, other):
         if self is other:
             return True
         if not other:
@@ -217,12 +228,12 @@ class MegaManState:
         return True
     
 
-    def toString(self):
+    def __str__(self):
         return f"({self.x}, {self.y})"  
 
     
     def inBounds(self, x, y):
-        return x >= 0 and x < len(self.level[0]) and y >= 0 and y < len(self.level)
+        return x >= 0 and x < len(self.level[0]) and y >= 0 and y < len(self.level) and self.level[y][x] != ONE_ENEMY_NULL  and self.noHazardBeneath(x, y)
     
     def tileAtPosition(self, x, y):
         return self.level[y][x]
@@ -237,3 +248,4 @@ class MegaManState:
             return True
         
         return False
+    
