@@ -9,14 +9,17 @@ class GraphSearch:
     def __init__(self):
         self.visited = None
 
-    def search(self, start, reset=True, budget=None, continue_after_success=False):
+    def search(self, start, reset=True, budget=None, continue_after_success=False, is_goal=None):
         """Return the list of actions from start to a goal, or None if unreachable
 
         start: initial state
         reset: clear the visited set before searching
         budget: max states expanded before giving up (raises RuntimeError); None means unlimited
         continue_after_success: if True, keep exploring after the goal is located
+        is_goal: optional predicate(state)->bool overriding state.isGoal() (e.g. to search
+                 for "any cell on an edge" rather than a single goal point)
         """
+        goal_test = is_goal if is_goal is not None else (lambda s: s.isGoal())
         # Each fringe entry is (priority, tie_break, state, actions_so_far, cost_so_far).
         # The unique tie_break counter guarantees two entries never get compared by
         # state (states have no ordering), which would otherwise crash heapq on ties.
@@ -34,7 +37,7 @@ class GraphSearch:
         while frontier and (not found or continue_after_success):
             _, _, state, actions, cost = heapq.heappop(frontier)
 
-            if state.isGoal() and not found:
+            if goal_test(state) and not found:
                 solution = actions           # first goal popped is optimal (admissible h)
                 found = True
             elif state not in self.visited:
