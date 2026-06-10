@@ -14,36 +14,31 @@ from typing import Dict, List, Tuple
 
 TILE_PX = 16
 
-# Enemy e-code → VGLC character (only used when d=5 and o=9999)
 ENEMY_E_TO_CHAR: Dict[int, str] = {
-    0:   'a',   # Met
-    63:  'b',   # Fly Boy
-    1:   '<',   # Octopus Battery LR  (overridden to '^' if g key present)
-    2:   'c',   # Beak
-    3:   'd',   # Picket Man
-    4:   'e',   # Screw Bomber
-    5:   'f',   # Big Eye
-    48:  'g',   # Spine
-    49:  'h',   # Crazy Razy
-    52:  'i',   # Watcher
-    56:  'j',   # Killer Bullet
-    57:  'k',   # Killer Bullet Spawner
-    58:  'm',   # Tackle Fire
-    59:  'n',   # Flying Shell
-    60:  'o',   # Flying Shell Spawner
-    45:  'p',   # Footholder
-    159: 'q',   # Jumper
-    7:   'r',   # Gunner (d=5 context; note e=7 + i=2 + l=4 is spike, handled separately)
-    20:  'b',   # Fly Boy variant (some versions use 20)
-    117: 'b',   # another Fly Boy code seen in other levels
+    0:   'a',
+    63:  'b',
+    1:   '<',   # overridden to '^' if g=270
+    2:   'c',
+    3:   'd',
+    4:   'e',
+    5:   'f',
+    48:  'g',
+    49:  'h',
+    52:  'i',
+    56:  'j',
+    57:  'k',
+    58:  'm',
+    59:  'n',
+    60:  'o',
+    45:  'p',
+    159: 'q',
+    7:   'r',   # Gunner — e=7 with d=5 (NOT spikes; spikes use i=2)
+    20:  'b',
+    117: 'b',
 }
 
 
 def parse_mmlv(path: Path) -> Dict[Tuple[int, int], Dict[str, str]]:
-    """
-    Parse .mmlv and return a dict mapping (x_px, y_px) → {key: value_str}.
-    Only coordinate-based entries (those with x,y) are included.
-    """
     coord_re = re.compile(r'^([a-zA-Z0-9]+?)(-?\d+),(-?\d+)="([^"]*)"$')
     coords: Dict[Tuple[int, int], Dict[str, str]] = defaultdict(dict)
 
@@ -55,69 +50,67 @@ def parse_mmlv(path: Path) -> Dict[Tuple[int, int], Dict[str, str]]:
         key, x, y, val = m.group(1), int(m.group(2)), int(m.group(3)), m.group(4)
         coords[(x, y)][key] = val
 
-    return dict(coords)
+    # Remove entries that are ONLY 2b — these are screen boundary markers,
+    # not real tiles, and would otherwise create phantom rows/columns
+    return {
+        pos: kv for pos, kv in coords.items()
+        if set(kv.keys()) != {'2b'}
+    }
 
 
 def classify_tile(kv: Dict[str, str]) -> str:
-    """
-    Given the key→value dict at one tile coordinate, return the VGLC character.
-    """
-    # Helper: get numeric value of a key, or None
     def num(k: str):
         v = kv.get(k)
         return float(v) if v is not None else None
 
-    d = num('d')
-    e = num('e')
-    i_val = num('i')
-    o = num('o')
-    l_val = num('l')
-    g = num('g')
-    k_val = num('k')
+    d   = num('d')
+    e   = num('e')
+    i_v = num('i')
+    o   = num('o')
+    l_v = num('l')
+    g   = num('g')
+    k_v = num('k')
 
-    if i_val == 1.0 and e == 3.0 and k_val is not None:
+    # Solid block: i=1, e=3, k present
+    if i_v == 1.0 and e == 3.0 and k_v is not None:
         return '#'
 
-    if i_val == 3.0 and e == 98.0 and l_val is None:
-        return 'H'
+    # Ladder: i=3, e=98
+    if i_v == 3.0 and e == 98.0:
+        return '|'
 
-    if i_val == 2.0 and e == 7.0 and l_val is not None:
+    # Spikes: i=2, e=7 (l key may or may not be present depending on MMM version)
+    if i_v == 2.0 and e == 7.0:
         return 'H'
 
     if o == 9999.0:
-        # Player spawn
+        # Player spawn: d=4, no e
         if d == 4.0 and e is None:
             return 'P'
 
-        if d == 8.0 and e == 15.0:
-            return 'Z'
+        # Breakable block: d=6, e=9
+        if d == 6.0 and e == 9.0:
+            return 'B'
 
-        if d == 6.0:
-            if e == 9.0 or e == 45.0:
-                return 'B'
-            if e == 31.0:
-                return 'M'  
+        # Moving platform: d=6, e=31
+        if d == 6.0 and e == 31.0:
+            return 'M'
 
-        # Water
-        if e == 177.0 and d is None:
-            return '~'
-
-        # Enemy (d=5)
+        # Enemy: d=5
         if d == 5.0 and e is not None:
             e_int = int(e)
             if e_int == 1:
                 return '^' if g == 270.0 else '<'
             return ENEMY_E_TO_CHAR.get(e_int, '?')
 
-    if set(kv.keys()) <= {'2b'}:
-        return '@'
-
-    if '2a' in kv and set(kv.keys()) <= {'2a', '2b'}:
+        # Anything else with o=9999 but no recognised type → air
         return '-'
 
+    # Pure air: only 2a (and maybe 2b)
     if '2a' in kv:
         return '-'
 
+    # Nothing recognised → void
     return '@'
 
 
@@ -129,38 +122,34 @@ def mmlv_to_vglc(path: Path) -> List[str]:
 
     all_x = [x for x, y in coord_map]
     all_y = [y for x, y in coord_map]
-    min_x, max_x = min(all_x), max(all_x)
-    min_y, max_y = min(all_y), max(all_y)
+    max_x = max(all_x)
+    max_y = max(all_y)
 
-    # Convert pixel coords to tile indices (may not start at 0)
-    # We want col/row starting at 0 for the output
-    # But the VGLC format expects the level to start at tile (0,0) with '@' void
-    # filling any gap at the top-left.
-    # Use the actual grid extent: col = x//16, row = y//16
     max_col = max_x // TILE_PX
     max_row = max_y // TILE_PX
 
-    # Build a lookup by tile col/row
     tile_grid: Dict[Tuple[int, int], str] = {}
     for (x, y), kv in coord_map.items():
         col = x // TILE_PX
         row = y // TILE_PX
         tile_grid[(col, row)] = classify_tile(kv)
 
-    # Render rows
     rows: List[str] = []
     for row in range(max_row + 1):
         line_chars = []
         for col in range(max_col + 1):
-            ch = tile_grid.get((col, row), '@')   # absent tile = void
+            ch = tile_grid.get((col, row), '@')
             line_chars.append(ch)
-        # Trim trailing void ('@') from each row
-        line = ''.join(line_chars).rstrip('@')
-        rows.append(line)
+        rows.append(''.join(line_chars))
 
-    # Trim trailing all-void rows from the bottom
-    while rows and set(rows[-1]) <= {'@', ''}:
+    # Trim trailing all-void rows from the bottom only
+    while rows and set(rows[-1]) <= {'@'}:
         rows.pop()
+
+    # Prepend a leading all-void row to match the original VGLC format,
+    # which always has one void row above the first screen of content
+    if rows:
+        rows.insert(0, '@' * (max_col + 1))
 
     return rows
 
@@ -170,10 +159,8 @@ def main() -> None:
         description="Convert a Mega Man Maker .mmlv file to a VGLC ASCII text file."
     )
     parser.add_argument("input", type=Path, help="Input .mmlv file")
-    parser.add_argument(
-        "output", type=Path, nargs="?",
-        help="Output .txt file (default: <input>.txt)"
-    )
+    parser.add_argument("output", type=Path, nargs="?",
+                        help="Output .txt file (default: <input>.txt)")
     args = parser.parse_args()
 
     lines = mmlv_to_vglc(args.input)
