@@ -19,7 +19,7 @@ cd C:\Users\<YourName>\Documents\GitHub\MarioDiffusion
 Convert a VGLC text level to a Mega Man Maker level file:
 
 ```
-python -m megaman.vglc_to_mmlv levels\myLevel.txt
+python -m megaman.vglc_to_mmlv myLevel.txt
 ```
 
 You can also set a level name and author that appear inside Mega Man Maker:
@@ -49,4 +49,18 @@ After running `vglc_to_mmlv.py`, copy the output `.mmlv` file to:
 C:\Users\<YourName>\AppData\Local\MegaMaker\Levels\
 ```
 Then open Mega Man Maker and go to **Level Select** — your level will appear under local levels.
+
+## Automatically loading a level in Mega Man Maker (easier then manually)
+
+you can also automatically load levels from their IDs by running the following two commands:
+
+```
+cd C:\Users\your_name\AppData\Local\MegaMaker\Levels
+```
+then:
+
+```
+python -c "import requests,gzip; meta=requests.get('https://api.megamanmaker.com/level/download/ID').json(); open('ID.mmlv','w').write(gzip.decompress(requests.get(meta['location']).content).decode()); print('done')"
+```
+
 
