@@ -123,3 +123,31 @@ Browse the generated levels with:
 python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.json datasets\MM_Simple_Tileset.json
 ```
 For the full tileset, swap `MM-Simple` with `MM-Full` and point to the appropriate model and tileset.
+
+
+## Train and generate levels from unconditional model with block2vec tile embedding model (experimental)
+
+By default, unconditional diffusion models represent each tile as a one-hot vector. Block2Vec replaces this representation with learned embedding vectors for each tile type. It is trained on 3×3 tile windows so that tiles that are contextually similar in the game end up with similar vectors. 
+
+To train and run an unconditional model with tile embeddings, you can run this batch file
+and opt to include an argument for the size of the latent embedding space by including an integer for the number of embedding dimensions (default 16)
+```
+MM_batch\MM_unconditional-embedding.bat (embedding_dims)
+```
+
+You can gain more control in the process and train a tile embedding model from 3x3 tile samples:
+``` 
+python create_tile_level_json_data.py --tileset datasets\MM_Simple_Tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM_VGLC_to_Simple.json
+
+python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
+
+```
+Training diffusion model with block2vec tile embeddings instead of one-hot encoding
+``` 
+python train_diffusion.py  --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0 
+
+```
+Generating levels
+``` 
+python run_diffusion.py --model_path --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_samples 100 --save_as_json --output_dir "Mar1and2-unconditional-block2vec-samples" --game MM-Simple 
+```
