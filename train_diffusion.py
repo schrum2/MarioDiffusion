@@ -163,6 +163,7 @@ def parse_args():
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
+
     parser.add_argument(
         "--sprite_temperature_n",
         type=int,
@@ -1104,7 +1105,7 @@ def main():
                 for i, width in enumerate(sample_widths[:4]):
                     with torch.no_grad():
                         samples = pipeline(
-                            batch_size=1,
+                            batch_size=4// min(len(sample_widths), 4),  # Divide batch across widths to keep total samples consistent
                             height=scene_height,
                             width=width,
                             generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),

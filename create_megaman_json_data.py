@@ -156,8 +156,20 @@ def parse_args():
 
     parser.add_argument('--output', required=True, help='Path to the output directory')
 
-    parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_HEIGHT, help='Target output height (e.g., 16 or 14)')
-    parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Target output width (e.g., 16)')
+    # These control the OUTPUT scene size only. Navigation through the level always
+    # uses the MegaMan screen size (common_settings.MEGAMAN_WIDTH x MEGAMAN_HEIGHT);
+    # the path follower would stall if it had to fit a larger window between the null
+    # regions that border every corridor. Output defaults to a 16x16 square so the
+    # default dataset is byte-identical to the previous behaviour.
+    parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene height (e.g., 16 or 32). Navigation still uses the screen height.')
+    parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width.')
+
+    # For scenes taller than the screen, the rows above the navigation window can either
+    # be filled with the real level content above the screen (so a vertical shaft fills the
+    # whole scene) or with null "sky" padding. Faithful filling turns on automatically once
+    # the output is taller than the default square; this flag forces it on at any size.
+    # Default (off) keeps the original 16x16 dataset byte-identical.
+    parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
 
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
 
@@ -184,12 +196,20 @@ def main():
     #We literally only need level overrides for 1-7, every other level parses as expected
     overrides_1_7 = [120, 121, 122, 123, 182] #Needed to avoid an early turn leading to a split path, and to prevent the level from turning back around to go back to the start
 
+    #Navigation always uses the MegaMan screen size; the output size is what the user requested.
+    nav_width = common_settings.MEGAMAN_WIDTH
+    nav_height = common_settings.MEGAMAN_HEIGHT
+
+    #Faithfully fill the rows above the screen with real content for taller-than-default
+    #scenes (or when explicitly requested); the default square keeps the legacy null padding.
+    faithful_vertical = args.faithful_vertical or (args.target_height > nav_width)
+
     all_samples = []
     for i in range(len(levels)):
         if i==7: #We need to do some slight overrides on 1-7 to make the level functional
-            samples, json_caption_data=parse_level(tile_to_id, levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=False, change_direction_overrides=overrides_1_7)
+            samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False, change_direction_overrides=overrides_1_7)
         else:
-            samples, json_caption_data=parse_level(tile_to_id, levels[i], args.target_width, args.target_height, null_chars, wall_chars, print_at_corners=False)
+            samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False)
         
         #We do this so each level scene is encoded together, not grouped by level
         for sample, json_data in zip(samples, json_caption_data):
@@ -207,8 +227,10 @@ def main():
 
 
 #Parses through one complete level
-def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
-    level_sample=LevelSample(level, width, height, null_chars, wall_chars, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
+#width/height are the NAVIGATION (screen) dimensions; out_width/out_height are the
+#output scene dimensions (default to a square of side `width` to match the old behaviour).
+def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], out_width=None, out_height=None, faithful_vertical=False, start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
+    level_sample=LevelSample(level, width, height, null_chars, wall_chars, out_width=out_width, out_height=out_height, faithful_vertical=faithful_vertical, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
     samples = []
     json_caption_data = []
 
@@ -256,7 +278,9 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
     for sample in samples:
         encoded_sample = []
         for row in sample:
-            encoded_sample.append([tile_to_id.get(c) for c in row])
+            #Index directly (not .get) so a character missing from the tileset fails
+            #loudly here instead of silently encoding to None and breaking captioning.
+            encoded_sample.append([tile_to_id[c] for c in row])
         encoded_samples.append(encoded_sample)
     #level_sample.print_sample()
     return encoded_samples, json_caption_data
@@ -323,10 +347,17 @@ def find_start(level_sample):
 
 
 class LevelSample():
-    def __init__(self, level, width, height, null_chars=['@'], wall_chars=['#'], start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
+    def __init__(self, level, width, height, null_chars=['@'], wall_chars=['#'], out_width=None, out_height=None, faithful_vertical=False, start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
         self.level=level
-        self.width=width
-        self.height=height
+        self.width=width    #navigation window width (screen size)
+        self.height=height  #navigation window height (screen size)
+        #Output scene size. Defaults to a square of side `width`, which reproduces the
+        #original "pad to square" behaviour exactly (width x width, e.g. 16x16).
+        self.out_width = out_width if out_width is not None else width
+        self.out_height = out_height if out_height is not None else width
+        #When True, rows above the navigation window show real level content; when False
+        #they are null padding (preserves the legacy default output byte-for-byte).
+        self.faithful_vertical = faithful_vertical
         self.null_chars=null_chars
         self.wall_chars=wall_chars
         self.direction=start_direction
@@ -426,26 +457,57 @@ class LevelSample():
             print(row)
         print("\n")
 
-    #Gets a full level sample of the desired size from the top left corner
+    #Gets a full level sample of the desired output size, anchored on the navigation window
     def get_sample_from_idx(self, x=None, y=None, pad_sample=True):
         if x is None:
             x = self.x_idx
         if y is None:
             y = self.y_idx
 
-        #Make sure the level sample is in bounds
+        #The navigation window itself must stay in bounds
         if x<0 or y<0:
             raise ValueError(f"X value ({x}) and Y value ({y}) all must be positive.")
         if (y + self.height)>len(self.level) or (x+self.width)>len(self.level[0]):
             raise ValueError(f"This level sample is out of bounds at the bottom or right, with height index {y+self.height}/{len(self.level)} and width index {x+self.width}/{len(self.level[0])}.")
-        
+
+        if not pad_sample:
+            #Raw navigation window (used for debug printing)
+            return [row[x:x+self.width] for row in self.level[y:y+self.height]]
+
+        null = self.null_chars[0]
+        level_height = len(self.level)
+        level_width = len(self.level[0])
+
+        #The output scene is a slice of the level, sized to the requested output dimensions
+        #and anchored on the navigation window:
+        # - The nav window is bottom-anchored in the output (its floor row stays at the
+        #   bottom, matching the platformer "ground at the bottom" convention) and
+        #   centered horizontally.
+        # - The navigation window itself, and everything horizontally beside it, is filled
+        #   with the real level tile at that position (corridors continue sideways).
+        # - The rows ABOVE the navigation window are real level content when
+        #   faithful_vertical is on (so a tall vertical shaft fills all 32 rows), or null
+        #   "sky" padding when off (this reproduces the legacy default output exactly).
+        # - Null is only used where the slice falls outside the level grid.
+        col_offset = (self.out_width - self.width) // 2
+        row_offset = self.out_height - self.height  #output rows above the nav window
+        level_x0 = x - col_offset
+        level_y0 = y - row_offset
+
         sample = []
-        if pad_sample:
-            for i in range(self.width-self.height): #We need to make the sample a square for the diffusion model to parse it
-                sample.append([self.null_chars[0]]*self.width)
-        for row in self.level[y:y+self.height]:
-            sample.append(row[x:x+self.width])
-        
+        for r in range(self.out_height):
+            ly = level_y0 + r
+            above_nav_window = r < row_offset
+            out_row = []
+            for c in range(self.out_width):
+                lx = level_x0 + c
+                if above_nav_window and not self.faithful_vertical:
+                    out_row.append(null)  #legacy null "sky" padding above the screen
+                elif 0 <= ly < level_height and 0 <= lx < level_width:
+                    out_row.append(self.level[ly][lx])
+                else:
+                    out_row.append(null)
+            sample.append(out_row)
 
         return sample
 

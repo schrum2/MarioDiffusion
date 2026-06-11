@@ -250,10 +250,11 @@ def get_scene_from_embeddings(image, block_embeddings):
     
     # Get indices of most similar tiles
     indices = torch.softmax(similarities, dim=1)
-    
-    
-    # Reshape back to [batch_size, height, width]
-    indices = indices.reshape(batch_size, height, width, 13)
+
+
+    # Reshape back to [batch_size, height, width, num_tiles]
+    num_tiles = block_embeddings.shape[0]
+    indices = indices.reshape(batch_size, height, width, num_tiles)
     indices = indices.permute(0, 3, 1, 2)
 
     image=indices.detach().cpu()
