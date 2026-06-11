@@ -263,7 +263,7 @@ class MegaManState:
 
     
     def inBounds(self, x, y):
-        return x >= 0 and x < len(self.level[y]) and y >= 0 and y < len(self.level) and self.level[y][x] != ONE_ENEMY_NULL  and self.noHazardBeneath(x, y)
+        return x >= 0 and y >= 0 and y < len(self.level) and x < len(self.level[y]) and self.level[y][x] != ONE_ENEMY_NULL  and self.noHazardBeneath(x, y)
     
     def tileAtPosition(self, x, y):
         return self.level[y][x]
