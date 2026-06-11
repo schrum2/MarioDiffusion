@@ -395,15 +395,20 @@ def main():
 
     visualize_path = None
     if args.visualize:
-        from astar_path_visualization import visualize_path   # lazy: pulls in torch/PIL
+        from astar_path_visualization import visualize_path  
         os.makedirs(args.image_dir, exist_ok=True)
     game_render = _render_target(args.game, tileset_path)
 
     traversable_count = 0
+    untraversable_scenes = [] # stores indexes of untraversable scenes to be returned later, used for filtering weird/untraversable level slices from training sets
     for idx, (scene, caption) in enumerate(levels):
         ok, stats, path_info = evaluate(args.game, scene, caption, id_to_char, tile_descriptors,
                                         args.budget, args.allow_weird_lr, visualize=args.visualize)
         traversable_count += int(ok)
+        
+        if not ok:
+            untraversable_scenes.append(idx)
+
         verdict = "TRAVERSABLE" if ok else "NOT traversable"
         detail = ", ".join(f"{k}={v}" for k, v in stats.items())
         print(f"[{idx}] {verdict}  ({detail})")
@@ -422,6 +427,9 @@ def main():
     total = len(levels)
     print(f"\n{args.game}: {traversable_count}/{total} traversable "
           f"({100.0 * traversable_count / total:.1f}%)")
+    
+    return untraversable_scenes
+
 
 
 if __name__ == "__main__":
