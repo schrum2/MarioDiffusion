@@ -590,22 +590,22 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     ceiling_row = None
     if (exit_direction is not None and exit_direction.lower() in ("left", "right")): # Only track ceiling if we're moving horizantally (exit_direction is stored as uppercase enum name, e.g. "RIGHT")
         ceiling_row = 2 #Define this here so we don't ignore platforms on row 2 later if we're moving vertically
+        ceiling_tiles = [(ceiling_row, c) for c, t in enumerate(scene[ceiling_row]) if t in wall_ids]
         ceiling_phrase = analyze_ceiling(scene, wall_ids, describe_absence, ceiling_row=ceiling_row)
-        add_to_caption(ceiling_phrase, [(ceiling_row, c) for c, t in enumerate(scene[ceiling_row]) if t in wall_ids])
+        already_accounted.update(ceiling_tiles)
+        add_to_caption(ceiling_phrase, ceiling_tiles)
 
     # Floor
     floor_row = len(scene) - 1
+    floor_tiles = [(floor_row, c) for c, t in enumerate(scene[floor_row]) if t in wall_ids]
     floor_phrase = analyze_floor(
         scene,
         wall_ids,
         describe_absence=describe_absence,
         floor_row=floor_row
     )
-    add_to_caption(
-        floor_phrase,
-        [(floor_row, c) for c, t in enumerate(scene[floor_row]) if t in wall_ids]
-    )
-    
+    already_accounted.update(floor_tiles)
+    add_to_caption(floor_phrase, floor_tiles)
     wall_coords = find_walls(scene, wall_ids)
     wall_count = len({x for _, x in wall_coords})  # count distinct columns
 

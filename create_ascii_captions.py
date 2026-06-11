@@ -270,7 +270,7 @@ def find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted
 
     return structures
 
-def valid_pipe(top_row, left_column, scene, char_to_id):
+def valid_pipe(top_row, left_column, scene, char_to_id, id_to_char, tile_descriptors):
     """
         Is this a valid pipe or not?
 
@@ -283,47 +283,58 @@ def valid_pipe(top_row, left_column, scene, char_to_id):
     if left_column == 0 and scene[top_row][left_column] == char_to_id['>']:
         # go down looking for ] or >
         row = top_row+1
+        found_body = False 
         while row < len(scene):
-            # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
             if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]: #, char_to_id['-']]: # emptiness under base also invalid
                 return False
             elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]:
+                found_body = True
                 row += 1
             else:
-                return True
+                if 'solid' not in tile_descriptors.get(id_to_char[scene[row][left_column]], []):
+                    return False  # pipe is floating
+                return found_body
+        return found_body
 
-        return True
     # Case: right edge of screen
     elif left_column == len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<']:
         # go down looking for [ or <
         row = top_row+1
+        found_body = False
         while row < len(scene):
             if scene[row][left_column] in [char_to_id['<'], char_to_id['[']]:
+                found_body = True
                 row += 1
             # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
             elif scene[row][left_column] in [char_to_id['>'], char_to_id[']']]: #, char_to_id['-']]:
                 return False
             else:
-                return True
+                if 'solid' not in tile_descriptors.get(id_to_char[scene[row][left_column]], []):
+                    return False  # pipe is floating
+                return found_body
 
-        return True
+        return found_body
 
     # Case: Full pipe
     elif left_column < len(scene[0]) - 1 and scene[top_row][left_column] == char_to_id['<'] and scene[top_row][left_column+1] == char_to_id['>']:
         # go down looking for [] or <>
         row = top_row+1
+        found_body = False
         while row < len(scene):
             if (scene[row][left_column] == char_to_id['<'] and scene[row][left_column+1] == char_to_id['>']) or (scene[row][left_column] == char_to_id['['] and scene[row][left_column+1] == char_to_id[']']):
+                found_body = True
                 row += 1
             # I changed my mind on the emptiness check, but mainly because of bad data from SMB2. Might restore this check if I fix VGLC data
             elif scene[row][left_column] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']] or scene[row][left_column+1] in [char_to_id['<'], char_to_id['['], char_to_id['>'], char_to_id[']']]:
                 return False
             else:
-                return True
+                if 'solid' not in tile_descriptors.get(id_to_char[scene[row][left_column]], []):
+                    return False  # pipe is floating
+                return found_body
 
-        return True
+        return found_body
 
-    return False
+    return False 
 
 def valid_upside_down_pipe(bottom_row, left_column, scene, char_to_id):
     """
@@ -376,7 +387,7 @@ def valid_upside_down_pipe(bottom_row, left_column, scene, char_to_id):
 
     return False
 
-def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None, exclude_upside_down_pipes=False):
+def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=False, describe_absence=False, describe_locations=False, debug=False, scene=None, char_to_id=None, id_to_char=None, tile_descriptors=None, exclude_upside_down_pipes=False):    
     """
         scene and char_to_id are needed when pipes is True so that the specific tiles can be checked.
         Returns a list of tuples (phrase, coordinates) where coordinates is a set of (row, col) positions
@@ -398,7 +409,7 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, pipes=
         in_contact_with_floor = any(r == floor_row - 1 for r, c in struct)
 
         if pipes:
-            if valid_pipe(min_row, min_col, scene, char_to_id):
+            if valid_pipe(min_row, min_col, scene, char_to_id, id_to_char, tile_descriptors):
                 desc = "pipe"
             elif valid_upside_down_pipe(max_row, min_col, scene, char_to_id):
                 if exclude_upside_down_pipes:
@@ -687,7 +698,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     #print(already_accounted)
     pipe_set = set() # pipes can double count with floor, but there should be no other conflicts
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, pipe_set, pipes=True)
-    pipe_phrase = describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id, exclude_upside_down_pipes=exclude_upside_down_pipes)
+    pipe_phrase = describe_structures(structures, pipes=True, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug, scene=scene, char_to_id=char_to_id, id_to_char=id_to_char, tile_descriptors=tile_descriptors, exclude_upside_down_pipes=exclude_upside_down_pipes)    
     for phrase, coords in pipe_phrase:
         add_to_caption(phrase, coords)
     
