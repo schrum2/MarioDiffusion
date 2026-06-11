@@ -96,7 +96,7 @@ def render_scene_image(scene, game_render):
 
 
 def visualize_path(scene, game_render, start, solution, visited=None,
-                   x_offset=0, y_offset=0, show_visited=True):
+                   x_offset=0, y_offset=0, show_visited=True, goal=None):
     """Return a PIL image of the scene with the A* path (and explored cells) drawn on.
 
     scene        : raw 2D tile-id array (original encoding, used only for rendering)
@@ -106,6 +106,8 @@ def visualize_path(scene, game_render, start, solution, visited=None,
     visited       : iterable of expanded states (drawn faintly); None to skip
     x_offset/y_offset : added to every cell to map state coords -> scene coords
                         (Mario buffers the grid, so it passes -BUFFER_WIDTH for x)
+    goal         : explicit (x, y) goal cell to mark in blue (e.g. the placed MM orb), so
+                   it shows even when unreachable; None falls back to the end of the path
     """
     _, tile_size = _RENDER_INFO[game_render]
     base = render_scene_image(scene, game_render).convert("RGBA")
@@ -153,6 +155,13 @@ def visualize_path(scene, game_render, start, solution, visited=None,
 
     if drawn:
         dot(*drawn[0], _START_COLOR)
+    # Goal (blue): mark the explicit goal cell if given (e.g. the placed MM orb) so it
+    # shows even when the agent can't reach it; otherwise mark the end of the drawn path.
+    if goal is not None:
+        gx, gy = goal[0] + x_offset, goal[1] + y_offset
+        if in_bounds(gx, gy):
+            dot(gx, gy, _GOAL_COLOR)
+    elif drawn:
         dot(*drawn[-1], _GOAL_COLOR)
 
     return Image.alpha_composite(base, overlay).convert("RGB")

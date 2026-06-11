@@ -207,6 +207,72 @@ class MegaManState:
             return False
     
 
+    def addOrb(self):
+        """
+        Scans the level for a suitable orb placement for the heuristic to target when no orb is present
+        
+        Necessary for level snippets/scenes that don't naturally contain an orb
+        """
+        for x in range(len(self.level[0])-1, -1, -1): # start from the right
+            for y in range(len(self.level)): # start from the top
+                curr_tile = self.level[y][x]
+                tile_above = self.level[y-1][x]
+                if (y - 2 >= 0  and self.level[y-2][x] != MEGA_MAN_TILE_NULL 
+                                and (curr_tile == MEGA_MAN_TILE_LADDER or 
+                                    curr_tile == MEGA_MAN_TILE_GROUND or 
+                                    curr_tile == MEGA_MAN_TILE_MOVING_PLATFORM)
+                                and (tile_above == MEGA_MAN_TILE_EMPTY or
+                                     tile_above == MEGA_MAN_TILE_WATER)):
+                    self.level[y-1][x] = MEGA_MAN_TILE_ORB
+                    self.level[y-2][x] = MEGA_MAN_TILE_EMPTY
+                    return True
+
+        return False # suitable orb location not found
+    
+
+    def forceOrb(self):
+        """Fallback when addOrb finds no natural ledge: scan right to left, top to bottom
+        to the first non-null cell and insert orb there."""
+
+        for x in range(len(self.level[0]) - 1, -1, -1): # right to left
+            for y in range(len(self.level) - 1, 1, -1):  # bottom to top (y-2 >= 0)
+                if self.level[y][x] != MEGA_MAN_TILE_NULL:
+                    self.level[y][x]     = MEGA_MAN_TILE_GROUND
+                    self.level[y - 1][x] = MEGA_MAN_TILE_ORB
+                    self.level[y - 2][x] = MEGA_MAN_TILE_EMPTY
+                    return True
+        return False  # no non-null cell with headroom found
+
+    def placeSpawn(self):
+        """Same standable-ledge logic as addOrb, but scans left to right/bottom to top"""
+
+        for x in range(len(self.level[0])):              # left to right
+            for y in range(len(self.level) - 1, -1, -1): # bottom to top
+                curr_tile = self.level[y][x]
+                tile_above = self.level[y - 1][x]
+                if (y - 2 >= 0 and self.level[y - 2][x] != MEGA_MAN_TILE_NULL
+                              and (curr_tile == MEGA_MAN_TILE_LADDER or
+                                   curr_tile == MEGA_MAN_TILE_GROUND or
+                                   curr_tile == MEGA_MAN_TILE_MOVING_PLATFORM)
+                              and (tile_above == MEGA_MAN_TILE_EMPTY or
+                                   tile_above == MEGA_MAN_TILE_WATER)):
+                    self.level[y - 1][x] = MEGA_MAN_TILE_SPAWN
+                    self.level[y - 2][x] = MEGA_MAN_TILE_EMPTY
+                    return True
+        return False  # suitable spawn location not found
+
+    def forceSpawn(self):
+        """same idea as forceOrb, but scans left to right """
+        
+        for x in range(len(self.level[0])): # left to right
+            for y in range(len(self.level) - 1, 1, -1):  # bottom to top (y-2 >= 0)
+                if self.level[y][x] != MEGA_MAN_TILE_NULL:
+                    self.level[y][x]     = MEGA_MAN_TILE_GROUND
+                    self.level[y - 1][x] = MEGA_MAN_TILE_SPAWN
+                    self.level[y - 2][x] = MEGA_MAN_TILE_EMPTY
+                    return True
+        return False  # no non-null cell with headroom found
+
     def getSpawnFromVGLC(self):
         """Find the spawn tile, replace it with empty space, and return it as (x, y).
 

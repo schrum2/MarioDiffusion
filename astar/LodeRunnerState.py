@@ -233,8 +233,7 @@ class LodeRunnerState:
         sideways/downward moves through diggable ground, which are penalized)"""
         move = action.getMove()
         MOVE = self.LodeRunnerAction.MOVE
-        beneath = -1 if not self.inBounds(self.currentX, self.currentY + 1) \
-            else self.tileAtPosition(self.currentX, self.currentY + 1)
+        beneath = -1 if not self.inBounds(self.currentX, self.currentY + 1) else self.tileAtPosition(self.currentX, self.currentY + 1)
 
         # Moving sideways through diggable ground assumes the ground above was dug out first
         if (move == MOVE.LEFT and
