@@ -124,6 +124,12 @@ python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.j
 ```
 For the full tileset, swap `MM-Simple` with `MM-Full` and point to the appropriate model and tileset.
 
+## Mega Man Maker
+
+This is the link to learn more about Mega Man Maker:
+
+[Mega Man Maker](https://github.com/schrum2/MarioDiffusion/tree/dev_alaaAlmzayen/megaman)
+
 
 ## Train and generate levels from unconditional model with block2vec tile embedding model (experimental)
 

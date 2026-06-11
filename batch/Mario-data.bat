@@ -23,3 +23,4 @@ python create_random_test_captions.py --save_file "datasets\\Mario_RandomTest-ab
 :: Split output files into train/val/test sets
 python split_data.py --json %default_out%-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 0 --game mario
 python split_data.py --json %default_out%-absence.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 0 --game mario
+cd

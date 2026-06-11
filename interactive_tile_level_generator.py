@@ -235,11 +235,9 @@ class CaptionBuilder(ParentBuilder):
 
 
         # Game selection
-        self.game_var = tk.StringVar(value="Mario")
-        if args.game == 'Mario':
-            self.game_var = tk.StringVar(value="Mario")
-        elif args.game == 'LR':
-            self.game_var = tk.StringVar(value="Lode Runner")
+        # Game selection
+        self.game_var = tk.StringVar(value=game_selected if game_selected else "Mario")
+        
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
         self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)"], state="readonly", font=GUI_FONT)
@@ -530,13 +528,8 @@ class CaptionBuilder(ParentBuilder):
 
         print("Generating")
         
-        if self.automatic_absence_caption.get():
-            prompt = append_absence_captions(self.caption_text.get("1.0", tk.END).strip(), TOPIC_KEYWORDS)
-        else:
-            prompt = self.caption_text.get("1.0", tk.END).strip()
+        prompt = self._get_current_prompt()
         
-        #prompt = self.caption_text.get("1.0", tk.END).strip()
-        # prompt = self.present_caption.strip()
         negative_prompt = self.negative_prompt_entry.get("1.0", tk.END).strip()
         num_images = int(self.num_images_entry.get())        
         param_values = {
@@ -1003,7 +996,89 @@ Average Segment Score: {avg_segment_score}"""
     def _replace_generated_scene(self, idx, updated_scene):
         self.generated_scenes[idx] = updated_scene 
         self.generated_images[idx] = self._render_scene_image(updated_scene) 
-        self._refresh_generated_image(idx) 
+        self._refresh_generated_image(idx)
+        self._refresh_generated_caption(idx)
+
+    def _get_current_prompt(self):
+        if self.automatic_absence_caption.get():
+            return append_absence_captions(self.caption_text.get("1.0", tk.END).strip(), TOPIC_KEYWORDS)
+        return self.caption_text.get("1.0", tk.END).strip()
+
+    def _evaluate_scene_caption(self, idx):
+        scene = self.generated_scenes[idx]
+        prompt = self._get_current_prompt()
+
+        if game_selected == 'Mario':
+            actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+        elif game_selected == 'Lode Runner':
+            actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+        else:
+            actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+
+        avg_segment_score = None
+        if game_selected == "Mario" and len(scene[0]) > common_settings.MARIO_WIDTH:
+            from captions.caption_match import process_scene_segments
+            avg_segment_score, _, _ = process_scene_segments(
+                scene=scene,
+                segment_width=common_settings.MARIO_WIDTH,
+                prompt=prompt,
+                id_to_char=self.id_to_char,
+                char_to_id=self.char_to_id,
+                tile_descriptors=self.tile_descriptors,
+                describe_locations=False,
+                describe_absence=False
+            )
+        elif game_selected == "Lode Runner" and len(scene[0]) > common_settings.LR_WIDTH:
+            from captions.LR_caption_match import process_scene_segments as lr_process_scene_segments
+            avg_segment_score, _, _ = lr_process_scene_segments(
+                scene=scene,
+                segment_width=common_settings.LR_WIDTH,
+                prompt=prompt,
+                id_to_char=self.id_to_char,
+                char_to_id=self.char_to_id,
+                tile_descriptors=self.tile_descriptors,
+                describe_locations=False,
+                describe_absence=False
+            )
+        elif game_selected not in ["Mario", "Lode Runner"] and len(scene[0]) > common_settings.MEGAMAN_WIDTH:
+            from captions.MM_caption_match import process_scene_segments as mm_process_scene_segments
+            avg_segment_score, _, _ = mm_process_scene_segments(
+                scene=scene,
+                segment_width=common_settings.LR_WIDTH,
+                prompt=prompt,
+                id_to_char=self.id_to_char,
+                char_to_id=self.char_to_id,
+                tile_descriptors=self.tile_descriptors,
+                describe_locations=False,
+                describe_absence=False
+            )
+
+        return exact_matches, partial_matches, excess_phrases, compare_score, avg_segment_score
+
+    def _refresh_generated_caption(self, idx):
+        refs = self.generated_widget_refs[idx]
+        caption_text_widget = refs.get("caption_text")
+        score_label = refs.get("score_label")
+        exact_matches, partial_matches, excess_phrases, compare_score, avg_segment_score = self._evaluate_scene_caption(idx)
+
+        caption_text_widget.config(state=tk.NORMAL)
+        caption_text_widget.delete(1.0, tk.END)
+        for phrase in exact_matches:
+            caption_text_widget.insert(tk.END, phrase + ". ", "green")
+        for phrase in partial_matches:
+            caption_text_widget.insert(tk.END, phrase + ". ", "yellow")
+        for phrase in excess_phrases:
+            caption_text_widget.insert(tk.END, phrase + ". ", "red")
+        caption_text_widget.config(state=tk.DISABLED)
+
+        if avg_segment_score is not None:
+            score_label_text = f"Comparison Score: {compare_score}\nAverage Segment Score: {avg_segment_score}"
+        else:
+            score_label_text = f"Comparison Score: {compare_score}"
+        score_label.config(text=score_label_text)
 
     def _render_scene_image(self, scene): 
         if game_selected == "Lode Runner":

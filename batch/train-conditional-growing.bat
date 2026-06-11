@@ -1,0 +1,26 @@
+REM @echo off
+REM Usage: train-conditional-growing.bat <seed> <threshold> <max_new_samples> <max_dataset_size>
+REM <seed> is optional, defaults to 0
+REM <threshold> is the auto_augment_threshold (e.g. 0.8)
+REM <max_new_samples> is the auto_augment_max_new_samples (e.g. 10)
+REM <max_dataset_size> is the auto_augment_max_dataset_size (e.g. 10000)
+cd ..
+
+set SEED=%1
+if "%SEED%"=="" set SEED=0
+
+set GAME=Mar1and2
+set TYPE=regular
+
+set THRESHOLD=%2
+set MAX_NEW=%3
+set MAX_SIZE=%4
+
+set MLM_OUTPUT=%GAME%-MLM-%TYPE%%SEED%
+
+set DIFF_OUTPUT=%GAME%-conditional-%TYPE%-thres%THRESHOLD%new%MAX_NEW%max%MAX_SIZE%-%SEED%
+
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-train.json --val_json datasets\%GAME%_LevelsAndCaptions-%TYPE%-validate.json --test_json datasets\%GAME%_LevelsAndCaptions-%TYPE%-test.json --pkl datasets\%GAME%_Tokenizer-%TYPE%.pkl --output_dir %MLM_OUTPUT% --seed %SEED%
+python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir "%DIFF_OUTPUT%" --num_epochs 500 --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-train.json --val_json datasets\%GAME%_LevelsAndCaptions-%TYPE%-validate.json --pkl datasets\%GAME%_Tokenizer-%TYPE%.pkl --mlm_model_dir %MLM_OUTPUT% --plot_validation_caption_score --seed %SEED% --auto_augment --auto_augment_threshold %THRESHOLD% --auto_augment_max_new_samples %MAX_NEW% --auto_augment_max_dataset_size %MAX_SIZE%
+call batch\run_diffusion_multi.bat %DIFF_OUTPUT% %TYPE% %GAME% text
+call batch\evaluate_caption_adherence_multi.bat %DIFF_OUTPUT% %TYPE% %GAME%
