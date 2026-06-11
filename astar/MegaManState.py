@@ -98,10 +98,11 @@ class MegaManState:
         jumping = False
         sliding = False
         assert self.inBounds(new_x, new_y)
-        
-        if not self.inBounds(self.x, self.y + 1):
+
+        # Falling off the bottom of the screen (into a gap) is deat EXCEPT when standing on a ladder
+        if not self.inBounds(self.x, self.y + 1) and self.tileAtPosition(self.x, self.y) != MEGA_MAN_TILE_LADDER:
             return None
-        
+
         if ((self.inBounds(new_x, new_y - 1) or (new_y - 1 >= 0 and self.tileAtPosition(new_x, new_y - 1) == MEGA_MAN_TILE_HAZARD)) and self.inBounds(new_x, new_y + 1) and (not self.passable(new_x - 1, new_y + 1) or not self.passable(new_x + 1, new_y + 1)) and (not self.passable(new_x, new_y - 1) or self.tileAtPosition(new_x, new_y - 1) == MEGA_MAN_TILE_LADDER) and self.tileAtPosition(new_x, new_y) != MEGA_MAN_TILE_LADDER):
             sliding = True
 
@@ -165,9 +166,11 @@ class MegaManState:
             elif self.y == new_y:
                 return None
             
-        # up movement (ladder)
+        # up movement (ladder). Head clearance (passable two above) is normally required
+        # because Mega Man is two tiles tall, but climbing up off the top of the screen is how you exit upward 
         if action.getMOVE() == self.MegaManAction.MOVE.UP:
-            if not sliding and self.inBounds(new_x, new_y - 1) and self.passable(new_x, new_y - 1) and self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER and self.passable(new_x, new_y - 2):
+            head_clear = self.passable(new_x, new_y - 2) or self.offScreen(new_x, new_y - 2)
+            if not sliding and self.inBounds(new_x, new_y - 1) and self.passable(new_x, new_y - 1) and self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER and head_clear:
                 new_y -= 1
             else:
                 return None
@@ -264,7 +267,12 @@ class MegaManState:
     
     def inBounds(self, x, y):
         return x >= 0 and y >= 0 and y < len(self.level) and x < len(self.level[y]) and self.level[y][x] != ONE_ENEMY_NULL  and self.noHazardBeneath(x, y)
-    
+
+    def offScreen(self, x, y):
+        """True if (x, y) is outside the playable area: off the grid, or NULL padding."""
+        return (y < 0 or x < 0 or y >= len(self.level) or x >= len(self.level[y])
+                or self.level[y][x] == ONE_ENEMY_NULL)
+
     def tileAtPosition(self, x, y):
         return self.level[y][x]
     
