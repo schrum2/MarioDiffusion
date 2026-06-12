@@ -56,12 +56,10 @@ def main():
     # Determine vocab size from the dataset
     #vocab_size = max(max(patch) for sample in dataset.patches for patch in sample) + 1
 
-    # Modified voacb size calculation with type conversion
-    try: 
-        # vocab_size = max(max(patch) for sample in dataset.patches for patch in sample) + 1
-        # # Convert to integer if necessary
-        # vocab_size = int(vocab_size)
-        vocab_size = int(VOCAB_SIZE) # set to vocab size from common settings
+    # Compute vocab size from the actual dataset to handle any tile set (Mario, MM, etc.)
+    try:
+        vocab_size = max(max(patch) for sample in dataset.patches for patch in sample) + 1
+        vocab_size = int(vocab_size)
     except ValueError as e:
         print(f"Error converting tile IDs to integers: {e}")
         raise

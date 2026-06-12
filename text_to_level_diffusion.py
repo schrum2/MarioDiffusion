@@ -10,6 +10,8 @@ from MM_create_ascii_captions import assign_caption as mm_assign_caption
 from captions.util import extract_tileset
 from util.sampler import scene_to_ascii
 import argparse
+import os
+import sys
 import util.common_settings as common_settings
 from util.sampler import SampleOutput
 from models.pipeline_loader import get_pipeline
@@ -26,6 +28,7 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--automatic_negative_captions", action="store_true", default=False, help="Automatically create negative captions for prompts so the user doesn't have to")
     parser.add_argument("--automatic_absence_captions", action="store_true", default=False, help="Automatically create absence captions for prompts so the user doesn't have to")
+    parser.add_argument("--visualize", action="store_true", default=False, help="Show generated levels with their A* path overlaid instead of the plain render")
     parser.add_argument(
         "--game",
         type=str,
@@ -193,12 +196,42 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 verbose=True
             )
 
-        
+
         samples = visualize_samples(images, game=self.args.game)
+
+        # With --visualize, show the level with its A* path drawn on instead of the
+        # plain render; fall back to the plain render if the path can't be produced.
+        if self.args.visualize:
+            overlay = self._astar_overlay_image(scene)
+            if overlay is not None:
+                samples = overlay
 
         return samples
 
-    def get_extra_params(self, param_values): 
+    def _astar_overlay_image(self, scene):
+        """Render scene with its A* path and explored cells.
+        Returns a PIL image, or None if the path can't be produced."""
+        astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+        if astar_dir not in sys.path:
+            sys.path.insert(0, astar_dir)
+        try:
+            from astar_traversability_check import astar_path_image
+        except Exception as e:
+            print(f"Could not import A* path tools: {e}")
+            return None
+        try:
+            img, solved, stats = astar_path_image(scene, self.args.game,
+                                                  self.id_to_char, self.tile_descriptors)
+        except Exception as e:
+            print(f"A* path failed for this scene: {e}")
+            return None
+        if img is None:
+            print("No A* path to draw for this scene.")
+            return None
+        print(f"A* path: {'traversable' if solved else 'NOT traversable'}  ({stats})")
+        return img
+
+    def get_extra_params(self, param_values):
         if "negative_prompt" in param_values and param_values["negative_prompt"] == "":
             del param_values["negative_prompt"]
 

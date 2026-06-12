@@ -25,6 +25,10 @@ class BucketBatchSampler:
         batch_size (int): Number of samples per batch
         drop_last (bool): If True, discard incomplete batches at the end of each width bucket
         shuffle (bool): If True, shuffle samples within buckets and shuffle the batch order
+
+    Attributes:
+        shapes (list[int]): Each unique level width present in the dataset, used for generating
+            samples of different size at epoch benchmarks during training.
     """
     def __init__(self, dataset, batch_size, drop_last=True, shuffle=True):
         self.shuffle = shuffle
@@ -43,6 +47,9 @@ class BucketBatchSampler:
                     continue
                 self.batches.append(batch)
 
+        # Unique scene widths present in the dataset; used to generate variably-sized benchmark samples at epoch checkpoints during training
+        self.shapes = list(buckets.keys())
+
     def __iter__(self):
         # Re-shuffle every epoch so sample order varies across epochs, matching DataLoader(shuffle=True) behavior.
         # A uniform-width dataset produces one bucket, making this equivalent to the standard DataLoader shuffle path.
@@ -54,6 +61,8 @@ class BucketBatchSampler:
 
     def __len__(self):
         return len(self.batches)
+    
+    
 
 
 def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles, 
@@ -73,6 +82,11 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
         negative_prompt_training (bool): Whether to include negative captions for training.
         block_embeddings (torch.Tensor or None): Precomputed block embeddings for "diff_text" mode, or None if not using.
         batch_size (int): Batch size for the dataloaders.
+
+    Returns:
+        tuple(train_dataloader, val_dataloader, sample_widths): where sample_widths is the
+            list of unique scene widths in the training set, used to generate variably-sized
+            benchmark samples at epoch checkpoints.
     """
 
     # Initialize dataset
@@ -101,9 +115,10 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
 
     # BucketBatchSampler groups same-width scenes into each batch, allowing mixed-width datasets.
     # batch_size/shuffle/drop_last are owned by the sampler, not passed directly to DataLoader.
+    train_sampler = BucketBatchSampler(train_dataset, batch_size, drop_last=True, shuffle=True)
     train_dataloader = DataLoader(
         train_dataset,
-        batch_sampler=BucketBatchSampler(train_dataset, batch_size, drop_last=True, shuffle=True),
+        batch_sampler=train_sampler,
         num_workers=4,
         persistent_workers=persistent_workers
     )
@@ -117,8 +132,9 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
             num_workers=4,
             persistent_workers=True
         )
-    
-    return train_dataloader, val_dataloader
+
+    # Unique training-set scene widths, used to benchmark variably-sized samples during training.
+    return train_dataloader, val_dataloader, train_sampler.shapes
 
 
 def get_random_training_samples(train_dataloader, negative_prompt_training, output_dir = None):
@@ -234,10 +250,11 @@ def get_scene_from_embeddings(image, block_embeddings):
     
     # Get indices of most similar tiles
     indices = torch.softmax(similarities, dim=1)
-    
-    
-    # Reshape back to [batch_size, height, width]
-    indices = indices.reshape(batch_size, height, width, 13)
+
+
+    # Reshape back to [batch_size, height, width, num_tiles]
+    num_tiles = block_embeddings.shape[0]
+    indices = indices.reshape(batch_size, height, width, num_tiles)
     indices = indices.permute(0, 3, 1, 2)
 
     image=indices.detach().cpu()

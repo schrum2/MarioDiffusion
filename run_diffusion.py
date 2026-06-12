@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import os
+import sys
 import torch
 import numpy as np
 from level_dataset import visualize_samples, samples_to_scenes
@@ -23,6 +24,7 @@ def parse_args():
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
+    parser.add_argument("--visualize", action="store_true", help="Additionally save each generated sample with its A* path overlaid (filename tagged 'solved'/'unsolved')")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--level_width", type=int, default=None, help="Overrides width from unet if specified")
 
@@ -42,6 +44,35 @@ def parse_args():
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
 
     return parser.parse_args()
+
+def save_astar_visualizations(all_samples, args):
+    """Save an extra copy of each generated sample with its A* path overlaid.
+
+    Images land next to the plain renders in args.output_dir, with the same
+    sample_{i} naming plus a 'solved'/'unsolved' tag for traversability."""
+    astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+    if astar_dir not in sys.path:
+        sys.path.insert(0, astar_dir)
+    from astar_traversability_check import astar_path_image
+    from captions.util import extract_tileset
+
+    _, id_to_char, _, tile_descriptors = extract_tileset(args.tileset)
+    scenes = samples_to_scenes(all_samples)
+    for i, scene in enumerate(scenes):
+        try:
+            img, solved, stats = astar_path_image(scene, args.game, id_to_char, tile_descriptors)
+        except Exception as e:
+            print(f"A* visualization failed for sample {i}: {e}")
+            continue
+        if img is None:
+            print(f"Sample {i}: no A* path to draw ({stats})")
+            continue
+        tag = "solved" if solved else "unsolved"
+        out_path = os.path.join(args.output_dir, f"sample_{i} - unconditional - {tag}.png")
+        img.save(out_path)
+        detail = ", ".join(f"{k}={v}" for k, v in stats.items())
+        print(f"Sample {i}: {tag} ({detail}) -> {out_path}")
+
 
 def generate_levels(args):
     """Generate level designs using a trained diffusion model"""
@@ -122,9 +153,12 @@ def generate_levels(args):
     # Concatenate all batches
     all_samples = torch.cat(all_samples, dim=0)[:total_samples]
     print(f"Generated {len(all_samples)} level samples")
-    
+
     # visualizes all samples at once
     # visualize_samples(all_samples, args.output_dir)
+
+    if args.visualize:
+        save_astar_visualizations(all_samples, args)
 
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)
