@@ -9,8 +9,42 @@ LODE_RUNNER_TILE_ROPE = 5
 LODE_RUNNER_TILE_GROUND = 6
 LODE_RUNNER_TILE_SPAWN = 7
 
-# Big cost to discourage moving sideways through diggable ground 
+# Big cost to discourage moving sideways through diggable ground
 SIDEWAYS_DIG_COST_MULTIPLIER = 100
+
+# MST weights memoized per gold frozenset: the same gold subset recurs at many player
+# positions during a search, so this is hit constantly. Capped so a long batch of
+# levels can't grow it without bound.
+_MST_CACHE = {}
+_MST_CACHE_LIMIT = 200000
+
+
+def _mst_weight(points):
+    """Weight of a minimum spanning tree over points under the Manhattan metric (Prim's)."""
+    cached = _MST_CACHE.get(points)
+    if cached is not None:
+        return cached
+    pts = list(points)
+    n = len(pts)
+    total = 0
+    if n > 1:
+        best = [float('inf')] * n   # cheapest connection of each point to the tree
+        best[0] = 0
+        in_tree = [False] * n
+        for _ in range(n):
+            u = min((i for i in range(n) if not in_tree[i]), key=best.__getitem__)
+            in_tree[u] = True
+            total += best[u]
+            ux, uy = pts[u]
+            for v in range(n):
+                if not in_tree[v]:
+                    d = abs(ux - pts[v][0]) + abs(uy - pts[v][1])
+                    if d < best[v]:
+                        best[v] = d
+    if len(_MST_CACHE) >= _MST_CACHE_LIMIT:
+        _MST_CACHE.clear()
+    _MST_CACHE[points] = total
+    return total
 
 
 class LodeRunnerState:
@@ -38,12 +72,29 @@ class LodeRunnerState:
         return cls(level, gold, start[0], start[1], allowWeirdMoves)
 
     # Heuristic: Manhattan distance from the player to the farthest remaining gold.
+    # (MM-NEAT's heuristic; kept for reference, but mstToRemainingGold dominates it.)
     def manhattanToFarthestGold(self):
         maxDistance = 0
         for (px, py) in self.goldLeft:
             distance = abs(self.currentX - px) + abs(self.currentY - py)
             maxDistance = max(maxDistance, distance)
         return maxDistance
+
+    # Heuristic: minimum-spanning-tree weight of the remaining gold (Manhattan metric)
+    # plus the distance to the nearest remaining gold. Any path that collects every
+    # gold must walk from the player to some first gold (>= nearest distance) and then
+    # visit all the rest (its consecutive-visit distances form a spanning path of the
+    # gold, >= the MST weight). Every move covers at most 1 tile of Manhattan distance
+    # at cost >= 1, so this is admissible -- and far stronger than the farthest-gold
+    # bound, which is what made levels with many golds blow the search budget: states
+    # are (position, gold subset) pairs, and a weak heuristic lets A* churn through
+    # thousands of collection orders that an MST bound prunes immediately.
+    def mstToRemainingGold(self):
+        if not self.goldLeft:
+            return 0
+        nearest = min(abs(self.currentX - px) + abs(self.currentY - py)
+                      for (px, py) in self.goldLeft)
+        return nearest + _mst_weight(self.goldLeft)
 
     class LodeRunnerAction:
 
@@ -180,7 +231,12 @@ class LodeRunnerState:
                     newY += 1
                 else:
                     return None
-            
+            else:
+                # Standing on solid ground (or the bottom of the level): DOWN is not a
+                # legal move. Without this the action becomes a "no-op" that returns a
+                # state identical to its parent, flooding the frontier with duplicates.
+                return None
+
 
         # Collect any gold at the new position by removing it from the set
         newGoldLeft = frozenset(p for p in self.goldLeft if p != (newX, newY))
@@ -196,10 +252,14 @@ class LodeRunnerState:
 
     def get_successors(self):
         """List of (next_state, action, step_cost) reachable from current state"""
+        # Build successors directly rather than via getLegalActions, which would
+        # recompute every successor a second time.
         successors = []
-        for a in self.getLegalActions(self):
+        for move in self.LodeRunnerAction.MOVE:
+            a = self.LodeRunnerAction(move)
             successor = self.get_successor(a)
-            successors.append((successor, a, self.stepCost(a)))
+            if successor is not None:
+                successors.append((successor, a, self.stepCost(a)))
         return successors
 
     def getLegalActions(self, state):
@@ -227,6 +287,19 @@ class LodeRunnerState:
     def isGoal(self):
         """True once there is no gold left"""
         return len(self.goldLeft) == 0
+
+    # Dominance pruning hooks (see AStarSearch.search). Movement legality depends only
+    # on the level and the player's position -- never on the gold collected -- so a
+    # state at the same position holding a subset of the remaining gold can do
+    # everything this one can. Pruning the dominated state is what tames the
+    # (position x remaining-gold subsets) explosion in levels with many golds.
+    def dominance_key(self):
+        return (self.currentX, self.currentY)
+
+    def dominates(self, other):
+        """True if this state is at least as good as other (same position assumed):
+        everything other still has to collect, this state must collect too."""
+        return self.goldLeft <= other.goldLeft
 
     def stepCost(self, action):
         """Cost of taking the given action from this state (every move is one tile, except

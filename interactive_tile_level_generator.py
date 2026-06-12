@@ -771,13 +771,11 @@ Average Segment Score: {avg_segment_score}"""
             astar_button.pack(side=tk.LEFT, padx=5)
 
             # Add Simple A* button: toggles the path overlay drawn on the image itself.
-            # Disabled for Lode Runner, whose state space is too big for the simple search.
             simple_astar_button = ttk.Button(
                 button_frame,
                 text="Simple A*",
                 command=lambda idx=i: self.simple_astar(idx),
-                style="TButton",
-                state=tk.DISABLED if game_selected == "Lode Runner" else tk.NORMAL
+                style="TButton"
             )
             simple_astar_button.pack(side=tk.LEFT, padx=5)
 

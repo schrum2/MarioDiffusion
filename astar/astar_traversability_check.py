@@ -174,7 +174,7 @@ def lr_traversable(scene, id_to_char, descs, budget, allow_weird=False, visualiz
     if start.isGoal():                                # no gold present -> nothing to do
         return True, {"reached_goal": True, "path_length": 0, "expanded": 0,
                       "note": "no gold in scene"}, None
-    search = AStarSearch(LodeRunnerState.manhattanToFarthestGold)
+    search = AStarSearch(LodeRunnerState.mstToRemainingGold)
     info = (lambda sol: _path_info(start, sol, search)) if visualize else (lambda sol: None)
     try:
         solution = search.search(start, budget=budget)
