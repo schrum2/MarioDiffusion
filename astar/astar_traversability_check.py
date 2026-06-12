@@ -285,6 +285,23 @@ def evaluate(game, scene, id_to_char, descs, budget, allow_weird, visualize=Fals
     raise ValueError(f"Unknown game: {game}")
 
 
+def untraversable_indices(scenes, game, id_to_char, tile_descriptors,
+                          budget=100000, allow_weird=False):
+    """Return the sorted indices of the scenes that are NOT traversable.
+
+    Intended for filtering un-winnable level slices out of a generated dataset: feed it
+    the encoded scenes plus the same tileset mappings they were encoded with, and remove
+    the returned indices (in descending order) from the dataset. game is the
+    evaluate()-style name ("Mario", "LR", "MM")."""
+    bad = []
+    for idx, scene in enumerate(scenes):
+        ok, _stats, _info = evaluate(game, scene, id_to_char, tile_descriptors,
+                                     budget, allow_weird)
+        if not ok:
+            bad.append(idx)
+    return bad
+
+
 def _render_target(game, tileset_path):
     """Map a game (and tileset) to the name level_dataset.visualize_samples expects."""
     if game == "MM":
