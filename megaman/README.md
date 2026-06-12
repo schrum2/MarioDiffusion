@@ -33,3 +33,20 @@ Enter a level ID when prompted — it will download directly to your Mega Man Ma
 You can now use your generated MMLV files to play your desired level using this link: [Mega Man Maker](https://megamanmaker.com/).
 
 Ensure your MMLV file is in the Levels folder — this will ensure your level shows up in the "My Levels" section of Mega Man Maker.
+
+## Bulk level Uploader
+
+This allows you to upload a desired number of levels in bulk (default 100 levels) starting at ID 200,000:
+
+```
+cd megaman
+Bulk_Download.py
+```
+Additionally, to upload a desired number of levels use command:
+
+```
+cd megaman
+Bulk_Download.py --target 
+```
+
+Enter a level ID when prompted — it will download directly to your Mega Man Maker levels folder.
