@@ -6,13 +6,15 @@ each A* state file expects, then runs a search to decide whether the level is
 traversable.
 
 Here we map 2D arrays of integer tile IDs that index into a tileset's list of characters.
-Each character carries a list of descriptors (e.g. "solid", "passable", "ladder"). We map 
+Each character carries a list of descriptors (e.g. "solid", "passable", "ladder"). We map
 descriptors -> the integer encoding used by the corresponding MM-NEAT-derived state file.
+
+Pass --visualize to also draw each solved level's A* path (and explored cells) to a PNG,
+mirroring MM-NEAT's vizualizePath; the drawing itself lives in astar_path_visualization.py.
 """
 import argparse
 import json
 import os
-import re
 import sys
 
 # astar/ holds the state files; the repo root holds captions/ and util/.
@@ -22,13 +24,13 @@ for _p in (_HERE, _REPO_ROOT):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from captions.util import extract_tileset                            
-import util.common_settings as common_settings                       
-from AStarSearch import AStarSearch                                  
-from MarioState import MarioState                                    
-import LodeRunnerState as lr                                         
-from LodeRunnerState import LodeRunnerState                          
-import MegaManState as mm                                            
+from captions.util import extract_tileset
+import util.common_settings as common_settings
+from AStarSearch import AStarSearch
+from MarioState import MarioState, BUFFER_WIDTH
+import LodeRunnerState as lr
+from LodeRunnerState import LodeRunnerState
+import MegaManState as mm
 
 MegaManState = mm.MegaManState
 
@@ -78,7 +80,7 @@ def lr_tile(descs):
 def mm_tile(descs):
     """Descriptors -> MegaManState tile ids. Static hazards (spikes, fire pillars)
     stay deadly, but enemies are treated as passable empty (the agent is assumed to
-    deal with them). 'penetrable' solids (e.g. appearing blocks) are also passable."""
+    deal with them). 'penetrable' solids (e.g. appearing blocks) are also passable"""
     if "null" in descs:
         return mm.MEGA_MAN_TILE_NULL          # 9: out-of-bounds padding
     if "climbable" in descs:
@@ -109,126 +111,139 @@ def translate_scene(scene, id_to_char, tile_descriptors, tile_fn):
 # ---------------------------------------------------------------------------
 # Per-game traversability
 # ---------------------------------------------------------------------------
-def mario_traversable(scene, id_to_char, descs, budget):
+def _path_info(start, solution, search, x_offset=0, y_offset=0, goal=None):
+    """Bundle the bits the visualizer needs (replay start, path, explored cells).
+
+    goal: explicit (x, y) goal cell to mark even when unreachable (e.g. the placed MM
+    orb); None lets the visualizer mark the end of the drawn path instead."""
+    return {
+        "kind": "path",
+        "start": start,
+        "solution": solution,
+        "visited": search.get_visited(),
+        "x_offset": x_offset,
+        "y_offset": y_offset,
+        "goal": goal,
+    }
+
+
+def mario_traversable(scene, id_to_char, descs, budget, visualize=False):
     grid = translate_scene(scene, id_to_char, descs, mario_tile)
-    grid = MarioState.preProcessLevel(grid)          # buffer + floor
-    start = MarioState.from_level(grid)               # top-left, just above the floor
-    search = AStarSearch(MarioState.moveRight)
-    try:
-        solution = search.search(start, budget=budget)
-    except RuntimeError:
-        return False, {"reached_goal": False, "over_budget": True,
-                       "expanded": len(search.get_visited() or [])}
-    return solution is not None, {
-        "reached_goal": solution is not None,
-        "path_length": None if solution is None else len(solution),
-        "expanded": len(search.get_visited() or []),
-    }
+    grid = MarioState.preProcessLevel(grid)          # pipe/bullet fixes (also pads a buffer)
+    # Crop the padding back off so the agent is confined to the actual scene: it must not
+    width = len(scene[0])
+    grid = [row[BUFFER_WIDTH:BUFFER_WIDTH + width] for row in grid]
+    height = len(grid)
 
-
-def lr_traversable(scene, id_to_char, descs, budget, allow_weird=False):
-    grid = translate_scene(scene, id_to_char, descs, lr_tile)
-    start = LodeRunnerState.from_level(grid, allowWeirdMoves=allow_weird)
-    if start.isGoal():                                # no gold present -> nothing to do
-        return True, {"reached_goal": True, "path_length": 0, "expanded": 0,
-                      "note": "no gold in scene"}
-    search = AStarSearch(LodeRunnerState.manhattanToFarthestGold)
-    try:
-        solution = search.search(start, budget=budget)
-    except RuntimeError:
-        return False, {"reached_goal": False, "over_budget": True,
-                       "expanded": len(search.get_visited() or [])}
-    return solution is not None, {
-        "reached_goal": solution is not None,
-        "path_length": None if solution is None else len(solution),
-        "expanded": len(search.get_visited() or []),
-    }
-
-
-_DIR_TO_EDGE = {  # direction word -> (axis, which end)
-    "left": ("x", "min"), "right": ("x", "max"),
-    "up": ("y", "min"), "down": ("y", "max"),
-}
-
-
-def parse_directions(caption):
-    """Pull entrance/exit directions out of an MM caption; default left -> right."""
-    entrance, exit_ = "left", "right"
-    if caption:
-        m = re.search(r"entrance direction (\w+)", caption)
-        if m:
-            entrance = m.group(1)
-        m = re.search(r"exit direction (\w+)", caption)
-        if m:
-            exit_ = m.group(1)
-    return entrance, exit_
-
-
-def _edge_cells(height, width, direction):
-    """Yield (x, y) cells along the edge a direction points to."""
-    axis, end = _DIR_TO_EDGE[direction]
-    if axis == "x":
-        x = 0 if end == "min" else width - 1
-        return [(x, y) for y in range(height)]
-    y = 0 if end == "min" else height - 1
-    return [(x, y) for x in range(width)]
-
-
-def _edge_target(height, width, direction):
-    """The x (or y) coordinate of the edge a direction points to, plus its axis."""
-    axis, end = _DIR_TO_EDGE[direction]
-    if axis == "x":
-        return "x", (0 if end == "min" else width - 1)
-    return "y", (0 if end == "min" else height - 1)
-
-
-def mm_traversable(scene, caption, id_to_char, descs, budget):
-    grid = translate_scene(scene, id_to_char, descs, mm_tile)
-    height, width = len(grid), len(grid[0])
-    entrance, exit_ = parse_directions(caption)
-
-    # A scanner instance just to reuse passable()/inBounds()
-    scanner = MegaManState(grid, 0, 0, (-1, -1), 0, 0)
-    starts = [
-        MegaManState(grid, x, y, (-1, -1), 0, 0)
-        for (x, y) in _edge_cells(height, width, entrance)
-        if scanner.passable(x, y)
-    ]
+    # Multi-start: Mario enters from the left edge (scanned from ground -> sky). A cell is only a valid start if he can stand on it
+    # If the left edge has no standable cell at all, fall back to the default bottom-left spawn which probably means mario will fall in the void :^( 
+    scanner = MarioState(grid, 0, 0, 0)
+    def standable(y):
+        return (scanner.passable(0, y)
+                and scanner.inBounds(0, y + 1)
+                and not scanner.passable(0, y + 1))
+    starts = [MarioState(grid, 0, 0, y) for y in reversed(range(height)) if standable(y)]
     if not starts:
-        return False, {"reached_goal": False, "expanded": 0,
-                       "note": f"no passable cells on {entrance} entrance edge"}
+        starts = [MarioState.from_level(grid)]   # default Mario spawn: bottom-left
 
-    # Goal: any cell on the exit edge. Heuristic: axis distance to that edge (admissible).
-    axis, target = _edge_target(height, width, exit_)
-    on_exit_edge = (lambda s: s.x == target) if axis == "x" else (lambda s: s.y == target)
-    heuristic = (lambda s: abs(s.x - target)) if axis == "x" else (lambda s: abs(s.y - target))
-
-    # Multi-source: any passable entrance-edge cell could be the true entry point. Run
-    # A* from each, sharing one visited set (reset only on the first) so later searches
-    # skip already-explored states -- together that's edge-to-edge reachability.
-    search = AStarSearch(heuristic)
+    search = AStarSearch(MarioState.moveRight)
     reached = over_budget = False
+    solution = None
+    winning_start = starts[0]
     for i, start in enumerate(starts):
         try:
-            solution = search.search(start, reset=(i == 0), budget=budget, is_goal=on_exit_edge)
+            sol = search.search(start, reset=(i == 0), budget=budget)
         except RuntimeError:
             over_budget = True
             break
-        if solution is not None:
-            reached = True
+        if sol is not None:
+            reached, solution, winning_start = True, sol, start
             break
 
-    stats = {"reached_goal": reached, "expanded": len(search.get_visited() or []),
-             "entrance": entrance, "exit": exit_}
+    stats = {"reached_goal": reached,
+             "path_length": None if solution is None else len(solution),
+             "expanded": len(search.get_visited() or [])}
     if over_budget:
         stats["over_budget"] = True
-    # Known limitation: MegaManState treats open space below as a lethal pit, so an
-    # agent seeded on the bottom row (a "down" entrance) cannot move. Vertical
-    # corridors also often only make sense with adjacent screens, so down/up results
-    # on isolated slices are approximate.
-    if "down" in (entrance, exit_) or "up" in (entrance, exit_):
-        stats["note"] = "vertical corridor: approximate on isolated slices"
-    return reached, stats
+    info = _path_info(winning_start, solution if reached else None, search) if visualize else None
+    return reached, stats, info
+
+
+def lr_traversable(scene, id_to_char, descs, budget, allow_weird=False, visualize=False):
+    """Traversable iff every gold is reachable from the spawn.
+
+    Collecting gold never changes the level, so movement legality depends only on the
+    player's position (never on which gold has been picked up). That makes each gold's
+    reachability independent of collection order; a single BFS from the spawn
+    over position space settles every piece of gold at once"""
+    grid = translate_scene(scene, id_to_char, descs, lr_tile)
+    start = LodeRunnerState.from_level(grid, allowWeirdMoves=allow_weird)
+    golds = start.goldLeft
+    if not golds: # no gold present -> nothing to do
+        return True, {"reached_goal": True, "gold_total": 0, "gold_reachable": 0,
+                      "expanded": 0, "note": "no gold in scene"}, None
+
+    parent = start.reachable_tree()                   # BFS spanning tree over reachable cells
+    reachable_golds = frozenset(g for g in golds if g in parent)
+    reached = reachable_golds == golds
+
+    # Union of the BFS tree branches from the spawn to each reachable gold
+    edges = set()
+    for g in reachable_golds:
+        node = g
+        while parent[node] is not None:
+            edges.add((parent[node], node))
+            node = parent[node]
+
+    stats = {"reached_goal": reached,
+             "gold_total": len(golds),
+             "gold_reachable": len(reachable_golds),
+             "expanded": len(parent)}
+    info = None
+    if visualize:
+        info = {"kind": "tree",
+                "start": (start.currentX, start.currentY),
+                "edges": edges,
+                "golds": list(golds),
+                "reachable_golds": reachable_golds,
+                "visited": list(parent.keys()),     # the full reachable region
+                "x_offset": 0, "y_offset": 0}
+    return reached, stats, info
+
+
+
+def mm_traversable(scene, id_to_char, descs, budget, visualize=False):
+    """Traversability via the MM-NEAT orb model: algorithmically drop a spawn (left, low)
+    and an orb (right) into the scene, then run a single A* from the spawn to the orb.
+    Replaces the old caption-driven entrance/exit edge search."""
+    grid = translate_scene(scene, id_to_char, descs, mm_tile)
+
+    # Place spawn + orb in the grid (forcing a carved pedestal if no natural ledge exists);
+    # from_level then reads them back out as the start position and the heuristic's goal.
+    scanner = MegaManState(grid, 0, 0, (-1, -1), 0, 0)
+    if not scanner.placeSpawn():
+        scanner.forceSpawn()
+    if not scanner.addOrb():
+        scanner.forceOrb()
+
+    start = MegaManState.from_level(grid)        # picks up the placed spawn(8) + orb(7)
+    if start.x < 0 or start.orb == (-1, -1):
+        return False, {"reached_goal": False, "expanded": 0,
+                       "note": "could not place spawn/orb"}, None
+
+    search = AStarSearch(MegaManState.orb_heuristic)   # single source, goal = reach the orb
+    try:
+        solution = search.search(start, budget=budget)
+    except RuntimeError:
+        return False, {"reached_goal": False, "over_budget": True,
+                       "expanded": len(search.get_visited() or [])}, \
+               (_path_info(start, None, search, goal=start.orb) if visualize else None)
+    reached = solution is not None
+    stats = {"reached_goal": reached,
+             "path_length": None if solution is None else len(solution),
+             "expanded": len(search.get_visited() or [])}
+    info = _path_info(start, solution, search, goal=start.orb) if visualize else None
+    return reached, stats, info
 
 
 # ---------------------------------------------------------------------------
@@ -257,14 +272,50 @@ def load_levels(path):
     raise ValueError("Unsupported JSON structure for a level file")
 
 
-def evaluate(game, scene, caption, id_to_char, descs, budget, allow_weird):
+def evaluate(game, scene, id_to_char, descs, budget, allow_weird, visualize=False):
+    """Return (traversable, stats, path_info). path_info is None unless visualize=True
+    (or the game short-circuits, e.g. an LR scene with no gold)."""
     if game == "Mario":
-        return mario_traversable(scene, id_to_char, descs, budget)
+        return mario_traversable(scene, id_to_char, descs, budget, visualize=visualize)
     if game == "LR":
-        return lr_traversable(scene, id_to_char, descs, budget, allow_weird=allow_weird)
+        return lr_traversable(scene, id_to_char, descs, budget,
+                              allow_weird=allow_weird, visualize=visualize)
     if game == "MM":
-        return mm_traversable(scene, caption, id_to_char, descs, budget)
+        return mm_traversable(scene, id_to_char, descs, budget, visualize=visualize)
     raise ValueError(f"Unknown game: {game}")
+
+
+def _render_target(game, tileset_path):
+    """Map a game (and tileset) to the name level_dataset.visualize_samples expects."""
+    if game == "MM":
+        full = os.path.basename(common_settings.MM_FULL_TILESET)
+        return "MM-Full" if os.path.basename(tileset_path) == full else "MM-Simple"
+    return game  # "Mario" / "LR"
+
+
+# Render-style game names (as used by run_diffusion and the GUIs) -> the game names
+# evaluate() understands. The render name itself doubles as visualize_path's target.
+RENDER_GAME_TO_TRAV = {"Mario": "Mario", "LR": "LR",
+                       "MM-Simple": "MM", "MM-Full": "MM"}
+
+
+def astar_path_image(scene, game, id_to_char, tile_descriptors, budget=100000,
+                     allow_weird_lr=False, show_visited=True):
+    """Run A* on a single scene and return (image, traversable, stats).
+
+    game is the render-style name ("Mario", "LR", "MM-Simple", "MM-Full"). image is a
+    PIL image of the scene with the path overlaid, or None when there is nothing to
+    draw (e.g. an LR scene with no gold)."""
+    trav_game = RENDER_GAME_TO_TRAV.get(game)
+    if trav_game is None:
+        raise ValueError(f"Unknown game {game!r}; expected one of {sorted(RENDER_GAME_TO_TRAV)}")
+    ok, stats, info = evaluate(trav_game, scene, id_to_char, tile_descriptors,
+                               budget, allow_weird_lr, visualize=True)
+    if info is None:
+        return None, ok, stats
+    from astar_path_visualization import render_info
+    img = render_info(scene, game, info, show_visited=show_visited)
+    return img, ok, stats
 
 
 def main():
@@ -281,6 +332,12 @@ def main():
                         help="LodeRunner only: allow moving sideways through diggable ground")
     parser.add_argument('--limit', type=int, default=None,
                         help="Only evaluate the first N levels in the file")
+    parser.add_argument('--visualize', action='store_true',
+                        help="Draw the A* solution path over each level and save a PNG")
+    parser.add_argument('--image_dir', type=str, default="astar_path_images",
+                        help="Directory to write path visualizations into (with --visualize)")
+    parser.add_argument('--hide_visited', action='store_true',
+                        help="Omit the faint marks for explored (visited) states in the images")
     args = parser.parse_args()
 
     tileset_path = args.tileset or DEFAULT_TILESETS[args.game]
@@ -295,18 +352,40 @@ def main():
         print("No levels found in file.")
         return
 
+    render_info = None
+    if args.visualize:
+        from astar_path_visualization import render_info
+        os.makedirs(args.image_dir, exist_ok=True)
+    game_render = _render_target(args.game, tileset_path)
+
     traversable_count = 0
-    for idx, (scene, caption) in enumerate(levels):
-        ok, stats = evaluate(args.game, scene, caption, id_to_char, tile_descriptors,
-                             args.budget, args.allow_weird_lr)
+    untraversable_scenes = [] # stores indexes of untraversable scenes to be returned later, used for filtering weird/untraversable level slices from training sets
+    for idx, (scene, _caption) in enumerate(levels):
+        ok, stats, path_info = evaluate(args.game, scene, id_to_char, tile_descriptors,
+                                        args.budget, args.allow_weird_lr, visualize=args.visualize)
         traversable_count += int(ok)
+        
+        if not ok:
+            untraversable_scenes.append(idx)
+
         verdict = "TRAVERSABLE" if ok else "NOT traversable"
         detail = ", ".join(f"{k}={v}" for k, v in stats.items())
         print(f"[{idx}] {verdict}  ({detail})")
 
+        if args.visualize and path_info is not None:
+            img = render_info(scene, game_render, path_info,
+                              show_visited=not args.hide_visited)
+            tag = "solved" if ok else "unsolved"
+            out_path = os.path.join(args.image_dir, f"level_{idx:04d}_{tag}.png")
+            img.save(out_path)
+            print(f"      path image -> {out_path}")
+
     total = len(levels)
     print(f"\n{args.game}: {traversable_count}/{total} traversable "
           f"({100.0 * traversable_count / total:.1f}%)")
+    
+    return untraversable_scenes
+
 
 
 if __name__ == "__main__":

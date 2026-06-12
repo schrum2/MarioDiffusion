@@ -43,6 +43,8 @@ class TileViewer(tk.Tk):
         self.show_ids = tk.BooleanVar(value=False)
         #self.describe_locations = tk.BooleanVar(value=False)
         self.describe_absence = tk.BooleanVar(value=False)
+        self.show_images = False        # image view vs numeric/character grid
+        self.show_astar_path = False    # overlay the A* path on the image view
 
         # UI
         self.create_widgets()
@@ -157,6 +159,47 @@ class TileViewer(tk.Tk):
         self.show_images = not getattr(self, 'show_images', False)
         self.redraw()
 
+    def toggle_astar_path(self):
+        """Toggle the A* path overlay on the current level. The overlay only makes sense
+        on the image view, so turning it on forces image mode"""
+        self.show_astar_path = not getattr(self, 'show_astar_path', False)
+        if self.show_astar_path:
+            self.show_images = True
+        self.redraw()
+
+    def _astar_overlay_image(self, scene):
+        """
+        Render scene with its A* path and explored cells 
+        Returns a PIL image, or None if the path can't be produced
+        """
+        astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+        if astar_dir not in sys.path:
+            sys.path.insert(0, astar_dir)
+        try:
+            from astar_traversability_check import evaluate
+            from astar_path_visualization import render_info
+        except Exception as e:
+            print(f"Could not import A* path tools: {e}")
+            return None
+
+        game = self.game.get()   # "Mario" / "LR" / "MM-Simple" / "MM-Full"
+        trav_game = {"Mario": "Mario", "LR": "LR",
+                     "MM-Simple": "MM", "MM-Full": "MM"}.get(game)
+        if trav_game is None:
+            return None
+        try:
+            ok, stats, info = evaluate(trav_game, scene, self.id_to_char,
+                                       self.tile_descriptors, 100000, False, visualize=True)
+        except Exception as e:
+            print(f"A* path failed for this scene: {e}")
+            return None
+        if info is None:                 # e.g. an LR scene with no gold
+            print("No A* path to draw for this scene.")
+            return None
+        print(f"A* path: {'traversable' if ok else 'NOT traversable'}  ({stats})")
+        # game doubles as the render-target name render_info expects.
+        return render_info(scene, game, info)
+
     def create_widgets(self):
         frame = tk.Frame(self)
         frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
@@ -188,6 +231,9 @@ class TileViewer(tk.Tk):
 
         toggle_view_button = tk.Button(checkbox_frame, text="Toggle View Mode", command=self.toggle_view_mode)
         toggle_view_button.pack(side=tk.LEFT, padx=5)
+
+        toggle_astar_button = tk.Button(checkbox_frame, text="Toggle A* Path", command=self.toggle_astar_path)
+        toggle_astar_button.pack(side=tk.LEFT, padx=5)
 
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
@@ -552,23 +598,30 @@ class TileViewer(tk.Tk):
             import PIL.ImageTk
             from PIL import Image
 
-            #Get the right size for the one-hot encoding
-            if self.game.get()=="Mario":
-                num_classes = common_settings.MARIO_TILE_COUNT
-            elif self.game.get()=="LR":
-                num_classes = common_settings.LR_TILE_COUNT
-            elif self.game.get()=="MM-Simple":
-                num_classes = common_settings.MM_SIMPLE_TILE_COUNT
-            else: #Goes to MM-Full if all other cases fail
-                num_classes = common_settings.MM_FULL_TILE_COUNT
-            
-            
-            one_hot_scene = torch.nn.functional.one_hot(
-                torch.tensor(sample['scene'], dtype=torch.long),
-                num_classes=num_classes
-            ).float().permute(2, 0, 1).unsqueeze(0)  # Add batch dimension
+            # With the A* overlay on, render the path-annotated image instead of the plain
+            # one; fall back to the plain render if the path can't be produced.
+            image = None
+            if getattr(self, 'show_astar_path', False):
+                image = self._astar_overlay_image(sample['scene'])
 
-            image = visualize_samples(one_hot_scene, game=self.game.get())
+            if image is None:
+                #Get the right size for the one-hot encoding
+                if self.game.get()=="Mario":
+                    num_classes = common_settings.MARIO_TILE_COUNT
+                elif self.game.get()=="LR":
+                    num_classes = common_settings.LR_TILE_COUNT
+                elif self.game.get()=="MM-Simple":
+                    num_classes = common_settings.MM_SIMPLE_TILE_COUNT
+                else: #Goes to MM-Full if all other cases fail
+                    num_classes = common_settings.MM_FULL_TILE_COUNT
+
+
+                one_hot_scene = torch.nn.functional.one_hot(
+                    torch.tensor(sample['scene'], dtype=torch.long),
+                    num_classes=num_classes
+                ).float().permute(2, 0, 1).unsqueeze(0)  # Add batch dimension
+
+                image = visualize_samples(one_hot_scene, game=self.game.get())
             if isinstance(image, list):
                 image = image[0]  # Handle list case by taking the first element
             # Convert to PIL Image if needed

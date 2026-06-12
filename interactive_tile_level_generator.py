@@ -762,13 +762,22 @@ Average Segment Score: {avg_segment_score}"""
     
             # Add Use A* button
             astar_button = ttk.Button(
-                button_frame, 
-                text="Use A*", 
+                button_frame,
+                text="Use A*",
                 command=lambda idx=i: self.use_astar(idx),
                 style="TButton",
                 state=tk.NORMAL if is_mario else tk.DISABLED
             )
             astar_button.pack(side=tk.LEFT, padx=5)
+
+            # Add Simple A* button: toggles the path overlay drawn on the image itself.
+            simple_astar_button = ttk.Button(
+                button_frame,
+                text="Simple A*",
+                command=lambda idx=i: self.simple_astar(idx),
+                style="TButton"
+            )
+            simple_astar_button.pack(side=tk.LEFT, padx=5)
 
             # Add "Add To Level" button
             add_button = ttk.Button(
@@ -1104,10 +1113,57 @@ Average Segment Score: {avg_segment_score}"""
 
     def _refresh_generated_image(self, idx):
         refs = self.generated_widget_refs[idx]
+        refs["astar_overlay_shown"] = False  # showing the plain render again
         pil_img = self.generated_images[idx]
         tk_img = ImageTk.PhotoImage(pil_img)
         refs["image_label"].config(image=tk_img)
         refs["image_label"].image = tk_img
+
+    def simple_astar(self, idx):
+        """Toggle the A* path overlay on a generated image (Simple A* button)."""
+        refs = self.generated_widget_refs[idx]
+        if refs.get("astar_overlay_shown"):
+            self._refresh_generated_image(idx)  # back to the plain render
+            return
+        overlay = self._astar_overlay_image(self.generated_scenes[idx])
+        if overlay is None:
+            return
+        refs["astar_overlay_shown"] = True
+        tk_img = ImageTk.PhotoImage(overlay)
+        refs["image_label"].config(image=tk_img)
+        refs["image_label"].image = tk_img
+
+    def _astar_overlay_image(self, scene):
+        """Render scene with its A* path and explored cells.
+        Returns a PIL image, or None if the path can't be produced."""
+        astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+        if astar_dir not in sys.path:
+            sys.path.insert(0, astar_dir)
+        try:
+            from astar_traversability_check import astar_path_image
+        except Exception as e:
+            print(f"Could not import A* path tools: {e}")
+            return None
+
+        game_name = {
+            "Mario": "Mario",
+            "Lode Runner": "LR",
+            "Mega Man (Simple)": "MM-Simple",
+            "Mega Man (Full)": "MM-Full",
+        }.get(self.game_var.get())
+        if game_name is None:
+            return None
+        try:
+            img, solved, stats = astar_path_image(scene, game_name,
+                                                  self.id_to_char, self.tile_descriptors)
+        except Exception as e:
+            print(f"A* path failed for this scene: {e}")
+            return None
+        if img is None:
+            print("No A* path to draw for this scene.")
+            return None
+        print(f"A* path: {'traversable' if solved else 'NOT traversable'}  ({stats})")
+        return img
 
     def use_astar(self, idx):
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())

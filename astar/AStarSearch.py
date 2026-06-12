@@ -8,6 +8,7 @@ class GraphSearch:
 
     def __init__(self):
         self.visited = None
+        self.expanded_by_key = None   # dominance buckets (see search)
 
     def search(self, start, reset=True, budget=None, continue_after_success=False, is_goal=None):
         """Return the list of actions from start to a goal, or None if unreachable
@@ -29,6 +30,17 @@ class GraphSearch:
 
         if reset:
             self.visited = set()
+            self.expanded_by_key = {}
+
+        # States may opt into dominance pruning by defining dominance_key() and
+        # dominates() (e.g. LodeRunnerState: same position, remaining gold a subset).
+        # A popped state dominated by an already-expanded state is skipped, because
+        # everything reachable from it is also reachable from the dominator. This
+        # collapses state-space blowups like (position x remaining-gold subsets);
+        # solutions stay valid, but are no longer guaranteed to be shortest.
+        use_dominance = hasattr(start, "dominance_key") and hasattr(start, "dominates")
+        if use_dominance and self.expanded_by_key is None:
+            self.expanded_by_key = {}
 
         count = 0
         found = False
@@ -41,6 +53,14 @@ class GraphSearch:
                 solution = actions           # first goal popped is optimal (admissible h)
                 found = True
             elif state not in self.visited:
+                if use_dominance:
+                    bucket = self.expanded_by_key.setdefault(state.dominance_key(), [])
+                    if any(d.dominates(state) for d in bucket):
+                        continue
+                    # Dominance is transitive, so entries the new state dominates are
+                    # redundant; dropping them keeps the buckets small.
+                    bucket[:] = [d for d in bucket if not state.dominates(d)]
+                    bucket.append(state)
                 count += 1
                 if budget is not None and count > budget:
                     raise RuntimeError(f"A* exceeded computation budget: {budget}")

@@ -124,6 +124,12 @@ python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.j
 ```
 For the full tileset, swap `MM-Simple` with `MM-Full` and point to the appropriate model and tileset.
 
+## Mega Man Maker
+
+This is the link to learn more about Mega Man Maker:
+
+[Mega Man Maker](https://github.com/schrum2/MarioDiffusion/tree/dev_alaaAlmzayen/megaman)
+
 
 ## Train and generate levels from unconditional model with block2vec tile embedding model (experimental)
 
@@ -132,7 +138,7 @@ By default, unconditional diffusion models represent each tile as a one-hot vect
 To train and run an unconditional model with tile embeddings, you can run this batch file
 and opt to include an argument for the size of the latent embedding space by including an integer for the number of embedding dimensions (default 16)
 ```
-MM_batch\MM_unconditional-embedding.bat (embedding_dims)
+MM_batch\MM_unconditional-embedding.bat {embedding_dims}
 ```
 
 You can gain more control in the process and train a tile embedding model from 3x3 tile samples:
@@ -140,14 +146,41 @@ You can gain more control in the process and train a tile embedding model from 3
 python create_tile_level_json_data.py --tileset datasets\MM_Simple_Tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM_VGLC_to_Simple.json
 
 python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
-
 ```
 Training diffusion model with block2vec tile embeddings instead of one-hot encoding
 ``` 
 python train_diffusion.py  --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0 
-
 ```
 Generating levels
 ``` 
 python run_diffusion.py --model_path --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_samples 100 --save_as_json --output_dir "Mar1and2-unconditional-block2vec-samples" --game MM-Simple 
+```
+
+##
+
+Additionally, you can train a conditional model with block2vec tile embeddings by running this batch file:
+```
+cd batch
+MM_conditional-embeddings.bat {embedding dims}
+```
+If you would like more control in the process, you can follow these steps:
+```
+
+python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --group_encodings
+
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset datasets\MM_Simple_Tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
+
+python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
+
+python create_random_test_captions.py --save_file datasets\MM_RandomTest_simple-regular.json --json datasets\MM_LevelsAndCaptions-simple-regular.json --seed 0 --game MM-Simple
+
+python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --train_pct .9 --val_pct .05 --test_pct .05 --seed 0 --game mm-simple
+
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple0 --seed 0
+
+python create_tile_level_json_data.py --tileset datasets\MM_Simple_Tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM_VGLC_to_Simple.json
+
+python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
+
+python train_diffusion.py --text_conditional --mlm_model_dir MM-MLM-simple0 --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0
 ```

@@ -98,10 +98,11 @@ class MegaManState:
         jumping = False
         sliding = False
         assert self.inBounds(new_x, new_y)
-        
-        if not self.inBounds(self.x, self.y + 1):
+
+        # Falling off the bottom of the screen (into a gap) is deat EXCEPT when standing on a ladder
+        if not self.inBounds(self.x, self.y + 1) and self.tileAtPosition(self.x, self.y) != MEGA_MAN_TILE_LADDER:
             return None
-        
+
         if ((self.inBounds(new_x, new_y - 1) or (new_y - 1 >= 0 and self.tileAtPosition(new_x, new_y - 1) == MEGA_MAN_TILE_HAZARD)) and self.inBounds(new_x, new_y + 1) and (not self.passable(new_x - 1, new_y + 1) or not self.passable(new_x + 1, new_y + 1)) and (not self.passable(new_x, new_y - 1) or self.tileAtPosition(new_x, new_y - 1) == MEGA_MAN_TILE_LADDER) and self.tileAtPosition(new_x, new_y) != MEGA_MAN_TILE_LADDER):
             sliding = True
 
@@ -165,9 +166,11 @@ class MegaManState:
             elif self.y == new_y:
                 return None
             
-        # up movement (ladder)
+        # up movement (ladder). Head clearance (passable two above) is normally required
+        # because Mega Man is two tiles tall, but climbing up off the top of the screen is how you exit upward 
         if action.getMOVE() == self.MegaManAction.MOVE.UP:
-            if not sliding and self.inBounds(new_x, new_y - 1) and self.passable(new_x, new_y - 1) and self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER and self.passable(new_x, new_y - 2):
+            head_clear = self.passable(new_x, new_y - 2) or self.offScreen(new_x, new_y - 2)
+            if not sliding and self.inBounds(new_x, new_y - 1) and self.passable(new_x, new_y - 1) and self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER and head_clear:
                 new_y -= 1
             else:
                 return None
@@ -203,6 +206,72 @@ class MegaManState:
         else: 
             return False
     
+
+    def addOrb(self):
+        """
+        Scans the level for a suitable orb placement for the heuristic to target when no orb is present
+        
+        Necessary for level snippets/scenes that don't naturally contain an orb
+        """
+        for x in range(len(self.level[0])-1, -1, -1): # start from the right
+            for y in range(len(self.level)): # start from the top
+                curr_tile = self.level[y][x]
+                tile_above = self.level[y-1][x]
+                if (y - 2 >= 0  and self.level[y-2][x] != MEGA_MAN_TILE_NULL 
+                                and (curr_tile == MEGA_MAN_TILE_LADDER or 
+                                    curr_tile == MEGA_MAN_TILE_GROUND or 
+                                    curr_tile == MEGA_MAN_TILE_MOVING_PLATFORM)
+                                and (tile_above == MEGA_MAN_TILE_EMPTY or
+                                     tile_above == MEGA_MAN_TILE_WATER)):
+                    self.level[y-1][x] = MEGA_MAN_TILE_ORB
+                    self.level[y-2][x] = MEGA_MAN_TILE_EMPTY
+                    return True
+
+        return False # suitable orb location not found
+    
+
+    def forceOrb(self):
+        """Fallback when addOrb finds no natural ledge: scan right to left, top to bottom
+        to the first non-null cell and insert orb there."""
+
+        for x in range(len(self.level[0]) - 1, -1, -1): # right to left
+            for y in range(len(self.level) - 1, 1, -1):  # bottom to top (y-2 >= 0)
+                if self.level[y][x] != MEGA_MAN_TILE_NULL:
+                    self.level[y][x]     = MEGA_MAN_TILE_GROUND
+                    self.level[y - 1][x] = MEGA_MAN_TILE_ORB
+                    self.level[y - 2][x] = MEGA_MAN_TILE_EMPTY
+                    return True
+        return False  # no non-null cell with headroom found
+
+    def placeSpawn(self):
+        """Same standable-ledge logic as addOrb, but scans left to right/bottom to top"""
+
+        for x in range(len(self.level[0])):              # left to right
+            for y in range(len(self.level) - 1, -1, -1): # bottom to top
+                curr_tile = self.level[y][x]
+                tile_above = self.level[y - 1][x]
+                if (y - 2 >= 0 and self.level[y - 2][x] != MEGA_MAN_TILE_NULL
+                              and (curr_tile == MEGA_MAN_TILE_LADDER or
+                                   curr_tile == MEGA_MAN_TILE_GROUND or
+                                   curr_tile == MEGA_MAN_TILE_MOVING_PLATFORM)
+                              and (tile_above == MEGA_MAN_TILE_EMPTY or
+                                   tile_above == MEGA_MAN_TILE_WATER)):
+                    self.level[y - 1][x] = MEGA_MAN_TILE_SPAWN
+                    self.level[y - 2][x] = MEGA_MAN_TILE_EMPTY
+                    return True
+        return False  # suitable spawn location not found
+
+    def forceSpawn(self):
+        """same idea as forceOrb, but scans left to right """
+        
+        for x in range(len(self.level[0])): # left to right
+            for y in range(len(self.level) - 1, 1, -1):  # bottom to top (y-2 >= 0)
+                if self.level[y][x] != MEGA_MAN_TILE_NULL:
+                    self.level[y][x]     = MEGA_MAN_TILE_GROUND
+                    self.level[y - 1][x] = MEGA_MAN_TILE_SPAWN
+                    self.level[y - 2][x] = MEGA_MAN_TILE_EMPTY
+                    return True
+        return False  # no non-null cell with headroom found
 
     def getSpawnFromVGLC(self):
         """Find the spawn tile, replace it with empty space, and return it as (x, y).
@@ -264,7 +333,12 @@ class MegaManState:
     
     def inBounds(self, x, y):
         return x >= 0 and y >= 0 and y < len(self.level) and x < len(self.level[y]) and self.level[y][x] != ONE_ENEMY_NULL  and self.noHazardBeneath(x, y)
-    
+
+    def offScreen(self, x, y):
+        """True if (x, y) is outside the playable area: off the grid, or NULL padding."""
+        return (y < 0 or x < 0 or y >= len(self.level) or x >= len(self.level[y])
+                or self.level[y][x] == ONE_ENEMY_NULL)
+
     def tileAtPosition(self, x, y):
         return self.level[y][x]
     
