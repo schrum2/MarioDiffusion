@@ -177,7 +177,7 @@ class TileViewer(tk.Tk):
             sys.path.insert(0, astar_dir)
         try:
             from astar_traversability_check import evaluate
-            from astar_path_visualization import visualize_path
+            from astar_path_visualization import render_info
         except Exception as e:
             print(f"Could not import A* path tools: {e}")
             return None
@@ -197,10 +197,8 @@ class TileViewer(tk.Tk):
             print("No A* path to draw for this scene.")
             return None
         print(f"A* path: {'traversable' if ok else 'NOT traversable'}  ({stats})")
-        # game doubles as the render-target name visualize_path expects.
-        return visualize_path(scene, game, info["start"], info["solution"],
-                              visited=info["visited"], x_offset=info["x_offset"],
-                              y_offset=info["y_offset"], goal=info.get("goal"))
+        # game doubles as the render-target name render_info expects.
+        return render_info(scene, game, info)
 
     def create_widgets(self):
         frame = tk.Frame(self)

@@ -117,6 +117,7 @@ def _path_info(start, solution, search, x_offset=0, y_offset=0, goal=None):
     goal: explicit (x, y) goal cell to mark even when unreachable (e.g. the placed MM
     orb); None lets the visualizer mark the end of the drawn path instead."""
     return {
+        "kind": "path",
         "start": start,
         "solution": solution,
         "visited": search.get_visited(),
@@ -169,23 +170,45 @@ def mario_traversable(scene, id_to_char, descs, budget, visualize=False):
 
 
 def lr_traversable(scene, id_to_char, descs, budget, allow_weird=False, visualize=False):
+    """Traversable iff every gold is reachable from the spawn.
+
+    Collecting gold never changes the level, so movement legality depends only on the
+    player's position (never on which gold has been picked up). That makes each gold's
+    reachability independent of collection order; a single BFS from the spawn
+    over position space settles every piece of gold at once"""
     grid = translate_scene(scene, id_to_char, descs, lr_tile)
     start = LodeRunnerState.from_level(grid, allowWeirdMoves=allow_weird)
-    if start.isGoal():                                # no gold present -> nothing to do
-        return True, {"reached_goal": True, "path_length": 0, "expanded": 0,
-                      "note": "no gold in scene"}, None
-    search = AStarSearch(LodeRunnerState.mstToRemainingGold)
-    info = (lambda sol: _path_info(start, sol, search)) if visualize else (lambda sol: None)
-    try:
-        solution = search.search(start, budget=budget)
-    except RuntimeError:
-        return False, {"reached_goal": False, "over_budget": True,
-                       "expanded": len(search.get_visited() or [])}, info(None)
-    return solution is not None, {
-        "reached_goal": solution is not None,
-        "path_length": None if solution is None else len(solution),
-        "expanded": len(search.get_visited() or []),
-    }, info(solution)
+    golds = start.goldLeft
+    if not golds: # no gold present -> nothing to do
+        return True, {"reached_goal": True, "gold_total": 0, "gold_reachable": 0,
+                      "expanded": 0, "note": "no gold in scene"}, None
+
+    parent = start.reachable_tree()                   # BFS spanning tree over reachable cells
+    reachable_golds = frozenset(g for g in golds if g in parent)
+    reached = reachable_golds == golds
+
+    # Union of the BFS tree branches from the spawn to each reachable gold
+    edges = set()
+    for g in reachable_golds:
+        node = g
+        while parent[node] is not None:
+            edges.add((parent[node], node))
+            node = parent[node]
+
+    stats = {"reached_goal": reached,
+             "gold_total": len(golds),
+             "gold_reachable": len(reachable_golds),
+             "expanded": len(parent)}
+    info = None
+    if visualize:
+        info = {"kind": "tree",
+                "start": (start.currentX, start.currentY),
+                "edges": edges,
+                "golds": list(golds),
+                "reachable_golds": reachable_golds,
+                "visited": list(parent.keys()),     # the full reachable region
+                "x_offset": 0, "y_offset": 0}
+    return reached, stats, info
 
 
 
@@ -290,11 +313,8 @@ def astar_path_image(scene, game, id_to_char, tile_descriptors, budget=100000,
                                budget, allow_weird_lr, visualize=True)
     if info is None:
         return None, ok, stats
-    from astar_path_visualization import visualize_path
-    img = visualize_path(scene, game, info["start"], info["solution"],
-                         visited=info["visited"], x_offset=info["x_offset"],
-                         y_offset=info["y_offset"], show_visited=show_visited,
-                         goal=info.get("goal"))
+    from astar_path_visualization import render_info
+    img = render_info(scene, game, info, show_visited=show_visited)
     return img, ok, stats
 
 
@@ -332,9 +352,9 @@ def main():
         print("No levels found in file.")
         return
 
-    visualize_path = None
+    render_info = None
     if args.visualize:
-        from astar_path_visualization import visualize_path  
+        from astar_path_visualization import render_info
         os.makedirs(args.image_dir, exist_ok=True)
     game_render = _render_target(args.game, tileset_path)
 
@@ -353,12 +373,8 @@ def main():
         print(f"[{idx}] {verdict}  ({detail})")
 
         if args.visualize and path_info is not None:
-            img = visualize_path(
-                scene, game_render, path_info["start"], path_info["solution"],
-                visited=path_info["visited"], x_offset=path_info["x_offset"],
-                y_offset=path_info["y_offset"], show_visited=not args.hide_visited,
-                goal=path_info.get("goal"),
-            )
+            img = render_info(scene, game_render, path_info,
+                              show_visited=not args.hide_visited)
             tag = "solved" if ok else "unsolved"
             out_path = os.path.join(args.image_dir, f"level_{idx:04d}_{tag}.png")
             img.save(out_path)
