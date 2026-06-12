@@ -3,8 +3,7 @@
 setlocal enabledelayedexpansion
 
 set MMM=%USERPROFILE%\AppData\Local\MegaMaker\Levels
-set VGLC=%USERPROFILE%\Documents\GitHub\TheVGLC\MegaMan\Enhanced
-set CONDA_PYTHON=%USERPROFILE%\AppData\Local\miniconda3\envs\SURF\python.exe
+
 cd /d "%~dp0.."
 
 set INTERACTIVE=1
@@ -32,13 +31,12 @@ echo Unsupported file type. Please provide a .mmlv or .txt file.
 goto LOOP
 
 :DOMMLV
-"!CONDA_PYTHON!" -m megaman.mmlv_to_vglc "!FILE!"
-copy "!DIR!!NAME!.txt" "%VGLC%\"
+python -m megaman.mmlv_to_vglc "!FILE!"
 if "!INTERACTIVE!"=="0" goto END
 goto LOOP
 
 :DOTXT
-"!CONDA_PYTHON!" -m megaman.vglc_to_mmlv "!FILE!" "!DIR!!NAME!.mmlv"
+python -m megaman.vglc_to_mmlv "!FILE!" "!DIR!!NAME!.mmlv"
 copy "!DIR!!NAME!.mmlv" "%MMM%\"
 if "!INTERACTIVE!"=="0" goto END
 goto LOOP
