@@ -270,6 +270,34 @@ def _render_target(game, tileset_path):
     return game  # "Mario" / "LR"
 
 
+# Render-style game names (as used by run_diffusion and the GUIs) -> the game names
+# evaluate() understands. The render name itself doubles as visualize_path's target.
+RENDER_GAME_TO_TRAV = {"Mario": "Mario", "LR": "LR",
+                       "MM-Simple": "MM", "MM-Full": "MM"}
+
+
+def astar_path_image(scene, game, id_to_char, tile_descriptors, budget=100000,
+                     allow_weird_lr=False, show_visited=True):
+    """Run A* on a single scene and return (image, traversable, stats).
+
+    game is the render-style name ("Mario", "LR", "MM-Simple", "MM-Full"). image is a
+    PIL image of the scene with the path overlaid, or None when there is nothing to
+    draw (e.g. an LR scene with no gold)."""
+    trav_game = RENDER_GAME_TO_TRAV.get(game)
+    if trav_game is None:
+        raise ValueError(f"Unknown game {game!r}; expected one of {sorted(RENDER_GAME_TO_TRAV)}")
+    ok, stats, info = evaluate(trav_game, scene, id_to_char, tile_descriptors,
+                               budget, allow_weird_lr, visualize=True)
+    if info is None:
+        return None, ok, stats
+    from astar_path_visualization import visualize_path
+    img = visualize_path(scene, game, info["start"], info["solution"],
+                         visited=info["visited"], x_offset=info["x_offset"],
+                         y_offset=info["y_offset"], show_visited=show_visited,
+                         goal=info.get("goal"))
+    return img, ok, stats
+
+
 def main():
     parser = argparse.ArgumentParser(description="Determine Level Traversability")
     parser.add_argument('--level_json', type=str, required=True,
