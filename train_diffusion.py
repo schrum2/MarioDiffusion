@@ -709,6 +709,11 @@ def main():
         if args.use_early_stopping and early_stop:
             print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss or caption score for {patience} epochs.")
             break
+
+        if global_step >= args.max_iterations:
+            print(f"Reached maximum training iterations ({args.max_iterations}). Stopping training.")
+            break
+
         model.train()
         train_loss = 0.0
         
