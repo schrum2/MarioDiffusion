@@ -54,8 +54,9 @@ def parse_args():
     parser.add_argument("--width_range_json", type=str, default=None, help="Scene-bearing dataset used to derive the --random_width range (typically the training LevelsAndCaptions json)")
 
     # For scene-bearing datasets (recreating known scenes): generate each caption at its source
-    # scene's width. Batches are bucketed by width so each batch stays uniform.
-    parser.add_argument("--match_scene_width", action="store_true", help="Generate each caption at the width of its source scene (requires a scene-bearing dataset). Mutually exclusive with --random_width")
+    # scene's width. This is applied automatically when the dataset has more than one scene width;
+    # the flag forces it on for a single-width dataset too. Batches are bucketed to one width.
+    parser.add_argument("--match_scene_width", action="store_true", help="Force generating each caption at its source scene's width even for single-width datasets (auto-enabled for multi-width datasets). Requires scenes; mutually exclusive with --random_width")
 
     # Output args
     parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory if not comparing checkpoints (subdir of model directory)")
@@ -150,7 +151,12 @@ def main():
 
     assert(pipe.tokenizer is not None)
 
-    # Initialize dataset
+    if args.match_scene_width and args.random_width:
+        print("Error: --match_scene_width and --random_width are mutually exclusive.")
+        exit(1)
+
+    # Load once. LevelDataset.data holds the raw entries (scenes included) regardless of mode,
+    # so we can inspect the set of scene widths here to decide how to generate.
     dataset = LevelDataset(
         json_path=path_to_json,
         tokenizer=None,
@@ -159,15 +165,36 @@ def main():
         augment=False,
         num_tiles=args.num_tiles
     )
+    scene_widths = {len(item["scene"][0]) for item in dataset.data if isinstance(item, dict) and item.get("scene")}
 
-    # Create dataloader
-    dataloader = DataLoader(
-        dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=4,
-        drop_last=False
-    )
+    if args.match_scene_width and not scene_widths:
+        print(f"Error: --match_scene_width requires a scene-bearing dataset, but '{path_to_json}' has caption-only entries.")
+        exit(1)
+
+    # Datasets with more than one scene shape default to recreating each caption at its source
+    # scene's width. Homogeneous datasets (one width) and caption-only sets are left on the old
+    # fixed-width path. --match_scene_width forces it on; --random_width opts out.
+    if len(scene_widths) > 1 and not args.random_width and not args.match_scene_width:
+        print(f"Detected {len(scene_widths)} scene widths {sorted(scene_widths)} in {os.path.basename(path_to_json)}; matching generation width to each source scene.")
+        args.match_scene_width = True
+
+    # --match_scene_width needs the scenes, so switch to diff_text mode and bucket batches by
+    # width (each batch must be a single width). Otherwise captions-only "text" mode is enough.
+    if args.match_scene_width:
+        dataset.mode = "diff_text"
+        dataloader = DataLoader(
+            dataset,
+            batch_sampler=BucketBatchSampler(dataset, args.batch_size, drop_last=False, shuffle=False),
+            num_workers=4
+        )
+    else:
+        dataloader = DataLoader(
+            dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=4,
+            drop_last=False
+        )
 
     if args.compare_checkpoints:
         scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors)
@@ -288,7 +315,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
 
             avg_score, _, _, _ = calculate_caption_score_and_samples(
-                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, width_range=width_range
+                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width
             )
 
             print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
@@ -306,10 +333,14 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False):
 
     #Used for potential level scene pruning later
     original_mode = dataloader.dataset.mode
+
+    # --match_scene_width reads the per-batch width from the source scene (the batch is bucketed
+    # to one width). Only meaningful when scenes are present (diff_text mode).
+    match_scene_width = match_scene_width and original_mode == "diff_text"
 
     # When random_width is on, draw one width per batch (keeping each batch uniform) from
     # width_range, snapped to a size the UNet can denoise. A dedicated seeded RNG keeps the
@@ -329,6 +360,10 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     compare_all_scores = []
     for batch_idx, batch in enumerate(dataloader):
 
+        # Capture the source scene width before the scene is pruned out of the batch below.
+        # The batch is bucketed to one width, so the first scene's width covers the whole batch.
+        source_width = batch[0].shape[-1] if match_scene_width else None
+
         #Prune the one hot encoded level scene out of the batch if diff_text is being used
         if original_mode == "diff_text":
             batch = batch[1:]
@@ -336,7 +371,12 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 batch=batch[0]
 
         # One width per batch so every sample in the batch shares a shape (required for batching).
-        batch_width = sample_random_width(width_range[0], width_range[1], width_factor, width_rng) if random_width else width
+        if match_scene_width:
+            batch_width = source_width
+        elif random_width:
+            batch_width = sample_random_width(width_range[0], width_range[1], width_factor, width_rng)
+        else:
+            batch_width = width
 
         with torch.no_grad():  # Disable gradient computation to save memory
             if dataloader.dataset.negative_captions:

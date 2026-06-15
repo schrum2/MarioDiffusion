@@ -27,6 +27,8 @@ if /I "%TYPE%"=="absence" set DESCRIBE_ABSENCE_FLAG=--describe_absence
 
 
 
+REM LevelsAndCaptions captions come from real scenes. Multi-width datasets automatically recreate
+REM each caption at its source scene's width; single-width datasets keep the old fixed width.
 python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json --output_dir samples-from-real-%GAME%-captions %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
 python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json --compare_checkpoints %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
 python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-test.json --compare_checkpoints %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
