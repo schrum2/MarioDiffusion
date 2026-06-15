@@ -19,8 +19,10 @@ from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
-from util.plotter import Plotter  
+from util.plotter import Plotter
+from util.size_utils import dataset_width_range, unet_width_factor, sample_random_width
 from models.pipeline_loader import get_pipeline
+from models.general_training_helper import BucketBatchSampler
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
@@ -44,6 +46,17 @@ def parse_args():
     parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Width of the generated levels")
     parser.add_argument("--height", type=int, default=common_settings.MARIO_HEIGHT, help="Height of the generated levels")
 
+    # Randomized output width (mainly for caption-only sets like RandomTest, where there is
+    # no source scene to match). One width is drawn per batch so the batch stays uniform.
+    parser.add_argument("--random_width", action="store_true", help="Draw a random width per batch within the training width range instead of using a fixed width")
+    parser.add_argument("--min_width", type=int, default=None, help="Min width for --random_width (default: smallest scene width in the resolved range source)")
+    parser.add_argument("--max_width", type=int, default=None, help="Max width for --random_width (default: largest scene width in the resolved range source)")
+    parser.add_argument("--width_range_json", type=str, default=None, help="Scene-bearing dataset used to derive the --random_width range (typically the training LevelsAndCaptions json)")
+
+    # For scene-bearing datasets (recreating known scenes): generate each caption at its source
+    # scene's width. Batches are bucketed by width so each batch stays uniform.
+    parser.add_argument("--match_scene_width", action="store_true", help="Generate each caption at the width of its source scene (requires a scene-bearing dataset). Mutually exclusive with --random_width")
+
     # Output args
     parser.add_argument("--output_dir", type=str, default="text_to_level_results", help="Output directory if not comparing checkpoints (subdir of model directory)")
     parser.add_argument("--save_image_samples", action="store_true", help="Save generated levels in png files")
@@ -51,6 +64,45 @@ def parse_args():
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
 
     return parser.parse_args()
+
+def resolve_eval_width_range(args):
+    """Resolve (min_width, max_width) for --random_width, or None when it is disabled.
+
+    The width range is sourced, in priority order, from:
+      1. Explicit --min_width / --max_width (either one can also just override a
+         single derived endpoint).
+      2. --width_range_json (a scene-bearing dataset).
+      3. <model_path>/training_widths.json, written by train_diffusion so the
+         BucketBatchSampler's width range follows the model.
+      4. The eval --json itself, if it happens to contain scenes.
+    """
+    if not args.random_width:
+        return None
+
+    lo, hi = args.min_width, args.max_width
+    if lo is not None and hi is not None:
+        return lo, hi
+
+    derived = None
+    if args.width_range_json:
+        derived = dataset_width_range(args.width_range_json)
+    if derived is None:
+        widths_file = os.path.join(args.model_path, "training_widths.json")
+        if os.path.exists(widths_file):
+            with open(widths_file) as f:
+                info = json.load(f)
+            derived = (info["min"], info["max"])
+    if derived is None and os.path.exists(args.json):
+        derived = dataset_width_range(args.json)
+    if derived is None:
+        raise ValueError(
+            "--random_width could not determine a width range. Provide --min_width and "
+            "--max_width, or --width_range_json pointing to a scene-bearing dataset."
+        )
+
+    lo = lo if lo is not None else derived[0]
+    hi = hi if hi is not None else derived[1]
+    return lo, hi
 
 def main():
     args = parse_args()
@@ -122,16 +174,21 @@ def main():
 
     else:
         # Just run on one model and get samples as well
-        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width)
+        width_range = resolve_eval_width_range(args)
+        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
         
         if args.save_image_samples:
-            if args.num_tiles == common_settings.MARIO_TILE_COUNT:
-                visualize_samples(all_samples, args.output_dir, prompts=all_prompts)
-            elif args.num_tiles == common_settings.LR_TILE_COUNT:
-                visualize_samples(all_samples, args.output_dir, prompts=all_prompts, game='LR')
+            game = 'LR' if args.num_tiles == common_settings.LR_TILE_COUNT else 'Mario'
+            if args.num_tiles in (common_settings.MARIO_TILE_COUNT, common_settings.LR_TILE_COUNT):
+                if isinstance(all_samples, list):
+                    # Mixed widths can't be stacked into one tensor; render each sample on its own.
+                    for i, sample in enumerate(all_samples):
+                        visualize_samples(sample.unsqueeze(0), args.output_dir, start_index=i, prompts=[all_prompts[i]], game=game)
+                else:
+                    visualize_samples(all_samples, args.output_dir, prompts=all_prompts, game=game)
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
@@ -164,11 +221,13 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             width = common_settings.MEGAMAN_WIDTH
             path_to_json = args.json
 
+    width_range = resolve_eval_width_range(args)
+
     checkpoint_dirs = [
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))
         for d in os.listdir(args.model_path)
         if os.path.isdir(os.path.join(args.model_path, d)) and d.startswith("checkpoint-")
-    ]    
+    ]
     checkpoint_dirs = sorted(checkpoint_dirs, key=lambda x: x[0])
     if os.path.isdir(os.path.join(args.model_path, "unet")):
         checkpoint_dirs.append((checkpoint_dirs[-1][0] + 1, args.model_path))
@@ -229,7 +288,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
 
             avg_score, _, _, _ = calculate_caption_score_and_samples(
-                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height
+                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, width_range=width_range
             )
 
             print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
@@ -247,11 +306,21 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True):
-    
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None):
+
     #Used for potential level scene pruning later
     original_mode = dataloader.dataset.mode
-        
+
+    # When random_width is on, draw one width per batch (keeping each batch uniform) from
+    # width_range, snapped to a size the UNet can denoise. A dedicated seeded RNG keeps the
+    # per-batch width sequence identical across checkpoints so comparisons stay fair.
+    if random_width and not isinstance(pipe, FDMPipeline):
+        if width_range is None:
+            raise ValueError("random_width=True requires width_range=(min_width, max_width)")
+        width_factor = unet_width_factor(pipe.unet)
+        width_rng = random.Random(random_seed)
+    else:
+        random_width = False
 
     score_sum = 0.0
     total_count = 0
@@ -266,7 +335,10 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
             if len(batch)==1:
                 batch=batch[0]
 
-        with torch.no_grad():  # Disable gradient computation to save memory            
+        # One width per batch so every sample in the batch shares a shape (required for batching).
+        batch_width = sample_random_width(width_range[0], width_range[1], width_factor, width_rng) if random_width else width
+
+        with torch.no_grad():  # Disable gradient computation to save memory
             if dataloader.dataset.negative_captions:
                 # For negative captions, batch is (positive_captions, negative_captions)
                 positive_captions, negative_captions = batch  # Unpack the batch directly
@@ -275,7 +347,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     "negative_prompt": list(negative_captions),
                     "num_inference_steps": inference_steps,
                     "height": height,
-                    "width": width,
+                    "width": batch_width,
                     "guidance_scale": guidance_scale,
                     "output_type": "tensor",
                     "batch_size": len(positive_captions)
@@ -290,7 +362,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     "caption": list(batch),
                     "num_inference_steps": inference_steps,
                     "height": height,
-                    "width": width,
+                    "width": batch_width,
                     "guidance_scale": guidance_scale,
                     "output_type": "tensor",
                     "batch_size": len(batch)
@@ -339,7 +411,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 score_sum += compare_score
                 total_count += 1
 
-                all_samples.append(sample)  # Append the generated sample to the list
+                all_samples.append(samples[i])  # (channels, height, width); stacked/kept-as-list below
                 del sample, sample_indices, scene, actual_caption  # Remove unused variables
 
         if torch.cuda.is_available():
@@ -348,8 +420,13 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
         if output: print(f"Batch {batch_idx+1}/{len(dataloader)}:")
 
     avg_score = score_sum / total_count
-    # Concatenate all batches
-    all_samples = torch.cat(all_samples, dim=0)[:total_count]
+    # Stack all per-sample (C,H,W) tensors into one (N,C,H,W) batch. With random_width the
+    # widths differ across batches and can't be stacked, so keep a list of (C,H,W) tensors;
+    # downstream samples_to_scenes / per-sample visualization handle either form.
+    if len({tuple(s.shape) for s in all_samples}) == 1:
+        all_samples = torch.stack(all_samples, dim=0)[:total_count]
+    else:
+        all_samples = all_samples[:total_count]
 
     dataloader.dataset.mode=original_mode
 
