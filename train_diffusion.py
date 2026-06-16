@@ -403,6 +403,17 @@ def main():
                                         block_embeddings=block_embeddings, batch_size=args.batch_size,
                                         persistent_workers=(not args.auto_augment))
 
+    # Persist the BucketBatchSampler's scene-width range alongside the model so post-training
+    # tools (evaluate_caption_adherence.py, run_diffusion.py) can randomize generated widths
+    # over the same range the model was trained on, without re-reading the training dataset.
+    if sample_widths:
+        with open(os.path.join(args.output_dir, "training_widths.json"), "w") as f:
+            json.dump({
+                "widths": sorted(sample_widths),
+                "min": min(sample_widths),
+                "max": max(sample_widths),
+            }, f, indent=4)
+
     #print(train_dataloader.dataset)
     #input("Press Enter to continue...")
     #print(train_dataloader.dataset[0])
