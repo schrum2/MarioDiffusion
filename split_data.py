@@ -109,10 +109,29 @@ def verify_coverage(required_structures):
 
     splits = {"train": train_split, "val": val_split, "test": test_split}
 
-    while True:
+    # A required structure can only be guaranteed in every split if the dataset holds at
+    # least one entry containing it per split. Drop the ones it can't (e.g. a structure the
+    # traversability filter removed entirely) so we warn instead of looping forever trying
+    # to cover something that isn't there.
+    coverable = []
+    for structure in required_structures:
+        total = sum(1 for split in splits.values() for entry in split
+                    if structure in (entry.get("caption") or "").lower())
+        if total < len(splits):
+            where = "absent from the dataset" if total == 0 else f"present in only {total} entries"
+            print(f"WARNING: required structure '{structure}' is {where}; it cannot be placed "
+                  f"in all {len(splits)} splits, so its coverage is not enforced.")
+        else:
+            coverable.append(structure)
+
+    # Best-effort balancing: move entries so every split contains each coverable structure.
+    # Bounded by a pass budget so structures that co-occur (and keep getting swapped back and
+    # forth between splits) can't spin forever; if the budget runs out we proceed as-is.
+    max_passes = 100
+    for _ in range(max_passes):
         all_covered = True
         for split_name, split in splits.items():
-            coverage = check_coverage(split, required_structures)
+            coverage = check_coverage(split, coverable)
             for structure, is_present in coverage.items():
                 if not is_present:
                     all_covered = False
@@ -125,6 +144,12 @@ def verify_coverage(required_structures):
                                 break
         if all_covered:
             break
+    else:
+        gaps = {name: [s for s, ok in check_coverage(split, coverable).items() if not ok]
+                for name, split in splits.items()}
+        gaps = {name: missing for name, missing in gaps.items() if missing}
+        print(f"WARNING: could not balance coverage within {max_passes} passes; "
+              f"remaining gaps: {gaps}. Proceeding with current splits.")
 
     return splits["train"], splits["val"], splits["test"]
 

@@ -2,12 +2,14 @@
 import argparse
 import os
 import sys
+import json
 import torch
 import numpy as np
 from level_dataset import visualize_samples, samples_to_scenes
 import random
 from create_ascii_captions import save_level_data
 import util.common_settings as common_settings
+from util.size_utils import dataset_width_range, unet_width_factor, sample_random_width
 from models.pipeline_loader import get_pipeline
 from LR_create_ascii_captions import save_level_data as lr_save_level_data
 from MM_create_ascii_captions import save_level_data as mm_save_level_data
@@ -27,6 +29,13 @@ def parse_args():
     parser.add_argument("--visualize", action="store_true", help="Additionally save each generated sample with its A* path overlaid (filename tagged 'solved'/'unsolved')")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--level_width", type=int, default=None, help="Overrides width from unet if specified")
+
+    # Randomized width: draw one width per batch within a range, so a single run yields levels
+    # of varying sizes. Mutually exclusive in spirit with --level_width (which fixes the width).
+    parser.add_argument("--random_width", action="store_true", help="Randomize width per batch within [--min_width, --max_width] (or the range in --width_range_json)")
+    parser.add_argument("--min_width", type=int, default=None, help="Min width for --random_width (default: smallest scene width in --width_range_json)")
+    parser.add_argument("--max_width", type=int, default=None, help="Max width for --random_width (default: largest scene width in --width_range_json)")
+    parser.add_argument("--width_range_json", type=str, default=None, help="Scene-bearing dataset used to derive the --random_width range (defaults to <model_path>/training_widths.json if present)")
 
     # Hopefully always the user to specify the game they wish to run diffusion on
     parser.add_argument(
@@ -74,6 +83,37 @@ def save_astar_visualizations(all_samples, args):
         print(f"Sample {i}: {tag} ({detail}) -> {out_path}")
 
 
+def resolve_run_width_range(args):
+    """Resolve (min_width, max_width) for --random_width.
+
+    Priority: explicit --min_width/--max_width > --width_range_json scenes >
+    <model_path>/training_widths.json (written by train_diffusion). Either explicit
+    endpoint can also override just one side of a derived range.
+    """
+    lo, hi = args.min_width, args.max_width
+    if lo is not None and hi is not None:
+        return lo, hi
+
+    derived = None
+    if args.width_range_json:
+        derived = dataset_width_range(args.width_range_json)
+    if derived is None:
+        widths_file = os.path.join(args.model_path, "training_widths.json")
+        if os.path.exists(widths_file):
+            with open(widths_file) as f:
+                info = json.load(f)
+            derived = (info["min"], info["max"])
+    if derived is None:
+        raise ValueError(
+            "--random_width could not determine a width range. Provide --min_width and "
+            "--max_width, or --width_range_json pointing to a scene-bearing dataset."
+        )
+
+    lo = lo if lo is not None else derived[0]
+    hi = hi if hi is not None else derived[1]
+    return lo, hi
+
+
 def generate_levels(args):
     """Generate level designs using a trained diffusion model"""
     # Set seeds for reproducibility
@@ -112,19 +152,27 @@ def generate_levels(args):
     if args.level_width is not None:
         scene_width = args.level_width
         print(f"Overriding model width to {scene_width} tiles")
-        
-    print(f"Model scene size: {scene_height}x{scene_width}")
+
+    # Set up per-batch random width if requested (one width per batch keeps each batch uniform).
+    if args.random_width:
+        min_width, max_width = resolve_run_width_range(args)
+        width_factor = unet_width_factor(pipeline.unet)
+        width_rng = random.Random(args.seed)
+        print(f"Randomizing width per batch in [{min_width}, {max_width}] (multiples of {width_factor})")
+    else:
+        print(f"Model scene size: {scene_height}x{scene_width}")
 
     # Generate in batches
     total_samples = args.num_samples
     num_batches = (total_samples + args.batch_size - 1) // args.batch_size
     all_samples = []
-    
+
     for batch_idx in range(num_batches):
         # Calculate batch size for this iteration
         current_batch_size = min(args.batch_size, total_samples - batch_idx * args.batch_size)
-        print(f"Generating batch {batch_idx+1}/{num_batches} ({current_batch_size} samples)...")
-        
+        batch_width = sample_random_width(min_width, max_width, width_factor, width_rng) if args.random_width else scene_width
+        print(f"Generating batch {batch_idx+1}/{num_batches} ({current_batch_size} samples, width {batch_width})...")
+
         # Generate samples
         with torch.no_grad():
             # Generate samples
@@ -134,7 +182,7 @@ def generate_levels(args):
                 num_inference_steps=args.inference_steps,
                 output_type="tensor",
                 height=scene_height,
-                width=scene_width,
+                width=batch_width,
             ).images
 
             all_samples.append(samples)
@@ -150,8 +198,13 @@ def generate_levels(args):
             else:
                 raise ValueError(f"Unknown game: {args.game}")
     
-    # Concatenate all batches
-    all_samples = torch.cat(all_samples, dim=0)[:total_samples]
+    # Concatenate all batches. With --random_width the batches have different widths and
+    # can't be concatenated, so flatten to a list of per-sample (C,H,W) tensors instead;
+    # save_astar_visualizations / samples_to_scenes iterate either form.
+    if args.random_width and len({batch.shape[-1] for batch in all_samples}) > 1:
+        all_samples = [sample for batch in all_samples for sample in batch][:total_samples]
+    else:
+        all_samples = torch.cat(all_samples, dim=0)[:total_samples]
     print(f"Generated {len(all_samples)} level samples")
 
     # visualizes all samples at once
