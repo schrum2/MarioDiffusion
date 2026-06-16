@@ -6,6 +6,7 @@ from captions.util import extract_tileset
 from create_level_json_data import load_levels
 from enum import Enum
 import os
+import sys
 
 #This enum is for the readability of the direction enum
 class Axis(Enum):
@@ -173,8 +174,39 @@ def parse_args():
 
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
 
+    # After all scenes are generated, run the A* traversability check on them and drop
+    # the ones MegaMan cannot complete, so the written dataset only contains beatable slices.
+    parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
+    parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
+
 
     return parser.parse_args()
+
+
+def filter_traversable(all_samples, id_to_char, tile_descriptors, budget=100000):
+    """Drop the samples whose scene the A* check can't traverse and report the survival rate.
+
+    Removes by descending index so earlier indices stay valid while deleting. id_to_char and
+    tile_descriptors must match the encoding the samples were written with (the same ones used
+    to encode them above), so the A* check decodes each tile correctly."""
+    # astar/ lives beside this file and manages its own internal imports off sys.path.
+    astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+    if astar_dir not in sys.path:
+        sys.path.insert(0, astar_dir)
+    from astar_traversability_check import untraversable_indices
+
+    scenes = [s["sample"] for s in all_samples]
+    bad_indices = untraversable_indices(scenes, "MM", id_to_char, tile_descriptors, budget=budget)
+
+    for idx in sorted(bad_indices, reverse=True):
+        del all_samples[idx]
+
+    total = len(scenes)
+    remaining = len(all_samples)
+    pct = (100.0 * remaining / total) if total else 0.0
+    print(f"Traversability filter: removed {len(bad_indices)}/{total} un-traversable scenes; "
+          f"{remaining} levels remain ({pct:.1f}% of the dataset).")
+    return all_samples
 
 
 def main():
@@ -184,14 +216,16 @@ def main():
 
 
     levels = load_levels(args.levels)
-    _, _, tile_to_id, tile_descriptors = extract_tileset(args.tileset)
+    _, id_to_char, tile_to_id, tile_descriptors = extract_tileset(args.tileset)
     null_chars = [key for key, value in tile_descriptors.items() if 'null' in value]
     wall_chars = [key for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
     #print(null_chars)
     #print(wall_chars)
     
     if args.group_encodings:
-        tile_to_id, _ = create_tile_to_id(args.tileset, tile_descriptors, new_tileset_dir=os.path.dirname(args.output))
+        # Grouping remaps the ids, so refresh id_to_char to the grouped encoding (each id ->
+        # its representative char) to keep the A* filter's decoding in sync with the samples.
+        tile_to_id, id_to_char = create_tile_to_id(args.tileset, tile_descriptors, new_tileset_dir=os.path.dirname(args.output))
     
     #We literally only need level overrides for 1-7, every other level parses as expected
     overrides_1_7 = [120, 121, 122, 123, 182] #Needed to avoid an early turn leading to a split path, and to prevent the level from turning back around to go back to the start
@@ -218,7 +252,11 @@ def main():
                 "data": json_data
                 })    
     
-    #Move everything to a json file 
+    #Optionally drop scenes MegaMan can't actually complete before writing the dataset
+    if args.traversable_only:
+        all_samples = filter_traversable(all_samples, id_to_char, tile_descriptors, budget=args.budget)
+
+    #Move everything to a json file
     output = args.output
     with open(output, 'w') as f:
         json.dump(all_samples, f, indent=2)

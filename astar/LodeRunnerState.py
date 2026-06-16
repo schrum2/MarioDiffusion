@@ -1,3 +1,4 @@
+from collections import deque
 from enum import Enum
 
 LODE_RUNNER_TILE_EMPTY = 0
@@ -261,6 +262,25 @@ class LodeRunnerState:
             if successor is not None:
                 successors.append((successor, a, self.stepCost(a)))
         return successors
+
+    def reachable_tree(self):
+        """Flood-fill (BFS) from the player over POSITION space, ignoring gold.
+
+        A gold cell is reachable iff it appears in this tree, so checking every gold
+        for membership replaces the old collect-all A* search (which explored the
+        (position x remaining-gold subset) space) with a single linear flood fill.
+        """
+        root = (self.currentX, self.currentY)
+        parent = {root: None}
+        queue = deque([self])
+        while queue:
+            state = queue.popleft()
+            for succ, _action, _cost in state.get_successors():
+                pos = (succ.currentX, succ.currentY)
+                if pos not in parent:
+                    parent[pos] = (state.currentX, state.currentY)
+                    queue.append(succ)
+        return parent
 
     def getLegalActions(self, state):
         """A list of valid actions for playing Lode Runner levels"""

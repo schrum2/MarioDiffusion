@@ -1,4 +1,5 @@
 import argparse
+import sys
 from level_dataset import LevelDataset
 import json
 from captions.caption_generator import GrammarGenerator
@@ -7,6 +8,7 @@ from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from captions.MM_caption_generator import GrammarGenerator as MM_GrammarGenerator
 from captions.MM_caption_match import compare_captions as mm_compare_captions
+from captions.generic_caption_generator import GenericGrammarGenerator
 
 import util.common_settings as common_settings
 
@@ -35,7 +37,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "Other"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
     
@@ -75,6 +77,15 @@ def main():
             seed=args.seed,
             describe_absence=args.describe_absence
         )
+    elif args.game == "Other":
+        # The generic generator learns its topics from the training data, so it is
+        # built after the dataset is loaded (below).
+        if args.describe_absence:
+            print("Error: --describe_absence is not supported with --game Other. "
+                  "The generic generator only sees topics that actually occur in the "
+                  "data and cannot reliably describe what is absent.")
+            sys.exit(1)
+        generator = None
 
 # Initialize dataset
     dataset = LevelDataset(
@@ -85,6 +96,17 @@ def main():
         augment=False, # No augmenting just for testing
         num_tiles=args.num_tiles
     )
+
+    # For "Other", learn a generic grammar from the actual training captions.
+    if args.game == "Other":
+        generator = GenericGrammarGenerator(
+            captions=list(dataset),
+            seed=args.seed,
+        )
+        print(generator.describe_topics())
+        validation_captions = generate_generic_captions(generator, args)
+        save_captions(validation_captions, args.save_file)
+        return
 
     validation_captions = []
     while len(validation_captions) < args.validation_set_size:
@@ -111,10 +133,45 @@ def main():
         if len(validation_captions) % 10 == 0:
             print(f"Valid captions so far {len(validation_captions)}")
 
+    save_captions(validation_captions, args.save_file)
+
+def generate_generic_captions(generator, args):
+    """Generate novel captions with the data-driven generic generator.
+
+    Novelty is checked with the generator's order-/plural-independent signature so
+    that no generated caption matches a training caption (or an earlier generated
+    one).
+    """
+    validation_captions = []
+    seen_signatures = set(generator.training_signatures)
+    # Guard against an infinite loop when the space of novel captions is small.
+    max_attempts = max(10000, args.validation_set_size * 100)
+    attempts = 0
+
+    while len(validation_captions) < args.validation_set_size and attempts < max_attempts:
+        attempts += 1
+        new_caption = generator.generate_sentence()
+        signature = generator.signature(new_caption)
+        if signature in seen_signatures:
+            print(f"Discarded duplicate: {new_caption}")
+            continue
+        seen_signatures.add(signature)
+        validation_captions.append(new_caption)
+
+        if len(validation_captions) % 10 == 0:
+            print(f"Valid captions so far {len(validation_captions)}")
+
+    if len(validation_captions) < args.validation_set_size:
+        print(f"Warning: only generated {len(validation_captions)} unique captions "
+              f"after {attempts} attempts (requested {args.validation_set_size}).")
+
+    return validation_captions
+
+def save_captions(validation_captions, save_file):
     new_validation_captions = [{"caption": caption} for caption in validation_captions]
-    with open(args.save_file, 'w') as f:
+    with open(save_file, 'w') as f:
         json.dump(new_validation_captions, f, indent=4)
-    print(f"List successfully saved to '{args.save_file}'")
+    print(f"List successfully saved to '{save_file}'")
 
 if __name__ == "__main__":
     main()
