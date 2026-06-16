@@ -17,15 +17,11 @@ from dotenv import load_dotenv
 from pathlib import Path
 from anthropic import Anthropic
 
-env_path = Path(__file__).resolve().parent.parent / '.env'
+env_path = Path(__file__).resolve().parent / '.env'
 load_dotenv(env_path)
 
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
-
-
-
-
 
 from create_level_json_data import load_levels
 
@@ -74,6 +70,10 @@ MM_TILESET_DICT = {
 }
 
 
+SYSTEM_PROMPT =  """ Given a tileset key and an ASCII level grid, generate a succinct caption for the level.
+ 
+                 """
+
 def load_dataset(path: str) -> list[list[str]]:
     """
     Load a set of ASCII level scenes for an LLM to caption
@@ -114,19 +114,20 @@ def claude_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESE
     tileset_str = json.dumps(tileset, indent=2)
 
     context = [
-        {"role": "system", "content":
-            "Given a tileset key and an ASCII level grid, "
-            "generate a descriptive yet succinct caption for the level."},
         {"role": "user", "content": f"Here is the tileset for {game}:\n{tileset_str}"},
         {"role": "user", "content": f"Level Scene:\n{scene}"},
     ]
 
+    # sup claude
     message = client.messages.create(
+                max_tokens=1024,
+                system=SYSTEM_PROMPT, # claude requires system prompt to be separated from context block
                 messages=context,
                 model="claude-opus-4-8"
                 )
 
-    return message.content
+    # message.content is a list of content blocks — pull the text out
+    return message.content[0].text
 
 def llama_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> str:
     """
@@ -177,9 +178,11 @@ def main() -> list[str]:
     captioned_dataset = []
     # caption each scene, append back to running lists 
     for i, scene in enumerate(scenes):
-        scene_str = "\n".join(scene)
-        caption = llama_caption(scene_str, game=args.game, model=args.model)
-        print(f"[{i + 1}/{len(scenes)}] {caption}")
+        
+        scene_str = "\n".join(scene) # 
+        # currently wired to the claude API version, can also be set to local
+        caption = claude_caption(scene_str, game=args.game, model=args.model)
+        print(f"[{i + 1}/{len(scenes)}] {caption}\n\n")
 
         captions.append(caption)
         captioned_dataset.append({"scene": scene, "caption": caption})
