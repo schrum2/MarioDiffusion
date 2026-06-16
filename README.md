@@ -150,6 +150,12 @@ This will create the same group of datasets, but will append the width after Mar
 --game Mar1and2_{width}
 ```  
 
+You can also create a single dataset that mixes several widths together. Running:
+```
+Mar1and2Mixed-data.bat
+```
+generates the datasets at widths 16, 32, 64, and 128 and combines all four into one mixed-width dataset named `Mar1and2_16-32-64-128` (along with its tokenizer and random-test captions). Note that the combined files are very large (hundreds of MB) and are not committed to the repo, so you must run this batch file yourself before training on the mixed dataset. See [Training on the large mixed-width dataset](#training-on-the-large-mixed-width-dataset) below for how to train on it.
+
 ## Complete training and evaluation sequence
 
 The next two sections go into detail on training both the text encoder and the diffusion model, but if you want to train the whole thing all at once and use default settings from our paper, we have some batch files you can use. Be forewarned that after training, these batch files will also embark on a somewhat lengthy data collection process used to evaluate the models, so if you just want to train a model and then play with it yourself, you might want to skip to the more specific instructions below. If you want to use these batch files, you will need to be in the actual batch directory first:
@@ -519,6 +525,26 @@ Generating levels
 ``` 
 python run_diffusion.py --model_path "Mar1and2-unconditional-block2vec" --num_samples 100 --save_as_json --output_dir "Mar1and2-unconditional-block2vec-samples"
 ```
+
+
+
+## Training on the large mixed-width dataset
+
+ **Experimental.** Training a single conditional model on level scenes of mixed widths (16, 32, 64, and 128) is a work in progress. The combined dataset is roughly an order of magnitude larger than a single-width set, so training is slow and VRAM-hungry.
+
+First build the mixed dataset as described under [Datasets with longer levels](#datasets-with-longer-levels):
+```
+cd batch
+Mar1and2Mixed-data.bat
+```
+This produces `Mar1and2_16-32-64-128_LevelsAndCaptions-regular.json` (split into train/validate/test), the `Mar1and2Mixed_Tokenizer-regular.pkl` tokenizer, and matching random-test captions. These files are large and are not in the repo, so you have to generate them yourself.
+
+To then train a conditional model on this mixed dataset, call the following batch file: 
+```
+cd batch
+train-conditional-mixed.bat 
+```
+The diffusion training itself handles the variable widths by bucketing scenes of the same width into each batch. 
 
 
 
