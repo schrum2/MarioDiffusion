@@ -178,7 +178,7 @@ def parse_args():
     # the ones MegaMan cannot complete, so the written dataset only contains beatable slices.
     parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
-
+    parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
 
     return parser.parse_args()
 
@@ -238,12 +238,14 @@ def main():
     #scenes (or when explicitly requested); the default square keeps the legacy null padding.
     faithful_vertical = args.faithful_vertical or (args.target_height > nav_width)
 
+    direction_captions = args.direction_captions
+
     all_samples = []
     for i in range(len(levels)):
         if i==7: #We need to do some slight overrides on 1-7 to make the level functional
-            samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False, change_direction_overrides=overrides_1_7)
+            samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False, change_direction_overrides=overrides_1_7, direction_captions=direction_captions)
         else:
-            samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False)
+            samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False, direction_captions=direction_captions)
         
         #We do this so each level scene is encoded together, not grouped by level
         for sample, json_data in zip(samples, json_caption_data):
@@ -267,7 +269,7 @@ def main():
 #Parses through one complete level
 #width/height are the NAVIGATION (screen) dimensions; out_width/out_height are the
 #output scene dimensions (default to a square of side `width` to match the old behaviour).
-def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], out_width=None, out_height=None, faithful_vertical=False, start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[]):
+def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], out_width=None, out_height=None, faithful_vertical=False, start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[], direction_captions = False):
     level_sample=LevelSample(level, width, height, null_chars, wall_chars, out_width=out_width, out_height=out_height, faithful_vertical=faithful_vertical, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
     samples = []
     json_caption_data = []
@@ -295,7 +297,14 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
 
     moving=True
     samples.append(level_sample.get_sample_from_idx())
-    json_caption_data.append(get_json_caption_data(level_sample, prev_direction, current_direction))
+
+    #Keep json_caption_data parallel with samples so the zip in main() lines up; append
+    #None (not {}) when captions are off, since the caption consumer skips on None but
+    #KeyErrors on an empty dict.
+    if direction_captions:
+        json_caption_data.append(get_json_caption_data(level_sample, prev_direction, current_direction))
+    else:
+        json_caption_data.append(None)
 
     while moving:
         prev_direction=current_direction
@@ -309,7 +318,10 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
 
         current_direction = level_sample.direction
 
-        json_caption_data.append(get_json_caption_data(level_sample, prev_direction, current_direction))
+        if direction_captions:
+            json_caption_data.append(get_json_caption_data(level_sample, prev_direction, current_direction))
+        else:
+            json_caption_data.append(None)
 
 
     encoded_samples = []
