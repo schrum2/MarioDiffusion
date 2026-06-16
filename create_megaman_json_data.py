@@ -180,6 +180,12 @@ def parse_args():
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
     parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
 
+    # After all scenes are generated, run the A* traversability check on them and drop
+    # the ones MegaMan cannot complete, so the written dataset only contains beatable slices.
+    parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
+    parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
+
+
     return parser.parse_args()
 
 
