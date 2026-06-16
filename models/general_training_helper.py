@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader
-from level_dataset import LevelDataset
+from level_dataset import LevelDataset, visualize_samples
 import random
 from util.plotter import Plotter, _step_png_path
 from datetime import datetime
@@ -137,13 +137,18 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
     return train_dataloader, val_dataloader, train_sampler.shapes
 
 
-def get_random_training_samples(train_dataloader, negative_prompt_training, output_dir = None):
+def get_random_training_samples(train_dataloader, negative_prompt_training, output_dir = None, game = 'Mario', block_embeddings = None):
     """
     Get random training samples from the dataloader and print them to the console.
     Args:
         train_dataloader: The PyTorch dataloader for the training dataset.
         negative_prompt_training (bool): Whether the dataset includes negative captions.
         output_dir (str or None): If provided, a directory to save the sample captions to a text file.
+            The source scene images are also saved to a "samples_original" subdirectory so the
+            generated samples produced during training can be compared against them.
+        game (str): Game whose tile set is used to render the source scene images.
+        block_embeddings (Tensor or None): Block embeddings used to decode the scene tensors when
+            the dataset is embedding-based (otherwise scenes are one-hot encoded).
 
     Returns:
         sample_captions (list of str): A list of randomly sampled captions from the training dataset.
@@ -154,14 +159,18 @@ def get_random_training_samples(train_dataloader, negative_prompt_training, outp
     # Sample four random captions from the dataset
     sample_indices = [random.randint(0, len(train_dataset) - 1) for _ in range(4)]
 
-    sample_captions = [train_dataset[i][1] for i in sample_indices]
+    # Fetch each sample once so the caption, negative caption, and saved scene image all
+    # correspond to the same item (__getitem__ re-augments/flips on every access).
+    sample_items = [train_dataset[i] for i in sample_indices]
+
+    sample_captions = [item[1] for item in sample_items]
     print("Sample captions:")
     for caption in sample_captions:
         print(caption)
 
     sample_negative_captions = ""
     if negative_prompt_training:
-        sample_negative_captions = [train_dataset[i][2] for i in sample_indices]
+        sample_negative_captions = [item[2] for item in sample_items]
         print("Sample negative captions:")
         for caption in sample_negative_captions:
             print(f"  NEG: {caption}")
@@ -179,6 +188,23 @@ def get_random_training_samples(train_dataloader, negative_prompt_training, outp
                 for caption in sample_negative_captions:
                     f.write(str(caption) + "\n")
         print(f"Sample captions written to {out_path}")
+
+        # Save the source scene image for each sampled caption so generated samples can be
+        # compared against their ground-truth scenes. Scenes are rendered one at a time (rather
+        # than as a batch) so datasets with variable scene widths are handled. The filenames
+        # mirror visualize_samples' generated-sample naming (sample_{i} - {prompt}.png).
+        originals_dir = os.path.join(output_dir, "samples_original")
+        for i, item in enumerate(sample_items):
+            scene = item[0].unsqueeze(0)  # add batch dim: [1, channels, height, width]
+            visualize_samples(
+                scene,
+                originals_dir,
+                start_index=i,
+                prompts=[sample_captions[i]],
+                game=game,
+                block_embeddings=block_embeddings,
+            )
+        print(f"Sample source scenes written to {originals_dir}")
 
 
     return sample_captions, sample_negative_captions
