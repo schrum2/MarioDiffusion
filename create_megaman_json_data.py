@@ -178,14 +178,8 @@ def parse_args():
     # the ones MegaMan cannot complete, so the written dataset only contains beatable slices.
     parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
-
-
-    # After all scenes are generated, run the A* traversability check on them and drop
-    # the ones MegaMan cannot complete, so the written dataset only contains beatable slices.
-    parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
-    parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
-
-
+    parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window'], help='How to extract samples: path follower (default) or sliding window')
+    
     return parser.parse_args()
 
 
@@ -246,17 +240,26 @@ def main():
 
     all_samples = []
     for i in range(len(levels)):
-        if i==7: #We need to do some slight overrides on 1-7 to make the level functional
-            samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False, change_direction_overrides=overrides_1_7)
-        else:
-            samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False)
-        
-        #We do this so each level scene is encoded together, not grouped by level
+        try:
+            if args.scan_mode == 'sliding_window':
+                samples, json_caption_data = sliding_window_samples(
+                    levels[i], tile_to_id, nav_width, nav_height, null_chars,
+                    out_width=args.target_width, out_height=args.target_height
+                )
+            elif i==7:
+                samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False, change_direction_overrides=overrides_1_7)
+            else:
+                samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False)
+        except ValueError as e:
+            print(f"Skipping level {i}: {e}")
+            continue
+
+        print(f"Level {i} parsed successfully: {len(samples)} samples")
         for sample, json_data in zip(samples, json_caption_data):
             all_samples.append({
-                "sample" :sample,
+                "sample": sample,
                 "data": json_data
-                })    
+            }) 
     
     #Optionally drop scenes MegaMan can't actually complete before writing the dataset
     if args.traversable_only:
@@ -267,7 +270,46 @@ def main():
     with open(output, 'w') as f:
         json.dump(all_samples, f, indent=2)
 
-    
+def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_width=None, out_height=None):
+    out_width = out_width or width
+    out_height = out_height or height
+    null = null_chars[0]
+    level_height = len(level)
+    level_width = len(level[0])
+
+    samples = []
+    json_caption_data = []
+
+    for y in range(0, level_height - height + 1):
+        for x in range(0, level_width - width + 1):
+            window = [level[y+r][x:x+width] for r in range(height)]
+            null_count = sum(1 for row in window for c in row if c in null_chars or c == '@')
+            total = len(window) * len(window[0])
+            if null_count / total > 0.7:
+                continue
+
+            col_offset = (out_width - width) // 2
+            row_offset = out_height - height
+            level_x0 = x - col_offset
+            level_y0 = y - row_offset
+
+            sample = []
+            for r in range(out_height):
+                ly = level_y0 + r
+                out_row = []
+                for c in range(out_width):
+                    lx = level_x0 + c
+                    if 0 <= ly < level_height and 0 <= lx < level_width:
+                        out_row.append(level[ly][lx])
+                    else:
+                        out_row.append(null)
+                sample.append(out_row)
+
+            encoded = [[tile_to_id.get(ch, tile_to_id.get(null, 0)) for ch in row] for row in sample]
+            samples.append(encoded)
+            json_caption_data.append({"entrance_direction": "RIGHT", "exit_direction": "RIGHT"})
+
+    return samples, json_caption_data
 
 
 #Parses through one complete level
@@ -344,7 +386,7 @@ def find_start(level_sample):
             break
     
     if start_y==-1:
-        raise ValueError("Spawn location not found!")
+        return 0, max(0, len(level_sample.level) - level_sample.height)
     
 
     #Continue searching down for the bottom of the level or more null chars
@@ -554,16 +596,6 @@ class LevelSample():
             sample.append(out_row)
 
         return sample
-
-    
-
-
-
-        
-
-
-
-
 
 if __name__ == "__main__":
     main()
