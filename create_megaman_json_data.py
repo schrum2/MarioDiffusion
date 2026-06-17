@@ -161,8 +161,10 @@ def parse_args():
     parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
     parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window'], help='How to extract samples: path follower (default) or sliding window')
-    parser.add_argument('--max_samples', type=int, default=10000, help='Max training samples to keep (default 10000)')
-    parser.add_argument('--split', action='store_true', help='Split output into train/val/test (80/10/10)')
+    # Do not limit samples here
+    #parser.add_argument('--max_samples', type=int, default=10000, help='Max training samples to keep (default 10000)')
+    # Data splitting happens in a different script
+    #parser.add_argument('--split', action='store_true', help='Split output into train/val/test (80/10/10)')
     
     return parser.parse_args()
 
@@ -233,26 +235,29 @@ def main():
     if args.traversable_only:
         all_samples = filter_traversable(all_samples, id_to_char, tile_descriptors, budget=args.budget)
 
+    # Don't want to shuffle or limit samples
     # Shuffle and cap to max_samples
-    random.seed(42)
-    random.shuffle(all_samples)
-    if len(all_samples) > args.max_samples:
-        all_samples = all_samples[:args.max_samples]
-        print(f"Capped to {args.max_samples} samples")
+    #random.seed(42)
+    #random.shuffle(all_samples)
+    #if len(all_samples) > args.max_samples:
+    #    all_samples = all_samples[:args.max_samples]
+    #    print(f"Capped to {args.max_samples} samples")
 
+    # Splitting of data happens in a different script
     # Optionally split into train / val / test (80 / 10 / 10)
-    if args.split:
-        n = len(all_samples)
-        n_train = int(n * 0.80)
-        n_val   = int(n * 0.10)
-        output_data = {
-            "train": all_samples[:n_train],
-            "val":   all_samples[n_train:n_train + n_val],
-            "test":  all_samples[n_train + n_val:],
-        }
-        print(f"Split — train: {n_train}, val: {n_val}, test: {n - n_train - n_val}")
-    else:
-        output_data = all_samples
+    #if args.split:
+    #    n = len(all_samples)
+    #    n_train = int(n * 0.80)
+    #    n_val   = int(n * 0.10)
+    #    output_data = {
+    #        "train": all_samples[:n_train],
+    #        "val":   all_samples[n_train:n_train + n_val],
+    #        "test":  all_samples[n_train + n_val:],
+    #    }
+    #    print(f"Split — train: {n_train}, val: {n_val}, test: {n - n_train - n_val}")
+    #else:
+        
+    output_data = all_samples
 
     output = args.output
     with open(output, 'w') as f:
