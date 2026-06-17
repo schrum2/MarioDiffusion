@@ -87,7 +87,8 @@ SYSTEM_PROMPT =  """
                     with relative locations, although not explicity required. Mention specific structures/features like
                     platforms, enemies, corridors, etc.
                     - Caption the level like you're writing a prompt to generate it; this means specificity and directness is essential.
-                    - ORIENTATION: The first grid row is the TOP of the level and the last row is the BOTTOM; gravity points
+                    
+                    ORIENTATION: The first grid row is the TOP of the level and the last row is the BOTTOM; gravity points
                     down, toward the last row. The player spawn is where the player STARTS, and the player progresses AWAY from it
                     toward the far end of the level. Decide ascending vs descending from the player's direction of travel away from
                     the spawn, never from connectivity alone. Travel toward the top of the grid is ascending (climbing up); travel
@@ -95,7 +96,17 @@ SYSTEM_PROMPT =  """
                     means the level is an ASCENT (the player climbs upward), while a spawn near the top means a DESCENT. Never
                     describe the spawn as somewhere the player descends to or arrives at, it is where they begin. Wide horizontal
                     levels flow from the spawn on the left toward the right.
-                    
+
+                    READING SLOPES AND STAIRS: To tell which way a staircase or sloped floor goes, do not eyeball the overall
+                    shape and do not judge it by where the bulk of the solid tiles sit. Instead trace the walkable surface,
+                    the topmost solid tile the player can stand on, one column at a time across the direction of travel.
+                    Because the first row is the top, a surface nearer the top of the grid is physically HIGHER and a surface
+                    nearer the bottom is LOWER. If that surface moves UP the grid (toward row one) as the player advances, the
+                    stairs ASCEND in that direction; if it moves DOWN the grid (toward the last row), they DESCEND. A block of
+                    solid tiles heaped in a bottom corner is almost always steps the player climbs UP toward that corner, not a
+                    drop. Only call something a pit, gap, or hole when there is genuinely open space with no solid floor beneath
+                    it within a jump, check the rows directly below before claiming a pit, and never invent one.
+
                     FORMATTING:
                     - Your response must contain nothing but the five diverse captions.
                     - Put each caption on its own line, with no blank lines between them.
