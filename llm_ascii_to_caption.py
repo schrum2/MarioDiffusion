@@ -114,7 +114,7 @@ SYSTEM_PROMPT =  """
                     - You must write exactly FIVE captions; no more, no less.
                     - Do not include any dashes or semicolons. The only punctuation you should 
                     use are commas and periods (, and .)
-                    - Don't say things like "This level has..." or "The level feautures". Just directly
+                    - Don't say things like "This level has..." or "The level feautures...". Just directly
                     describe the level itself without mentioning "level". 
                  """
 
@@ -188,7 +188,7 @@ def claude_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESE
                 max_tokens=1024,
                 system=SYSTEM_PROMPT, # claude requires system prompt to be separated from context block
                 messages=context,
-                model="claude-sonnet-4-6"
+                model="claude-haiku-4-5"
                 )
     
     # message.content is a list of content blocks; pull the text out and split into a list
