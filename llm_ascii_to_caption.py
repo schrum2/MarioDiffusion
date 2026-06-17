@@ -219,8 +219,8 @@ def main() -> list[list[str]]:
             print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
 
         caption_lists.append(caption_set)
-        captioned_dataset.append({"scene": scene, "caption": caption_set})
-
+        captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4]})
+        
     # save to specified output dir if specified
     if args.output:
         with open(args.output, "w") as f:
