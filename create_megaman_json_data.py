@@ -206,6 +206,9 @@ def main():
     faithful_vertical = args.faithful_vertical or (args.target_height > nav_width)
 
     all_samples = []
+    seen_samples = set()
+    duplicates_removed = 0
+
     for i in range(len(levels)):
         try:
             if args.scan_mode == 'sliding_window':
@@ -213,21 +216,54 @@ def main():
                     levels[i], tile_to_id, nav_width, nav_height, null_chars,
                     out_width=args.target_width, out_height=args.target_height
                 )
-            elif i==7: #We need to do some slight overrides on 1-7 to make the level functional
-                samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False, change_direction_overrides=overrides_1_7)
+            elif i == 7:
+                samples, json_caption_data = parse_level(
+                    tile_to_id, levels[i], nav_width, nav_height,
+                    null_chars, wall_chars,
+                    out_width=args.target_width,
+                    out_height=args.target_height,
+                    faithful_vertical=faithful_vertical,
+                    print_at_corners=False,
+                    change_direction_overrides=overrides_1_7
+                )
             else:
-                samples, json_caption_data=parse_level(tile_to_id, levels[i], nav_width, nav_height, null_chars, wall_chars, out_width=args.target_width, out_height=args.target_height, faithful_vertical=faithful_vertical, print_at_corners=False)
+                samples, json_caption_data = parse_level(
+                    tile_to_id, levels[i], nav_width, nav_height,
+                    null_chars, wall_chars,
+                    out_width=args.target_width,
+                    out_height=args.target_height,
+                    faithful_vertical=faithful_vertical,
+                    print_at_corners=False
+                )
+
         except ValueError as e:
             print(f"Skipping level {i}: {e}")
             continue
 
         print(f"Level {i} parsed successfully: {len(samples)} samples")
+
         for sample, json_data in zip(samples, json_caption_data):
+
+            key = (
+                tuple(tuple(row) for row in sample),
+                json_data["entrance_direction"],
+                json_data["exit_direction"]
+            )
+
+            if key in seen_samples:
+                duplicates_removed += 1
+                continue
+
+            seen_samples.add(key)
+
             all_samples.append({
                 "sample": sample,
                 "data": json_data
-            }) 
-    
+            })
+
+    print(f"Removed {duplicates_removed} duplicate samples")
+    print(f"Final dataset size: {len(all_samples)}")
+
     if args.traversable_only:
         all_samples = filter_traversable(all_samples, id_to_char, tile_descriptors, budget=args.budget)
         
@@ -252,9 +288,27 @@ def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_wid
     for y in range(0, level_height - height + 1):
         for x in range(0, level_width - width + 1):
             window = [level[y+r][x:x+width] for r in range(height)]
-            null_count = sum(1 for row in window for c in row if c in null_chars or c == '@' or c == '-')
+
+            at_count = sum(1 for row in window for c in row if c == '@')
             total = len(window) * len(window[0])
-            if null_count / total > 0.86:
+            if at_count / total > 0.60:
+                continue
+
+            # Reject windows that contain a fully-void column or row running
+            # through them. A legitimate in-room sample should never have a
+            # complete blank column/row, since real rooms are walkable
+            # (filled with '-') everywhere they exist. A full void column/row
+            # means the window straddles a real room and a real empty gap
+            # between two disconnected rooms.
+            has_full_void_column = any(
+                all(window[r][c] == '@' for r in range(height))
+                for c in range(width)
+            )
+            has_full_void_row = any(
+                all(c == '@' for c in row)
+                for row in window
+            )
+            if has_full_void_column or has_full_void_row:
                 continue
 
             col_offset = (out_width - width) // 2
