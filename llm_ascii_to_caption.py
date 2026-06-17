@@ -80,12 +80,20 @@ SYSTEM_PROMPT =  """
                     while remaining accurate. Make the diversity noticeable, including short and longer captions, playfully
                     descriptive captions and monotone, serious captions, and so on. Keep the longest captions within 3-4 sentences,
                     never overly long. Your shortest captions should be succinct statements about level features/structure.
-                    - Do not mention specific tile types in your answer that you see in the tile set (B, p, etc.); 
+                    - Do not mention specific tile types in your answer that you see in the tile set (B, p, etc.),
                     just describe the level with words.
                     - Your captions should primarily focus on level structure, and features in the level, typically 
                     with relative locations, although not explicity required. Mention specific structures/features like
                     platforms, enemies, corridors, etc.
                     - Caption the level like you're writing a prompt to generate it; this means specificity and directness is essential.
+                    - ORIENTATION: The first grid row is the TOP of the level and the last row is the BOTTOM; gravity points
+                    down, toward the last row. The player spawn is where the player STARTS, and the player progresses AWAY from it
+                    toward the far end of the level. Decide ascending vs descending from the player's direction of travel away from
+                    the spawn, never from connectivity alone. Travel toward the top of the grid is ascending (climbing up); travel
+                    toward the bottom is descending (dropping or falling down). For a tall vertical level, a spawn near the bottom
+                    means the level is an ASCENT (the player climbs upward), while a spawn near the top means a DESCENT. Never
+                    describe the spawn as somewhere the player descends to or arrives at, it is where they begin. Wide horizontal
+                    levels flow from the spawn on the left toward the right.
                     
                     FORMATTING:
                     - Your response must contain nothing but the five diverse captions.
@@ -94,6 +102,8 @@ SYSTEM_PROMPT =  """
                     - You must write exactly FIVE captions; no more, no less.
                     - Do not include any dashes or semicolons. The only punctuation you should 
                     use are commas and periods (, and .)
+                    - Don't say things like "This level has..." or "The level feautures". Just directly
+                    describe the level itself without mentioning "level". 
                  """
 
 def load_dataset(path: str) -> tuple[list[list[str]], str]:
@@ -218,8 +228,10 @@ def main() -> list[list[str]]:
         for j, caption in enumerate(caption_set):
             print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
 
+
         caption_lists.append(caption_set)
-        captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4]})
+        # ugly but necessary; want single json object with flat fields scene, cap, cap1, ..., cap4
+        captioned_dataset.append({"scene": scene[0], "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4]})
         
     # save to specified output dir if specified
     if args.output:
