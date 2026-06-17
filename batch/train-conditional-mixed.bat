@@ -21,3 +21,4 @@ set DIFF_OUTPUT=%LABEL%-conditional-regular%SEED%
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\%DATA%_LevelsAndCaptions-regular-train.json --val_json datasets\%DATA%_LevelsAndCaptions-regular-validate.json --test_json datasets\%DATA%_LevelsAndCaptions-regular-test.json --pkl datasets\%LABEL%_Tokenizer-regular.pkl --output_dir %MLM_OUTPUT% --seed %SEED%
 python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir "%DIFF_OUTPUT%" --num_epochs 300 --json datasets\%DATA%_LevelsAndCaptions-regular-train.json --val_json datasets\%DATA%_LevelsAndCaptions-regular-validate.json --pkl datasets\%LABEL%_Tokenizer-regular.pkl --mlm_model_dir %MLM_OUTPUT% --plot_validation_caption_score --seed %SEED% --batch_size 16 
 call batch\run_diffusion_multi.bat %DIFF_OUTPUT% regular %DATA% text
+call batch\evaluate_caption_adherence_multi.bat %DIFF_OUTPUT% %TYPE% %GAME%
