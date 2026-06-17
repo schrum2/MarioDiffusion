@@ -70,11 +70,33 @@ MM_TILESET_DICT = {
 }
 
 
-SYSTEM_PROMPT =  """ Given a tileset key and an ASCII level grid, generate a succinct caption for the level.
- 
+SYSTEM_PROMPT =  """
+                    You are a Mega Man captioning agent; given an ascii grid representation of a Mega Man level
+                    and a ascii tile set key to go along with it, you must generate EXACTLY FIVE diverse captions 
+                    that all describe the level accurately. 
+
+                    RULES:
+                    - Your captions should each DISTINCTLY vary in tone, length, wordiness, playfullness, specificity, etc. 
+                    while remaining accurate. Make the diversity noticeable, including short and longer captions, playfully
+                    descriptive captions and monotone, serious captions, and so on. Keep the longest captions within 3-4 sentences,
+                    never overly long. Your shortest captions should be succinct statements about level features/structure.
+                    - Do not mention specific tile types in your answer that you see in the tile set (B, p, etc.); 
+                    just describe the level with words.
+                    - Your captions should primarily focus on level structure, and features in the level, typically 
+                    with relative locations, although not explicity required. Mention specific structures/features like
+                    platforms, enemies, corridors, etc.
+                    - Caption the level like you're writing a prompt to generate it; this means specificity and directness is essential.
+                    
+                    FORMATTING:
+                    - Your response must contain nothing but the five diverse captions.
+                    - Put each caption on its own line, with no blank lines between them.
+                    - Do not number the captions, add bullets, or write any other text.
+                    - You must write exactly FIVE captions; no more, no less.
+                    - Do not include any dashes or semicolons. The only punctuation you should 
+                    use are commas and periods (, and .)
                  """
 
-def load_dataset(path: str) -> list[list[str]]:
+def load_dataset(path: str) -> tuple[list[list[str]], str]:
     """
     Load a set of ASCII level scenes for an LLM to caption
 
@@ -90,9 +112,13 @@ def load_dataset(path: str) -> list[list[str]]:
     file of smaller ASCII scenes can be dropped in later without code changes.
     """
     # A directory of level files: load_levels reads every *.txt, strips blank
-    # lines/trailing whitespace, and returns one list-of-rows per file.
+    # lines/trailing whitespace, and returns one list-of-rows per file. Pair each
+    # scene with its source filename so callers can label output by level;
+    # load_levels and this glob share the same sorted("*.txt") ordering.
     if os.path.isdir(path):
-        return load_levels(path)
+        levels = load_levels(path)
+        files = sorted(Path(path).glob("*.txt"))
+        return [(level, file.name) for level, file in zip(levels, files)]
 
     # Otherwise treat it as a JSON file containing a list of pre-built scenes.
     with open(path, "r") as f:
@@ -101,13 +127,13 @@ def load_dataset(path: str) -> list[list[str]]:
     scenes = []
     for entry in data:
         # Accept both bare scenes ([rows]) and dataset entries ({"scene": [rows], ...}).
-        scenes.append(entry["scene"] if isinstance(entry, dict) else entry)
+        scenes.append((entry["scene"] if isinstance(entry, dict) else entry, Path(path).name))
     return scenes
 
 
 
 
-def claude_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> str:
+def claude_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> list[str]:
     """
     Prompt claude (via API) w/ ascii level scene and tileset, return the caption(s) it generates
     """
@@ -123,11 +149,15 @@ def claude_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESE
                 max_tokens=1024,
                 system=SYSTEM_PROMPT, # claude requires system prompt to be separated from context block
                 messages=context,
-                model="claude-opus-4-8"
+                model="claude-sonnet-4-6"
                 )
+    
+    # message.content is a list of content blocks; pull the text out and split into a list
+    # separated by line breaks, dropping blank lines (Claude often separates captions with blank lines)
+    captions = [line.strip() for line in message.content[0].text.split("\n") if line.strip()]
 
-    # message.content is a list of content blocks — pull the text out
-    return message.content[0].text
+    print(f"[{len(captions)} captions detected]\n")
+    return captions
 
 def llama_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> str:
     """
@@ -166,7 +196,7 @@ def parse_args():
     return argparser.parse_args()
 
 
-def main() -> list[str]:
+def main() -> list[list[str]]:
 
     args = parse_args()
 
@@ -174,18 +204,22 @@ def main() -> list[str]:
     scenes = load_dataset(args.levels)
 
     
-    captions = []
+    caption_lists = [] # list[list] of caption set for each level
     captioned_dataset = []
     # caption each scene, append back to running lists 
     for i, scene in enumerate(scenes):
         
-        scene_str = "\n".join(scene) # 
+        scene_str = "\n".join(scene[0]) # first element is the scene
         # currently wired to the claude API version, can also be set to local
-        caption = claude_caption(scene_str, game=args.game, model=args.model)
-        print(f"[{i + 1}/{len(scenes)}] {caption}\n\n")
+        caption_set = claude_caption(scene_str, game=args.game, model=args.model)
+        
 
-        captions.append(caption)
-        captioned_dataset.append({"scene": scene, "caption": caption})
+        print(f"------------------[{scene[1]}] ({i + 1}/{len(scenes)})------------------\n")
+        for j, caption in enumerate(caption_set):
+            print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
+
+        caption_lists.append(caption_set)
+        captioned_dataset.append({"scene": scene, "caption": caption_set})
 
     # save to specified output dir if specified
     if args.output:
@@ -193,7 +227,7 @@ def main() -> list[str]:
             json.dump(captioned_dataset, f, indent=2)
         print(f"Captioned dataset saved to {args.output}")
 
-    return captions
+    return caption_lists
 
 
 if __name__ == "__main__":
