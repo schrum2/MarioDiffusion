@@ -9,6 +9,14 @@ import os
 import sys
 import random
 
+
+#Snap mode: number of null padding rows added on top of each wide (horizontal) scene,
+#mirroring the path follower's padding. The screen is nav_height tall and null-free, so a
+#wide scene ends up nav_height + SNAP_H_PAD_ROWS tall. Tall scenes use no padding.
+SNAP_H_PAD_ROWS = 2
+
+
+
 #This enum is for the readability of the direction enum
 class Axis(Enum):
     VERT=0
@@ -160,7 +168,7 @@ def parse_args():
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
     parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
-    parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window'], help='How to extract samples: path follower (default) or sliding window')    
+    parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window', 'snap'], help='How to extract samples: path follower (default), sliding window, or snap (variable-dimension wide+tall scans that snap to valid content)')
     parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
     
 
@@ -212,7 +220,24 @@ def main():
     all_samples = []
     for i in range(len(levels)):
         try:
-            if args.scan_mode == 'sliding_window':
+            if args.scan_mode == 'snap':
+                #Two scans producing a mix of wide and tall scenes that snap to real
+                #content (see snap_window_samples). Both scan for fully null-free screens.
+                #Wide scenes are a target_width x nav_height null-free screen with
+                #SNAP_H_PAD_ROWS rows of null padding added on top (matching the path
+                #follower), for a final height of nav_height + SNAP_H_PAD_ROWS. Tall scenes
+                #are nav_width x target_height with no padding.
+                h_samples, h_json = snap_window_samples(
+                    levels[i], tile_to_id, args.target_width, nav_height, null_chars,
+                    top_pad=SNAP_H_PAD_ROWS
+                )
+                v_samples, v_json = snap_window_samples(
+                    levels[i], tile_to_id, nav_width, args.target_height, null_chars,
+                    top_pad=0
+                )
+                samples = h_samples + v_samples
+                json_caption_data = h_json + v_json
+            elif args.scan_mode == 'sliding_window':
                 samples, json_caption_data = sliding_window_samples(
                     levels[i], tile_to_id, nav_width, nav_height, null_chars,
                     out_width=args.target_width, out_height=args.target_height
@@ -281,6 +306,38 @@ def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_wid
             encoded = [[tile_to_id.get(ch, tile_to_id.get(null, 0)) for ch in row] for row in sample]
             samples.append(encoded)
             json_caption_data.append({"entrance_direction": "RIGHT", "exit_direction": "RIGHT"})
+
+    return samples, json_caption_data
+
+
+#Slides an out_width x screen_height window over the level, keeping only screens that are
+#entirely null-free (@ / out-of-bounds), then adds top_pad rows of null padding on top.
+#This mirrors the path follower: the screen is real, navigable content (zero out-of-bounds,
+#like the path follower's nav window and like the vertical scan), and the only null is the
+#synthetic padding added on top. Output scenes are (screen_height + top_pad) tall. Air ('-')
+#is legitimate content, so only @ matters. Used by the 'snap' scan mode.
+def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars, top_pad=0):
+    null_id = tile_to_id.get(null_chars[0], 0)
+    level_height = len(level)
+    level_width = len(level[0])
+
+    samples = []
+    json_caption_data = []
+
+    for y in range(0, level_height - screen_height + 1):
+        for x in range(0, level_width - out_width + 1):
+            screen = [level[y+r][x:x+out_width] for r in range(screen_height)]
+            if any(c in null_chars for row in screen for c in row):
+                continue
+
+            #Synthetic null padding rows on top, then the encoded null-free screen below.
+            encoded = [[null_id] * out_width for _ in range(top_pad)]
+            for row in screen:
+                encoded.append([tile_to_id.get(ch, null_id) for ch in row])
+            samples.append(encoded)
+            #None (not {}) keeps this parallel with the path-follower's "no captions"
+            #convention; the caption consumer skips None but KeyErrors on an empty dict.
+            json_caption_data.append(None)
 
     return samples, json_caption_data
 
