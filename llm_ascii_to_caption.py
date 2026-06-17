@@ -24,6 +24,7 @@ ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 from create_level_json_data import load_levels
+from captions.util import extract_tileset
 
 MM_TILESET_DICT = {
     "tiles" : {
@@ -106,38 +107,55 @@ SYSTEM_PROMPT =  """
                     describe the level itself without mentioning "level". 
                  """
 
-def load_dataset(path: str) -> tuple[list[list[str]], str]:
+def scene_to_ascii(scene: list[list[int]], id_to_char: dict[int, str]) -> list[str]:
     """
-    Load a set of ASCII level scenes for an LLM to caption
+    Decode a 2D integer tile-id grid into a list of ASCII row strings using the tileset map.
+
+    This is used only to build the captioning prompt; the integer grid itself is carried
+    through to the output unchanged.
+    """
+    return ["".join(id_to_char[tile] for tile in row) for row in scene]
+
+
+def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[int]], str]]:
+    """
+    Load integer tile-id scenes for an LLM to caption.
 
     {path} could be:
-        - a directory of VGLC-ASCII level files (``*.txt``), one scene per file
-        (this is how whole Mega Man levels are loaded today)
+        - a JSON file produced by create_megaman_json_data.py: a list of entries, each a
+          dict with a "sample" key holding the 2D integer tile-id grid (a "scene" key or a
+          bare grid are also accepted).
 
-        -  a JSON file holding a list of scenes, where each scene is a list of row
-        strings, or a dict with a "scene" key holding that list of row strings.
+        - a directory of VGLC-ASCII level files (*.txt), one whole level per file. These
+          are encoded to integer grids (via char_to_id) so the output format is the same
+          either way.
 
-    Either way the return value is a list of scenes, each scene being a list of
-    ASCII row strings. Because nothing here assumes a particular scene size, a
-    file of smaller ASCII scenes can be dropped in later without code changes.
+    Returns a list of (scene, label) tuples, where each scene is a 2D grid of integer
+    tile ids and label identifies the source. The integer grid is what gets stored in the
+    output; it is only decoded to ASCII transiently for the captioning prompt.
     """
     # A directory of level files: load_levels reads every *.txt, strips blank
-    # lines/trailing whitespace, and returns one list-of-rows per file. Pair each
-    # scene with its source filename so callers can label output by level;
-    # load_levels and this glob share the same sorted("*.txt") ordering.
+    # lines/trailing whitespace, and returns one list-of-rows per file. Encode each to an
+    # integer grid so the rest of the pipeline is uniformly integer tile ids. Pair each
+    # scene with its source filename; load_levels and this glob share the sorted("*.txt") order.
     if os.path.isdir(path):
         levels = load_levels(path)
         files = sorted(Path(path).glob("*.txt"))
-        return [(level, file.name) for level, file in zip(levels, files)]
+        return [([[char_to_id[c] for c in row] for row in level], file.name)
+                for level, file in zip(levels, files)]
 
-    # Otherwise treat it as a JSON file containing a list of pre-built scenes.
+    # Otherwise treat it as a JSON file of integer tile-id scenes.
     with open(path, "r") as f:
         data = json.load(f)
 
     scenes = []
     for entry in data:
-        # Accept both bare scenes ([rows]) and dataset entries ({"scene": [rows], ...}).
-        scenes.append((entry["scene"] if isinstance(entry, dict) else entry, Path(path).name))
+        if isinstance(entry, dict):
+            # create_megaman_json_data.py writes the grid under "sample"; accept "scene" too.
+            grid = entry["sample"] if "sample" in entry else entry["scene"]
+        else:
+            grid = entry
+        scenes.append((grid, Path(path).name))
     return scenes
 
 
@@ -195,14 +213,19 @@ def parse_args():
     )
 
     argparser.add_argument("--levels", default="../TheVGLC/MegaMan/Enhanced",
-                           help="Directory of VGLC-ASCII level .txt files, or a JSON file of ASCII scenes")
+                           help="JSON dataset of integer tile-id scenes from create_megaman_json_data.py, "
+                                "or a directory of VGLC-ASCII level .txt files")
+    argparser.add_argument("--tileset", default="datasets/MM.json",
+                           help="Tileset JSON used to decode integer scenes to ASCII for the prompt "
+                                "(must match the tileset the scenes were generated from)")
     argparser.add_argument("--game", default="Mega Man",
                            help="Game name passed to the LLM prompt for context")
     argparser.add_argument("--model", default="qwen3.5:9b",
                            help="Local ollama model to prompt for captions")
     argparser.add_argument("--output", default=None,
                            help="Optional path to write the captioned [{scene, caption}] list as JSON")
-
+    argparser.add_argument("--limit", type=int, default=None,
+                           help="Max number of scenes to caption. Defaults to the entire dataset")
     return argparser.parse_args()
 
 
@@ -210,29 +233,41 @@ def main() -> list[list[str]]:
 
     args = parse_args()
 
-    # load ascii scenes
-    scenes = load_dataset(args.levels)
+    # Tileset map: integer id -> ASCII char, used to decode each integer scene into the
+    # ASCII grid shown to the LLM. char -> id is used to encode a directory of ASCII levels.
+    _, id_to_char, char_to_id, _ = extract_tileset(args.tileset)
+
+    # load integer tile-id scenes
+    scenes = load_dataset(args.levels, char_to_id)
 
     
-    caption_lists = [] # list[list] of caption set for each level
+    # parsers all of scenes when limit is None 
+    scenes = scenes[:args.limit]
+
+
+    caption_lists = [] # list[list] of caption set for each scene
     captioned_dataset = []
-    # caption each scene, append back to running lists 
-    for i, scene in enumerate(scenes):
-        
-        scene_str = "\n".join(scene[0]) # first element is the scene
+
+    # caption each scene, append back to running lists
+    for i, (scene, label) in enumerate(scenes):
+
+        # Decode the integer grid to ASCII rows purely to build the prompt; the integer
+        # grid itself is what gets stored back in the output.
+        scene_str = "\n".join(scene_to_ascii(scene, id_to_char))
         # currently wired to the claude API version, can also be set to local
         caption_set = claude_caption(scene_str, game=args.game, model=args.model)
-        
 
-        print(f"------------------[{scene[1]}] ({i + 1}/{len(scenes)})------------------\n")
+        
+        print(f"------------------[{label}] ({i + 1}/{len(scenes)})------------------\n")
         for j, caption in enumerate(caption_set):
             print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
 
 
         caption_lists.append(caption_set)
-        # ugly but necessary; want single json object with flat fields scene, cap, cap1, ..., cap4
-        captioned_dataset.append({"scene": scene[0], "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4]})
-        
+        # ugly but necessary; want single json object with flat fields scene, cap, cap1, ..., cap4.
+        # "scene" holds the original integer tile-id grid, carried through unchanged.
+        captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4]})
+
     # save to specified output dir if specified
     if args.output:
         with open(args.output, "w") as f:
