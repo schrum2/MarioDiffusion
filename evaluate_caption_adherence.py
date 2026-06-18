@@ -147,9 +147,14 @@ def main():
         torch.cuda.manual_seed_all(args.seed)
 
 
-    pipe = get_pipeline(args.model_path).to(device)
-
-    assert(pipe.tokenizer is not None)
+    # In --compare_checkpoints mode each checkpoint's pipeline is loaded inside
+    # track_caption_adherence, so we must not load one from the top-level model dir here:
+    # a model whose weights live only in checkpoint subdirs (no top-level "unet") would
+    # otherwise crash get_pipeline before the comparison even starts.
+    pipe = None
+    if not args.compare_checkpoints:
+        pipe = get_pipeline(args.model_path).to(device)
+        assert(pipe.tokenizer is not None)
 
     if args.match_scene_width and args.random_width:
         print("Error: --match_scene_width and --random_width are mutually exclusive.")
