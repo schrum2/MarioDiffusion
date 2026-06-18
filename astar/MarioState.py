@@ -152,7 +152,7 @@ class MarioState:
             if self.passable(newMarioX, newMarioY + 1):  # Falling
                 newMarioY += 1  # Fall down
             elif action.getDirection() == self.MarioAction.DIRECTION.JUMP:  # Start jump
-                newJumpVelocity = 4  # Accelerate up
+                newJumpVelocity = 5  # Accelerate up
         elif action.getDirection() == self.MarioAction.DIRECTION.JUMP:
             return None  # Can't jump mid-jump. Reduces search space.
 
