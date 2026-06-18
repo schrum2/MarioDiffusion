@@ -136,6 +136,7 @@ def parse_args():
     # Dataset augmentation / checkpointed dataset saving
     parser.add_argument("--auto_augment", action="store_true", help="Enable dataset growth from generated captions after reaching a target caption score")
     parser.add_argument("--auto_augment_threshold", type=float, default=0.8, help="Validation caption score threshold to begin dataset augmentation")
+    parser.add_argument("--no_traversability_check", dest="traversability_check", action="store_false", default=True, help="Disable the level traversability check before adding generated samples to the training set")
 
     # figure these out later
     parser.add_argument("--auto_augment_max_new_samples", type=int, default=10, help="Max new samples to add per augmentation run")    
@@ -833,8 +834,6 @@ def main():
                         # MEMORY FIX: Convert all_samples only once and process incrementally
                         bad_scenes_list = convert_to_level_format(all_samples).tolist()
 
-                
-                        
                         trav_game = astar.astar_traversability_check.RENDER_GAME_TO_TRAV[args.game]
 
                         for i in bad_indices:
@@ -860,17 +859,18 @@ def main():
                                 if canonical_caption in seen_caption_set:
                                     continue
 
-                                # Skip scenes that aren't traversable 
-                                traversable, _, _ = astar.astar_traversability_check.evaluate(
-                                    trav_game,
-                                    bad_scenes_list[i],
-                                    id_to_char,
-                                    tile_descriptors,
-                                    100000,   # A* state-expansion budget per scene
-                                    False,    # allow_weird (LodeRunner-only sideways digging)
-                                )
-                                if not traversable:
-                                    continue
+                                # Skip scenes that aren't traversable
+                                if args.traversability_check and args.augment:
+                                    traversable, _, _ = astar.astar_traversability_check.evaluate(
+                                        trav_game,
+                                        bad_scenes_list[i],
+                                        id_to_char,
+                                        tile_descriptors,
+                                        100000,   # A* state-expansion budget per scene
+                                        False,    # allow_weird (LodeRunner-only sideways digging)
+                                    )
+                                    if not traversable:
+                                        continue
 
                                 seen_caption_set.add(canonical_caption)
 
