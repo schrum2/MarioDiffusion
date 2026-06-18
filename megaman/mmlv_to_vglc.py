@@ -32,6 +32,15 @@ from pathlib import Path
 from typing import Dict, Tuple
 
 TILE_PX = 16  # pixels per tile
+MEGAMAN_SCENE_HEIGHT = 14   # actual playable vertical scene height
+# Add near the top with other constants
+MEGAMAN_PLAYABLE_HEIGHT = 14  # Actual playable scene height (distinct from
+                                # the 16-tile nav window used elsewhere in the
+                                # repo for screen-based navigation — do not
+                                # change that 16, this is a separate constant)
+MEGAMAN_SCREEN_WIDTH = 16  # Mega Man Maker's screen grid width, used to scan
+                            # the level in screen-sized blocks when deciding
+                            # which empty cells are walkable sky vs truly outside any screen
 
 
 def parse_mmlv(path: Path) -> Dict[Tuple[int,int], dict]:
@@ -81,21 +90,46 @@ def classify(cell: dict) -> str:
     # Cell exists but no recognised i or d (metadata-only cell)
     return None
 
+def fill_walkable_by_screen_grid(grid, char_cells, min_x, min_y, width, height):
+    """
+    Scan the level in MEGAMAN_PLAYABLE_HEIGHT x MEGAMAN_SCREEN_WIDTH blocks.
+    If a block contains any real placed tile, every '@' cell in that block
+    becomes '-' (walkable sky). If a block has no tiles at all, it's left
+    as '@' (truly outside any screen).
+    """
+    occupied = set()
+    for (tx, ty) in char_cells.keys():
+        occupied.add((ty - min_y, tx - min_x))
+
+    for block_row_start in range(0, height, MEGAMAN_PLAYABLE_HEIGHT):
+        for block_col_start in range(0, width, MEGAMAN_SCREEN_WIDTH):
+            block_row_end = min(block_row_start + MEGAMAN_PLAYABLE_HEIGHT, height)
+            block_col_end = min(block_col_start + MEGAMAN_SCREEN_WIDTH, width)
+
+            has_content = any(
+                (r, c) in occupied
+                for r in range(block_row_start, block_row_end)
+                for c in range(block_col_start, block_col_end)
+            )
+
+            if has_content:
+                for r in range(block_row_start, block_row_end):
+                    for c in range(block_col_start, block_col_end):
+                        if grid[r][c] == '@':
+                            grid[r][c] = '-'
+
+    return grid
 
 def mmlv_to_grid(path: Path):
-    """Convert one .mmlv to a 2-D list of VGLC chars, cropped to content."""
+    """Convert one .mmlv to a 2-D list of VGLC chars."""
     cells = parse_mmlv(path)
 
-    # Collect only cells that produce a character
     char_cells: Dict[Tuple[int,int], str] = {}
     for coord, cell in cells.items():
         ch = classify(cell)
         if ch is not None:
             char_cells[coord] = ch
 
-    # Also need player spawn – look for the [Player] or spawn marker.
-    # In .mmlv the player start is stored under a separate section as
-    # plain "x=... y=..." lines (not the tile grid). Parse it separately.
     text = path.read_bytes().decode("utf-8", errors="replace")
     spawn_match = re.search(
         r'\[(?:Player|PlayerData)\].*?x=(\d+).*?y=(\d+)', text,
@@ -107,52 +141,29 @@ def mmlv_to_grid(path: Path):
         char_cells[(sx, sy)] = "P"
 
     if not char_cells:
-        return []  # empty level
+        return []
 
-    # Bounding box of content
     xs = [c[0] for c in char_cells]
     ys = [c[1] for c in char_cells]
+
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
 
-    width  = max_x - min_x + 1
+    width = max_x - min_x + 1
     height = max_y - min_y + 1
 
-    # Build grid (empty = '-')
-    grid = [['-'] * width for _ in range(height)]
+    # Start everything as inaccessible space
+    grid = [['@'] * width for _ in range(height)]
+
+    grid = fill_walkable_by_screen_grid(grid, char_cells, min_x, min_y, width, height)
+
+    # Place actual tiles/entities (overwrites any '-' fill at that position)
     for (tx, ty), ch in char_cells.items():
         row = ty - min_y
         col = tx - min_x
         grid[row][col] = ch
 
-    # Strip rows that are entirely '-' from top and bottom
-    def is_empty_row(r):
-        return all(c == '-' for c in r)
-
-    while grid and is_empty_row(grid[0]):
-        grid.pop(0)
-    while grid and is_empty_row(grid[-1]):
-        grid.pop()
-
-    if not grid:
-        return grid
-
-    # Strip empty columns from left and right
-    def is_empty_col(grid, col):
-        return all(row[col] == '-' for row in grid)
-
-    left  = 0
-    right = len(grid[0]) - 1
-    while left <= right and is_empty_col(grid, left):
-        left += 1
-    while right >= left and is_empty_col(grid, right):
-        right -= 1
-
-    if left > 0 or right < len(grid[0]) - 1:
-        grid = [row[left:right+1] for row in grid]
-
     return grid
-
 
 def convert(src: Path, dst: Path):
     grid = mmlv_to_grid(src)
