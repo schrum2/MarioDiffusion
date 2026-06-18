@@ -257,7 +257,7 @@ CHAR_MAP = {
     'A': solid_block,
     't': solid_block,
     '|': ladder_tile,
-    'H': ladder_tile,
+    'H': spike_tile,
     'B': breakable_tile,
     'M': moving_platform,
     '~': water_tile,
