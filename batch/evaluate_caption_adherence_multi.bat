@@ -27,9 +27,14 @@ if /I "%TYPE%"=="absence" set DESCRIBE_ABSENCE_FLAG=--describe_absence
 
 
 
+REM LevelsAndCaptions captions come from real scenes. Multi-width datasets automatically recreate
+REM each caption at its source scene's width; single-width datasets keep the old fixed width.
 python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json --output_dir samples-from-real-%GAME%-captions %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
 python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json --compare_checkpoints %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
 python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_LevelsAndCaptions-%TYPE%-test.json --compare_checkpoints %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_RandomTest-%TYPE%.json --output_dir samples-from-random-%GAME%-captions %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_RandomTest-%TYPE%.json --compare_checkpoints %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
+REM RandomTest captions have no source scene, so randomize the generated width across the
+REM training width range. --width_range_json supplies that range for models trained before
+REM training_widths.json existed; newer models also carry it in the model directory.
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_RandomTest-%TYPE%.json --output_dir samples-from-random-%GAME%-captions --random_width --width_range_json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\%GAME%_RandomTest-%TYPE%.json --compare_checkpoints --random_width --width_range_json datasets\%GAME%_LevelsAndCaptions-%TYPE%.json %NUM_TILES% %DESCRIBE_ABSENCE_FLAG%
 

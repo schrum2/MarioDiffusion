@@ -38,6 +38,7 @@
         "b": ["enemy", "damaging", "flying"],
         "a": ["enemy", "damaging", "ranged"],
         "d": ["enemy", "damaging", "ranged"],
-        "h": ["enemy", "damaging", "ranged"]
+        "h": ["enemy", "damaging", "ranged"],
+        "n": ["enemy", "damaging", "flying"]
     }
 }

@@ -403,6 +403,17 @@ def main():
                                         block_embeddings=block_embeddings, batch_size=args.batch_size,
                                         persistent_workers=(not args.auto_augment))
 
+    # Persist the BucketBatchSampler's scene-width range alongside the model so post-training
+    # tools (evaluate_caption_adherence.py, run_diffusion.py) can randomize generated widths
+    # over the same range the model was trained on, without re-reading the training dataset.
+    if sample_widths:
+        with open(os.path.join(args.output_dir, "training_widths.json"), "w") as f:
+            json.dump({
+                "widths": sorted(sample_widths),
+                "min": min(sample_widths),
+                "max": max(sample_widths),
+            }, f, indent=4)
+
     #print(train_dataloader.dataset)
     #input("Press Enter to continue...")
     #print(train_dataloader.dataset[0])
@@ -443,7 +454,7 @@ def main():
     print(f"Scene width: {scene_width}")
 
     if args.text_conditional:
-        sample_captions, sample_negative_captions = gen_train_help.get_random_training_samples(train_dataloader, args.negative_prompt_training, args.output_dir)
+        sample_captions, sample_negative_captions = gen_train_help.get_random_training_samples(train_dataloader, args.negative_prompt_training, args.output_dir, game=args.game, block_embeddings=block_embeddings)
 
     # if there is no block embedding model, set the channels to num_tiles
     in_channels = embedding_dim if args.block_embedding_model_path else args.num_tiles
