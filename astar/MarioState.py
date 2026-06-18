@@ -48,7 +48,7 @@ class MarioState:
     @classmethod
     def from_level(cls, level):
         """Default constructor: start at top-left, two tiles above the floor."""
-        return cls(level, 0, 0, len(level) - 2)
+        return cls(level, 0, 0, 2)
 
     # simple greedy heuristic: horizontal distance from Mario to the right edge (flagpole)
     def moveRight(self):
