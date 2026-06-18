@@ -112,6 +112,55 @@ def general_update_plot(log_file, left_key, right_key, left_label, right_label, 
     finally:
         plt.close(fig)  # Ensure figure is closed even if an error occurs
 
+def plot_scores_by_width(log_file, output_png):
+    """Plot caption-adherence score vs epoch with a separate line per scene width.
+
+    Reads the scores-by-epoch JSONL written by ``evaluate_caption_adherence``. Each entry may
+    carry a ``width_scores`` dict mapping scene width -> mean caption score for that epoch
+    (widths come back as strings once round-tripped through JSON). One line is drawn per width
+    so a model's weakness at a particular size stands out. No-ops when the log has no per-width
+    data (e.g. a single-width eval set), so it is always safe to call.
+    """
+    if not os.path.exists(log_file):
+        return
+
+    with open(log_file, 'r') as f:
+        data = [json.loads(line) for line in f if line.strip()]
+
+    # Keep only entries that carry both an epoch and a non-empty per-width breakdown.
+    points = [(entry["epoch"], entry["width_scores"]) for entry in data
+              if "epoch" in entry and isinstance(entry.get("width_scores"), dict) and entry["width_scores"]]
+    if not points:
+        return
+
+    # Union of widths seen across all epochs, sorted numerically (JSON keys are strings).
+    widths = sorted({int(w) for _, ws in points for w in ws})
+
+    fig = plt.figure(figsize=(10, 6))
+    ax = fig.add_subplot(111)
+    try:
+        for w in widths:
+            xs, ys = [], []
+            for epoch, ws in points:
+                # Tolerate either string (post-JSON) or int keys.
+                val = ws.get(str(w), ws.get(w))
+                if val is None:
+                    continue
+                xs.append(epoch)
+                ys.append(val)
+            if xs:
+                ax.plot(xs, ys, marker='o', label=f"width {w}")
+
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Caption Score")
+        ax.set_title("Caption Adherence by Scene Width")
+        ax.legend(loc='best')
+        fig.tight_layout()
+        save_figure_safely(fig, output_png)
+    finally:
+        plt.close(fig)
+
+
 def save_figure_safely(fig, output_path):
     """Save figure to a temporary file first, then move it to the final location"""
     output_path = str(Path(output_path))  # Convert to string path

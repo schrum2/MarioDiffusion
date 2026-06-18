@@ -19,7 +19,7 @@ from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
-from util.plotter import Plotter
+from util.plotter import Plotter, plot_scores_by_width
 from util.size_utils import dataset_width_range, unet_width_factor, sample_random_width
 from models.pipeline_loader import get_pipeline
 from models.general_training_helper import BucketBatchSampler
@@ -202,10 +202,18 @@ def main():
     else:
         # Just run on one model and get samples as well
         width_range = resolve_eval_width_range(args)
-        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width)
+        per_width_scores = {}
+        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores)
 
         print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
+        # Show how many samples were generated at each width and how well each width scored.
+        # A width missing here means no caption was generated at that size.
+        if per_width_scores:
+            print("Samples and caption adherence by scene width:")
+            for w in sorted(per_width_scores):
+                scores = per_width_scores[w]
+                print(f"\twidth {w}: {len(scores)} samples, avg score {sum(scores) / len(scores):.4f}")
         
         if args.save_image_samples:
             game = 'LR' if args.num_tiles == common_settings.LR_TILE_COUNT else 'Mario'
@@ -262,6 +270,9 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     # Prepare output paths
     scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_scores_by_epoch.jsonl")
     plot_png_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_caption_scores_plot.png")
+    # Companion plot: one caption-adherence line per scene width, so weaknesses at a particular
+    # size are visible. Only meaningful when the eval set spans multiple widths.
+    width_plot_png_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_caption_scores_by_width_plot.png")
 
     # Handle file existence based on resume flag
     completed_epochs = set()
@@ -313,27 +324,41 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             
             pipe = get_pipeline(checkpoint_dir).to(device)
 
-
+            per_width_scores = {}
             avg_score, _, _, _ = calculate_caption_score_and_samples(
-                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width
+                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores
             )
 
+            # Collapse the per-width score lists into mean scores for this checkpoint.
+            width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
+
             print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
-            result = {"epoch": epoch, "score": avg_score, "checkpoint_dir": checkpoint_dir}
+            if len(width_scores) > 1:
+                print("  By scene width: " + ", ".join(f"{w}:{width_scores[w]:.4f}" for w in sorted(width_scores)))
+            result = {"epoch": epoch, "score": avg_score, "checkpoint_dir": checkpoint_dir, "width_scores": width_scores}
             f.write(json.dumps(result) + "\n")
             f.flush()  # Ensure it's written immediately
 
             scores_by_epoch.append((epoch, avg_score, checkpoint_dir))
 
-            # Update the plot after each checkpoint
+            # Update the plots after each checkpoint
             plotter.update_plot()
+            plot_scores_by_width(scores_jsonl_path, width_plot_png_path)
 
     plotter.stop_plotting()
     plot_thread.join(timeout=1)
 
+    # Final redraw (covers the resume case where every checkpoint was already evaluated).
+    plot_scores_by_width(scores_jsonl_path, width_plot_png_path)
+
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None):
+
+    # Optional per-width score collection. When the caller passes a dict, each sample's caption
+    # score is appended under the width it was generated at (per_width_scores[width] -> list of
+    # scores). This lets callers break the overall adherence score down by scene size without
+    # changing this function's return signature (which several training scripts depend on).
 
     #Used for potential level scene pruning later
     original_mode = dataloader.dataset.mode
@@ -447,6 +472,11 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
                 if output: print(f"\tcompare_score: {compare_score}")
                 compare_all_scores.append(compare_score)
+
+                # Record this sample's score against the width it was generated at, so callers
+                # can plot/inspect adherence separately for each scene size.
+                if per_width_scores is not None:
+                    per_width_scores.setdefault(batch_width, []).append(compare_score)
 
                 score_sum += compare_score
                 total_count += 1
