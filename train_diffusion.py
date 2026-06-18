@@ -30,6 +30,7 @@ import gc
 from torch.utils.data import DataLoader
 from models.pipeline_loader import get_pipeline
 from create_ascii_captions import assign_caption
+import astar.astar_traversability_check
 
 
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
@@ -832,6 +833,10 @@ def main():
                         # MEMORY FIX: Convert all_samples only once and process incrementally
                         bad_scenes_list = convert_to_level_format(all_samples).tolist()
 
+                
+                        
+                        trav_game = astar.astar_traversability_check.RENDER_GAME_TO_TRAV[args.game]
+
                         for i in bad_indices:
                             # Stop once we've collected enough samples
                             if len(bad_generated_scenes) >= max_to_add:
@@ -853,6 +858,18 @@ def main():
 
                                 canonical_caption = canonicalize_caption(caption)
                                 if canonical_caption in seen_caption_set:
+                                    continue
+
+                                # Skip scenes that aren't traversable 
+                                traversable, _, _ = astar.astar_traversability_check.evaluate(
+                                    trav_game,
+                                    bad_scenes_list[i],
+                                    id_to_char,
+                                    tile_descriptors,
+                                    100000,   # A* state-expansion budget per scene
+                                    False,    # allow_weird (LodeRunner-only sideways digging)
+                                )
+                                if not traversable:
                                     continue
 
                                 seen_caption_set.add(canonical_caption)
