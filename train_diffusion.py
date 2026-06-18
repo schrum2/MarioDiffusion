@@ -19,6 +19,7 @@ from MM_create_ascii_captions import assign_caption as mm_assign_caption ##test
 from captions.util import extract_tileset 
 from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
+from util.plotter import plot_scores_by_width
 from torch.distributions import Categorical
 from models.block2vec_model import Block2Vec
 import models.sentence_transformers_helper as st_helper
@@ -610,6 +611,7 @@ def main():
     dataset_growth_plotter, dataset_growth_plot_thread = None, None
     
     caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
+    caption_score_by_width_png = os.path.join(args.output_dir, f"caption_score_by_width_{formatted_date}.png")
 
     if accelerator.is_local_main_process:
         plotter, plot_thread = gen_train_help.start_plotter(log_file=log_file, output_dir=args.output_dir,
@@ -779,6 +781,7 @@ def main():
         # Calculate validation loss if validation dataset exists and it's time to validate
         val_loss = None
         avg_caption_score = None
+        width_scores = {}
         bad_generated_scenes = []
         val_loss_improved = False
         caption_score_improved = False
@@ -813,11 +816,19 @@ def main():
                 inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
                 guidance_scale = common_settings.GUIDANCE_SCALE
+                # Match each caption's generation width to its source scene's width so multi-width
+                # validation sets (e.g. 16 and 32 wide) are scored fairly instead of forcing every
+                # caption to the single fixed scene_width. per_width_scores collects each sample's
+                # score under the width it was generated at, for the per-width adherence plot below.
+                per_width_scores = {}
                 avg_caption_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
-                    output=False, height=scene_height, width=scene_width
+                    output=False, height=scene_height, width=scene_width,
+                    match_scene_width=True, per_width_scores=per_width_scores
                 )
+                # Collapse the per-width score lists into a mean score per width for this epoch.
+                width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
                 
                 # MEMORY FIX: Explicitly delete pipeline to free GPU memory
                 # Claude suggested this, but I'm skeptical that it is necessary and it would cause slowdown
@@ -844,8 +855,14 @@ def main():
                     bad_indices = [i for i, score in enumerate(compare_all_scores) if score < 1.0]
 
                     if bad_indices and max_to_add > 0:  # Only proceed if there are bad samples and we have capacity to add them
-                        # MEMORY FIX: Convert all_samples only once and process incrementally
-                        bad_scenes_list = convert_to_level_format(all_samples).tolist()
+                        # MEMORY FIX: Convert all_samples only once and process incrementally.
+                        # all_samples is a stacked (N,C,H,W) tensor for single-width runs, but a list
+                        # of per-sample (C,H,W) tensors when widths differ (match_scene_width), since
+                        # varying widths can't be stacked. Convert each separately in the list case.
+                        if isinstance(all_samples, list):
+                            bad_scenes_list = [convert_to_level_format(s.unsqueeze(0))[0].tolist() for s in all_samples]
+                        else:
+                            bad_scenes_list = convert_to_level_format(all_samples).tolist()
 
                         trav_game = astar.astar_traversability_check.RENDER_GAME_TO_TRAV[args.game]
 
@@ -1023,11 +1040,15 @@ def main():
                 with open(caption_score_log_file, 'a') as f:
                     log_entry = {
                         "epoch": epoch,
-                        "caption_score": avg_caption_score,                
+                        "caption_score": avg_caption_score,
+                        "width_scores": width_scores,
                         "step": global_step,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     f.write(json.dumps(log_entry) + '\n')
+                # Redraw the per-width adherence plot (one line per scene width). No-ops when there
+                # is no per-width data, so it is safe on single-width runs.
+                plot_scores_by_width(caption_score_log_file, caption_score_by_width_png)
 
             # Early stopping logic: check if EITHER metric improved in the epoch
             val_loss_improved = val_loss is not None and val_loss < best_val_loss
@@ -1229,6 +1250,10 @@ def main():
             gen_train_help.kill_plotter(plotter, plot_thread)
 
             gen_train_help.kill_plotter(caption_score_plotter, caption_score_plot_thread)
+
+            # Final redraw of the per-width adherence plot so it reflects the last logged epoch.
+            if args.plot_validation_caption_score:
+                plot_scores_by_width(caption_score_log_file, caption_score_by_width_png)
 
             gen_train_help.kill_plotter(
                 dataset_growth_plotter,
