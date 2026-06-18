@@ -204,6 +204,9 @@ class CaptionBuilder(ParentBuilder):
         self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics, style="TCheckbutton")
         self.graphics_checkbox.pack(side=tk.LEFT, padx=5)
 
+        self.mm_layout_button = ttk.Button(row1, text="Arrange Mega Man Level", command=self.open_megaman_layout_editor, style="TButton")
+        self.mm_layout_button.pack(side=tk.LEFT, padx=5)
+
         self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=self.delete_selected_composed_image, style="TButton")
         self.delete_image_button.pack(side=tk.LEFT, padx=10)
         self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level, style="TButton")
@@ -269,6 +272,65 @@ class CaptionBuilder(ParentBuilder):
             self.automatic_absence_caption_checkbox.config(state=tk.DISABLED)
             self.automatic_absence_caption.set(False)
 
+
+    def _play_megaman_level(self, idx):
+        import subprocess, os
+        from util.sampler import scene_to_ascii
+
+        scene = self.generated_scenes[idx]
+        char_grid = scene_to_ascii(scene, self.id_to_char)
+
+        # Save as .txt first
+        txt_path = os.path.join(os.getcwd(), "temp_mm_level.txt")
+        with open(txt_path, 'w') as f:
+            for row in char_grid:
+                f.write(''.join(row) + '\n')
+
+        # Convert to .mmlv
+        mmlv_path = os.path.join(
+            os.path.expanduser("~"),
+            "AppData", "Local", "MegaMaker", "Levels", "generated_level.mmlv"
+        )
+        from vglc_to_mmlv import convert
+        lines = open(txt_path).readlines()
+        result = convert(lines, level_name="Generated", author="AI")
+        with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(result)
+
+        # Open Mega Man Maker
+        mm_exe = r"C:\Program Files (x86)\MegaMaker\MegaMaker.exe"
+        if os.path.exists(mm_exe):
+            subprocess.Popen([mm_exe])
+        else:
+            import tkinter.messagebox as mb
+            mb.showinfo("Saved", f"Level saved to:\n{mmlv_path}\n\nCould not find MegaMaker.exe — open it manually.")
+
+    def _play_megaman_level_from_scene(self, scene):
+        import subprocess
+        from util.sampler import scene_to_ascii
+
+        char_grid = scene_to_ascii(scene, self.id_to_char)
+
+        txt_path = os.path.join(os.getcwd(), "temp_mm_level.txt")
+        with open(txt_path, 'w') as f:
+            for row in char_grid:
+                f.write(''.join(row) + '\n')
+
+        mmlv_path = os.path.join(
+            os.path.expanduser("~"),
+            "AppData", "Local", "MegaMaker", "Levels", "generated_level.mmlv"
+        )
+        from vglc_to_mmlv import convert
+        lines = open(txt_path).readlines()
+        result = convert(lines, level_name="Generated", author="AI")
+        with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(result)
+
+        mm_exe = r"C:\Program Files (x86)\MegaMaker\MegaMaker.exe"
+        if os.path.exists(mm_exe):
+            subprocess.Popen([mm_exe])
+        else:
+            messagebox.showinfo("Saved", f"Level saved to:\n{mmlv_path}\n\nCould not find MegaMaker.exe — open it manually.")
 
     def probe_diffusion_args_support(self):
         """Test if the loaded model can use our diffusion-specific args, greys them out if it can't"""
@@ -978,12 +1040,11 @@ Average Segment Score: {avg_segment_score}"""
     def play_level(self, idx):
         selected_game = self.game_var.get()
         if selected_game == "Lode Runner":
-            import tempfile, json
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
-            #print("Level to play:", level)
             level.play(game="loderunner", level_idx=1)
+        elif selected_game in ("Mega Man (Simple)", "Mega Man (Full)"):
+            self._play_megaman_level(idx)
         else:
-            #Default: Mario play logic
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
 
@@ -1236,8 +1297,26 @@ Average Segment Score: {avg_segment_score}"""
         self.play_composed_button.config(state=state)
         self.astar_composed_button.config(state=state)
         self.graphics_checkbox.config(state=state)
+        self.move_left_button.config(state=state)
+        self.move_right_button.config(state=state)
         if not is_mario:
             self.use_snes_graphics.set(False)
+
+        is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)")
+        self.mm_layout_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
+
+    def open_megaman_layout_editor(self):
+        global game_selected
+        if game_selected not in ("Mega Man (Simple)", "Mega Man (Full)"):
+            messagebox.showinfo("Mega Man only", "Switch the game dropdown to a Mega Man mode to use this tool.")
+            return
+        if not self.composed_scenes:
+            messagebox.showinfo(
+                "No scenes yet",
+                "Use 'Add To Level' on one or more generated images first, then open this tool to arrange them."
+            )
+            return
+        MegaManLayoutEditor(self.master, self)
     
 
 class LevelEditor:
@@ -1304,6 +1383,506 @@ class LevelEditor:
         elif game == "Mega Man (Full)":
             return mm_tiles("MM-Full")
         return mario_tiles()
+
+class MegaManLayoutEditor:
+    """
+    Lets the user arrange the scenes accumulated via 'Add To Level' on a free 2D grid.
+    Supports draggable Exit Orb and Player Start markers that overwrite a tile in the
+    merged scene when built. Each marker is one-of-a-kind (placing a second removes
+    the first). Chars are resolved from app.char_to_id at runtime.
+    """
+
+    CELL_PIXELS = 72
+    GRID_RADIUS = 8
+
+    # Special marker definitions: key -> (display label, color, candidate char keys)
+    MARKER_DEFS = {
+        "exit":  ("Exit Orb", "#00FFAA", ["Z", "z"]),
+        "start": ("Player Start", "#FFDD00", ["P", "p"]),
+    }
+
+    def __init__(self, master, app):
+        self.master = master
+        self.app = app
+
+        self.placements = {}              # (col, row) -> scene_index
+        self.placed_scene_indices = set()
+        self.placed_items = {}            # (col, row) -> (image_item_id, text_item_id)
+
+        # marker_placements: key -> (col, row, tile_x, tile_y)
+        # tile_x/tile_y are pixel offsets *within* the cell (0..CELL_PIXELS-1)
+        self.marker_placements = {}       # "exit" / "start" -> (col, row, tile_x, tile_y)
+        self.marker_canvas_ids = {}       # "exit" / "start" -> canvas item id
+
+        self._drag_data = None
+        self._drag_window = None
+
+        self.window = tk.Toplevel(master)
+        self.window.title("Mega Man Level Layout")
+        self.window.geometry("1050x700")
+
+        # --- Left: palette of unplaced scenes + markers ---
+        palette_frame = ttk.Frame(self.window, width=170)
+        palette_frame.pack(side=tk.LEFT, fill=tk.Y)
+        ttk.Label(palette_frame, text="Unplaced Scenes", font=("Arial", 11, "bold")).pack(pady=(8, 2))
+        ttk.Label(palette_frame, text="Drag onto the grid →", wraplength=150).pack(pady=(0, 4))
+
+        # Marker buttons at the top of the palette
+        self._marker_palette_frames = {}
+        for key, (label, color, _) in self.MARKER_DEFS.items():
+            f = tk.Frame(palette_frame, bg=color, bd=2, relief="raised", cursor="fleur")
+            f.pack(fill=tk.X, padx=6, pady=3)
+            tk.Label(f, text=label, bg=color, font=("Arial", 9, "bold"), fg="#111111").pack(side=tk.LEFT, padx=4, pady=4)
+            f.bind("<ButtonPress-1>", lambda e, k=key: self._start_marker_drag(e, k))
+            for child in f.winfo_children():
+                child.bind("<ButtonPress-1>", lambda e, k=key: self._start_marker_drag(e, k))
+            self._marker_palette_frames[key] = f
+
+        ttk.Separator(palette_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=6, pady=6)
+
+        self.palette_canvas = tk.Canvas(palette_frame, width=160, highlightthickness=0)
+        palette_scrollbar = ttk.Scrollbar(palette_frame, orient=tk.VERTICAL, command=self.palette_canvas.yview)
+        self.palette_inner = ttk.Frame(self.palette_canvas)
+        self.palette_inner.bind("<Configure>", lambda e: self.palette_canvas.configure(
+            scrollregion=self.palette_canvas.bbox("all")))
+        self.palette_canvas.create_window((0, 0), window=self.palette_inner, anchor="nw")
+        self.palette_canvas.configure(yscrollcommand=palette_scrollbar.set)
+        self.palette_canvas.pack(side=tk.LEFT, fill=tk.Y, expand=True)
+        palette_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # --- Right: toolbar + grid canvas ---
+        right_frame = ttk.Frame(self.window)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        ttk.Label(
+            right_frame,
+            text="Drag a scene onto the grid to place it. Drag a placed scene to move it. "
+                 "Right-click a placed scene to send it back to the palette. "
+                 "Drag Exit Orb / Player Start markers onto any placed scene cell.",
+            wraplength=820
+        ).pack(side=tk.TOP, fill=tk.X, padx=5, pady=(5, 0))
+
+        toolbar = ttk.Frame(right_frame)
+        toolbar.pack(side=tk.TOP, fill=tk.X, pady=5)
+        ttk.Button(toolbar, text="Play This Layout",        command=self.play_layout).pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar, text="Use A* on This Layout",  command=self.astar_layout).pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar, text="Save This Layout As...", command=self.save_layout).pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar, text="Clear Grid",             command=self.clear_grid).pack(side=tk.LEFT, padx=5)
+
+        blank_row = ttk.Frame(right_frame)
+        blank_row.pack(side=tk.TOP, fill=tk.X, pady=(0, 5))
+        ttk.Label(blank_row, text="Fill empty grid space with:").pack(side=tk.LEFT, padx=(5, 5))
+
+        self.label_to_tid = {}
+        choices = []
+        try:
+            items = sorted(self.app.char_to_id.items(), key=lambda kv: kv[1])
+        except Exception:
+            items = list(self.app.char_to_id.items())
+        for ch, tid in items:
+            desc = ""
+            try:
+                desc = self.app.tile_descriptors.get(ch, "")
+            except Exception:
+                pass
+            label = f"'{ch}' (id {tid})" + (f" - {desc}" if desc else "")
+            choices.append(label)
+            self.label_to_tid[label] = tid
+
+        self.blank_var = tk.StringVar()
+        default_label = self._guess_default_blank_label(choices)
+        self.blank_var.set(default_label if default_label else (choices[0] if choices else ""))
+        self.blank_combo = ttk.Combobox(blank_row, textvariable=self.blank_var, values=choices,
+                                         state="readonly", width=45)
+        self.blank_combo.pack(side=tk.LEFT)
+
+        canvas_frame = ttk.Frame(right_frame)
+        canvas_frame.pack(fill=tk.BOTH, expand=True)
+        canvas_frame.grid_rowconfigure(0, weight=1)
+        canvas_frame.grid_columnconfigure(0, weight=1)
+
+        grid_span   = self.GRID_RADIUS * 2 + 1
+        canvas_size = grid_span * self.CELL_PIXELS
+        visible_w, visible_h = 820, 560
+
+        self.grid_canvas = tk.Canvas(canvas_frame, bg="#222222", width=visible_w, height=visible_h,
+                                      scrollregion=(0, 0, canvas_size, canvas_size))
+        hbar = ttk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.grid_canvas.xview)
+        vbar = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL,   command=self.grid_canvas.yview)
+        self.grid_canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        self.grid_canvas.grid(row=0, column=0, sticky="nsew")
+        vbar.grid(row=0, column=1, sticky="ns")
+        hbar.grid(row=1, column=0, sticky="ew")
+
+        self._draw_grid(grid_span, canvas_size)
+        self.grid_canvas.xview_moveto(max(0, (canvas_size / 2 - visible_w / 2) / canvas_size))
+        self.grid_canvas.yview_moveto(max(0, (canvas_size / 2 - visible_h / 2) / canvas_size))
+
+        self._populate_palette()
+
+    # ------------------------------------------------------------------ grid
+
+    def _draw_grid(self, grid_span, canvas_size):
+        ox, oy = self._cell_to_pixel(0, 0)
+        self.grid_canvas.create_rectangle(ox, oy, ox + self.CELL_PIXELS, oy + self.CELL_PIXELS,
+                                           fill="#333355", outline="")
+        for i in range(grid_span + 1):
+            pos = i * self.CELL_PIXELS
+            self.grid_canvas.create_line(pos, 0, pos, canvas_size, fill="#444444")
+            self.grid_canvas.create_line(0, pos, canvas_size, pos, fill="#444444")
+
+    def _grid_origin_offset(self):
+        return self.GRID_RADIUS * self.CELL_PIXELS
+
+    def _cell_to_pixel(self, col, row):
+        off = self._grid_origin_offset()
+        return off + col * self.CELL_PIXELS, off + row * self.CELL_PIXELS
+
+    def _pixel_to_cell(self, x, y):
+        off = self._grid_origin_offset()
+        col = int((x - off) // self.CELL_PIXELS)
+        row = int((y - off) // self.CELL_PIXELS)
+        return col, row
+
+    def _guess_default_blank_label(self, choices):
+        keywords = ("sky", "empty", "background", "blank", "void", "air", "nothing")
+        for label in choices:
+            if any(k in label.lower() for k in keywords):
+                return label
+        return None
+
+    # ------------------------------------------------------------------ palette
+
+    def _populate_palette(self):
+        for child in self.palette_inner.winfo_children():
+            child.destroy()
+        for idx, thumb in enumerate(self.app.composed_thumbnails):
+            if idx in self.placed_scene_indices:
+                continue
+            item_frame = ttk.Frame(self.palette_inner, borderwidth=2, relief="raised")
+            item_frame.pack(pady=4, padx=4)
+            lbl = tk.Label(item_frame, image=thumb)
+            lbl.image = thumb
+            lbl.pack()
+            ttk.Label(item_frame, text=f"#{idx + 1}").pack()
+            lbl.bind("<ButtonPress-1>", lambda e, i=idx: self._start_drag(e, i, None))
+
+    # ------------------------------------------------------------------ scene drag
+
+    def _start_drag(self, event, scene_index, from_cell):
+        thumb = self.app.composed_thumbnails[scene_index]
+        self._drag_data = {"kind": "scene", "scene_index": scene_index, "from_cell": from_cell}
+        self._show_drag_window(event, image=thumb)
+
+    def _show_drag_window(self, event, image=None, text=None, color=None):
+        self._drag_window = tk.Toplevel(self.window)
+        self._drag_window.overrideredirect(True)
+        try:
+            self._drag_window.attributes("-topmost", True)
+        except Exception:
+            pass
+        if image:
+            lbl = tk.Label(self._drag_window, image=image, bd=0)
+            lbl.image = image
+            lbl.pack()
+        else:
+            lbl = tk.Label(self._drag_window, text=text, bg=color, font=("Arial", 9, "bold"),
+                           fg="#111111", width=10, height=2)
+            lbl.pack()
+        self._move_drag_window(event)
+        self.window.bind("<Motion>",          self._move_drag_window)
+        self.window.bind("<ButtonRelease-1>", self._on_drag_release)
+
+    def _move_drag_window(self, event):
+        if self._drag_window:
+            self._drag_window.geometry(f"+{event.x_root - 32}+{event.y_root - 32}")
+
+    def _begin_drag_from_cell(self, event, col, row):
+        scene_index = self.placements.get((col, row))
+        if scene_index is None:
+            return
+        self._clear_cell_visual(col, row)
+        del self.placements[(col, row)]
+        self.placed_scene_indices.discard(scene_index)
+        self._start_drag(event, scene_index, (col, row))
+
+    def _on_drag_release(self, event):
+        self.window.unbind("<Motion>")
+        self.window.unbind("<ButtonRelease-1>")
+        if self._drag_window:
+            self._drag_window.destroy()
+            self._drag_window = None
+
+        drag = self._drag_data
+        self._drag_data = None
+
+        if drag is None:
+            return
+
+        if drag["kind"] == "marker":
+            self._finish_marker_drop(event, drag["marker_key"])
+        else:
+            self._finish_scene_drop(event, drag)
+
+    def _finish_scene_drop(self, event, drag):
+        scene_index = drag["scene_index"]
+        from_cell   = drag["from_cell"]
+
+        cx1 = self.grid_canvas.winfo_rootx()
+        cy1 = self.grid_canvas.winfo_rooty()
+        cx2 = cx1 + self.grid_canvas.winfo_width()
+        cy2 = cy1 + self.grid_canvas.winfo_height()
+
+        placed = False
+        if cx1 <= event.x_root <= cx2 and cy1 <= event.y_root <= cy2:
+            x   = self.grid_canvas.canvasx(event.x_root - cx1)
+            y   = self.grid_canvas.canvasy(event.y_root - cy1)
+            col, row = self._pixel_to_cell(x, y)
+            if (col, row) not in self.placements:
+                self._place_scene_at(scene_index, col, row)
+                placed = True
+            else:
+                messagebox.showinfo("Occupied", "That grid cell already has a scene.")
+
+        if not placed and from_cell is not None:
+            self._place_scene_at(scene_index, *from_cell)
+
+        self._populate_palette()
+
+    def _place_scene_at(self, scene_index, col, row):
+        self.placements[(col, row)] = scene_index
+        self.placed_scene_indices.add(scene_index)
+        px, py = self._cell_to_pixel(col, row)
+        cx, cy = px + self.CELL_PIXELS / 2, py + self.CELL_PIXELS / 2
+        thumb   = self.app.composed_thumbnails[scene_index]
+        img_id  = self.grid_canvas.create_image(cx, cy, image=thumb, anchor="center")
+        text_id = self.grid_canvas.create_text(px + 4, py + 4, text=f"#{scene_index + 1}",
+                                                anchor="nw", fill="yellow", font=("Arial", 8))
+        self.placed_items[(col, row)] = (img_id, text_id)
+        self.grid_canvas.tag_bind(img_id, "<ButtonPress-1>",
+                                   lambda e, c=col, r=row: self._begin_drag_from_cell(e, c, r))
+        self.grid_canvas.tag_bind(img_id, "<ButtonPress-3>",
+                                   lambda e, c=col, r=row: self._remove_from_cell(c, r))
+
+    def _clear_cell_visual(self, col, row):
+        items = self.placed_items.pop((col, row), None)
+        if items:
+            for item_id in items:
+                self.grid_canvas.delete(item_id)
+
+    def _remove_from_cell(self, col, row):
+        scene_index = self.placements.pop((col, row), None)
+        self._clear_cell_visual(col, row)
+        if scene_index is not None:
+            self.placed_scene_indices.discard(scene_index)
+        self._populate_palette()
+
+    def clear_grid(self):
+        for col, row in list(self.placed_items.keys()):
+            self._clear_cell_visual(col, row)
+        self.placements.clear()
+        self.placed_scene_indices.clear()
+        # also remove marker visuals
+        for key in list(self.marker_canvas_ids.keys()):
+            self.grid_canvas.delete(self.marker_canvas_ids.pop(key))
+        self.marker_placements.clear()
+        self._populate_palette()
+
+    # ------------------------------------------------------------------ marker drag
+
+    def _start_marker_drag(self, event, marker_key):
+        label, color, _ = self.MARKER_DEFS[marker_key]
+        self._drag_data = {"kind": "marker", "marker_key": marker_key}
+        self._show_drag_window(event, text=label, color=color)
+
+    def _finish_marker_drop(self, event, marker_key):
+        cx1 = self.grid_canvas.winfo_rootx()
+        cy1 = self.grid_canvas.winfo_rooty()
+        cx2 = cx1 + self.grid_canvas.winfo_width()
+        cy2 = cy1 + self.grid_canvas.winfo_height()
+
+        if not (cx1 <= event.x_root <= cx2 and cy1 <= event.y_root <= cy2):
+            return  # dropped outside — do nothing, marker stays in palette
+
+        x = self.grid_canvas.canvasx(event.x_root - cx1)
+        y = self.grid_canvas.canvasy(event.y_root - cy1)
+        col, row = self._pixel_to_cell(x, y)
+
+        if (col, row) not in self.placements:
+            messagebox.showinfo("No scene here",
+                                "Drop the marker onto a cell that already has a scene placed in it.")
+            return
+
+        # pixel offset within the cell (clamped to cell bounds)
+        px, py    = self._cell_to_pixel(col, row)
+        tile_x    = max(0, min(int(x - px), self.CELL_PIXELS - 1))
+        tile_y    = max(0, min(int(y - py), self.CELL_PIXELS - 1))
+
+        self._place_marker(marker_key, col, row, tile_x, tile_y)
+
+    def _place_marker(self, marker_key, col, row, tile_x, tile_y):
+        # Remove old canvas item if one exists
+        old_id = self.marker_canvas_ids.pop(marker_key, None)
+        if old_id is not None:
+            self.grid_canvas.delete(old_id)
+
+        self.marker_placements[marker_key] = (col, row, tile_x, tile_y)
+
+        label, color, _ = self.MARKER_DEFS[marker_key]
+        px, py = self._cell_to_pixel(col, row)
+        cx     = px + tile_x
+        cy     = py + tile_y
+
+        marker_id = self.grid_canvas.create_oval(
+            cx - 8, cy - 8, cx + 8, cy + 8,
+            fill=color, outline="#000000", width=1
+        )
+        abbrev = label[0]   # "E" or "P"
+        text_id = self.grid_canvas.create_text(
+            cx, cy, text=abbrev, fill="#111111", font=("Arial", 7, "bold")
+        )
+        # Store both ids together so we can delete both
+        self.marker_canvas_ids[marker_key] = (marker_id, text_id)
+
+        # Right-click to remove
+        for cid in (marker_id, text_id):
+            self.grid_canvas.tag_bind(
+                cid, "<ButtonPress-3>",
+                lambda e, k=marker_key: self._remove_marker(k)
+            )
+
+    def _remove_marker(self, marker_key):
+        ids = self.marker_canvas_ids.pop(marker_key, None)
+        if ids:
+            for cid in ids:
+                self.grid_canvas.delete(cid)
+        self.marker_placements.pop(marker_key, None)
+
+    # ------------------------------------------------------------------ char resolution
+
+    def _resolve_marker_char(self, marker_key):
+        """Return the tile char for this marker, or None with a warning."""
+        _, _, candidates = self.MARKER_DEFS[marker_key]
+        char_map = getattr(self.app, "char_to_id", {})
+        for ch in candidates:
+            if ch in char_map:
+                return ch
+
+        label = self.MARKER_DEFS[marker_key][0]
+        messagebox.showwarning(
+            "Tile char not found",
+            f"Could not find a tile char for '{label}' in char_to_id.\n"
+            f"Looked for: {candidates}\n"
+            f"The marker will be skipped in the merged level."
+        )
+        return None
+
+    # ------------------------------------------------------------------ build merged scene
+
+    def build_merged_scene(self):
+        if not self.placements:
+            messagebox.showinfo("Empty layout", "Drag at least one scene onto the grid first.")
+            return None
+
+        scenes = self.app.composed_scenes
+        dims   = {(len(scenes[i]), len(scenes[i][0])) for i in self.placements.values()}
+        if len(dims) > 1:
+            messagebox.showerror(
+                "Mismatched scene sizes",
+                "All scenes must share the same width and height.\n"
+                "Found sizes (h×w): " + ", ".join(f"{h}×{w}" for h, w in dims)
+            )
+            return None
+        scene_h, scene_w = next(iter(dims))
+
+        blank_tid = self.label_to_tid.get(self.blank_var.get(), 0)
+
+        cols    = [c for c, r in self.placements]
+        rows    = [r for c, r in self.placements]
+        min_col = min(cols);  max_col = max(cols)
+        min_row = min(rows);  max_row = max(rows)
+
+        out_w  = (max_col - min_col + 1) * scene_w
+        out_h  = (max_row - min_row + 1) * scene_h
+        merged = [[blank_tid for _ in range(out_w)] for _ in range(out_h)]
+
+        # Copy scenes
+        for (col, row), scene_index in self.placements.items():
+            scene = scenes[scene_index]
+            x_off = (col - min_col) * scene_w
+            y_off = (row - min_row) * scene_h
+            for y, tile_row in enumerate(scene):
+                for x, tile in enumerate(tile_row):
+                    merged[y_off + y][x_off + x] = tile
+
+        # Stamp markers
+        char_map = getattr(self.app, "char_to_id", {})
+
+        for marker_key, (col, row, tile_x, tile_y) in self.marker_placements.items():
+            ch = self._resolve_marker_char(marker_key)
+            if ch is None:
+                continue
+            tid   = char_map[ch]
+            # Convert pixel offset within cell → tile coordinate
+            scene = scenes[self.placements[(col, row)]]
+            t_col = int(tile_x / self.CELL_PIXELS * scene_w)
+            t_row = int(tile_y / self.CELL_PIXELS * scene_h)
+            t_col = max(0, min(t_col, scene_w - 1))
+            t_row = max(0, min(t_row, scene_h - 1))
+            x_off = (col - min_col) * scene_w
+            y_off = (row - min_row) * scene_h
+            merged[y_off + t_row][x_off + t_col] = tid
+
+        return merged
+
+    # ------------------------------------------------------------------ actions
+
+    def play_layout(self):
+        merged = self.build_merged_scene()
+        if merged is None:
+            return
+        if "start" not in self.marker_placements:
+            if not messagebox.askyesno(
+                "No Player Start set",
+                "You haven't placed a Player Start marker. The player may not spawn correctly.\n\n"
+                "Play anyway?"
+            ):
+                return
+        try:
+            self.app._play_megaman_level_from_scene(merged)
+        except Exception as e:
+            messagebox.showerror("Play failed", str(e))
+
+    def astar_layout(self):
+        merged = self.build_merged_scene()
+        if merged is None:
+            return
+        try:
+            level = self.app.get_sample_output(merged)
+            console_output = level.run_astar()
+            print(console_output)
+        except Exception as e:
+            messagebox.showerror("A* failed", str(e))
+
+    def save_layout(self):
+        merged = self.build_merged_scene()
+        if merged is None:
+            return
+        initial_dir = os.path.join(os.getcwd(), "Composed Levels")
+        os.makedirs(initial_dir, exist_ok=True)
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt")],
+            title="Save Mega Man Layout As",
+            initialdir=initial_dir
+        )
+        if file_path:
+            try:
+                level = self.app.get_sample_output(merged)
+                level.save(file_path)
+                messagebox.showinfo("Saved", f"Layout saved to:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Save failed", str(e))
 
 import argparse
 def parse_args():
