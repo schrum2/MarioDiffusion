@@ -867,7 +867,7 @@ def main():
 
                     old_dataset_size = len(train_dataset.data)
 
-                    if accelerator.is_local_main_process:
+                    if accelerator.is_local_main_process and len(bad_generated_scenes) > 0:
                         added_samples_path = os.path.join(
                             augmented_samples_dir,
                             f"added_samples_epoch_{epoch}.json"
