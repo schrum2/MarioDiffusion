@@ -554,19 +554,23 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None):
+    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None, multiple_captions=False):
         """
             Args:
             json_path (str): Path to JSON file with captions.
             tokenizer (Tokenizer): Tokenizer instance.
             shuffle (bool): Whether to shuffle data at the start of an epoch.
             max_length (int, optional): Maximum length for tokenized captions.
-            mode (str): "text" for just the text captions, 
+            mode (str): "text" for just the text captions,
                         "diff_text" for level scenes and text captions (used with a pretrained model).
             augment (bool): Whether to apply data augmentation to text captions.
             random_flip (bool): Whether to randomly flip the scene and caption.
             limit (int): restrict dataset to this size if not -1
             num_tiles (int): Number of different tile types for one-hot encoding
+            multiple_captions (bool): If True, each sample stores several alternative captions
+                ("caption", "caption1", "caption2", ...) and one is chosen at random on every
+                access. This becomes the only augmentation: phrase shuffling (augment) and scene
+                flipping (random_flip) are disabled so the selected caption is used verbatim.
         """
         assert mode in ["text", "diff_text"], "Mode must be 'text' or 'diff_text'."
 
@@ -574,8 +578,11 @@ class LevelDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.mode = mode
-        self.augment = augment
-        self.random_flip = random_flip
+        # Selecting among multiple captions is the only augmentation we want, so it takes
+        # precedence over phrase shuffling and scene flipping when enabled.
+        self.multiple_captions = multiple_captions
+        self.augment = augment and not multiple_captions
+        self.random_flip = random_flip and not multiple_captions
         self.num_tiles = num_tiles
         self.negative_captions = negative_captions
 
@@ -631,6 +638,26 @@ class LevelDataset(Dataset):
         else:
             return caption # Same as original
 
+    @staticmethod
+    def _caption_options(sample):
+        """Returns every stored caption for a sample: "caption" plus "caption1", "caption2", ...
+
+        The numeric suffix order is irrelevant since one is chosen at random, so the raw
+        dict values are returned. Keys like "captions" or "caption_set" are excluded.
+        """
+        return [
+            value for key, value in sample.items()
+            if key == "caption" or (key.startswith("caption") and key[len("caption"):].isdigit())
+        ]
+
+    def _select_caption(self, sample):
+        """Randomly selects one of the alternative captions stored for a sample.
+
+        Used when multiple_captions is enabled: the alternatives are distinct descriptions
+        of the same scene, so picking one at random is itself the augmentation.
+        """
+        return random.choice(self._caption_options(sample))
+
     def _flip_scene(self, scene): # augments by flipping
         """
             swapping directional tokens for consistency with flipped scenes
@@ -676,7 +703,12 @@ class LevelDataset(Dataset):
               scene_tensor is one-hot encoded with shape (num_tiles, height, width)
         """
         sample = self.data[idx]
-        augmented_caption = self._augment_caption(sample["caption"])
+        if self.multiple_captions:
+            # Selecting one of the stored captions is the only augmentation in this mode;
+            # the chosen caption is used verbatim (no phrase shuffling).
+            augmented_caption = self._select_caption(sample)
+        else:
+            augmented_caption = self._augment_caption(sample["caption"])
 
         negative_caption = ""
         if self.negative_captions:

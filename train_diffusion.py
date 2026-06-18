@@ -82,6 +82,7 @@ def parse_args():
     parser.add_argument("--num_tiles", type=int, default=13, help="Number of tile types")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
+    parser.add_argument("--multiple_captions", action="store_true", help="Each sample stores several captions ('caption', 'caption1', ...); select one at random per access instead of phrase-shuffle augmentation. This becomes the only augmentation (phrase shuffling and scene flipping are disabled).")
     
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
@@ -329,7 +330,18 @@ def main():
     
     if args.split_pretrained_sentences and not args.pretrained_language_model:
         raise ValueError("Sentence splitting requires the use of a pretrained language model")
-    
+
+    if args.multiple_captions:
+        if not args.text_conditional:
+            raise ValueError("Multiple captions requires text conditioning to be enabled")
+        if args.negative_prompt_training:
+            # The stored alternative captions are full descriptions, not the structured
+            # positive/negative phrase format that negative prompt training expects.
+            raise ValueError("Multiple captions cannot be combined with negative prompt training")
+        if args.augment:
+            # Selecting among the stored captions is meant to be the only augmentation.
+            print("Note: --augment is ignored when --multiple_captions is set; caption selection is the only augmentation.")
+
     """
     If sprite temperature scaling is enabled and the model is unconditional, 
     then compute the scaling factors.
@@ -403,7 +415,8 @@ def main():
                                         augment=args.augment, num_tiles=args.num_tiles,
                                         negative_prompt_training=args.negative_prompt_training,
                                         block_embeddings=block_embeddings, batch_size=args.batch_size,
-                                        persistent_workers=(not args.auto_augment))
+                                        persistent_workers=(not args.auto_augment),
+                                        multiple_captions=args.multiple_captions)
 
     # Persist the BucketBatchSampler's scene-width range alongside the model so post-training
     # tools (evaluate_caption_adherence.py, run_diffusion.py) can randomize generated widths

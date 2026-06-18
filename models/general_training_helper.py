@@ -65,9 +65,9 @@ class BucketBatchSampler:
     
 
 
-def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles, 
+def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles,
                        negative_prompt_training, block_embeddings, batch_size,
-                       persistent_workers=True):
+                       persistent_workers=True, multiple_captions=False):
     """
     Create PyTorch dataloaders for training and validation datasets.
 
@@ -82,6 +82,9 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
         negative_prompt_training (bool): Whether to include negative captions for training.
         block_embeddings (torch.Tensor or None): Precomputed block embeddings for "diff_text" mode, or None if not using.
         batch_size (int): Batch size for the dataloaders.
+        multiple_captions (bool): If True, the training set selects one of each sample's stored
+            captions ("caption", "caption1", ...) at random per access, in place of phrase-shuffle
+            augmentation. Validation always uses the canonical "caption" deterministically.
 
     Returns:
         tuple(train_dataloader, val_dataloader, sample_widths): where sample_widths is the
@@ -98,7 +101,8 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
         augment=augment,
         num_tiles=num_tiles,
         negative_captions=negative_prompt_training,
-        block_embeddings=block_embeddings
+        block_embeddings=block_embeddings,
+        multiple_captions=multiple_captions
     )
     val_dataset = None
     if val_json is not None:
