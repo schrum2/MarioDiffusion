@@ -13,9 +13,9 @@ set GAME=Mar1and2
 set TYPE=regular
 
 set THRESHOLD=%2
-if "%THRESHOLD%"=="" set THRESHOLD=0.8
+if "%THRESHOLD%"=="" set THRESHOLD=0.9
 set MAX_NEW=%3
-if "%MAX_NEW%"=="" set MAX_NEW=100
+if "%MAX_NEW%"=="" set MAX_NEW=200
 set MAX_SIZE=%4
 if "%MAX_SIZE%"=="" set MAX_SIZE=20000
 
