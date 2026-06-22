@@ -39,14 +39,14 @@ MM_TILESET_DICT = {
         "A": ["solid", "passable", "penetrable"],
         "M": ["solid", "moving", "penetrable"],
         "D": ["passable", "movable"],
-        "W": ["passable", "collectable", "powerup"],
-        "w": ["passable", "collectable", "powerup"],
-        "L": ["passable", "collectable", "powerup"],
-        "l": ["passable", "collectable", "powerup"],
-        "+": ["passable", "collectable", "powerup"],
-        "*": ["passable", "collectable", "powerup"],
-        "U": ["passable", "collectable", "powerup"],
-        "Z": ["passable", "collectable", "powerup"],
+        "W": ["passable", "collectable", "power-up"],
+        "w": ["passable", "collectable", "power-up"],
+        "L": ["passable", "collectable", "power-up"],
+        "l": ["passable", "collectable", "power-up"],
+        "+": ["passable", "collectable", "power-up"],
+        "*": ["passable", "collectable", "power-up"],
+        "U": ["passable", "collectable", "power-up"],
+        "Z": ["passable", "collectable", "power-up"],
         "H": ["solid", "hazard"],
         "C": ["passable", "hazard"],
         "p": ["enemy", "damaging", "solid", "moving", "penetrable"],
@@ -72,19 +72,19 @@ MM_TILESET_DICT = {
 
 
 SYSTEM_PROMPT =  """
-                    You are a Mega Man captioning agent; given an ascii grid representation of a Mega Man level
-                    and a ascii tile set key to go along with it, you must generate EXACTLY FIVE diverse captions 
+                    You are a Mega Man captioning agent; given an ASCII grid representation of a Mega Man level
+                    and an ASCII tile set key to go along with it, you must generate EXACTLY FIVE diverse captions 
                     that all describe the level accurately. 
 
                     RULES:
-                    - Your captions should each DISTINCTLY vary in tone, length, wordiness, playfullness, specificity, etc. 
+                    - Your captions should each DISTINCTLY vary in tone, length, wordiness, playfulness, specificity, etc.
                     while remaining accurate. Make the diversity noticeable, including short and longer captions, playfully
                     descriptive captions and monotone, serious captions, and so on. Keep the longest captions within 3-4 sentences,
                     never overly long. Your shortest captions should be succinct statements about level features/structure.
                     - Do not mention specific tile types in your answer that you see in the tile set (B, p, etc.),
                     just describe the level with words.
                     - Your captions should primarily focus on level structure, and features in the level, typically 
-                    with relative locations, although not explicity required. Mention specific structures/features like
+                    with relative locations, although not explicitly required. Mention specific structures/features like
                     platforms, enemies, corridors, etc.
                     - Caption the level like you're writing a prompt to generate it; this means specificity and directness is essential.
                     
@@ -114,11 +114,11 @@ SYSTEM_PROMPT =  """
                     - You must write exactly FIVE captions; no more, no less.
                     - Do not include any dashes or semicolons. The only punctuation you should 
                     use are commas and periods (, and .)
-                    - Don't say things like "This level has..." or "The level feautures...". Just directly
+                    - Don't say things like "This level has..." or "The level features...". Just directly
                     describe the level itself without mentioning "level". 
                  """
 
-def scene_to_ascii(scene: list[list[int]], id_to_char: dict[int, str]) -> list[str]:
+def scene_to_ASCII(scene: list[list[int]], id_to_char: dict[int, str]) -> list[str]:
     """
     Decode a 2D integer tile-id grid into a list of ASCII row strings using the tileset map.
 
@@ -174,12 +174,12 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
 
 def claude_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> list[str]:
     """
-    Prompt claude (via API) w/ ascii level scene and tileset, return the caption(s) it generates
+    Prompt claude (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
     """
     tileset_str = json.dumps(tileset, indent=2)
 
     context = [
-        {"role": "user", "content": f"Here is the tileset for {game}:\n{tileset_str}"},
+        {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
         {"role": "user", "content": f"Level Scene:\n{scene}"},
     ]
 
@@ -207,9 +207,9 @@ def llama_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET
 
     context = [
         {"role": "system", "content":
-            "Given a tileset key and an ASCII level grid, "
+            "Given a tile set key and an ASCII level grid, "
             "generate a descriptive yet succinct caption for the level."},
-        {"role": "user", "content": f"Here is the tileset for {game}:\n{tileset_str}"},
+        {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
         {"role": "user", "content": f"Level Scene:\n{scene}"},
     ]
 
@@ -264,7 +264,7 @@ def main() -> list[list[str]]:
 
         # Decode the integer grid to ASCII rows purely to build the prompt; the integer
         # grid itself is what gets stored back in the output.
-        scene_str = "\n".join(scene_to_ascii(scene, id_to_char))
+        scene_str = "\n".join(scene_to_ASCII(scene, id_to_char))
         # currently wired to the claude API version, can also be set to local
         caption_set = claude_caption(scene_str, game=args.game, model=args.model)
 
