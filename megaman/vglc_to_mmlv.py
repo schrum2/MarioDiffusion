@@ -329,7 +329,6 @@ def compute_playable_row_range(rows: List[str]) -> tuple[int, int]:
         return (0, 0)
     return (first, last)
 
-
 def is_void_enclosed(rows: List[str], row_idx: int, col_idx: int,
                      playable_row_range: tuple[int, int],
                      col_ranges_per_row: List[tuple[int, int] | None]) -> bool:
@@ -342,6 +341,10 @@ def is_void_enclosed(rows: List[str], row_idx: int, col_idx: int,
     This handles the tall black tunnel corridors in level 3 where whole rows
     are '@' but they sit between two playable sections vertically.
     """
+    # If the entire row is void, never treat any cell in it as enclosed
+    if all(ch == VOID_CHAR for ch in rows[row_idx]):
+        return False
+
     first_row, last_row = playable_row_range
     if row_idx < first_row or row_idx > last_row:
         return False
@@ -360,25 +363,23 @@ def is_void_enclosed(rows: List[str], row_idx: int, col_idx: int,
 
     return False
 
-
 def convert(lines: List[str], level_name: str = "Generated", author: str = "converter") -> str:
     rows = [r.rstrip('\n') for r in lines]
     if not rows:
         raise ValueError("Empty level file.")
 
-    # Trim blank @ rows from top only
+    # Trim blank @ rows from top only (single row — safe, nothing below shifts)
     while rows and all(ch == '@' for ch in rows[0]):
         rows.pop(0)
 
-    # Trim blank @ rows from bottom only  
-    while rows and all(ch == '@' for ch in rows[-1]):
-        rows.pop()
+    # Trim blank @ rows from bottom in 14-row blocks only
+    while len(rows) >= 14 and all(all(ch == '@' for ch in r) for r in rows[-14:]):
+        rows = rows[:-14]
 
-    # Pad or trim height to nearest multiple of 14
+    # Pad height to nearest multiple of 14
     current_height = len(rows)
     remainder = current_height % 14
     if remainder != 0:
-        # Add empty rows to bottom to reach next multiple of 14
         width = len(rows[0]) if rows else 0
         rows.extend(['-' * width] * (14 - remainder))
 

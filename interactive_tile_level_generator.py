@@ -276,9 +276,9 @@ class CaptionBuilder(ParentBuilder):
     def _play_megaman_level(self, idx):
         import subprocess, os
         from util.sampler import scene_to_ascii
-
+ 
         scene = self.generated_scenes[idx]
-        char_grid = scene_to_ascii(scene, self.id_to_char)
+        scene_to_ascii(scene, self.id_to_char, shorten=False)
 
         # Save as .txt first
         txt_path = os.path.join(os.getcwd(), "temp_mm_level.txt")
@@ -309,7 +309,8 @@ class CaptionBuilder(ParentBuilder):
         import subprocess
         from util.sampler import scene_to_ascii
 
-        char_grid = scene_to_ascii(scene, self.id_to_char)
+        char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
+
 
         txt_path = os.path.join(os.getcwd(), "temp_mm_level.txt")
         with open(txt_path, 'w') as f:
@@ -1023,7 +1024,7 @@ Average Segment Score: {avg_segment_score}"""
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
             else:
-                char_grid = scene_to_ascii(scene, self.id_to_char)
+                char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
@@ -1033,7 +1034,7 @@ Average Segment Score: {avg_segment_score}"""
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
             else:
-                char_grid = scene_to_ascii(scene, self.id_to_char)
+                char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
       
@@ -1465,36 +1466,9 @@ class MegaManLayoutEditor:
         toolbar = ttk.Frame(right_frame)
         toolbar.pack(side=tk.TOP, fill=tk.X, pady=5)
         ttk.Button(toolbar, text="Play This Layout",        command=self.play_layout).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Use A* on This Layout",  command=self.astar_layout).pack(side=tk.LEFT, padx=5)
         ttk.Button(toolbar, text="Save This Layout As...", command=self.save_layout).pack(side=tk.LEFT, padx=5)
         ttk.Button(toolbar, text="Clear Grid",             command=self.clear_grid).pack(side=tk.LEFT, padx=5)
 
-        blank_row = ttk.Frame(right_frame)
-        blank_row.pack(side=tk.TOP, fill=tk.X, pady=(0, 5))
-        ttk.Label(blank_row, text="Fill empty grid space with:").pack(side=tk.LEFT, padx=(5, 5))
-
-        self.label_to_tid = {}
-        choices = []
-        try:
-            items = sorted(self.app.char_to_id.items(), key=lambda kv: kv[1])
-        except Exception:
-            items = list(self.app.char_to_id.items())
-        for ch, tid in items:
-            desc = ""
-            try:
-                desc = self.app.tile_descriptors.get(ch, "")
-            except Exception:
-                pass
-            label = f"'{ch}' (id {tid})" + (f" - {desc}" if desc else "")
-            choices.append(label)
-            self.label_to_tid[label] = tid
-
-        self.blank_var = tk.StringVar()
-        default_label = self._guess_default_blank_label(choices)
-        self.blank_var.set(default_label if default_label else (choices[0] if choices else ""))
-        self.blank_combo = ttk.Combobox(blank_row, textvariable=self.blank_var, values=choices,
-                                         state="readonly", width=45)
-        self.blank_combo.pack(side=tk.LEFT)
 
         canvas_frame = ttk.Frame(right_frame)
         canvas_frame.pack(fill=tk.BOTH, expand=True)
@@ -1684,7 +1658,8 @@ class MegaManLayoutEditor:
         self.placed_scene_indices.clear()
         # also remove marker visuals
         for key in list(self.marker_canvas_ids.keys()):
-            self.grid_canvas.delete(self.marker_canvas_ids.pop(key))
+            ids = self.marker_canvas_ids.pop(key)
+            self.grid_canvas.delete(*ids)
         self.marker_placements.clear()
         self._populate_palette()
 
@@ -1795,7 +1770,7 @@ class MegaManLayoutEditor:
             return None
         scene_h, scene_w = next(iter(dims))
 
-        blank_tid = self.label_to_tid.get(self.blank_var.get(), 0)
+        blank_tid = self.app.char_to_id["@"]
 
         cols    = [c for c, r in self.placements]
         rows    = [r for c, r in self.placements]
@@ -1868,19 +1843,36 @@ class MegaManLayoutEditor:
         merged = self.build_merged_scene()
         if merged is None:
             return
-        initial_dir = os.path.join(os.getcwd(), "Composed Levels")
-        os.makedirs(initial_dir, exist_ok=True)
+
+        levels_dir = os.path.join(
+            os.path.expanduser("~"),
+            "AppData", "Local", "MegaMaker", "Levels"
+        )
+        os.makedirs(levels_dir, exist_ok=True)
+
         file_path = filedialog.asksaveasfilename(
             defaultextension=".txt",
             filetypes=[("Text files", "*.txt")],
             title="Save Mega Man Layout As",
-            initialdir=initial_dir
+            initialdir=levels_dir
         )
+
         if file_path:
             try:
                 level = self.app.get_sample_output(merged)
+                level.level = [row for row in level.level if any(ch != '@' for ch in row)]
                 level.save(file_path)
-                messagebox.showinfo("Saved", f"Layout saved to:\n{file_path}")
+
+                # Also convert and save as .mmlv in the same location
+                from vglc_to_mmlv import convert
+                lines = open(file_path).readlines()
+                level_name = os.path.splitext(os.path.basename(file_path))[0]
+                mmlv_path = os.path.splitext(file_path)[0] + ".mmlv"
+                result = convert(lines, level_name=level_name, author="AI")
+                with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
+                    f.write(result)
+
+                messagebox.showinfo("Saved", f"Layout saved to:\n{file_path}\n\nAlso converted to:\n{mmlv_path}")
             except Exception as e:
                 messagebox.showerror("Save failed", str(e))
 
