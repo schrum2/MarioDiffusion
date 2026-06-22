@@ -126,6 +126,7 @@ SYSTEM_PROMPT =  """
                     use are commas and periods (, and .)
                     - Don't say things like "This level has..." or "The level features...". Just directly
                     describe the level itself without mentioning "level". 
+                    - Separate each caption into phrases separated by periods. 
                  """
 
 def scene_to_ASCII(scene: list[list[int]], id_to_char: dict[int, str]) -> list[str]:
@@ -180,7 +181,7 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
     return scenes
 
 
-def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT) -> dict:
+def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT["tiles"]) -> dict:
     """
     Given an ASCII level scene and the complete tile set for the game the given scene belongs to, return a filtered
     tile set dict to insert in the LLM prompt to convserve (a marginal amount of) tokens, and to avoid hallucination/confusion
@@ -194,13 +195,13 @@ def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT) -> dict:
         dict -- char: str: the filtered tile set that only contains tiles found in the level
     """
 
-    filtered = [{char: desc} for char, desc in tileset.items() if char in scene] # this function could literally be a one-liner I'm not sure why I decided to make this an entire function I'll probably remove this later
+    filtered = {char: desc for char, desc in tileset.items() if char in scene} # this function could literally be a one-liner I'm not sure why I decided to make this an entire function I'll probably remove this later
     return filtered
 
 
 
 
-# TODO: Create ONE LLM caption function and make claude/chat/ollama a model parameter 
+# TODO: Create ONE LLM caption function and make claude/chat/ollama a model parameter instead of three that do the same exact thing
 def chatGPT_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> list[str]:
     """
     Prompt claude (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
@@ -208,6 +209,7 @@ def chatGPT_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILES
     tileset_str = json.dumps(tileset, indent=2)
 
     context = [
+        {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
         {"role": "user", "content": f"Level Scene:\n{scene}"},
     ]
@@ -221,8 +223,91 @@ def chatGPT_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILES
     
     captions = [line.strip() for line in message.split("\n") if line.strip()]
 
-    print(f"[{len(captions)} captions detected]\n")
+    # print(f"[{len(captions)} captions detected]\n")
     return captions
+
+
+def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
+
+
+
+    # claude branch
+    if llm == "claude":
+        """
+        Prompt claude (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
+        """
+        tileset_str = json.dumps(tileset, indent=2)
+
+        context = [
+            {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
+            {"role": "user", "content": f"Level Scene:\n{scene}"},
+        ]
+
+        # sup claude
+        message = client.messages.create(
+                    max_tokens=1024,
+                    system=SYSTEM_PROMPT, # claude requires system prompt to be separated from context block
+                    messages=context,
+                    model="claude-haiku-4-5"
+                    )
+        
+        # message.content is a list of content blocks; pull the text out and split into a list
+        # separated by line breaks, dropping blank lines (Claude often separates captions with blank lines)
+        captions = [line.strip() for line in message.content[0].text.split("\n") if line.strip()]
+
+        # print(f"[{len(captions)} captions detected]\n")
+        return captions
+    
+
+
+    # openai branch
+    elif llm == "openai":
+        """
+        Prompt openai (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
+        """
+        tileset_str = json.dumps(tileset, indent=2)
+
+        context = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
+            {"role": "user", "content": f"Level Scene:\n{scene}"},
+        ]
+
+        # sup claude
+        completion = client2.chat.completions.create(
+        model="gpt-5.1",
+        messages=context,
+        )
+        message = completion.choices[0].message.content
+        
+        captions = [line.strip() for line in message.split("\n") if line.strip()]
+
+        # print(f"[{len(captions)} captions detected]\n")
+        return captions
+
+    # local branch
+    elif llm == "ollama":
+        """
+        Prompt a local ollama model with the tileset key and an ASCII level grid,
+        and return the generated caption.
+        """
+        tileset_str = json.dumps(tileset, indent=2)
+
+        context = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
+            {"role": "user", "content": f"Level Scene:\n{scene}"},
+        ]
+
+        completion = ollama.chat(
+            model=model, 
+            messages=context
+        )
+        caption = completion.message.content
+        return caption
+    
+    else:
+        print("You've provided an invalid LLM inference mode: Please try again and select one of the following: claude, openai, ollama ")
 
 
 
@@ -250,7 +335,7 @@ def claude_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESE
     # separated by line breaks, dropping blank lines (Claude often separates captions with blank lines)
     captions = [line.strip() for line in message.content[0].text.split("\n") if line.strip()]
 
-    print(f"[{len(captions)} captions detected]\n")
+    # print(f"[{len(captions)} captions detected]\n")
     return captions
 
 def llama_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> str:
@@ -272,7 +357,6 @@ def llama_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET
     caption = completion.message.content
     return caption
 
-
 def parse_args():
     argparser = argparse.ArgumentParser(
         description="Caption VGLC-ASCII Mega Man levels with a local LLM."
@@ -286,8 +370,10 @@ def parse_args():
                                 "(must match the tileset the scenes were generated from)")
     argparser.add_argument("--game", default="Mega Man",
                            help="Game name passed to the LLM prompt for context")
+    argparser.add_argument("--llm", choices=["claude", "openai", "ollama"], default="ollama",
+                           help="The source of the LLM inference used to caption the provided level scenes. The openai and claude choices use APIs, while ollama runs a local model")
     argparser.add_argument("--model", default="qwen3.5:9b",
-                           help="Local ollama model to prompt for captions")
+                           help="Local ollama model to prompt for captions, only used if --llm ollama is argued")
     argparser.add_argument("--output", default=None,
                            help="Optional path to write the captioned [{scene, caption}] list as JSON")
     argparser.add_argument("--limit", type=int, default=None,
@@ -306,7 +392,7 @@ def main() -> list[list[str]]:
     # load integer tile-id scenes
     scenes = load_dataset(args.levels, char_to_id)
 
-    
+
     # parsers all of scenes when limit is None 
     scenes = scenes[:args.limit]
 
@@ -320,11 +406,15 @@ def main() -> list[list[str]]:
         # Decode the integer grid to ASCII rows purely to build the prompt; the integer
         # grid itself is what gets stored back in the output.
         scene_str = "\n".join(scene_to_ASCII(scene, id_to_char))
-        # currently wired to the claude API version, can also be set to local
-        caption_set = chatGPT_caption(scene_str, game=args.game, model=args.model)
+
+        # Get filtered tileset for current scene
+        filtered_tiles = filter_tile_set(scene_str, MM_TILESET_DICT["tiles"])
+        
+        # assign and collect captions
+        caption_set = llm_caption(scene_str, game=args.game, model=args.model, tileset=filtered_tiles, llm=args.llm)
 
         
-        print(f"------------------[{label}] ({i + 1}/{len(scenes)})------------------\n")
+        print(f"------------------ [{args.llm}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
         for j, caption in enumerate(caption_set):
             print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
 
