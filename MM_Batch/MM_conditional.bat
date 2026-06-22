@@ -14,7 +14,7 @@ if "%VARIANT%"=="full" (
     set DATASET_INFIX=full
     set TILESET=datasets\MM.json
     set RAW_JSON=datasets\MM_Levels_Full.json
-    set NUM_TILES=39
+    set NUM_TILES=41
 ) 
 
 else (
