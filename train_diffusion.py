@@ -144,7 +144,7 @@ def parse_args():
     parser.add_argument("--auto_augment_max_new_samples", type=int, default=10, help="Max new samples to add per augmentation run")    
     parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7000,help="Maximum total size the training dataset is allowed to grow to")
     parser.add_argument("--auto_augment_save_images", action="store_true", help="Save images for newly added augmented samples")
-    parser.add_argument("--auto_augment_json", type=str, default=None, help="Path to save the augmented training dataset JSON")
+    parser.add_argument("--auto_augment_json", type=str, default="augmented_dataset.json", help="Path (relative to output_dir if not absolute) to save the augmented training dataset JSON. Accumulates samples across epochs unless --auto_augment_save_checkpoints_dataset is enabled for per-epoch files.")
     parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
 
     # For block2vec embedding model
@@ -950,9 +950,10 @@ def main():
 
                     # Save augmented samples to JSON if requested
                     if args.auto_augment_json and accelerator.is_local_main_process:
-                        save_path = args.auto_augment_json
+                        # Resolve path relative to output_dir if not absolute
+                        save_path = args.auto_augment_json if os.path.isabs(args.auto_augment_json) else os.path.join(args.output_dir, args.auto_augment_json)
                         if args.auto_augment_save_checkpoints_dataset:
-                            base, ext = os.path.splitext(args.auto_augment_json)
+                            base, ext = os.path.splitext(save_path)
                             save_path = f"{base}_epoch_{epoch}{ext}"
 
                         existing_data = []
@@ -963,7 +964,7 @@ def main():
 
                         for sample in bad_generated_scenes:
                             existing_data.append({
-                                "level": sample["scene"],
+                                "scene": sample["scene"],
                                 "caption": sample["caption"]
                             })
 

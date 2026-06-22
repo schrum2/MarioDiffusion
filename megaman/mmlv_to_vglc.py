@@ -45,7 +45,7 @@ MEGAMAN_SCREEN_WIDTH = 16  # Mega Man Maker's screen grid width, used to scan
 
 def parse_mmlv(path: Path) -> Dict[Tuple[int,int], dict]:
     """Return sparse dict of (tile_x, tile_y) -> {field: float_value}."""
-    text = path.read_bytes().decode("utf-8", errors="replace")
+    text = path.read_bytes().decode("utf-8", errors="replace").replace('\r', '')
     cells: Dict[Tuple[int,int], dict] = {}
     for m in re.finditer(r'([a-z])(\d+),(\d+)="([^"]+)"', text):
         field = m.group(1)
@@ -70,7 +70,12 @@ def classify(cell: dict) -> str:
 
     # Entity layer (d field) takes priority over tile layer
     if d is not None:
-        if d == 4.0:   return "a"   # cannon / turret enemy
+        if d == 4.0:
+            e = cell.get("e")
+            if e == 0.0 or e is None:  return "P"   # player spawn (Mega Man)
+            if e == 1.0:               return "P"   # player spawn (Proto Man)
+            if e == 2.0:               return "P"   # player spawn (Bass)
+            return "a"                              # actual cannon/turret
         if d == 5.0:   return "a"   # enemy (various)
         if d == 6.0:   return "a"   # enemy (various)
         if d == 7.0:   return "Z"   # item / powerup
@@ -129,16 +134,6 @@ def mmlv_to_grid(path: Path):
         ch = classify(cell)
         if ch is not None:
             char_cells[coord] = ch
-
-    text = path.read_bytes().decode("utf-8", errors="replace")
-    spawn_match = re.search(
-        r'\[(?:Player|PlayerData)\].*?x=(\d+).*?y=(\d+)', text,
-        re.DOTALL | re.IGNORECASE
-    )
-    if spawn_match:
-        sx = int(spawn_match.group(1)) // TILE_PX
-        sy = int(spawn_match.group(2)) // TILE_PX
-        char_cells[(sx, sy)] = "P"
 
     if not char_cells:
         return []

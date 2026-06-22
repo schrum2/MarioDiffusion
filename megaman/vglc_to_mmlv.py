@@ -69,11 +69,12 @@ def orb_tile(x: int, y: int) -> List[str]:
     ]
 
 def player_tile(x: int, y: int) -> List[str]:
+    spawn_y = max(0, y - TILE_PX)
     return [
-        '1t="0.000000"',
-        f'o{x},{y}="9999.000000"',
-        f'd{x},{y}="4.000000"',
-        f'a{x},{y}="1.000000"',
+        f'o{x},{spawn_y}="9999.000000"',
+        f'e{x},{spawn_y}="0.000000"',
+        f'd{x},{spawn_y}="4.000000"',
+        f'a{x},{spawn_y}="1.000000"',
     ]
 
 def enemy_ground(x: int, y: int) -> List[str]:
@@ -252,7 +253,7 @@ def enemy_gunner(x: int, y: int) -> List[str]:
 
 CHAR_MAP = {
     '@': None,
-    '-': [],
+    '-': None,
     '#': solid_block,
     'A': solid_block,
     't': solid_block,
@@ -365,6 +366,23 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
     if not rows:
         raise ValueError("Empty level file.")
 
+    # Trim blank @ rows from top only
+    while rows and all(ch == '@' for ch in rows[0]):
+        rows.pop(0)
+
+    # Trim blank @ rows from bottom only  
+    while rows and all(ch == '@' for ch in rows[-1]):
+        rows.pop()
+
+    # Pad or trim height to nearest multiple of 14
+    current_height = len(rows)
+    remainder = current_height % 14
+    if remainder != 0:
+        # Add empty rows to bottom to reach next multiple of 14
+        width = len(rows[0]) if rows else 0
+        rows.extend(['-' * width] * (14 - remainder))
+
+
     # Pre-compute per-row column ranges of non-void content
     col_ranges_per_row: List[tuple[int, int] | None] = []
     for row in rows:
@@ -409,13 +427,23 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
             active_screen_rows.add(screen_y)
 
     # 2b screen boundary markers
-    sorted_screens = sorted(active_screen_rows, reverse=True)
-    if sorted_screens:
-        out.append(f'2b0,{sorted_screens[0]}="0.000000"')  # duplicate
-    for sy in sorted_screens:
+    # 2b screen boundary markers — one per screen-sized block that has content
+    screen_rows = set()
+    for row_idx, row in enumerate(rows):
+        y = row_idx * TILE_PX
+        screen_y = (y // 224) * 224
+        for col_idx, ch in enumerate(row):
+            if ch != VOID_CHAR:
+                screen_rows.add(screen_y)
+
+    print(f"DEBUG rows height: {len(rows)}")
+    print(f"DEBUG screen_rows: {sorted(screen_rows)}")
+
+    for sy in sorted(screen_rows):
         out.append(f'2b0,{sy}="0.000000"')
 
     out += [
+        '1t="0.000000"',
         '1s="4480.000000"',
         '1r="0.000000"',
         '1q="12800"',
