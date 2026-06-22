@@ -63,7 +63,7 @@ MM_TILESET_DICT = {
         "+": "Collectible 1-UP Extra Life Power-up",
         "*": "Collectible Yashichi Power-up",
         "U": "Collectible Magnet Beam Power-up",
-        "C": "Elec Block, creates a temporary lighting barrier that extends outward",
+        "C": "Hazard Blocks: extends a temporary passable but damaging hazard outward",
         "p": "Ranged Foot Holder enemy, Mega Man can stand and jump from these",
         "r": "Ranged, shielded Sniper Joe enemy",
         "k": "Killer Bomb enemy",
@@ -178,6 +178,26 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
             grid = entry
         scenes.append((grid, Path(path).name))
     return scenes
+
+
+def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT) -> dict:
+    """
+    Given an ASCII level scene and the complete tile set for the game the given scene belongs to, return a filtered
+    tile set dict to insert in the LLM prompt to convserve (a marginal amount of) tokens, and to avoid hallucination/confusion
+    in the LLM response. This filtered tileset only contains the k: v pairs that are found in the provided scene.
+
+    Args:
+        scene (str):  the ASCII level scene
+        tileset(dict -- char: str): the complete ASCII char: string description tile set
+    
+    Returns:
+        dict -- char: str: the filtered tile set that only contains tiles found in the level
+    """
+
+    filtered = [{char: desc} for char, desc in tileset.items() if char in scene] # this function could literally be a one-liner I'm not sure why I decided to make this an entire function I'll probably remove this later
+    return filtered
+
+
 
 
 # TODO: Create ONE LLM caption function and make claude/chat/ollama a model parameter 
