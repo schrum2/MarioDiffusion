@@ -23,6 +23,14 @@ load_dotenv(env_path)
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
+
+from openai import OpenAI
+
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+client2 = OpenAI(api_key= OPENAI_API_KEY)
+
+
+
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
 
@@ -45,6 +53,30 @@ MM_TILESET_DICT = {
         "^": "Vertical Adhering Suzy enemy",
         "<": "Horizontal Adhering Suzy enemy",
         "f": "Jumping Big Eye enemy",
+        "t": "Secret transparent blocks (looks like regular blocks, but Mega Man can phase through them)",
+        "A": "Dissapearing/Reappearing blocks (fades in and out)",
+        "M": "Moving Platform blocks",
+        "D": "Passable Door blocks",
+        "W": "Large Weapon Energy power-up",
+        "w": "Small Weapon Energy power-up",
+        "l": "Small Life Energy power-up",
+        "+": "Collectible 1-UP Extra Life Power-up",
+        "*": "Collectible Yashichi Power-up",
+        "U": "Collectible Magnet Beam Power-up",
+        "C": "Elec Block, creates a temporary lighting barrier that extends outward",
+        "p": "Ranged Foot Holder enemy, Mega Man can stand and jump from these",
+        "r": "Ranged, shielded Sniper Joe enemy",
+        "k": "Killer Bomb enemy",
+        "g": "Ground Gabyoall enemy",
+        "e": "Ranged Screw Driver turret enemy",
+        "m": "Jumping exploding Bombombomb enemy",
+        "i": "Floating, ranged Watcher enemy",
+        "b": "Flying Bunby Heli enemy",
+        "a": "Stationary, ranged Met enemy",
+        "d": "Ranged Pickelman enemy",
+        "h": "Crazy Razy enemy",
+        "n": "Flying PePe penguin enemy",
+        "I": "Changkey vertical fire pillar enemy"
     }
 }
 
@@ -148,6 +180,31 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
     return scenes
 
 
+# TODO: Create ONE LLM caption function and make claude/chat/ollama a model parameter 
+def chatGPT_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> list[str]:
+    """
+    Prompt claude (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
+    """
+    tileset_str = json.dumps(tileset, indent=2)
+
+    context = [
+        {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
+        {"role": "user", "content": f"Level Scene:\n{scene}"},
+    ]
+
+    # sup claude
+    completion = client2.chat.completions.create(
+      model="gpt-5.1",
+      messages=context,
+    )
+    message = completion.choices[0].message.content
+    
+    captions = [line.strip() for line in message.split("\n") if line.strip()]
+
+    print(f"[{len(captions)} captions detected]\n")
+    return captions
+
+
 
 
 def claude_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> list[str]:
@@ -244,7 +301,7 @@ def main() -> list[list[str]]:
         # grid itself is what gets stored back in the output.
         scene_str = "\n".join(scene_to_ASCII(scene, id_to_char))
         # currently wired to the claude API version, can also be set to local
-        caption_set = claude_caption(scene_str, game=args.game, model=args.model)
+        caption_set = chatGPT_caption(scene_str, game=args.game, model=args.model)
 
         
         print(f"------------------[{label}] ({i + 1}/{len(scenes)})------------------\n")
