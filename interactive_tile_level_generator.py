@@ -291,7 +291,7 @@ class CaptionBuilder(ParentBuilder):
             os.path.expanduser("~"),
             "AppData", "Local", "MegaMaker", "Levels", "generated_level.mmlv"
         )
-        from vglc_to_mmlv import convert
+        from megaman.vglc_to_mmlv import convert
         lines = open(txt_path).readlines()
         result = convert(lines, level_name="Generated", author="AI")
         with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
@@ -321,7 +321,7 @@ class CaptionBuilder(ParentBuilder):
             os.path.expanduser("~"),
             "AppData", "Local", "MegaMaker", "Levels", "generated_level.mmlv"
         )
-        from vglc_to_mmlv import convert
+        from megaman.vglc_to_mmlv import convert
         lines = open(txt_path).readlines()
         result = convert(lines, level_name="Generated", author="AI")
         with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
@@ -1469,6 +1469,15 @@ class MegaManLayoutEditor:
         ttk.Button(toolbar, text="Save This Layout As...", command=self.save_layout).pack(side=tk.LEFT, padx=5)
         ttk.Button(toolbar, text="Clear Grid",             command=self.clear_grid).pack(side=tk.LEFT, padx=5)
 
+        ttk.Label(toolbar, text="Level Name:").pack(side=tk.LEFT, padx=(20, 5))
+
+        self.level_name_var = tk.StringVar(value="AI_Generated_Level")
+
+        ttk.Entry(
+            toolbar,
+            textvariable=self.level_name_var,
+            width=25
+        ).pack(side=tk.LEFT, padx=5)
 
         canvas_frame = ttk.Frame(right_frame)
         canvas_frame.pack(fill=tk.BOTH, expand=True)
@@ -1816,6 +1825,7 @@ class MegaManLayoutEditor:
         merged = self.build_merged_scene()
         if merged is None:
             return
+
         if "start" not in self.marker_placements:
             if not messagebox.askyesno(
                 "No Player Start set",
@@ -1823,8 +1833,17 @@ class MegaManLayoutEditor:
                 "Play anyway?"
             ):
                 return
+
+        import os
+
         try:
-            self.app._play_megaman_level_from_scene(merged)
+            success = self.save_level_files()
+
+            if not success:
+                return
+
+            os.startfile("megamaker://")
+
         except Exception as e:
             messagebox.showerror("Play failed", str(e))
 
@@ -1840,9 +1859,23 @@ class MegaManLayoutEditor:
             messagebox.showerror("A* failed", str(e))
 
     def save_layout(self):
+        success = self.save_level_files()
+
+        if success:
+            level_name = self.level_name_var.get().strip()
+
+            if not level_name:
+                level_name = "AI_Generated_Level"
+
+            messagebox.showinfo(
+                "Saved",
+                f"Level saved as:\n{level_name}.txt\n{level_name}.mmlv"
+            )
+
+    def save_level_files(self):
         merged = self.build_merged_scene()
         if merged is None:
-            return
+            return False
 
         levels_dir = os.path.join(
             os.path.expanduser("~"),
@@ -1850,31 +1883,32 @@ class MegaManLayoutEditor:
         )
         os.makedirs(levels_dir, exist_ok=True)
 
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("Text files", "*.txt")],
-            title="Save Mega Man Layout As",
-            initialdir=levels_dir
-        )
+        level_name = self.level_name_var.get().strip()
 
-        if file_path:
-            try:
-                level = self.app.get_sample_output(merged)
-                level.level = [row for row in level.level if any(ch != '@' for ch in row)]
-                level.save(file_path)
+        if not level_name:
+            level_name = "AI_Generated_Level"
 
-                # Also convert and save as .mmlv in the same location
-                from vglc_to_mmlv import convert
-                lines = open(file_path).readlines()
-                level_name = os.path.splitext(os.path.basename(file_path))[0]
-                mmlv_path = os.path.splitext(file_path)[0] + ".mmlv"
-                result = convert(lines, level_name=level_name, author="AI")
-                with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
-                    f.write(result)
+        txt_path = os.path.join(levels_dir, level_name + ".txt")
+        mmlv_path = os.path.join(levels_dir, level_name + ".mmlv")
 
-                messagebox.showinfo("Saved", f"Layout saved to:\n{file_path}\n\nAlso converted to:\n{mmlv_path}")
-            except Exception as e:
-                messagebox.showerror("Save failed", str(e))
+        try:
+            level = self.app.get_sample_output(merged)
+            level.level = [row for row in level.level if any(ch != '@' for ch in row)]
+            level.save(txt_path)
+
+            from megaman.vglc_to_mmlv import convert
+
+            lines = open(txt_path).readlines()
+            result = convert(lines, level_name=level_name, author="AI")
+
+            with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
+                f.write(result)
+
+            return True
+
+        except Exception as e:
+            messagebox.showerror("Save failed", str(e))
+            return False
 
 import argparse
 def parse_args():
