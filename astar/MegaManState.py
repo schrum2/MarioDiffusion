@@ -1,6 +1,6 @@
 from enum import Enum
 
-MEGA_MAN_ASTAR_JUMP_HEIGHT = 4
+MEGA_MAN_ASTAR_JUMP_HEIGHT = 5
 MEGA_MAN_TILE_EMPTY = 0
 MEGA_MAN_TILE_GROUND = 1
 MEGA_MAN_TILE_LADDER = 2
@@ -13,7 +13,7 @@ MEGA_MAN_TILE_NULL = 9
 MEGA_MAN_TILE_SPAWN = 8
 MEGA_MAN_TILE_WATER = 10
 FOOTHOLDER_ENEMY = 27
-FALL_STEPS_PER_SIDEWAYS_MOVE = 3
+FALL_STEPS_PER_SIDEWAYS_MOVE = 2
 ONE_ENEMY_NULL = 9
 
 class MegaManState:
@@ -97,6 +97,7 @@ class MegaManState:
         falling = False
         jumping = False
         sliding = False
+        skimming = False
         assert self.inBounds(new_x, new_y)
 
         # Falling off the bottom of the screen (into a gap) is deat EXCEPT when standing on a ladder
@@ -120,11 +121,23 @@ class MegaManState:
             else:
                 new_jump_velocity = 0
                 jumping = False
+                skimming = True  # head bonk: permit a single apex skim instead of an instant drop
+
+        # Apex skim (option 1): after a head bonk, allow one jump-speed sideways step at this
+        # height rather than dropping a tile immediately and switching to the throttled fall.
+        # Bounded to a single tile - the resulting state has zero velocity, so the next step
+        # falls normally and no upward motion resumes.
+        skim_right = (skimming and action.getMOVE() == self.MegaManAction.MOVE.RIGHT
+                      and self.passable(new_x + 1, new_y) and self.passable(new_x + 1, new_y - 1))
+        skim_left = (skimming and action.getMOVE() == self.MegaManAction.MOVE.LEFT
+                     and self.passable(new_x - 1, new_y) and self.passable(new_x - 1, new_y - 1))
         
         if new_jump_velocity == 0:
             jumping = False
 
-            if (((not sliding and self.passable(new_x, new_y + 1)) 
+            if skim_right or skim_left:
+                pass  # apex skim: hold height this step; the lateral block moves him sideways
+            elif (((not sliding and self.passable(new_x, new_y + 1))
                 or (sliding and self.passable(new_x, new_y + 1) and (self.passable(new_x - 1, new_y + 1) and self.tileAtPosition(new_x - 1, new_y + 1) != MEGA_MAN_TILE_LADDER or self.passable(new_x + 1, new_y + 1) and self.tileAtPosition(new_x + 1, new_y + 1) != MEGA_MAN_TILE_LADDER))) 
                 and self.tileAtPosition(new_x, new_y + 1) != MEGA_MAN_TILE_LADDER and self.tileAtPosition(new_x, new_y + 1) != MEGA_MAN_TILE_BREAKABLE):
                 
@@ -146,7 +159,7 @@ class MegaManState:
         
         # right movement
         if action.getMOVE() == self.MegaManAction.MOVE.RIGHT:
-            if ((not jumping
+            if (skim_right or (not jumping
                 and (((falling or self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER) and self.passable(new_x + 1, new_y) and self.passable(new_x + 1, new_y - 1) and new_fall_horizontal_mod_int % FALL_STEPS_PER_SIDEWAYS_MOVE == 0) or
                 (self.tileAtPosition(new_x, new_y) != MEGA_MAN_TILE_LADDER and not falling and self.passable(new_x + 1, new_y) and (not self.passable(new_x, new_y + 1) or self.tileAtPosition(new_x, new_y + 1) == MEGA_MAN_TILE_LADDER or self.tileAtPosition(new_x, new_y + 1) == MEGA_MAN_TILE_MOVING_PLATFORM)))) or
                 (jumping and self.passable(new_x + 1, new_y) and ((self.passable(new_x + 1, new_y - 1) and self.passable(new_x, new_y - 1)) or self.passable(new_x + 1, new_y + 1) and self.passable(new_x, new_y + 1)))):
@@ -157,7 +170,7 @@ class MegaManState:
     
         # left movement
         if action.getMOVE() == self.MegaManAction.MOVE.LEFT:
-            if ((not jumping
+            if (skim_left or (not jumping
                 and (((falling or self.tileAtPosition(new_x, new_y) == MEGA_MAN_TILE_LADDER) and self.passable(new_x - 1, new_y) and self.passable(new_x - 1, new_y - 1) and new_fall_horizontal_mod_int % FALL_STEPS_PER_SIDEWAYS_MOVE == 0) or
                 (self.tileAtPosition(new_x, new_y) != MEGA_MAN_TILE_LADDER and not falling and self.passable(new_x - 1, new_y) and (not self.passable(new_x, new_y + 1) or self.tileAtPosition(new_x, new_y + 1) == MEGA_MAN_TILE_LADDER or self.tileAtPosition(new_x, new_y + 1) == MEGA_MAN_TILE_MOVING_PLATFORM)))) or
                 (jumping and self.passable(new_x - 1, new_y) and ((self.passable(new_x - 1, new_y - 1) and self.passable(new_x, new_y - 1)) or self.passable(new_x - 1, new_y + 1) and self.passable(new_x, new_y + 1)))):

@@ -162,7 +162,7 @@ def parse_args():
     parser.add_argument('--tileset', default='datasets/MM.json', help='Path to the tile set JSON')
     parser.add_argument('--levels', default='../TheVGLC/MegaMan/Enhanced', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output directory')
-    parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_HEIGHT, help='Output scene height (e.g., 16 or 32). Navigation still uses the screen height.')
+    parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene height (e.g., 16 or 32). Navigation still uses the screen height.')
     parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width.')
     parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
@@ -181,7 +181,7 @@ def filter_traversable(all_samples, id_to_char, tile_descriptors, budget=100000)
         sys.path.insert(0, astar_dir)
     from astar_traversability_check import untraversable_indices
 
-    scenes = [s["sample"] for s in all_samples]
+    scenes = [s["scene"] for s in all_samples]
     bad_indices = untraversable_indices(scenes, "MM", id_to_char, tile_descriptors, budget=budget)
 
     for idx in sorted(bad_indices, reverse=True):
@@ -253,7 +253,8 @@ def main():
                     out_height=args.target_height,
                     faithful_vertical=faithful_vertical,
                     print_at_corners=False,
-                    change_direction_overrides=overrides_1_7
+                    change_direction_overrides=overrides_1_7,
+                    direction_captions=direction_captions
                 )
             else:
                 samples, json_caption_data = parse_level(
@@ -262,7 +263,8 @@ def main():
                     out_width=args.target_width,
                     out_height=args.target_height,
                     faithful_vertical=faithful_vertical,
-                    print_at_corners=False
+                    print_at_corners=False,
+                    direction_captions=direction_captions
                 )
 
         except ValueError as e:
@@ -273,11 +275,18 @@ def main():
 
         for sample, json_data in zip(samples, json_caption_data):
 
-            key = (
-                tuple(tuple(row) for row in sample),
-                json_data["entrance_direction"],
-                json_data["exit_direction"]
-            )
+            #json_data is None when directional captions are off (see parse_level /
+            #snap_window_samples). Fall back to sentinel directions so the dedup key
+            #stays a homogeneous 3-tuple instead of subscripting None.
+            sample_key = tuple(tuple(row) for row in sample)
+            if json_data is None:
+                key = (sample_key, None, None)
+            else:
+                key = (
+                    sample_key,
+                    json_data["entrance_direction"],
+                    json_data["exit_direction"]
+                )
 
             if key in seen_samples:
                 duplicates_removed += 1
@@ -286,7 +295,7 @@ def main():
             seen_samples.add(key)
 
             all_samples.append({
-                "sample": sample,
+                "scene": sample,
                 "data": json_data
             })
 

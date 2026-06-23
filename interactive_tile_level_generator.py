@@ -510,7 +510,7 @@ class CaptionBuilder(ParentBuilder):
 
                 if tile_count == common_settings.LR_TILE_COUNT:        # 8
                     return "Lode Runner"
-                elif tile_count == common_settings.MM_FULL_TILE_COUNT:  # 39
+                elif tile_count == common_settings.MM_FULL_TILE_COUNT:  # 41
                     return "Mega Man (Full)"
                 elif tile_count == 13:
                     # Ambiguous — ask the user to confirm
