@@ -49,7 +49,7 @@ MM_TILESET_DICT = {
         "q": "Jumping Kamadoma enemy",
         "o": "Flying Mambu enemy",
         "j": "Flying Bunby Heli enemy",
-        "c": "Ranged Blaster enemy",
+        "c": "Ranged wall-mounted Blaster enemy",
         "^": "Vertical Adhering Suzy enemy",
         "<": "Horizontal Adhering Suzy enemy",
         "f": "Jumping Big Eye enemy",
@@ -68,7 +68,7 @@ MM_TILESET_DICT = {
         "r": "Ranged, shielded Sniper Joe enemy",
         "k": "Killer Bomb enemy",
         "g": "Ground Gabyoall enemy",
-        "e": "Ranged Screw Driver turret enemy",
+        "e": "Stationary, ranged Screw Driver enemy",
         "m": "Jumping exploding Bombombomb enemy",
         "i": "Floating, ranged Watcher enemy",
         "b": "Flying Bunby Heli enemy",
@@ -76,9 +76,15 @@ MM_TILESET_DICT = {
         "d": "Ranged Pickelman enemy",
         "h": "Crazy Razy enemy",
         "n": "Flying PePe penguin enemy",
-        "I": "Changkey vertical fire pillar enemy"
+        "I": "Changkey vertical fire pillar"
     }
 }
+
+
+
+OLLAMA_NUM_CTX = 16384
+EXPECTED_CAPTIONS = 5
+MAX_CAPTION_RETRIES = 20
 
 
 SYSTEM_PROMPT =  """
@@ -105,7 +111,7 @@ SYSTEM_PROMPT =  """
                     travel toward the bottom is descending (dropping or falling down). For a tall vertical level, a spawn near the bottom
                     means the level is an ASCENT (the player climbs upward), while a spawn near the top means a DESCENT. Never
                     describe the spawn as somewhere the player descends to or arrives at, it is where they begin. Wide horizontal
-                    levels flow from the spawn on the left toward the exit on the right.
+                    levels flow from the spawn on the left toward the exit on the right, and shouldn't be classified as an ascent/descent.
 
 
                     FORMATTING:
@@ -126,18 +132,27 @@ SYSTEM_PROMPT =  """
                     EXAMPLE CAPTIONS:
                     These are examples of desirable captions that encapsulate ideas/level features into discrete '.'-separated chunks
                     while still varying in tone, specificity, length, etc.:
-                    -  Multiple vertical passages interweave through this mechanized stronghold. Turrets guard the lower levels. 
+                    -  Multiple vertical passages interweave through this mechanized stronghold. Snipers guard the lower levels. 
                     Fire pillars erupt periodically. The exit waits high above.
                     - A sprawling horizontal descent beginning from a modest platform on the left side. The player travels rightward 
                     across progressively lower terrain featuring moving platforms and scattered enemies including Bunby Helis and a Sniper Joe. 
                     Multiple weapon power-ups dot the landscape while deadly spikes appear in the lower sections. The exit awaits far to the right at the bottom level.
                     - A claustrophobic, terrifyingly tight enclosed descent begins here. One evil wall-crawler blocks the passage near the start. Further down, the area 
-                    opens into a gauntlet featuring turrets, moving platforms, and eventually a mysterious water-filled cavern where bouncing enemies demand precision.
+                    opens into a gauntlet featuring ranged enemies, moving platforms, and eventually a mysterious water-filled cavern where bouncing enemies demand precision.
 
                     REMINDERS:
-                    - Make sure your captions are each NOTICEABLY DISTINCT from one another in length, tone, and specificity. 
-
+                    - Make sure your captions are each NOTICEABLY DISTINCT from one another in length, tone, and specificity:
+                    - For length: at least one caption should be long, one should be short, and the rest should
+                    fall in between.
+                    - For specificity: one or two captions should contain specific enemy/powerup names, while others can be vague and state enemy class (ranged, ground).
+                    - You must return FIVE distinct captions, each on their own line.
                  """
+
+
+LOCAL_SYSTEM_PROMPT = """
+
+"""
+
 
 def scene_to_ASCII(scene: list[list[int]], id_to_char: dict[int, str]) -> list[str]:
     """
@@ -211,35 +226,7 @@ def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT["tiles"]) -> dic
 
 
 
-# TODO: Create ONE LLM caption function and make claude/chat/ollama a model parameter instead of three that do the same exact thing
-def chatGPT_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> list[str]:
-    """
-    Prompt claude (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
-    """
-    tileset_str = json.dumps(tileset, indent=2)
-
-    context = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
-        {"role": "user", "content": f"Level Scene:\n{scene}"},
-    ]
-
-    # sup claude
-    completion = client2.chat.completions.create(
-      model="gpt-5.1",
-      messages=context,
-    )
-    message = completion.choices[0].message.content
-    
-    captions = [line.strip() for line in message.split("\n") if line.strip()]
-
-    # print(f"[{len(captions)} captions detected]\n")
-    return captions
-
-
 def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
-
-
 
     # claude branch
     if llm == "claude":
@@ -255,7 +242,7 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
 
         # sup claude
         message = client.messages.create(
-                    max_tokens=1024,
+                    max_tokens=2048,
                     system=SYSTEM_PROMPT, # claude requires system prompt to be separated from context block
                     messages=context,
                     model="claude-haiku-4-5"
@@ -299,7 +286,7 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
     elif llm == "ollama":
         """
         Prompt a local ollama model with the tileset key and an ASCII level grid,
-        and return the generated caption.
+        and return the caption(s) it generates.
         """
         tileset_str = json.dumps(tileset, indent=2)
 
@@ -307,65 +294,38 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
+            {"role": "user", "content": "Make sure to separate each caption into '.'-separated phrases, and make each caption diverse in length, specificity, and tone."}
         ]
 
-        completion = ollama.chat(
-            model=model, 
-            messages=context
-        )
-        caption = completion.message.content
-        return caption
+      
+        # Retry until we get a compliant response, surfacing each failed attempt, and give up after MAX_CAPTION_RETRIES.
+        captions = []
+        for attempt in range(1, MAX_CAPTION_RETRIES + 1):
+            completion = ollama.chat(
+                model=model,
+                messages=context,
+                think=False,
+                options={"num_ctx": OLLAMA_NUM_CTX, "temperature": 0.4},
+            )
+            # fetch from schema
+            message = completion.message.content
+
+            captions = [line.strip() for line in message.split("\n") if line.strip()]
+
+            if len(captions) == EXPECTED_CAPTIONS:
+                return captions
+
+            print(f"[ollama retry] Attempt {attempt}/{MAX_CAPTION_RETRIES} returned "
+                  f"{len(captions)} caption(s), expected {EXPECTED_CAPTIONS}; retrying...\n")
+
+        print(f"[ollama] Gave up after {MAX_CAPTION_RETRIES} attempts; last response had "
+              f"{len(captions)} caption(s) instead of {EXPECTED_CAPTIONS}.\n")
+        return captions
     
     else:
         print("You've provided an invalid LLM inference mode: Please try again and select one of the following: claude, openai, ollama ")
 
 
-
-
-def claude_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> list[str]:
-    """
-    Prompt claude (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
-    """
-    tileset_str = json.dumps(tileset, indent=2)
-
-    context = [
-        {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
-        {"role": "user", "content": f"Level Scene:\n{scene}"},
-    ]
-
-    # sup claude
-    message = client.messages.create(
-                max_tokens=1024,
-                system=SYSTEM_PROMPT, # claude requires system prompt to be separated from context block
-                messages=context,
-                model="claude-haiku-4-5"
-                )
-    
-    # message.content is a list of content blocks; pull the text out and split into a list
-    # separated by line breaks, dropping blank lines (Claude often separates captions with blank lines)
-    captions = [line.strip() for line in message.content[0].text.split("\n") if line.strip()]
-
-    # print(f"[{len(captions)} captions detected]\n")
-    return captions
-
-def llama_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, model: str = "qwen3.5:9b") -> str:
-    """
-    Prompt a local ollama model with the tileset key and an ASCII level grid,
-    and return the generated caption.
-    """
-    tileset_str = json.dumps(tileset, indent=2)
-
-    context = [
-        {"role": "system", "content":
-            "Given a tile set key and an ASCII level grid, "
-            "generate a descriptive yet succinct caption for the level."},
-        {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
-        {"role": "user", "content": f"Level Scene:\n{scene}"},
-    ]
-
-    completion = ollama.chat(model=model, messages=context)
-    caption = completion.message.content
-    return caption
 
 def parse_args():
     argparser = argparse.ArgumentParser(
@@ -410,6 +370,9 @@ def main() -> list[list[str]]:
     caption_lists = [] # list[list] of caption set for each scene
     captioned_dataset = []
 
+
+    llmstr = args.llm if args.llm != "ollama" else f"{args.llm} - {args.model}"
+
     # caption each scene, append back to running lists
     for i, (scene, label) in enumerate(scenes):
 
@@ -424,14 +387,21 @@ def main() -> list[list[str]]:
         caption_set = llm_caption(scene_str, game=args.game, model=args.model, tileset=filtered_tiles, llm=args.llm)
 
         
-        print(f"------------------ [{args.llm}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
+        
+
+        print(f"------------------ [{llmstr}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
         for j, caption in enumerate(caption_set):
             print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
 
+       
+
+        if len(caption_set) != EXPECTED_CAPTIONS:
+            print(f"[skip] {label}: got {len(caption_set)} caption(s) instead of {EXPECTED_CAPTIONS}; skipping this scene.\n")
+            continue
 
         caption_lists.append(caption_set)
         # ugly but necessary; want single json object with flat fields scene, cap, cap1, ..., cap4.
-        # "scene" holds the original integer tile-id grid, carried through unchanged.
+        # "scene" holds the original integer tile-id grid
         captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4]})
 
     # save to specified output dir if specified
