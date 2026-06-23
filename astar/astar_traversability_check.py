@@ -212,18 +212,33 @@ def lr_traversable(scene, id_to_char, descs, budget, allow_weird=False, visualiz
 
 
 
-def mm_traversable(scene, id_to_char, descs, budget, visualize=False):
-    """Traversability via the MM-NEAT orb model: algorithmically drop a spawn (left, low)
-    and an orb (right) into the scene, then run a single A* from the spawn to the orb.
-    Replaces the old caption-driven entrance/exit edge search."""
+def _in_bounds(grid, cell):
+    x, y = cell
+    return 0 <= y < len(grid) and 0 <= x < len(grid[0])
+
+
+def mm_traversable(scene, id_to_char, descs, budget, visualize=False, spawn=None, orb=None):
+    """Traversability via the MM-NEAT orb model: drop a spawn and an orb into the scene,
+    then run a single A* from the spawn to the orb.
+
+    spawn/orb are optional (x, y) cells - e.g. the user's placed Player Start / Exit Orb
+    markers. When given they are used verbatim; otherwise a spawn is auto-placed on the
+    low-left and an orb on the right, as before."""
     grid = translate_scene(scene, id_to_char, descs, mm_tile)
 
-    # Place spawn + orb in the grid (forcing a carved pedestal if no natural ledge exists);
-    # from_level then reads them back out as the start position and the heuristic's goal.
+    # Place spawn + orb in the grid; from_level then reads them back out as the start
+    # position and the heuristic's goal. Explicit (user-placed) cells win; otherwise we
+    # auto-place on a natural ledge, carving a pedestal if none exists.
     scanner = MegaManState(grid, 0, 0, (-1, -1), 0, 0)
-    if not scanner.placeSpawn():
+
+    if spawn is not None and _in_bounds(grid, spawn):
+        grid[spawn[1]][spawn[0]] = mm.MEGA_MAN_TILE_SPAWN
+    elif not scanner.placeSpawn():
         scanner.forceSpawn()
-    if not scanner.addOrb():
+
+    if orb is not None and _in_bounds(grid, orb):
+        grid[orb[1]][orb[0]] = mm.MEGA_MAN_TILE_ORB
+    elif not scanner.addOrb():
         scanner.forceOrb()
 
     start = MegaManState.from_level(grid)        # picks up the placed spawn(8) + orb(7)
@@ -272,16 +287,21 @@ def load_levels(path):
     raise ValueError("Unsupported JSON structure for a level file")
 
 
-def evaluate(game, scene, id_to_char, descs, budget, allow_weird, visualize=False):
+def evaluate(game, scene, id_to_char, descs, budget, allow_weird, visualize=False,
+             spawn=None, orb=None):
     """Return (traversable, stats, path_info). path_info is None unless visualize=True
-    (or the game short-circuits, e.g. an LR scene with no gold)."""
+    (or the game short-circuits, e.g. an LR scene with no gold).
+
+    spawn/orb are MM-only optional (x, y) cells used as the start and goal; they are
+    ignored for Mario and LR."""
     if game == "Mario":
         return mario_traversable(scene, id_to_char, descs, budget, visualize=visualize)
     if game == "LR":
         return lr_traversable(scene, id_to_char, descs, budget,
                               allow_weird=allow_weird, visualize=visualize)
     if game == "MM":
-        return mm_traversable(scene, id_to_char, descs, budget, visualize=visualize)
+        return mm_traversable(scene, id_to_char, descs, budget, visualize=visualize,
+                              spawn=spawn, orb=orb)
     raise ValueError(f"Unknown game: {game}")
 
 
@@ -317,17 +337,21 @@ RENDER_GAME_TO_TRAV = {"Mario": "Mario", "LR": "LR",
 
 
 def astar_path_image(scene, game, id_to_char, tile_descriptors, budget=100000,
-                     allow_weird_lr=False, show_visited=True):
+                     allow_weird_lr=False, show_visited=True, spawn=None, orb=None):
     """Run A* on a single scene and return (image, traversable, stats).
 
     game is the render-style name ("Mario", "LR", "MM-Simple", "MM-Full"). image is a
     PIL image of the scene with the path overlaid, or None when there is nothing to
-    draw (e.g. an LR scene with no gold)."""
+    draw (e.g. an LR scene with no gold).
+
+    spawn/orb are MM-only optional (x, y) cells (the user's placed spawn/exit) used as
+    the A* start and goal in place of the auto-placed ones."""
     trav_game = RENDER_GAME_TO_TRAV.get(game)
     if trav_game is None:
         raise ValueError(f"Unknown game {game!r}; expected one of {sorted(RENDER_GAME_TO_TRAV)}")
     ok, stats, info = evaluate(trav_game, scene, id_to_char, tile_descriptors,
-                               budget, allow_weird_lr, visualize=True)
+                               budget, allow_weird_lr, visualize=True,
+                               spawn=spawn, orb=orb)
     if info is None:
         return None, ok, stats
     from astar_path_visualization import render_info

@@ -1195,17 +1195,16 @@ Average Segment Score: {avg_segment_score}"""
         refs["image_label"].config(image=tk_img)
         refs["image_label"].image = tk_img
 
-    def _astar_overlay_image(self, scene):
-        """Render scene with its A* path and explored cells.
-        Returns a PIL image, or None if the path can't be produced."""
+    def _astar_path_for_scene(self, scene, spawn=None, orb=None):
+        """Run A* on a single scene and return (pil_image_or_None, solved, stats).
+
+        Shared by the per-image 'Simple A*' overlay and the Mega Man layout A*
+        visualizer. spawn/orb are MM-only optional (x, y) cells (the user's placed
+        spawn/exit). Raises on import/execution errors so callers can surface them."""
         astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
         if astar_dir not in sys.path:
             sys.path.insert(0, astar_dir)
-        try:
-            from astar_traversability_check import astar_path_image
-        except Exception as e:
-            print(f"Could not import A* path tools: {e}")
-            return None
+        from astar_traversability_check import astar_path_image
 
         game_name = {
             "Mario": "Mario",
@@ -1214,10 +1213,15 @@ Average Segment Score: {avg_segment_score}"""
             "Mega Man (Full)": "MM-Full",
         }.get(self.game_var.get())
         if game_name is None:
-            return None
+            return None, False, {}
+        return astar_path_image(scene, game_name, self.id_to_char, self.tile_descriptors,
+                                spawn=spawn, orb=orb)
+
+    def _astar_overlay_image(self, scene):
+        """Render scene with its A* path and explored cells.
+        Returns a PIL image, or None if the path can't be produced."""
         try:
-            img, solved, stats = astar_path_image(scene, game_name,
-                                                  self.id_to_char, self.tile_descriptors)
+            img, solved, stats = self._astar_path_for_scene(scene)
         except Exception as e:
             print(f"A* path failed for this scene: {e}")
             return None
@@ -1388,19 +1392,33 @@ class LevelEditor:
 class MegaManLayoutEditor:
     """
     Lets the user arrange the scenes accumulated via 'Add To Level' on a free 2D grid.
-    Supports draggable Exit Orb and Player Start markers that overwrite a tile in the
-    merged scene when built. Each marker is one-of-a-kind (placing a second removes
-    the first). Chars are resolved from app.char_to_id at runtime.
+
+    Spawn (Player Start) and exit (Exit Orb) are placed via draggable markers that snap
+    to a single tile inside a placed scene. Each marker is one-of-a-kind. On export the
+    merged level is first stripped of every stray spawn/exit tile the generator may have
+    baked into individual scenes, then exactly the user-placed markers are stamped in -
+    so a built level always has at most one spawn and one exit and never inherits the
+    invisible leftovers that used to survive clearing or reopening the editor.
+
+    The grid can be zoomed so individual tiles are large enough to target precisely.
     """
 
-    CELL_PIXELS = 72
+    DEFAULT_CELL_PIXELS = 72
+    MIN_CELL_PIXELS = 48
+    MAX_CELL_PIXELS = 420
     GRID_RADIUS = 8
 
-    # Special marker definitions: key -> (display label, color, candidate char keys)
+    # Marker key -> (display label, swatch color, ASCII char stamped into the level).
+    # 'P' (player spawn) and 'Z' (exit orb) are the chars the .mmlv converter understands;
+    # writing them straight into the ASCII level lets markers work for both the Simple and
+    # Full tilesets (the Simple tileset has no spawn/exit tile of its own).
     MARKER_DEFS = {
-        "exit":  ("Exit Orb", "#00FFAA", ["Z", "z"]),
-        "start": ("Player Start", "#FFDD00", ["P", "p"]),
+        "start": ("Player Start", "#FFDD00", "P"),
+        "exit":  ("Exit Orb",     "#00FFAA", "Z"),
     }
+
+    # Chars that represent a spawn or exit in any Mega Man ASCII level; stripped on export.
+    SPAWN_EXIT_CHARS = ("P", "Z")
 
     def __init__(self, master, app):
         self.master = master
@@ -1410,10 +1428,15 @@ class MegaManLayoutEditor:
         self.placed_scene_indices = set()
         self.placed_items = {}            # (col, row) -> (image_item_id, text_item_id)
 
-        # marker_placements: key -> (col, row, tile_x, tile_y)
-        # tile_x/tile_y are pixel offsets *within* the cell (0..CELL_PIXELS-1)
-        self.marker_placements = {}       # "exit" / "start" -> (col, row, tile_x, tile_y)
-        self.marker_canvas_ids = {}       # "exit" / "start" -> canvas item id
+        # marker_placements: key -> (col, row, t_col, t_row)
+        # t_col/t_row are *tile* indices within the scene at that cell (snapped, exact).
+        self.marker_placements = {}       # "start" / "exit" -> (col, row, t_col, t_row)
+        self.marker_canvas_ids = {}       # "start" / "exit" -> (oval_id, text_id)
+
+        # Zoom state and render caches.
+        self.cell_pixels = self.DEFAULT_CELL_PIXELS
+        self._native_scene_cache = {}     # scene_index -> native PIL render (zoom-independent)
+        self._scene_photos = {}           # scene_index -> PhotoImage at current zoom (GC guard)
 
         self._drag_data = None
         self._drag_window = None
@@ -1459,15 +1482,25 @@ class MegaManLayoutEditor:
             right_frame,
             text="Drag a scene onto the grid to place it. Drag a placed scene to move it. "
                  "Right-click a placed scene to send it back to the palette. "
-                 "Drag Exit Orb / Player Start markers onto any placed scene cell.",
+                 "Drag Player Start / Exit Orb markers onto a tile of any placed scene "
+                 "(zoom in first for precise placement; markers snap to a single tile). "
+                 "Scroll to zoom on the cursor; middle-mouse drag to pan.",
             wraplength=820
         ).pack(side=tk.TOP, fill=tk.X, padx=5, pady=(5, 0))
 
         toolbar = ttk.Frame(right_frame)
         toolbar.pack(side=tk.TOP, fill=tk.X, pady=5)
-        ttk.Button(toolbar, text="Play This Layout",        command=self.play_layout).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Save This Layout As...", command=self.save_layout).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Clear Grid",             command=self.clear_grid).pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar, text="Play This Layout",       command=self.play_layout).pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar, text="Save This Layout As...",  command=self.save_layout).pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar, text="Show A* Path",            command=self.show_astar_path).pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar, text="Clear Grid",              command=self.clear_grid).pack(side=tk.LEFT, padx=5)
+
+        # Zoom controls
+        ttk.Button(toolbar, text="Zoom -", width=6, command=lambda: self._zoom(1 / 1.25)).pack(side=tk.LEFT, padx=(20, 2))
+        self._zoom_label = ttk.Label(toolbar, text="100%", width=6, anchor="center")
+        self._zoom_label.pack(side=tk.LEFT)
+        ttk.Button(toolbar, text="Zoom +", width=6, command=lambda: self._zoom(1.25)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Reset",  width=6, command=self._zoom_reset).pack(side=tk.LEFT, padx=2)
 
         ttk.Label(toolbar, text="Level Name:").pack(side=tk.LEFT, padx=(20, 5))
 
@@ -1484,12 +1517,12 @@ class MegaManLayoutEditor:
         canvas_frame.grid_rowconfigure(0, weight=1)
         canvas_frame.grid_columnconfigure(0, weight=1)
 
-        grid_span   = self.GRID_RADIUS * 2 + 1
-        canvas_size = grid_span * self.CELL_PIXELS
-        visible_w, visible_h = 820, 560
+        self.grid_span = self.GRID_RADIUS * 2 + 1
+        self.visible_w, self.visible_h = 820, 560
+        self.canvas_size = self.grid_span * self.cell_pixels
 
-        self.grid_canvas = tk.Canvas(canvas_frame, bg="#222222", width=visible_w, height=visible_h,
-                                      scrollregion=(0, 0, canvas_size, canvas_size))
+        self.grid_canvas = tk.Canvas(canvas_frame, bg="#222222", width=self.visible_w, height=self.visible_h,
+                                      scrollregion=(0, 0, self.canvas_size, self.canvas_size))
         hbar = ttk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.grid_canvas.xview)
         vbar = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL,   command=self.grid_canvas.yview)
         self.grid_canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
@@ -1497,42 +1530,116 @@ class MegaManLayoutEditor:
         vbar.grid(row=0, column=1, sticky="ns")
         hbar.grid(row=1, column=0, sticky="ew")
 
-        self._draw_grid(grid_span, canvas_size)
-        self.grid_canvas.xview_moveto(max(0, (canvas_size / 2 - visible_w / 2) / canvas_size))
-        self.grid_canvas.yview_moveto(max(0, (canvas_size / 2 - visible_h / 2) / canvas_size))
+        self._draw_grid(self.grid_span, self.canvas_size)
+        self._center_view()
+
+        # Scroll wheel zooms (centered on the cursor); middle-drag pans.
+        self.grid_canvas.bind("<MouseWheel>", self._on_grid_mousewheel)
+        self.grid_canvas.bind("<ButtonPress-2>", lambda e: self.grid_canvas.scan_mark(e.x, e.y))
+        self.grid_canvas.bind("<B2-Motion>",     lambda e: self.grid_canvas.scan_dragto(e.x, e.y, gain=1))
 
         self._populate_palette()
 
-    # ------------------------------------------------------------------ grid
+    # ------------------------------------------------------------------ grid / zoom
 
     def _draw_grid(self, grid_span, canvas_size):
         ox, oy = self._cell_to_pixel(0, 0)
-        self.grid_canvas.create_rectangle(ox, oy, ox + self.CELL_PIXELS, oy + self.CELL_PIXELS,
+        self.grid_canvas.create_rectangle(ox, oy, ox + self.cell_pixels, oy + self.cell_pixels,
                                            fill="#333355", outline="")
         for i in range(grid_span + 1):
-            pos = i * self.CELL_PIXELS
+            pos = i * self.cell_pixels
             self.grid_canvas.create_line(pos, 0, pos, canvas_size, fill="#444444")
             self.grid_canvas.create_line(0, pos, canvas_size, pos, fill="#444444")
 
     def _grid_origin_offset(self):
-        return self.GRID_RADIUS * self.CELL_PIXELS
+        return self.GRID_RADIUS * self.cell_pixels
 
     def _cell_to_pixel(self, col, row):
         off = self._grid_origin_offset()
-        return off + col * self.CELL_PIXELS, off + row * self.CELL_PIXELS
+        return off + col * self.cell_pixels, off + row * self.cell_pixels
 
     def _pixel_to_cell(self, x, y):
         off = self._grid_origin_offset()
-        col = int((x - off) // self.CELL_PIXELS)
-        row = int((y - off) // self.CELL_PIXELS)
+        col = int((x - off) // self.cell_pixels)
+        row = int((y - off) // self.cell_pixels)
         return col, row
 
-    def _guess_default_blank_label(self, choices):
-        keywords = ("sky", "empty", "background", "blank", "void", "air", "nothing")
-        for label in choices:
-            if any(k in label.lower() for k in keywords):
-                return label
-        return None
+    def _center_view(self):
+        half_x = (self.canvas_size / 2 - self.visible_w / 2) / self.canvas_size
+        half_y = (self.canvas_size / 2 - self.visible_h / 2) / self.canvas_size
+        self.grid_canvas.xview_moveto(max(0, half_x))
+        self.grid_canvas.yview_moveto(max(0, half_y))
+
+    def _update_zoom_label(self):
+        pct = int(round(100 * self.cell_pixels / self.DEFAULT_CELL_PIXELS))
+        self._zoom_label.config(text=f"{pct}%")
+
+    def _zoom(self, factor, anchor=None):
+        """Zoom by `factor`, keeping the point under `anchor` (canvas-widget pixel
+        coords) fixed on screen. anchor=None keeps the current view center fixed."""
+        new = int(round(self.cell_pixels * factor))
+        new = max(self.MIN_CELL_PIXELS, min(self.MAX_CELL_PIXELS, new))
+        if new == self.cell_pixels:
+            return
+        if anchor is None:
+            anchor = (self.grid_canvas.winfo_width() / 2,
+                      self.grid_canvas.winfo_height() / 2)
+        ax, ay = anchor
+        # World point under the anchor, in the current canvas coords. Everything is laid
+        # out linearly from (0, 0), so after zooming it sits at (wx, wy) * ratio.
+        wx = self.grid_canvas.canvasx(ax)
+        wy = self.grid_canvas.canvasy(ay)
+        ratio = new / self.cell_pixels
+
+        self.cell_pixels = new
+        self._redraw_all()            # recomputes self.canvas_size
+        self._update_zoom_label()
+
+        # Scroll so that scaled world point lands back under the anchor pixel.
+        self.grid_canvas.xview_moveto(max(0.0, (wx * ratio - ax) / self.canvas_size))
+        self.grid_canvas.yview_moveto(max(0.0, (wy * ratio - ay) / self.canvas_size))
+
+    def _on_grid_mousewheel(self, event):
+        """Wheel up = zoom in, wheel down = zoom out, centered on the cursor."""
+        self._zoom(1.25 if event.delta > 0 else 1 / 1.25, anchor=(event.x, event.y))
+        return "break"   # don't also fire the app-wide mousewheel handler
+
+    def _zoom_reset(self):
+        if self.cell_pixels == self.DEFAULT_CELL_PIXELS:
+            return
+        self.cell_pixels = self.DEFAULT_CELL_PIXELS
+        self._redraw_all()
+        self._update_zoom_label()
+        self._center_view()
+
+    def _redraw_all(self):
+        """Rebuild every canvas item from the data model at the current zoom level."""
+        self.canvas_size = self.grid_span * self.cell_pixels
+        self.grid_canvas.delete("all")
+        self.grid_canvas.configure(scrollregion=(0, 0, self.canvas_size, self.canvas_size))
+        self._draw_grid(self.grid_span, self.canvas_size)
+
+        self.placed_items.clear()
+        self._scene_photos.clear()
+        for (col, row), scene_index in self.placements.items():
+            self._draw_scene(scene_index, col, row)
+
+        self.marker_canvas_ids.clear()
+        for key, (col, row, t_col, t_row) in self.marker_placements.items():
+            self._draw_marker(key, col, row, t_col, t_row)
+
+    def _scene_photo(self, scene_index):
+        """A PhotoImage of a composed scene rendered to fill the current cell size.
+        The native render is cached across zooms; only the resize repeats per zoom."""
+        native = self._native_scene_cache.get(scene_index)
+        if native is None:
+            native = self.app._render_scene_image(self.app.composed_scenes[scene_index])
+            self._native_scene_cache[scene_index] = native
+        size = self.cell_pixels
+        resample = Image.NEAREST if size >= native.width else Image.LANCZOS
+        photo = ImageTk.PhotoImage(native.resize((size, size), resample))
+        self._scene_photos[scene_index] = photo   # keep a ref so it isn't GC'd
+        return photo
 
     # ------------------------------------------------------------------ palette
 
@@ -1584,6 +1691,7 @@ class MegaManLayoutEditor:
         scene_index = self.placements.get((col, row))
         if scene_index is None:
             return
+        self._remove_markers_on_cell(col, row)  # markers don't follow a moving scene
         self._clear_cell_visual(col, row)
         del self.placements[(col, row)]
         self.placed_scene_indices.discard(scene_index)
@@ -1635,10 +1743,13 @@ class MegaManLayoutEditor:
     def _place_scene_at(self, scene_index, col, row):
         self.placements[(col, row)] = scene_index
         self.placed_scene_indices.add(scene_index)
-        px, py = self._cell_to_pixel(col, row)
-        cx, cy = px + self.CELL_PIXELS / 2, py + self.CELL_PIXELS / 2
-        thumb   = self.app.composed_thumbnails[scene_index]
-        img_id  = self.grid_canvas.create_image(cx, cy, image=thumb, anchor="center")
+        self._draw_scene(scene_index, col, row)
+
+    def _draw_scene(self, scene_index, col, row):
+        """Draw the scene image + index label for a cell and wire its mouse bindings."""
+        px, py  = self._cell_to_pixel(col, row)
+        photo   = self._scene_photo(scene_index)
+        img_id  = self.grid_canvas.create_image(px, py, image=photo, anchor="nw")
         text_id = self.grid_canvas.create_text(px + 4, py + 4, text=f"#{scene_index + 1}",
                                                 anchor="nw", fill="yellow", font=("Arial", 8))
         self.placed_items[(col, row)] = (img_id, text_id)
@@ -1653,7 +1764,14 @@ class MegaManLayoutEditor:
             for item_id in items:
                 self.grid_canvas.delete(item_id)
 
+    def _remove_markers_on_cell(self, col, row):
+        """Drop any spawn/exit marker anchored to this cell (its scene is leaving)."""
+        for key, (mc, mr, _tc, _tr) in list(self.marker_placements.items()):
+            if (mc, mr) == (col, row):
+                self._remove_marker(key)
+
     def _remove_from_cell(self, col, row):
+        self._remove_markers_on_cell(col, row)
         scene_index = self.placements.pop((col, row), None)
         self._clear_cell_visual(col, row)
         if scene_index is not None:
@@ -1661,15 +1779,12 @@ class MegaManLayoutEditor:
         self._populate_palette()
 
     def clear_grid(self):
-        for col, row in list(self.placed_items.keys()):
-            self._clear_cell_visual(col, row)
+        # Clearing the data model and rebuilding the canvas guarantees no spawn/exit
+        # (or any other) visual survives - including orphans from earlier re-placements.
         self.placements.clear()
         self.placed_scene_indices.clear()
-        # also remove marker visuals
-        for key in list(self.marker_canvas_ids.keys()):
-            ids = self.marker_canvas_ids.pop(key)
-            self.grid_canvas.delete(*ids)
         self.marker_placements.clear()
+        self._redraw_all()
         self._populate_palette()
 
     # ------------------------------------------------------------------ marker drag
@@ -1697,39 +1812,52 @@ class MegaManLayoutEditor:
                                 "Drop the marker onto a cell that already has a scene placed in it.")
             return
 
-        # pixel offset within the cell (clamped to cell bounds)
-        px, py    = self._cell_to_pixel(col, row)
-        tile_x    = max(0, min(int(x - px), self.CELL_PIXELS - 1))
-        tile_y    = max(0, min(int(y - py), self.CELL_PIXELS - 1))
+        t_col, t_row = self._tile_under_pointer(col, row, x, y)
+        self._place_marker(marker_key, col, row, t_col, t_row)
 
-        self._place_marker(marker_key, col, row, tile_x, tile_y)
-
-    def _place_marker(self, marker_key, col, row, tile_x, tile_y):
-        # Remove old canvas item if one exists
-        old_id = self.marker_canvas_ids.pop(marker_key, None)
-        if old_id is not None:
-            self.grid_canvas.delete(old_id)
-
-        self.marker_placements[marker_key] = (col, row, tile_x, tile_y)
-
-        label, color, _ = self.MARKER_DEFS[marker_key]
+    def _tile_under_pointer(self, col, row, x, y):
+        """Map a canvas pixel inside a cell to the (t_col, t_row) tile it lands on."""
+        scene = self.app.composed_scenes[self.placements[(col, row)]]
+        scene_h, scene_w = len(scene), len(scene[0])
         px, py = self._cell_to_pixel(col, row)
-        cx     = px + tile_x
-        cy     = py + tile_y
+        tw = self.cell_pixels / scene_w
+        th = self.cell_pixels / scene_h
+        t_col = int((x - px) // tw)
+        t_row = int((y - py) // th)
+        t_col = max(0, min(t_col, scene_w - 1))
+        t_row = max(0, min(t_row, scene_h - 1))
+        return t_col, t_row
 
-        marker_id = self.grid_canvas.create_oval(
-            cx - 8, cy - 8, cx + 8, cy + 8,
+    def _place_marker(self, marker_key, col, row, t_col, t_row):
+        # Replace any previous instance of this marker — exactly one spawn, one exit.
+        old = self.marker_canvas_ids.pop(marker_key, None)
+        if old is not None:
+            self.grid_canvas.delete(*old)
+        self.marker_placements[marker_key] = (col, row, t_col, t_row)
+        self._draw_marker(marker_key, col, row, t_col, t_row)
+
+    def _draw_marker(self, marker_key, col, row, t_col, t_row):
+        """Draw a marker centered on its snapped tile, scaled to the current zoom."""
+        label, color, _ = self.MARKER_DEFS[marker_key]
+        scene = self.app.composed_scenes[self.placements[(col, row)]]
+        scene_h, scene_w = len(scene), len(scene[0])
+        px, py = self._cell_to_pixel(col, row)
+        tw = self.cell_pixels / scene_w
+        th = self.cell_pixels / scene_h
+        cx = px + (t_col + 0.5) * tw
+        cy = py + (t_row + 0.5) * th
+        r  = max(5, min(tw, th) * 0.45)
+
+        oval_id = self.grid_canvas.create_oval(
+            cx - r, cy - r, cx + r, cy + r,
             fill=color, outline="#000000", width=1
         )
-        abbrev = label[0]   # "E" or "P"
         text_id = self.grid_canvas.create_text(
-            cx, cy, text=abbrev, fill="#111111", font=("Arial", 7, "bold")
+            cx, cy, text=label[0], fill="#111111", font=("Arial", max(7, int(r)), "bold")
         )
-        # Store both ids together so we can delete both
-        self.marker_canvas_ids[marker_key] = (marker_id, text_id)
+        self.marker_canvas_ids[marker_key] = (oval_id, text_id)
 
-        # Right-click to remove
-        for cid in (marker_id, text_id):
+        for cid in (oval_id, text_id):
             self.grid_canvas.tag_bind(
                 cid, "<ButtonPress-3>",
                 lambda e, k=marker_key: self._remove_marker(k)
@@ -1742,28 +1870,29 @@ class MegaManLayoutEditor:
                 self.grid_canvas.delete(cid)
         self.marker_placements.pop(marker_key, None)
 
-    # ------------------------------------------------------------------ char resolution
-
-    def _resolve_marker_char(self, marker_key):
-        """Return the tile char for this marker, or None with a warning."""
-        _, _, candidates = self.MARKER_DEFS[marker_key]
-        char_map = getattr(self.app, "char_to_id", {})
-        for ch in candidates:
-            if ch in char_map:
-                return ch
-
-        label = self.MARKER_DEFS[marker_key][0]
-        messagebox.showwarning(
-            "Tile char not found",
-            f"Could not find a tile char for '{label}' in char_to_id.\n"
-            f"Looked for: {candidates}\n"
-            f"The marker will be skipped in the merged level."
-        )
-        return None
-
     # ------------------------------------------------------------------ build merged scene
 
+    def _marker_grid_positions(self):
+        """Absolute (col, row) in the merged grid for each placed marker key.
+
+        Uses the same origin/scene geometry as the merge, so positions line up with
+        build_merged_ascii's stamping and build_merged_scene's tile layout."""
+        if not self.placements or not self.marker_placements:
+            return {}
+        scenes = self.app.composed_scenes
+        sample = next(iter(self.placements.values()))
+        scene_h, scene_w = len(scenes[sample]), len(scenes[sample][0])
+        min_col = min(c for c, r in self.placements)
+        min_row = min(r for c, r in self.placements)
+        return {
+            key: ((col - min_col) * scene_w + t_col,
+                  (row - min_row) * scene_h + t_row)
+            for key, (col, row, t_col, t_row) in self.marker_placements.items()
+        }
+
     def build_merged_scene(self):
+        """Merge placed scenes into one tile-ID grid (no spawn/exit handling).
+        Used for A* (with explicit or auto spawn/orb) and as the base for export."""
         if not self.placements:
             messagebox.showinfo("Empty layout", "Drag at least one scene onto the grid first.")
             return None
@@ -1779,7 +1908,7 @@ class MegaManLayoutEditor:
             return None
         scene_h, scene_w = next(iter(dims))
 
-        blank_tid = self.app.char_to_id["@"]
+        blank_tid = self.app.char_to_id.get("@", 0)
 
         cols    = [c for c, r in self.placements]
         rows    = [r for c, r in self.placements]
@@ -1790,7 +1919,6 @@ class MegaManLayoutEditor:
         out_h  = (max_row - min_row + 1) * scene_h
         merged = [[blank_tid for _ in range(out_w)] for _ in range(out_h)]
 
-        # Copy scenes
         for (col, row), scene_index in self.placements.items():
             scene = scenes[scene_index]
             x_off = (col - min_col) * scene_w
@@ -1799,25 +1927,34 @@ class MegaManLayoutEditor:
                 for x, tile in enumerate(tile_row):
                     merged[y_off + y][x_off + x] = tile
 
-        # Stamp markers
-        char_map = getattr(self.app, "char_to_id", {})
-
-        for marker_key, (col, row, tile_x, tile_y) in self.marker_placements.items():
-            ch = self._resolve_marker_char(marker_key)
-            if ch is None:
-                continue
-            tid   = char_map[ch]
-            # Convert pixel offset within cell → tile coordinate
-            scene = scenes[self.placements[(col, row)]]
-            t_col = int(tile_x / self.CELL_PIXELS * scene_w)
-            t_row = int(tile_y / self.CELL_PIXELS * scene_h)
-            t_col = max(0, min(t_col, scene_w - 1))
-            t_row = max(0, min(t_row, scene_h - 1))
-            x_off = (col - min_col) * scene_w
-            y_off = (row - min_row) * scene_h
-            merged[y_off + t_row][x_off + t_col] = tid
-
         return merged
+
+    def build_merged_ascii(self):
+        """The merged level as ASCII rows, ready for the .mmlv converter.
+
+        Every spawn/exit tile baked into the generated scenes is stripped first, then
+        exactly the user-placed markers are stamped in. Returns a list of strings,
+        or None if there is nothing (or something invalid) to build."""
+        merged = self.build_merged_scene()
+        if merged is None:
+            return None
+
+        grid = [list(r) for r in scene_to_ascii(merged, self.app.id_to_char, shorten=False)]
+
+        # Strip any spawn/exit the generator left inside individual scenes.
+        empty = "-" if "-" in self.app.char_to_id else "@"
+        for r in range(len(grid)):
+            for c in range(len(grid[r])):
+                if grid[r][c] in self.SPAWN_EXIT_CHARS:
+                    grid[r][c] = empty
+
+        # Stamp the user-placed markers at their absolute tile in the merged grid.
+        for marker_key, (out_col, out_row) in self._marker_grid_positions().items():
+            _, _, ch = self.MARKER_DEFS[marker_key]
+            if 0 <= out_row < len(grid) and 0 <= out_col < len(grid[out_row]):
+                grid[out_row][out_col] = ch
+
+        return ["".join(r) for r in grid]
 
     # ------------------------------------------------------------------ actions
 
@@ -1847,16 +1984,48 @@ class MegaManLayoutEditor:
         except Exception as e:
             messagebox.showerror("Play failed", str(e))
 
-    def astar_layout(self):
+    def show_astar_path(self):
+        """Run the simple A* agent on the merged layout and show its path overlaid.
+
+        The user's placed Player Start / Exit Orb markers are used as the A* spawn and
+        goal; if either is missing, A* auto-places that one (low-left spawn / right orb)."""
         merged = self.build_merged_scene()
         if merged is None:
             return
+        positions = self._marker_grid_positions()
         try:
-            level = self.app.get_sample_output(merged)
-            console_output = level.run_astar()
-            print(console_output)
+            img, solved, stats = self.app._astar_path_for_scene(
+                merged, spawn=positions.get("start"), orb=positions.get("exit"))
         except Exception as e:
             messagebox.showerror("A* failed", str(e))
+            return
+        if img is None:
+            messagebox.showinfo("A* Path", "No A* path could be drawn for this layout.")
+            return
+        verdict = "traversable" if solved else "NOT traversable"
+        print(f"Composed layout A* path: {verdict}  ({stats})")
+        self._show_image_window(img, f"A* Path — {verdict}   {stats}")
+
+    def _show_image_window(self, pil_img, title):
+        """Show a (possibly large) PIL image in a scrollable popup window."""
+        win = tk.Toplevel(self.window)
+        win.title(title)
+        win.grid_rowconfigure(0, weight=1)
+        win.grid_columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(win, bg="#222222")
+        hbar = ttk.Scrollbar(win, orient=tk.HORIZONTAL, command=canvas.xview)
+        vbar = ttk.Scrollbar(win, orient=tk.VERTICAL,   command=canvas.yview)
+        canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vbar.grid(row=0, column=1, sticky="ns")
+        hbar.grid(row=1, column=0, sticky="ew")
+
+        photo = ImageTk.PhotoImage(pil_img)
+        canvas._photo_ref = photo   # keep a ref so it isn't GC'd
+        canvas.create_image(0, 0, image=photo, anchor="nw")
+        canvas.configure(scrollregion=(0, 0, pil_img.width, pil_img.height))
+        win.geometry(f"{min(pil_img.width + 24, 1200)}x{min(pil_img.height + 24, 800)}")
 
     def save_layout(self):
         success = self.save_level_files()
@@ -1873,8 +2042,8 @@ class MegaManLayoutEditor:
             )
 
     def save_level_files(self):
-        merged = self.build_merged_scene()
-        if merged is None:
+        rows = self.build_merged_ascii()
+        if rows is None:
             return False
 
         levels_dir = os.path.join(
@@ -1883,18 +2052,14 @@ class MegaManLayoutEditor:
         )
         os.makedirs(levels_dir, exist_ok=True)
 
-        level_name = self.level_name_var.get().strip()
-
-        if not level_name:
-            level_name = "AI_Generated_Level"
-
+        level_name = self.level_name_var.get().strip() or "AI_Generated_Level"
         txt_path = os.path.join(levels_dir, level_name + ".txt")
         mmlv_path = os.path.join(levels_dir, level_name + ".mmlv")
 
         try:
-            level = self.app.get_sample_output(merged)
-            level.level = [row for row in level.level if any(ch != '@' for ch in row)]
-            level.save(txt_path)
+            kept = [r for r in rows if any(ch != '@' for ch in r)]
+            with open(txt_path, 'w') as f:
+                f.write("\n".join(kept))
 
             from megaman.vglc_to_mmlv import convert
 
