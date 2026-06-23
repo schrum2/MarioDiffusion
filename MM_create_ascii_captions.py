@@ -448,7 +448,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     for i, combined_scene in enumerate(dataset):
         # Blank for Mega Man
         if isinstance(combined_scene, dict):
-            scene = combined_scene['sample']
+            scene = combined_scene['scene']
             data = combined_scene.get('data', None)
         else:
             scene = combined_scene
