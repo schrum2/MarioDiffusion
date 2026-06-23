@@ -305,7 +305,10 @@ def mm_tiles(game):
             (4,3),    #35 = Bunby Heli enemy
             (4,4),    #36 = Met enemy
             (4,5),    #37 = Picket man enemy
-            (4,6)     #38 = Crazy razy enemy
+            (4,6),    #38 = Crazy razy enemy
+            (4,7),    #39 = PePe penguin enemy
+            
+            (3,7)     #40 = Changkey fire pillar enemy (reuses the tackle-fire sprite, which doesn't actually have its own tile in MM.json)
         ]
     else:
         MM_tile_coordinates = [
@@ -328,7 +331,12 @@ def mm_tiles(game):
 
     # Extract each tile as a 16x16 image
     MM_tile_images = []
-    for row, col in MM_tile_coordinates:
+    for coord in MM_tile_coordinates:
+        if coord is None:
+            # No sprite exists for this tile on the sheet; use a gray placeholder.
+            MM_tile_images.append(Image.new('RGB', (DIM, DIM), color=(128, 128, 128)))
+            continue
+        row, col = coord
         left = col * DIM
         upper = row * DIM
         right = left + DIM
