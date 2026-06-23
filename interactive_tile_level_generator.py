@@ -276,9 +276,9 @@ class CaptionBuilder(ParentBuilder):
     def _play_megaman_level(self, idx):
         import subprocess, os
         from util.sampler import scene_to_ascii
-
+ 
         scene = self.generated_scenes[idx]
-        char_grid = scene_to_ascii(scene, self.id_to_char)
+        scene_to_ascii(scene, self.id_to_char, shorten=False)
 
         # Save as .txt first
         txt_path = os.path.join(os.getcwd(), "temp_mm_level.txt")
@@ -291,7 +291,7 @@ class CaptionBuilder(ParentBuilder):
             os.path.expanduser("~"),
             "AppData", "Local", "MegaMaker", "Levels", "generated_level.mmlv"
         )
-        from vglc_to_mmlv import convert
+        from megaman.vglc_to_mmlv import convert
         lines = open(txt_path).readlines()
         result = convert(lines, level_name="Generated", author="AI")
         with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
@@ -309,7 +309,8 @@ class CaptionBuilder(ParentBuilder):
         import subprocess
         from util.sampler import scene_to_ascii
 
-        char_grid = scene_to_ascii(scene, self.id_to_char)
+        char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
+
 
         txt_path = os.path.join(os.getcwd(), "temp_mm_level.txt")
         with open(txt_path, 'w') as f:
@@ -320,7 +321,7 @@ class CaptionBuilder(ParentBuilder):
             os.path.expanduser("~"),
             "AppData", "Local", "MegaMaker", "Levels", "generated_level.mmlv"
         )
-        from vglc_to_mmlv import convert
+        from megaman.vglc_to_mmlv import convert
         lines = open(txt_path).readlines()
         result = convert(lines, level_name="Generated", author="AI")
         with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
@@ -1023,7 +1024,7 @@ Average Segment Score: {avg_segment_score}"""
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
             else:
-                char_grid = scene_to_ascii(scene, self.id_to_char)
+                char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
         else:
@@ -1033,7 +1034,7 @@ Average Segment Score: {avg_segment_score}"""
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
             else:
-                char_grid = scene_to_ascii(scene, self.id_to_char)
+                char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             return level
       
@@ -1465,36 +1466,18 @@ class MegaManLayoutEditor:
         toolbar = ttk.Frame(right_frame)
         toolbar.pack(side=tk.TOP, fill=tk.X, pady=5)
         ttk.Button(toolbar, text="Play This Layout",        command=self.play_layout).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Use A* on This Layout",  command=self.astar_layout).pack(side=tk.LEFT, padx=5)
         ttk.Button(toolbar, text="Save This Layout As...", command=self.save_layout).pack(side=tk.LEFT, padx=5)
         ttk.Button(toolbar, text="Clear Grid",             command=self.clear_grid).pack(side=tk.LEFT, padx=5)
 
-        blank_row = ttk.Frame(right_frame)
-        blank_row.pack(side=tk.TOP, fill=tk.X, pady=(0, 5))
-        ttk.Label(blank_row, text="Fill empty grid space with:").pack(side=tk.LEFT, padx=(5, 5))
+        ttk.Label(toolbar, text="Level Name:").pack(side=tk.LEFT, padx=(20, 5))
 
-        self.label_to_tid = {}
-        choices = []
-        try:
-            items = sorted(self.app.char_to_id.items(), key=lambda kv: kv[1])
-        except Exception:
-            items = list(self.app.char_to_id.items())
-        for ch, tid in items:
-            desc = ""
-            try:
-                desc = self.app.tile_descriptors.get(ch, "")
-            except Exception:
-                pass
-            label = f"'{ch}' (id {tid})" + (f" - {desc}" if desc else "")
-            choices.append(label)
-            self.label_to_tid[label] = tid
+        self.level_name_var = tk.StringVar(value="AI_Generated_Level")
 
-        self.blank_var = tk.StringVar()
-        default_label = self._guess_default_blank_label(choices)
-        self.blank_var.set(default_label if default_label else (choices[0] if choices else ""))
-        self.blank_combo = ttk.Combobox(blank_row, textvariable=self.blank_var, values=choices,
-                                         state="readonly", width=45)
-        self.blank_combo.pack(side=tk.LEFT)
+        ttk.Entry(
+            toolbar,
+            textvariable=self.level_name_var,
+            width=25
+        ).pack(side=tk.LEFT, padx=5)
 
         canvas_frame = ttk.Frame(right_frame)
         canvas_frame.pack(fill=tk.BOTH, expand=True)
@@ -1684,7 +1667,8 @@ class MegaManLayoutEditor:
         self.placed_scene_indices.clear()
         # also remove marker visuals
         for key in list(self.marker_canvas_ids.keys()):
-            self.grid_canvas.delete(self.marker_canvas_ids.pop(key))
+            ids = self.marker_canvas_ids.pop(key)
+            self.grid_canvas.delete(*ids)
         self.marker_placements.clear()
         self._populate_palette()
 
@@ -1795,7 +1779,7 @@ class MegaManLayoutEditor:
             return None
         scene_h, scene_w = next(iter(dims))
 
-        blank_tid = self.label_to_tid.get(self.blank_var.get(), 0)
+        blank_tid = self.app.char_to_id["@"]
 
         cols    = [c for c, r in self.placements]
         rows    = [r for c, r in self.placements]
@@ -1841,6 +1825,7 @@ class MegaManLayoutEditor:
         merged = self.build_merged_scene()
         if merged is None:
             return
+
         if "start" not in self.marker_placements:
             if not messagebox.askyesno(
                 "No Player Start set",
@@ -1848,8 +1833,17 @@ class MegaManLayoutEditor:
                 "Play anyway?"
             ):
                 return
+
+        import os
+
         try:
-            self.app._play_megaman_level_from_scene(merged)
+            success = self.save_level_files()
+
+            if not success:
+                return
+
+            os.startfile("megamaker://")
+
         except Exception as e:
             messagebox.showerror("Play failed", str(e))
 
@@ -1865,24 +1859,56 @@ class MegaManLayoutEditor:
             messagebox.showerror("A* failed", str(e))
 
     def save_layout(self):
+        success = self.save_level_files()
+
+        if success:
+            level_name = self.level_name_var.get().strip()
+
+            if not level_name:
+                level_name = "AI_Generated_Level"
+
+            messagebox.showinfo(
+                "Saved",
+                f"Level saved as:\n{level_name}.txt\n{level_name}.mmlv"
+            )
+
+    def save_level_files(self):
         merged = self.build_merged_scene()
         if merged is None:
-            return
-        initial_dir = os.path.join(os.getcwd(), "Composed Levels")
-        os.makedirs(initial_dir, exist_ok=True)
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("Text files", "*.txt")],
-            title="Save Mega Man Layout As",
-            initialdir=initial_dir
+            return False
+
+        levels_dir = os.path.join(
+            os.path.expanduser("~"),
+            "AppData", "Local", "MegaMaker", "Levels"
         )
-        if file_path:
-            try:
-                level = self.app.get_sample_output(merged)
-                level.save(file_path)
-                messagebox.showinfo("Saved", f"Layout saved to:\n{file_path}")
-            except Exception as e:
-                messagebox.showerror("Save failed", str(e))
+        os.makedirs(levels_dir, exist_ok=True)
+
+        level_name = self.level_name_var.get().strip()
+
+        if not level_name:
+            level_name = "AI_Generated_Level"
+
+        txt_path = os.path.join(levels_dir, level_name + ".txt")
+        mmlv_path = os.path.join(levels_dir, level_name + ".mmlv")
+
+        try:
+            level = self.app.get_sample_output(merged)
+            level.level = [row for row in level.level if any(ch != '@' for ch in row)]
+            level.save(txt_path)
+
+            from megaman.vglc_to_mmlv import convert
+
+            lines = open(txt_path).readlines()
+            result = convert(lines, level_name=level_name, author="AI")
+
+            with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
+                f.write(result)
+
+            return True
+
+        except Exception as e:
+            messagebox.showerror("Save failed", str(e))
+            return False
 
 import argparse
 def parse_args():
