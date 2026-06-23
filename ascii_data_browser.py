@@ -40,6 +40,7 @@ class TileViewer(tk.Tk):
         self.dataset = []
         self.id_to_char = {}
         self.current_sample_idx = 0
+        self.caption_cycle_idx = 0  # which caption field is shown when a scene has several
         self.show_ids = tk.BooleanVar(value=False)
         #self.describe_locations = tk.BooleanVar(value=False)
         self.describe_absence = tk.BooleanVar(value=False)
@@ -238,12 +239,21 @@ class TileViewer(tk.Tk):
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
 
-        # Add Text widget for captions
-        self.caption_text = tk.Text(self, height=3, width=int(self.window_size / 8), wrap=tk.WORD)
+        # Add Text widget for captions. insertontime=0 hides the blinking insert caret so
+        # clicking the caption looks like selecting text, not entering an edit field;
+        # takefocus=0 keeps it out of Tab traversal.
+        self.caption_text = tk.Text(
+            self, height=3, width=int(self.window_size / 8), wrap=tk.WORD,
+            insertontime=0, takefocus=0
+        )
         self.caption_text.pack(pady=2)
         self.caption_text.tag_configure("center", justify="center")
         # Make it read-only but selectable/copyable
         self.caption_text.bind("<Key>", lambda e: "break")
+        # Arrow keys must still move between samples even when the caption has focus; the
+        # more-specific Left/Right bindings take precedence over the <Key> handler above.
+        self.caption_text.bind("<Left>", lambda e: (self.prev_sample(), "break")[1])
+        self.caption_text.bind("<Right>", lambda e: (self.next_sample(), "break")[1])
         self.caption_text.bind("<Button-2>", lambda e: "break")  # Middle click paste
         self.caption_text.bind("<Control-v>", lambda e: "break")
         self.caption_text.bind("<Control-V>", lambda e: "break")
@@ -259,6 +269,16 @@ class TileViewer(tk.Tk):
         self.caption_context_menu.add_command(label="Copy", command=self.copy_caption_text)
         self.caption_text.bind("<Button-3>", self.show_caption_context_menu)
         self.caption_text.bind("<Control-Button-1>", self.show_caption_context_menu)  # For Mac
+
+        # Button to cycle between multiple caption fields on a scene (e.g. caption,
+        # caption1, ... from llm_ascii_to_caption). The frame stays packed in place so the
+        # layout is stable; the button/label inside are shown only for multi-caption scenes.
+        self.caption_cycle_frame = tk.Frame(self)
+        self.caption_cycle_frame.pack(pady=(0, 2))
+        self.caption_cycle_button = tk.Button(
+            self.caption_cycle_frame, text="Cycle Caption", command=self.cycle_caption
+        )
+        self.caption_cycle_label = tk.Label(self.caption_cycle_frame, text="")
 
         # Combined navigation and info frame
         nav_info_frame = tk.Frame(self)
@@ -696,10 +716,20 @@ class TileViewer(tk.Tk):
                         fill=color_hex
                     )
 
-        # Update caption text widget
+        # Update caption text widget. A scene may carry several caption fields
+        # (e.g. caption, caption1, ... from llm_ascii_to_caption); pick the one the cycle
+        # button currently points at and show/hide the cycle control accordingly.
+        caption_keys = self._sorted_caption_keys(
+            [k for k in sample if isinstance(k, str) and k.startswith("caption")]
+        )
+        if self.caption_cycle_idx >= len(caption_keys):
+            self.caption_cycle_idx = 0
+        self._update_caption_cycle_controls(len(caption_keys))
+
         self.caption_text.configure(state="normal")
         self.caption_text.delete("1.0", tk.END)
-        caption_text = sample['caption']
+        current_caption_key = caption_keys[self.caption_cycle_idx] if caption_keys else 'caption'
+        caption_text = sample.get(current_caption_key, '')
         caption_parts = caption_text.split('.')
         for part in caption_parts:
             part = part.strip()
@@ -709,6 +739,8 @@ class TileViewer(tk.Tk):
                 part = part + " " # Add space for readability
                 self.caption_text.tag_configure(color, foreground=color)
                 self.caption_text.insert(tk.END, part, (color, "center"))
+        # Grow the caption box to fit the full caption so long captions aren't clipped.
+        self._resize_caption_box()
         # Do not set state to disabled, so user can select/copy
         # self.caption_text.configure(state="disabled")
 
@@ -717,14 +749,76 @@ class TileViewer(tk.Tk):
         )
         self.title(f"Tile Dataset Viewer - Sample {self.current_sample_idx + 1} / {len(self.dataset)}")
 
+    def _sorted_caption_keys(self, keys):
+        """Order caption fields so bare 'caption' comes first, then caption1, caption2, ...
+        Any non-numeric suffix falls back to lexical order at the end."""
+        def sort_key(k):
+            suffix = k[len("caption"):]
+            if suffix == "":
+                return (0, 0, "")
+            if suffix.isdigit():
+                return (1, int(suffix), "")
+            return (2, 0, suffix)
+        return sorted(keys, key=sort_key)
+
+    def _update_caption_cycle_controls(self, num_captions):
+        """Show the caption cycle button only when the current scene has more than one
+        caption field; otherwise hide it so the browser looks/behaves exactly as before."""
+        if num_captions > 1:
+            if not self.caption_cycle_button.winfo_ismapped():
+                self.caption_cycle_button.pack(side=tk.LEFT, padx=5)
+                self.caption_cycle_label.pack(side=tk.LEFT, padx=5)
+            self.caption_cycle_label.config(
+                text=f"Caption {self.caption_cycle_idx + 1} / {num_captions}"
+            )
+        else:
+            self.caption_cycle_button.pack_forget()
+            self.caption_cycle_label.pack_forget()
+
+    def _resize_caption_box(self):
+        """Grow/shrink the caption box so the whole caption is visible without scrolling.
+        Uses the widget's wrapped display-line count; no-ops until the widget is laid out
+        (e.g. before the window is first mapped), where geometry isn't known yet."""
+        self.caption_text.update_idletasks()
+        if not self.caption_text.winfo_ismapped():
+            # Not laid out yet (e.g. the CLI-loaded first sample, before the window is
+            # mapped). Retry once the event loop is idle and geometry is known.
+            self.caption_text.after(50, self._resize_caption_box)
+            return  # geometry not established yet; keep the default height for now
+        try:
+            lines = self.caption_text.count("1.0", "end-1c", "displaylines")
+        except tk.TclError:
+            return
+        if not lines:
+            return
+        n = lines[0] if isinstance(lines, (tuple, list)) else lines
+        self.caption_text.configure(height=max(3, int(n)))
+
+    def cycle_caption(self):
+        """Advance to the next caption field on the current scene and redraw."""
+        if not self.dataset:
+            return
+        sample = self.dataset[self.current_sample_idx]
+        if not isinstance(sample, dict):
+            return
+        caption_keys = self._sorted_caption_keys(
+            [k for k in sample if isinstance(k, str) and k.startswith("caption")]
+        )
+        if len(caption_keys) <= 1:
+            return
+        self.caption_cycle_idx = (self.caption_cycle_idx + 1) % len(caption_keys)
+        self.redraw()
+
     def prev_sample(self):
         if self.current_sample_idx > 0:
             self.current_sample_idx -= 1
+            self.caption_cycle_idx = 0
             self.redraw()
 
     def next_sample(self):
         if self.current_sample_idx < len(self.dataset) - 1:
             self.current_sample_idx += 1
+            self.caption_cycle_idx = 0
             self.redraw()
 
     def jump_to_sample(self, event=None):
@@ -732,6 +826,7 @@ class TileViewer(tk.Tk):
             idx = int(self.jump_entry.get()) - 1
             if 0 <= idx < len(self.dataset):
                 self.current_sample_idx = idx
+                self.caption_cycle_idx = 0
                 self.redraw()
             else:
                 print("Index out of range.")
