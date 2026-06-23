@@ -264,9 +264,10 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
+            {"role": "user", "content": "Reminder: Make sure to separate each caption into '.'-separated phrases, and make each caption intentionally diverse in length, specificity, and tone."}
         ]
 
-        # sup claude
+        # sup mr. altman
         completion = client2.chat.completions.create(
         model="gpt-5.1",
         messages=context,
