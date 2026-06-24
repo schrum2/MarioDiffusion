@@ -223,21 +223,23 @@ class MegaManState:
     def addOrb(self):
         """
         Scans the level for a suitable orb placement for the heuristic to target when no orb is present
-        
+
         Necessary for level snippets/scenes that don't naturally contain an orb
         """
         for x in range(len(self.level[0])-1, -1, -1): # start from the right
             for y in range(len(self.level)): # start from the top
                 curr_tile = self.level[y][x]
-                tile_above = self.level[y-1][x]
-                if (y - 2 >= 0  and self.level[y-2][x] != MEGA_MAN_TILE_NULL 
-                                and (curr_tile == MEGA_MAN_TILE_LADDER or 
-                                    curr_tile == MEGA_MAN_TILE_GROUND or 
+                feet_tile = self.level[y-1][x]
+                head_tile = self.level[y-2][x] if y - 2 >= 0 else None
+                if (y - 2 >= 0
+                                and (curr_tile == MEGA_MAN_TILE_LADDER or
+                                    curr_tile == MEGA_MAN_TILE_GROUND or
                                     curr_tile == MEGA_MAN_TILE_MOVING_PLATFORM)
-                                and (tile_above == MEGA_MAN_TILE_EMPTY or
-                                     tile_above == MEGA_MAN_TILE_WATER)):
+                                and (feet_tile == MEGA_MAN_TILE_EMPTY or
+                                     feet_tile == MEGA_MAN_TILE_WATER)
+                                and (head_tile == MEGA_MAN_TILE_EMPTY or
+                                     head_tile == MEGA_MAN_TILE_WATER)):
                     self.level[y-1][x] = MEGA_MAN_TILE_ORB
-                    self.level[y-2][x] = MEGA_MAN_TILE_EMPTY
                     return True
 
         return False # suitable orb location not found
@@ -257,20 +259,23 @@ class MegaManState:
         return False  # no non-null cell with headroom found
 
     def placeSpawn(self):
-        """Same standable-ledge logic as addOrb, but scans left to right/bottom to top"""
+        """Same standable-ledge logic as addOrb (incl. the two-tile-tall head clearance
+        requirement, non-destructive), but scans left to right/bottom to top"""
 
         for x in range(len(self.level[0])):              # left to right
             for y in range(len(self.level) - 1, -1, -1): # bottom to top
                 curr_tile = self.level[y][x]
-                tile_above = self.level[y - 1][x]
-                if (y - 2 >= 0 and self.level[y - 2][x] != MEGA_MAN_TILE_NULL
+                feet_tile = self.level[y - 1][x]
+                head_tile = self.level[y - 2][x] if y - 2 >= 0 else None
+                if (y - 2 >= 0
                               and (curr_tile == MEGA_MAN_TILE_LADDER or
                                    curr_tile == MEGA_MAN_TILE_GROUND or
                                    curr_tile == MEGA_MAN_TILE_MOVING_PLATFORM)
-                              and (tile_above == MEGA_MAN_TILE_EMPTY or
-                                   tile_above == MEGA_MAN_TILE_WATER)):
+                              and (feet_tile == MEGA_MAN_TILE_EMPTY or
+                                   feet_tile == MEGA_MAN_TILE_WATER)
+                              and (head_tile == MEGA_MAN_TILE_EMPTY or
+                                   head_tile == MEGA_MAN_TILE_WATER)):
                     self.level[y - 1][x] = MEGA_MAN_TILE_SPAWN
-                    self.level[y - 2][x] = MEGA_MAN_TILE_EMPTY
                     return True
         return False  # suitable spawn location not found
 
