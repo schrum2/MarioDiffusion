@@ -16,8 +16,7 @@ from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
 from MM_create_ascii_captions import assign_caption as mm_assign_caption ##test
-from captions.util import extract_tileset 
-from transformers import AutoTokenizer, AutoModel
+from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.plotter import plot_scores_by_width
 from torch.distributions import Categorical
@@ -382,10 +381,10 @@ def main():
     text_encoder = None
     tokenizer_hf = None #We don't need the huggingface tokenizer if we're using our own, varible initialization done to avoid future errors
     if args.text_conditional and args.pretrained_language_model: #Default to huggingface model, if it exists
-        text_encoder = AutoModel.from_pretrained(args.pretrained_language_model, trust_remote_code=True).to(accelerator.device)
+        # Shared loader handles mean-pooled encoders (MiniLM, GTE) and the CLIP text tower.
+        text_encoder, tokenizer_hf, model_embedding_dim = st_helper.load_pretrained_encoder(
+            args.pretrained_language_model, accelerator.device)
         text_encoder.eval() # Set to evaluation mode
-        model_embedding_dim = text_encoder.config.hidden_size# Done here to allow for cross-functionality with the mlm model
-        tokenizer_hf = AutoTokenizer.from_pretrained(args.pretrained_language_model)
         print(f"Loaded text encoder from {args.pretrained_language_model}")
     elif args.text_conditional and args.mlm_model_dir:
         text_encoder = TransformerModel.from_pretrained(args.mlm_model_dir).to(accelerator.device)
