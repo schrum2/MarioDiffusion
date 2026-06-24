@@ -70,66 +70,120 @@ MAX_CAPTION_RETRIES = 20
 
 
 SYSTEM_PROMPT =  """
-                    You are a Mega Man captioning agent; given an ASCII grid representation of a Mega Man level
-                    and an ASCII tile set key to go along with it, you must generate EXACTLY FIVE diverse captions 
-                    that all describe the level accurately. 
+You are a Mega Man captioning agent; given an ASCII grid representation of a Mega Man level
+and an ASCII tile set key to go along with it, you must generate EXACTLY FIVE diverse captions 
+that all describe the level accurately. 
 
-                    RULES:
-                    - Your captions should each DISTINCTLY vary in tone, length, wordiness, playfulness, specificity, etc.
-                    while remaining accurate. Make the diversity noticeable, including short and long captions, playfully
-                    descriptive captions and monotone, serious captions, and so on. E.g., in some captions, include specific
-                    enemy names while in others refer to them as ground enemies/flying enemies, etc.
-                    - Do not mention specific tile types in your answer that you see in the tile set (B, p, etc.),
-                    just describe the level with words.
-                    - Your captions should primarily focus on level structure, and features in the level, typically 
-                    with relative locations, although not explicitly required. Mention specific structures/features like
-                    platforms, enemies, corridors, etc.
-                    - Caption the level like you're writing a prompt to generate it; this means specificity and directness is essential.
-                    
-                    ORIENTATION: The first grid row is the TOP of the level and the last row is the BOTTOM; gravity points
-                    down, toward the last row. The player spawn is where the player STARTS, and the player progresses AWAY from it
-                    toward the far end of the level, towards the level exit. Travel toward the top of the grid is ascending (climbing up); 
-                    travel toward the bottom is descending (dropping or falling down). If there is no spawn/exit in the level frame, don't 
-                    guess between ascending and descending; simply classify the scene as vertical (chamber, segment, shaft, etc.)
+RULES:
+- Your captions should each DISTINCTLY vary in tone, length, wordiness, playfulness, specificity, etc.
+while remaining accurate. Make the diversity noticeable, including short and long captions, playfully
+descriptive captions and monotone, serious captions, and so on. E.g., in some captions, include specific
+enemy names while in others refer to them as ground enemies/flying enemies, etc.
+- Do not mention specific tile types in your answer that you see in the tile set (B, p, etc.),
+just describe the level with words.
+- Your captions should primarily focus on level structure, and features in the level, typically 
+with relative locations, although not explicitly required. Mention specific structures/features like
+platforms, enemies, corridors, etc.
+- Caption the level like you're writing a prompt to generate it; this means specificity and directness is essential.
 
-
-                    FORMATTING:
-                    - Your response must contain nothing but the five diverse captions.
-                    - Put each caption on its own line, with no blank lines between them.
-                    - Do not number the captions, add bullets, or write any other text.
-                    - You must write exactly FIVE captions; no more, no less.
-                    - Do not include any dashes or semicolons. The only punctuation you should 
-                    use are commas and periods (, and .). Keep commas rare and only within a single
-                    phrase, and do not chain multiple distinct ideas together with commas. 
-                    - Encapsulate each distinct idea or feature in its own concentrated phrase ended by a
-                    period, rather than stringing many ideas into one run-on sentence. Your captions should still vary
-                    freely in tone, length, and wordiness, never homogeneous in format or structure.
-
-                    EXAMPLE CAPTIONS:
-                    These are examples of desirable captions that encapsulate ideas/level features into discrete '.'-separated chunks
-                    while still varying in tone, specificity, length, etc.:
-                    -  Multiple vertical passages interweave through this towering shaft. Snipers guard the lower levels. 
-                    Fire pillars erupt periodically. The exit waits high above.
-                    - An extensive horizontal descent beginning from a modest platform on the left side. The player travels rightward 
-                    across progressively lower terrain featuring moving platforms and scattered enemies including Bunby Helis and a Sniper Joe. 
-                    Multiple weapon power-ups dot the landscape while deadly spikes appear in the lower sections. The exit awaits far to the right at the bottom level.
-                    - A claustrophobic, enclosed descent begins here. One evil wall-crawler blocks the passage near the start. Further down, the area 
-                    opens into a gauntlet featuring ranged enemies, moving platforms, and eventually a water-filled cavern where bouncing enemies reside.
-
-                    REMINDERS:
-                    - Make sure your captions are each NOTICEABLY DISTINCT from one another in length, tone, and specificity:
-                    - For length: at least one caption should be long, one should be short, and the rest should
-                    fall in between.
-                    - For specificity: one or two captions should contain specific enemy/powerup names, while others can be vague and state enemy class (ranged, ground).
-                    - You must return FIVE distinct captions, each on their own line.
-                    - Don't say things like "This level has..." or "The level features...". Just directly
-                    describe the level itself without mentioning "level".
-                 """
+ORIENTATION: The first grid row is the TOP of the level and the last row is the BOTTOM; gravity points
+down, toward the last row. The player spawn is where the player STARTS, and the player progresses AWAY from it
+toward the far end of the level, towards the level exit. Travel toward the top of the grid is ascending (climbing up); 
+travel toward the bottom is descending (dropping or falling down). If there is no spawn/exit in the level frame, don't 
+guess between ascending and descending; simply classify the scene as vertical (chamber, segment, shaft, etc.)
 
 
-LOCAL_SYSTEM_PROMPT = """
+FORMATTING:
+- Your response must contain nothing but the five diverse captions.
+- Put each caption on its own line, with no blank lines between them.
+- Do not number the captions, add bullets, or write any other text.
+- You must write exactly FIVE captions; no more, no less.
+- Do not include any dashes or semicolons. The only punctuation you should 
+use are commas and periods (, and .). Keep commas rare and only within a single
+phrase, and do not chain multiple distinct ideas together with commas. 
+- Encapsulate each distinct idea or feature in its own concentrated phrase ended by a
+period, rather than stringing many ideas into one run-on sentence. Your captions should still vary
+freely in tone, length, and wordiness, never homogeneous in format or structure.
 
+EXAMPLE CAPTIONS:
+These are examples of desirable captions that encapsulate ideas/level features into discrete '.'-separated chunks
+while still varying in tone, specificity, length, etc.:
+-  Multiple vertical passages interweave through this towering shaft. Snipers guard the lower levels. 
+Fire pillars erupt periodically. The exit waits high above.
+- An extensive horizontal descent beginning from a modest platform on the left side. The player travels rightward 
+across progressively lower terrain featuring moving platforms and scattered enemies including Bunby Helis and a Sniper Joe. 
+Multiple weapon power-ups dot the landscape while deadly spikes appear in the lower sections. The exit awaits far to the right at the bottom level.
+- A claustrophobic descent begins here. One wall-crawler blocks the passage near the start. Further down, the area 
+opens into a gauntlet featuring ranged enemies, moving platforms, and eventually a water-filled cavern where bouncing enemies reside.
+
+REMINDERS:
+- Make sure your captions are each NOTICEABLY DISTINCT from one another in length, tone, and specificity:
+- For length: at least one caption should be long, one should be short, and the rest should
+fall in between.
+- For specificity: one or two captions should contain specific enemy/powerup names, while others can be vague and state enemy class (ranged, ground).
+- You must return FIVE distinct captions, each on their own line.
+- Don't say things like "This level has..." or "The level features...". Just directly
+describe the level itself without mentioning "level".
 """
+
+
+
+# for local models, it's likely better to separate each of the 5 captions into their own focused call,
+# and have pre-defined style/tone/length/specificity/etc. requests for each. This should lighten the load
+# and make responses more consistent across iterations, which probably also helps the text encoders during training.
+# Each entry is the per-caption style directive sent as the final user turn alongside LOCAL_BASE_SYSTEM_PROMPT;
+# the list length defines how many captions the local branch produces (one focused call each).
+LOCAL_SYSTEM_PROMPT_STYLES = [
+    # 1 - short tag list
+    "Provide a succint list of discrete topic phrases that describe the level. Be specific and separate each idea/feature into its own '.'-separated phrase. Keep it short, just a few phrases.",
+    # 2 - natural sentence
+    "Caption the level with natural, human-like language. Describe what's in the level, with mildly creative diction. Keep it to one or two relaxed sentences.",
+    # 3 - specific names, enemies, and power-ups
+    "Write a medium-length caption that names the specific enemies and power-ups present and gives their rough locations in the level.",
+    # 4 - general: enemy classes only, no specific names
+    "Write a medium-length caption that refers to enemies only by class (ground enemy, flying enemy, ranged enemy) without naming any specific enemy or power-up. Focus on structure and layout.",
+    # 5 - long detailed walkthrough
+    "Write a long, detailed paragraph that walks through the level in order, covering structure, enemies, hazards, and items as they appear.",
+]
+
+
+# Shared base instructions for the local branch's single-caption calls. The grounding/orientation
+# rules mirror SYSTEM_PROMPT, but it asks for exactly ONE caption (the style comes in the final
+# user turn from LOCAL_SYSTEM_PROMPT_STYLES) so a small model carries far less at once.
+LOCAL_BASE_SYSTEM_PROMPT = """
+You are a Mega Man level captioning agent. You are given:
+1. An ASCII tile-set key (symbol -> meaning).
+2. An ASCII level grid (the first row is the TOP of the level, the last row is the BOTTOM;
+gravity points down).
+
+Write ONE caption describing the level, in the style requested in the final message.
+
+GROUNDING (most important):
+- Only describe what is directly visible in the grid via the tile key.
+- Never invent enemies, items, or structures. Never mention anything that is absent.
+- Do not name the raw tile symbols (P, #, |, etc.); describe the level in plain words.
+- Use positions for ROUGH placement only (start/middle/end, left/center/right, top/middle/bottom).
+Never state exact coordinates.
+
+ORIENTATION:
+- Travel toward the top of the grid is ascending; travel toward the bottom is descending.
+
+
+FORMATTING:
+- Output ONLY the single caption, on one line. No label, no quotes, no numbering, no extra text.
+- Use only commas and periods. No dashes or semicolons. Keep commas rare.
+- Break the caption into short '.'-separated phrases.
+- Do not start with "This level" or "The level features". Describe the level directly.
+"""
+
+
+# Trailing reminder appended as the final (freshest) user turn for the whole-batch API branches,
+# reinforcing the constraints these models break most often: the exact count and the bare format.
+CAPTION_REMINDER = (
+    "Reminder: output exactly five captions and nothing else, each on its own line with no "
+    "numbering, labels, or blank lines. Break each caption into short '.'-separated phrases, and "
+    "make the five intentionally diverse in length, specificity, and tone."
+)
 
 
 def scene_to_ASCII(scene: list[list[int]], id_to_char: dict[int, str]) -> list[str]:
@@ -203,7 +257,6 @@ def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT["tiles"]) -> dic
 
 
 
-
 def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
 
 
@@ -212,13 +265,14 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
         env_path = Path(__file__).resolve().parent / '.env'
         load_dotenv(env_path)
 
+   
 
     # claude branch
     if llm == "claude":
         """
         Prompt claude (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
         """
-        
+
         from anthropic import Anthropic
         ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
         client = Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -229,6 +283,7 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
         context = [
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
+            {"role": "user", "content": CAPTION_REMINDER},
         ]
 
         # sup claude
@@ -265,7 +320,7 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
-            {"role": "user", "content": "Reminder: Make sure to separate each caption into '.'-separated phrases, and make each caption intentionally diverse in length, specificity, and tone."}
+            {"role": "user", "content": CAPTION_REMINDER},
         ]
 
         # sup mr. altman
@@ -283,43 +338,49 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
     # local branch
     elif llm == "ollama":
         """
-        Prompt a local ollama model with the tileset key and an ASCII level grid,
-        and return the caption(s) it generates.
+        Prompt a local ollama model once per style in LOCAL_SYSTEM_PROMPT_STYLES, each call asking
+        for a single caption in that style, and return the collected list. Splitting the five
+        captions into five focused single-caption calls keeps the load on a small model light and
+        makes the per-style diversity deterministic instead of something the model has to invent.
         """
         tileset_str = json.dumps(tileset, indent=2)
 
-        context = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
-            {"role": "user", "content": f"Level Scene:\n{scene}"},
-            {"role": "user", "content": "Reminder: Make sure to separate each caption into '.'-separated phrases, and make each caption intentionally diverse in length, specificity, and tone."}
-        ]
-
-      
-        # Retry until we get a compliant response, surfacing each failed attempt, and give up after MAX_CAPTION_RETRIES.
         captions = []
-        for attempt in range(1, MAX_CAPTION_RETRIES + 1):
-            completion = ollama.chat(
-                model=model,
-                messages=context,
-                think=False,
-                options={"num_ctx": OLLAMA_NUM_CTX, "temperature": 0.4},
-            )
-            # fetch from schema
-            message = completion.message.content
+        for idx, style in enumerate(LOCAL_SYSTEM_PROMPT_STYLES, start=1):
+            context = [
+                {"role": "system", "content": LOCAL_BASE_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
+                {"role": "user", "content": f"Level Scene:\n{scene}"},
+                {"role": "user", "content": f"Write ONE caption in this style: {style}"},
+            ]
 
-            captions = [line.strip() for line in message.split("\n") if line.strip()]
+            # Retry until the model returns a non-empty caption; collapse any stray line breaks so
+            # one call yields exactly one caption line. Give up on this style after MAX_CAPTION_RETRIES.
+            caption = ""
+            for attempt in range(1, MAX_CAPTION_RETRIES + 1):
+                completion = ollama.chat(
+                    model=model,
+                    messages=context,
+                    think=False,
+                    options={"num_ctx": OLLAMA_NUM_CTX, "temperature": 0.4},
+                )
+                message = completion.message.content
+                caption = " ".join(line.strip() for line in message.split("\n") if line.strip())
 
-            if len(captions) == EXPECTED_CAPTIONS:
-                return captions
+                if caption:
+                    break
 
-            print(f"[ollama retry] Attempt {attempt}/{MAX_CAPTION_RETRIES} returned "
-                  f"{len(captions)} caption(s), expected {EXPECTED_CAPTIONS}; retrying...\n")
+                print(f"[ollama retry] Style {idx}/{len(LOCAL_SYSTEM_PROMPT_STYLES)} attempt "
+                      f"{attempt}/{MAX_CAPTION_RETRIES} returned an empty caption; retrying...\n")
 
-        print(f"[ollama] Gave up after {MAX_CAPTION_RETRIES} attempts; last response had "
-              f"{len(captions)} caption(s) instead of {EXPECTED_CAPTIONS}.\n")
+            if not caption:
+                print(f"[ollama] Gave up on style {idx} after {MAX_CAPTION_RETRIES} attempts; "
+                      f"returning an empty caption for it.\n")
+
+            captions.append(caption)
+
         return captions
-    
+
     else:
         print("You've provided an invalid LLM inference mode: Please try again and select one of the following: claude, openai, ollama ")
 
@@ -347,6 +408,7 @@ def parse_args():
     argparser.add_argument("--limit", type=int, default=None,
                            help="Max number of scenes to caption. Defaults to the entire dataset")
     return argparser.parse_args()
+
 
 
 def main() -> list[list[str]]:
