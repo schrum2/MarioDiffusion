@@ -1,3 +1,8 @@
+REM The idea behind this script is to train a model, but use outputs that don't represent known captions
+REM as additional training data, gradually growing the size of the training set over time. It seems to
+REM run fine, but it is not clear if it really improves over simply training on the original data. At The
+REM very least, there is no noticable improvement on caption adherence across randomized captions.
+
 REM @echo off
 REM Usage: train-conditional-growing.bat <seed> <threshold> <max_new_samples> <max_dataset_size>
 REM <seed> is optional, defaults to 0
