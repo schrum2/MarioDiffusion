@@ -3,33 +3,15 @@ This script loads Mega Man levels in VGLC-ASCII format and captions them with an
 
 A loop runs over every scene in the dataset, prompting the LLM with the tileset
 key and the ASCII level grid, and assigns each scene a generated caption. The
-captions are collected into a list (and optionally written to disk) before being
+captions are collected into a list (and optionally written to json) before being
 returned.
 """
-
+from pathlib import Path
 import os
 import json
 import argparse
 
 import ollama
-
-from dotenv import load_dotenv
-from pathlib import Path
-from anthropic import Anthropic
-
-env_path = Path(__file__).resolve().parent / '.env'
-load_dotenv(env_path)
-
-ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
-client = Anthropic(api_key=ANTHROPIC_API_KEY)
-
-
-from openai import OpenAI
-
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-client2 = OpenAI(api_key= OPENAI_API_KEY)
-
-
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
@@ -106,12 +88,9 @@ SYSTEM_PROMPT =  """
                     
                     ORIENTATION: The first grid row is the TOP of the level and the last row is the BOTTOM; gravity points
                     down, toward the last row. The player spawn is where the player STARTS, and the player progresses AWAY from it
-                    toward the far end of the level, towards the level exit. Decide ascending vs descending from the player's direction 
-                    of travel away from the spawn, never from connectivity alone. Travel toward the top of the grid is ascending (climbing up); 
-                    travel toward the bottom is descending (dropping or falling down). For a tall vertical level, a spawn near the bottom
-                    means the level is an ASCENT (the player climbs upward), while a spawn near the top means a DESCENT. Never
-                    describe the spawn as somewhere the player descends to or arrives at, it is where they begin. Wide horizontal
-                    levels flow from the spawn on the left toward the exit on the right, and shouldn't be classified as an ascent/descent.
+                    toward the far end of the level, towards the level exit. Travel toward the top of the grid is ascending (climbing up); 
+                    travel toward the bottom is descending (dropping or falling down). If there is no spawn/exit in the level frame, don't 
+                    guess between ascending and descending; simply classify the scene as vertical (chamber, segment, shaft, etc.)
 
 
                     FORMATTING:
@@ -121,24 +100,21 @@ SYSTEM_PROMPT =  """
                     - You must write exactly FIVE captions; no more, no less.
                     - Do not include any dashes or semicolons. The only punctuation you should 
                     use are commas and periods (, and .). Keep commas rare and only within a single
-                    phrase, and do not chain multiple distinct ideas together with commas.
-                    - Don't say things like "This level has..." or "The level features...". Just directly
-                    describe the level itself without mentioning "level". 
+                    phrase, and do not chain multiple distinct ideas together with commas. 
                     - Encapsulate each distinct idea or feature in its own concentrated phrase ended by a
-                    period, rather than stringing many ideas into one long comma-joined run-on sentence.
-                    This is purely a punctuation constraint: within it, your captions should still vary
+                    period, rather than stringing many ideas into one run-on sentence. Your captions should still vary
                     freely in tone, length, and wordiness, never homogeneous in format or structure.
 
                     EXAMPLE CAPTIONS:
                     These are examples of desirable captions that encapsulate ideas/level features into discrete '.'-separated chunks
                     while still varying in tone, specificity, length, etc.:
-                    -  Multiple vertical passages interweave through this mechanized stronghold. Snipers guard the lower levels. 
+                    -  Multiple vertical passages interweave through this towering shaft. Snipers guard the lower levels. 
                     Fire pillars erupt periodically. The exit waits high above.
-                    - A sprawling horizontal descent beginning from a modest platform on the left side. The player travels rightward 
+                    - An extensive horizontal descent beginning from a modest platform on the left side. The player travels rightward 
                     across progressively lower terrain featuring moving platforms and scattered enemies including Bunby Helis and a Sniper Joe. 
                     Multiple weapon power-ups dot the landscape while deadly spikes appear in the lower sections. The exit awaits far to the right at the bottom level.
-                    - A claustrophobic, terrifyingly tight enclosed descent begins here. One evil wall-crawler blocks the passage near the start. Further down, the area 
-                    opens into a gauntlet featuring ranged enemies, moving platforms, and eventually a mysterious water-filled cavern where bouncing enemies demand precision.
+                    - A claustrophobic, enclosed descent begins here. One evil wall-crawler blocks the passage near the start. Further down, the area 
+                    opens into a gauntlet featuring ranged enemies, moving platforms, and eventually a water-filled cavern where bouncing enemies reside.
 
                     REMINDERS:
                     - Make sure your captions are each NOTICEABLY DISTINCT from one another in length, tone, and specificity:
@@ -146,6 +122,8 @@ SYSTEM_PROMPT =  """
                     fall in between.
                     - For specificity: one or two captions should contain specific enemy/powerup names, while others can be vague and state enemy class (ranged, ground).
                     - You must return FIVE distinct captions, each on their own line.
+                    - Don't say things like "This level has..." or "The level features...". Just directly
+                    describe the level itself without mentioning "level".
                  """
 
 
@@ -228,11 +206,24 @@ def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT["tiles"]) -> dic
 
 def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
 
+
+    if llm != "ollama":
+        from dotenv import load_dotenv
+        env_path = Path(__file__).resolve().parent / '.env'
+        load_dotenv(env_path)
+
+
     # claude branch
     if llm == "claude":
         """
         Prompt claude (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
         """
+        
+        from anthropic import Anthropic
+        ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
+        client = Anthropic(api_key=ANTHROPIC_API_KEY)
+
+
         tileset_str = json.dumps(tileset, indent=2)
 
         context = [
@@ -262,15 +253,22 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
         """
         Prompt openai (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
         """
+        from openai import OpenAI
+        OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+        client2 = OpenAI(api_key= OPENAI_API_KEY)
+
+
+
         tileset_str = json.dumps(tileset, indent=2)
 
         context = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
+            {"role": "user", "content": "Reminder: Make sure to separate each caption into '.'-separated phrases, and make each caption intentionally diverse in length, specificity, and tone."}
         ]
 
-        # sup claude
+        # sup mr. altman
         completion = client2.chat.completions.create(
         model="gpt-5.1",
         messages=context,
@@ -294,7 +292,7 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
-            {"role": "user", "content": "Make sure to separate each caption into '.'-separated phrases, and make each caption diverse in length, specificity, and tone."}
+            {"role": "user", "content": "Reminder: Make sure to separate each caption into '.'-separated phrases, and make each caption intentionally diverse in length, specificity, and tone."}
         ]
 
       
@@ -385,8 +383,6 @@ def main() -> list[list[str]]:
         
         # assign and collect captions
         caption_set = llm_caption(scene_str, game=args.game, model=args.model, tileset=filtered_tiles, llm=args.llm)
-
-        
         
 
         print(f"------------------ [{llmstr}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
