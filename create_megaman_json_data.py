@@ -162,8 +162,8 @@ def parse_args():
     parser.add_argument('--tileset', default='datasets/MM.json', help='Path to the tile set JSON')
     parser.add_argument('--levels', default='../TheVGLC/MegaMan/Enhanced', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output directory')
-    parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene height (e.g., 16 or 32). Navigation still uses the screen height.')
-    parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width.')
+    parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene height (e.g., 16 or 32). Navigation still uses the screen height for path mode.')
+    parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width for path mode.')
     parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
     parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
@@ -232,15 +232,25 @@ def main():
                 #content (see snap_window_samples). Both scan for fully null-free screens.
                 #Wide scenes are a target_width x nav_height null-free screen with
                 #SNAP_H_PAD_ROWS rows of null padding added on top (matching the path
-                #follower), for a final height of nav_height + SNAP_H_PAD_ROWS. Tall scenes
-                #are nav_width x target_height with no padding.
+                #follower), for a final height of nav_height + SNAP_H_PAD_ROWS.
                 h_samples, h_json = snap_window_samples(
                     levels[i], tile_to_id, args.target_width, nav_height, null_chars,
                     top_pad=SNAP_H_PAD_ROWS, x_stride=args.stride_x, y_stride=args.stride_y
                 )
+                #Tall scenes are a nav_width x target_height null-free screen with no
+                #padding. But when target_height is no taller than the standard padded
+                #square (nav_height + SNAP_H_PAD_ROWS == 16) -- including the default case,
+                #where the user passes no --target_height -- there is nothing "tall" to
+                #capture, so the vertical scan instead emits the same padded 16x16 scene as
+                #the wide scan: a nav_width x nav_height null-free screen with SNAP_H_PAD_ROWS
+                #null rows on top, keeping it consistent with the wide and path scans.
+                if args.target_height <= nav_height + SNAP_H_PAD_ROWS:
+                    v_screen_height, v_top_pad = nav_height, SNAP_H_PAD_ROWS
+                else:
+                    v_screen_height, v_top_pad = args.target_height, 0
                 v_samples, v_json = snap_window_samples(
-                    levels[i], tile_to_id, nav_width, args.target_height, null_chars,
-                    top_pad=0, x_stride=args.stride_x, y_stride=args.stride_y
+                    levels[i], tile_to_id, nav_width, v_screen_height, null_chars,
+                    top_pad=v_top_pad, x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 samples = h_samples + v_samples
                 json_caption_data = h_json + v_json
