@@ -49,16 +49,44 @@ def describe_location(x, y):
 
     return f"{x_desc} {y_desc}"
 
-def describe_broken_cannons(scene, char_to_id):
+def describe_broken_cannons(scene, char_to_id, tile_descriptors, id_to_char):
     count = 0
-    for r in range(len(scene)):
-        for c in range(len(scene[r])):
-            if scene[r][c] == char_to_id['b']:
-                # Although it looks weird, it is ok for either B or b to be above a b tile.
-                # The repeated use of b looks weird in visuzalization, but is perfectly valid
-                # and looks good in the real game.
-                if r == 0 or (scene[r-1][c] != char_to_id['B'] and scene[r-1][c] != char_to_id['b']):
-                    count += 1
+    height = len(scene)
+    width = len(scene[0]) if height > 0 else 0
+
+    def is_solid(r, c):
+        """Returns True if the tile at (r,c) is solid (and not air/passable)."""
+        tile_char = id_to_char[scene[r][c]]
+        return 'solid' in tile_descriptors.get(tile_char, [])
+
+    for r in range(height):
+        for c in range(width):
+            tile = scene[r][c]
+
+            # Check cannon HEAD (B): must have B, b, or solid directly below
+            if tile == char_to_id['B']:
+                below_row = r + 1
+                if below_row >= height:
+                    count += 1  # floating off bottom of scene
+                else:
+                    below = scene[below_row][c]
+                    if (below != char_to_id['B'] and
+                        below != char_to_id['b'] and
+                        not is_solid(below_row, c)):
+                        count += 1  # cannon head floating over air
+
+            # Check cannon NECK (b): must eventually reach solid below (no air gaps)
+            elif tile == char_to_id['b']:
+                # Only check the bottom of a neck stack (i.e. no b directly below)
+                below_row = r + 1
+                if below_row >= height:
+                    count += 1  # neck hanging off bottom
+                else:
+                    below = scene[below_row][c]
+                    if below == char_to_id['b'] or below == char_to_id['B']:
+                        pass  # not the bottom of the stack, skip
+                    elif not is_solid(below_row, c):
+                        count += 1  # bottom of neck stack is floating over air
 
     if count > 0:
         return f" {describe_quantity(count) if coarse_counts else count} broken " + ("cannons" if pluralize and count > 1 else "cannon") + "."
@@ -651,7 +679,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     #print("after cannon", (10,0) in already_accounted)
 
     # Describe broken cannons
-    broken_cannon_phrase = describe_broken_cannons(scene, char_to_id)
+    broken_cannon_phrase = describe_broken_cannons(scene, char_to_id, tile_descriptors, id_to_char)
     add_to_caption(broken_cannon_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']])
 
     # Count coins
