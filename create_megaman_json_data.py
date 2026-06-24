@@ -40,11 +40,11 @@ class Direction(Enum):
 
     
     #Move the scene one block in the desired direction
-    def move_scene(self, level): 
+    def move_scene(self, level):
         if self.axis == Axis.VERT: #up/down
             level.move_iter+=1
             level.y_idx += self.offset_for_axis
-        
+
         if self.axis == Axis.HORIZ: #left/right
             level.move_iter+=1
             level.x_idx += self.offset_for_axis
@@ -170,9 +170,13 @@ def parse_args():
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
     parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window', 'snap'], help='How to extract samples: path follower (default), sliding window, or snap (variable-dimension wide+tall scans that snap to valid content)')
     parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
-    
+    parser.add_argument('--stride_y', type=int, default=1, help='How far the sliding window moves in the vertical direction during level scanning (sliding_window/snap modes only; must be >= 1)')
+    parser.add_argument('--stride_x', type=int, default=1, help='How far the sliding window moves in the horizontal direction during level scanning (sliding_window/snap modes only; must be >= 1)')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.stride_x < 1 or args.stride_y < 1:
+        parser.error("--stride_x and --stride_y must be >= 1")
+    return args
 
 
 def filter_traversable(all_samples, id_to_char, tile_descriptors, budget=100000):
@@ -232,18 +236,19 @@ def main():
                 #are nav_width x target_height with no padding.
                 h_samples, h_json = snap_window_samples(
                     levels[i], tile_to_id, args.target_width, nav_height, null_chars,
-                    top_pad=SNAP_H_PAD_ROWS
+                    top_pad=SNAP_H_PAD_ROWS, x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 v_samples, v_json = snap_window_samples(
                     levels[i], tile_to_id, nav_width, args.target_height, null_chars,
-                    top_pad=0
+                    top_pad=0, x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 samples = h_samples + v_samples
                 json_caption_data = h_json + v_json
             elif args.scan_mode == 'sliding_window':
                 samples, json_caption_data = sliding_window_samples(
                     levels[i], tile_to_id, nav_width, nav_height, null_chars,
-                    out_width=args.target_width, out_height=args.target_height
+                    out_width=args.target_width, out_height=args.target_height,
+                    x_stride=args.stride_x, y_stride=args.stride_y
                 )
             elif i == 7:
                 samples, json_caption_data = parse_level(
@@ -313,7 +318,7 @@ def main():
     print(f"Saved to {output}")
 
 
-def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_width=None, out_height=None):
+def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_width=None, out_height=None, x_stride = 1, y_stride = 1):
     out_width = out_width or width
     out_height = out_height or height
     null = null_chars[0]
@@ -323,8 +328,8 @@ def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_wid
     samples = []
     json_caption_data = []
 
-    for y in range(0, level_height - height + 1):
-        for x in range(0, level_width - width + 1):
+    for y in range(0, level_height - height + 1, y_stride):
+        for x in range(0, level_width - width + 1, x_stride):
             window = [level[y+r][x:x+width] for r in range(height)]
 
             at_count = sum(1 for row in window for c in row if c == '@')
@@ -379,7 +384,7 @@ def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_wid
 #like the path follower's nav window and like the vertical scan), and the only null is the
 #synthetic padding added on top. Output scenes are (screen_height + top_pad) tall. Air ('-')
 #is legitimate content, so only @ matters. Used by the 'snap' scan mode.
-def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars, top_pad=0):
+def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars, top_pad=0, x_stride=1, y_stride=1):
     null_id = tile_to_id.get(null_chars[0], 0)
     level_height = len(level)
     level_width = len(level[0])
@@ -387,8 +392,8 @@ def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars,
     samples = []
     json_caption_data = []
 
-    for y in range(0, level_height - screen_height + 1):
-        for x in range(0, level_width - out_width + 1):
+    for y in range(0, level_height - screen_height + 1, y_stride):
+        for x in range(0, level_width - out_width + 1, x_stride):
             screen = [level[y+r][x:x+out_width] for r in range(screen_height)]
             if any(c in null_chars for row in screen for c in row):
                 continue
@@ -409,6 +414,7 @@ def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars,
 #output scene dimensions (default to a square of side `width` to match the old behaviour).
 def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], out_width=None, out_height=None, faithful_vertical=False, start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[], direction_captions = False):
     level_sample=LevelSample(level, width, height, null_chars, wall_chars, out_width=out_width, out_height=out_height, faithful_vertical=faithful_vertical, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
+
     samples = []
     json_caption_data = []
 
