@@ -3,33 +3,15 @@ This script loads Mega Man levels in VGLC-ASCII format and captions them with an
 
 A loop runs over every scene in the dataset, prompting the LLM with the tileset
 key and the ASCII level grid, and assigns each scene a generated caption. The
-captions are collected into a list (and optionally written to disk) before being
+captions are collected into a list (and optionally written to json) before being
 returned.
 """
-
+from pathlib import Path
 import os
 import json
 import argparse
 
 import ollama
-
-from dotenv import load_dotenv
-from pathlib import Path
-from anthropic import Anthropic
-
-env_path = Path(__file__).resolve().parent / '.env'
-load_dotenv(env_path)
-
-ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
-client = Anthropic(api_key=ANTHROPIC_API_KEY)
-
-
-from openai import OpenAI
-
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-client2 = OpenAI(api_key= OPENAI_API_KEY)
-
-
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
@@ -224,11 +206,24 @@ def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT["tiles"]) -> dic
 
 def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
 
+
+    if llm != "ollama":
+        from dotenv import load_dotenv
+        env_path = Path(__file__).resolve().parent / '.env'
+        load_dotenv(env_path)
+
+
     # claude branch
     if llm == "claude":
         """
         Prompt claude (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
         """
+        
+        from anthropic import Anthropic
+        ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
+        client = Anthropic(api_key=ANTHROPIC_API_KEY)
+
+
         tileset_str = json.dumps(tileset, indent=2)
 
         context = [
@@ -258,6 +253,12 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
         """
         Prompt openai (via API) w/ ASCII level scene and tileset, return the caption(s) it generates
         """
+        from openai import OpenAI
+        OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+        client2 = OpenAI(api_key= OPENAI_API_KEY)
+
+
+
         tileset_str = json.dumps(tileset, indent=2)
 
         context = [
