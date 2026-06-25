@@ -46,7 +46,7 @@ Additionally, to upload a desired number of levels use command:
 
 ```
 cd megaman
-Bulk_Download.py --target 
+Bulk_Download.py --target <count>
 ```
 
 Enter a level ID when prompted — it will download directly to your Mega Man Maker levels folder.
