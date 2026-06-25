@@ -134,14 +134,23 @@ CAPTION_REMINDER = "Reminder: output exactly five captions and nothing else, eac
 
 
 
-def scene_to_ASCII(scene: list[list[int]], id_to_char: dict[int, str]) -> list[str]:
+def scene_to_ASCII(scene: list[list[int]], id_to_char: dict[int, str],
+                   null_ids: frozenset[int] = frozenset()) -> list[str]:
     """
     Decode a 2D integer tile-id grid into a list of ASCII row strings using the tileset map.
 
     This is used only to build the captioning prompt; the integer grid itself is carried
     through to the output unchanged.
+
+    Drop the leading all-null padding rows and render any
+    remaining null cell as empty space ('-', the air char) so the LLM never sees the '@' void
+    and invents a feature ("void", out of bounds, etc.) from it. This matches how
+    deterministic_caption treats null tiles (open/non-terrain), keeping the grid the LLM reads
+    consistent with the metadata it's grounded on
     """
-    return ["".join(id_to_char[tile] for tile in row) for row in scene]
+    first_real = next((r for r in range(len(scene)) if not all(t in null_ids for t in scene[r])), 0)
+    return ["".join("-" if tile in null_ids else id_to_char[tile] for tile in row)
+            for row in scene[first_real:]]
 
 
 def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[int]], str]]:
@@ -525,6 +534,11 @@ def main() -> list[list[str]]:
     # tile_descriptors drives the deterministic structural caption fed to the LLM as context.
     _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
+    # Tile ids flagged "null" in the tileset are out-of-bounds padding / void, not level
+    # content; scene_to_ASCII uses this to strip the padding rows and hide the '@' void
+    # from the LLM so it doesn't describe a nonexistent feature.
+    null_ids = frozenset(tid for tid, ch in id_to_char.items() if "null" in tile_descriptors.get(ch, set()))
+
     # load integer tile-id scenes
     scenes = load_dataset(args.levels, char_to_id)
 
@@ -543,8 +557,9 @@ def main() -> list[list[str]]:
     for i, (scene, label) in enumerate(scenes):
 
         # Decode the integer grid to ASCII rows purely to build the prompt; the integer
-        # grid itself is what gets stored back in the output.
-        scene_str = "\n".join(scene_to_ASCII(scene, id_to_char))
+        # grid itself is what gets stored back in the output unchanged. Null padding rows
+        # are stripped and any out-of-bounds null cells are hidden (rendered as air).
+        scene_str = "\n".join(scene_to_ASCII(scene, id_to_char, null_ids))
 
         # Get filtered tileset for current scene
         filtered_tiles = filter_tile_set(scene_str, MM_TILESET_DICT["tiles"])
