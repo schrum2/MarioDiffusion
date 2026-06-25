@@ -15,6 +15,7 @@ import ollama
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
+from MM_create_ascii_captions import assign_caption
 
 MM_TILESET_DICT = {
     "tiles" : {
@@ -63,10 +64,10 @@ MM_TILESET_DICT = {
 }
 
 
-
+# for ollama 
 OLLAMA_NUM_CTX = 32768
-EXPECTED_CAPTIONS = 5
-MAX_CAPTION_RETRIES = 20
+EXPECTED_CAPTIONS = 5 
+MAX_CAPTION_RETRIES = 20 # how many times we tolerate responses that don't contain the correct number of captions
 
 
 SYSTEM_PROMPT =  """
@@ -129,11 +130,8 @@ describe the level itself without mentioning "level".
 
 
 # Trailing reminder appended as the final (freshest) user msg 
-CAPTION_REMINDER = (
-    "Reminder: output exactly five captions and nothing else, each on its own line with no "
-    "numbering, labels, or blank lines. Break each caption into short '.'-separated phrases, and "
-    "make the five intentionally diverse in length, specificity, and tone."
-)
+CAPTION_REMINDER = "Reminder: output exactly five captions and nothing else, each on its own line with no numbering, labels, or blank lines. Break each caption into short '.'-separated phrases, and make the five intentionally diverse in length, specificity, and tone."
+
 
 
 def scene_to_ASCII(scene: list[list[int]], id_to_char: dict[int, str]) -> list[str]:
@@ -206,9 +204,36 @@ def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT["tiles"]) -> dic
     return filtered
 
 
+def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], char_to_id: dict[str, int],
+                          tile_descriptors: dict, describe_locations: bool = False,
+                          describe_absence: bool = False, data: dict = None) -> str:
+    """
+    Fetch the deterministic caption for an integer tile-id scene from 
+    MM_create_ascii_captions.assign_caption, which are the default captions we've 
+    been training with. 
 
-def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
+    The resulting phrase string is passed to the LLM as an extra grounding context message so its 
+    captions stay consistent with the level features actually detected in the grid.
 
+    Args:
+        scene: 2D grid of integer tile ids (the raw scene, not the ASCII decode).
+        id_to_char, char_to_id, tile_descriptors: tileset maps from extract_tileset.
+        describe_locations / describe_absence: passed through to assign_caption.
+        data: optional per-scene metadata (entrance/exit direction); None for plain grids.
+
+    Returns:
+        The deterministic caption string for the scene.
+    """
+    return assign_caption(scene, id_to_char, char_to_id, tile_descriptors,
+                          describe_locations, describe_absence, data=data)
+
+
+
+def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
+
+    
+    deterministic_msg = f"For additional grounding, here is a deterministic structural analysis of this level's detected features. Treat it as accurate context to stay consistent with, but still write the captions in your own words per the rules above:\n {deterministic}"
+        
 
     if llm != "ollama":
         from dotenv import load_dotenv
@@ -233,6 +258,7 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
         context = [
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
+            {"role": "user", "content": deterministic_msg},
             {"role": "user", "content": CAPTION_REMINDER},
         ]
 
@@ -270,6 +296,7 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
+            {"role": "user", "content": deterministic_msg},
             {"role": "user", "content": CAPTION_REMINDER},
         ]
 
@@ -300,6 +327,7 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
+            {"role": "user", "content": deterministic_msg},
             {"role": "user", "content": CAPTION_REMINDER}
         ]
 
@@ -363,7 +391,8 @@ def main() -> list[list[str]]:
 
     # Tileset map: integer id -> ASCII char, used to decode each integer scene into the
     # ASCII grid shown to the LLM. char -> id is used to encode a directory of ASCII levels.
-    _, id_to_char, char_to_id, _ = extract_tileset(args.tileset)
+    # tile_descriptors drives the deterministic structural caption fed to the LLM as context.
+    _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
 
     # load integer tile-id scenes
     scenes = load_dataset(args.levels, char_to_id)
@@ -388,9 +417,13 @@ def main() -> list[list[str]]:
 
         # Get filtered tileset for current scene
         filtered_tiles = filter_tile_set(scene_str, MM_TILESET_DICT["tiles"])
-        
+
+        # Fetch the deterministic structural caption for this scene to ground the LLM as
+        # an extra context message. Operates on the integer grid, not the ASCII decode.
+        det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors)
+
         # assign and collect captions
-        caption_set = llm_caption(scene_str, game=args.game, model=args.model, tileset=filtered_tiles, llm=args.llm)
+        caption_set = llm_caption(scene_str, game=args.game, model=args.model, tileset=filtered_tiles, llm=args.llm, deterministic=det_caption)
         
 
         print(f"------------------ [{llmstr}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
