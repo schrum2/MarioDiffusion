@@ -65,15 +65,24 @@ MM_TILESET_DICT = {
 }
 
 
-# for ollama 
+# for ollama
 OLLAMA_NUM_CTX = 32768
-EXPECTED_CAPTIONS = 5 
+EXPECTED_CAPTIONS = 5
 MAX_CAPTION_RETRIES = 20 # how many times we tolerate responses that don't contain the correct number of captions
 
 
+# Default model per --llm branch, used when --model isn't supplied. The openai and claude
+# branches hit APIs; ollama runs a local model
+DEFAULT_MODELS = {
+    "claude": "claude-haiku-4-5",
+    "openai": "gpt-5.1",
+    "ollama": "qwen3.5:9b",
+}
+
+
 SYSTEM_PROMPT =  """
-You are a Mega Man captioning agent; given an ASCII grid representation of a Mega Man level
-and an ASCII tile set key to go along with it, you must generate EXACTLY FIVE diverse captions 
+You are a Mega Man captioning agent; given an ASCII grid representation of a Mega Man level,
+an ASCII tile set key, and deterministic level data. you must generate EXACTLY FIVE diverse captions 
 that all describe the level accurately. 
 
 RULES:
@@ -387,7 +396,7 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
         f"{deterministic}"
     )
         
-
+    # only load dotenv module if we need an api key (claude/openai)
     if llm != "ollama":
         from dotenv import load_dotenv
         env_path = Path(__file__).resolve().parent / '.env'
@@ -420,7 +429,7 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
                     max_tokens=2048,
                     system=SYSTEM_PROMPT, # claude requires system prompt to be separated from context block
                     messages=context,
-                    model="claude-haiku-4-5"
+                    model=model
                     )
         
         # message.content is a list of content blocks; pull the text out and split into a list
@@ -455,7 +464,7 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
 
         # sup mr. altman
         completion = client2.chat.completions.create(
-        model="gpt-5.1",
+        model=model,
         messages=context,
         )
         message = completion.choices[0].message.content
@@ -528,8 +537,9 @@ def parse_args():
                            help="Game name passed to the LLM prompt for context")
     argparser.add_argument("--llm", choices=["claude", "openai", "ollama"], default="ollama",
                            help="The source of the LLM inference used to caption the provided level scenes. The openai and claude choices use APIs, while ollama runs a local model")
-    argparser.add_argument("--model", default="qwen3.5:9b",
-                           help="Local ollama model to prompt for captions, only used if --llm ollama is argued")
+    argparser.add_argument("--model", default=None,
+                           help="Model to prompt for captions. When omitted, defaults per --llm branch: "
+                                "claude -> claude-haiku-4-5, openai -> gpt-5.1, ollama -> qwen3.5:9b")
     argparser.add_argument("--output", default=None,
                            help="Optional path to write the captioned [{scene, caption}] list as JSON")
     argparser.add_argument("--limit", type=int, default=None,
@@ -563,8 +573,11 @@ def main() -> list[list[str]]:
     caption_lists = [] # list[list] of caption set for each scene
     captioned_dataset = []
 
+    # Resolve the model: --model overrides, otherwise fall back to the per-branch default.
+    model = args.model or DEFAULT_MODELS[args.llm]
 
-    llmstr = args.llm if args.llm != "ollama" else f"{args.llm} - {args.model}"
+    # Label combining the inference source and resolved model; printed and stored per entry.
+    llmstr = f"{args.llm} - {model}"
 
     # Mark the start of the full captioning process to report total elapsed time at the end.
     start_time = time.time()
@@ -586,7 +599,7 @@ def main() -> list[list[str]]:
         det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors)
 
         # assign and collect captions
-        caption_set = llm_caption(scene_str, game=args.game, model=args.model, tileset=filtered_tiles, llm=args.llm, deterministic=det_caption)
+        caption_set = llm_caption(scene_str, game=args.game, model=model, tileset=filtered_tiles, llm=args.llm, deterministic=det_caption)
         
 
         print(f"------------------ [{llmstr}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
@@ -602,7 +615,7 @@ def main() -> list[list[str]]:
         caption_lists.append(caption_set)
         # ugly but necessary; want single json object with flat fields scene, cap, cap1, ..., cap4.
         # "scene" holds the original integer tile-id grid
-        captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4]})
+        captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4], "model": llmstr})
 
     # Mark the end of the full captioning process and report total elapsed time.
     end_time = time.time()
