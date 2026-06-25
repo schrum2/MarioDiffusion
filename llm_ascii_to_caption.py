@@ -22,7 +22,7 @@ MM_TILESET_DICT = {
         "P": "Mega Man's starting spawn point",
         "Z": "Level exit point/final goal",
         "@": "Out of bounds, inaccessible null space",
-        "-": "Empty space",
+        "-": "Air",
         "~": "Water (slows movement)",
         "#": "Solid blocks representing ground or walls",
         "|": "Climbable ladders",
@@ -86,6 +86,8 @@ just describe the level with words.
 with relative locations, although not explicitly required. Mention specific structures/features like
 platforms, enemies, corridors, etc.
 - Caption the level like you're writing a prompt to generate it; this means specificity and directness is essential.
+- All of the levels you're captioning are roughly square shaped; don't call them "wide" or "tall", as they're square.
+This vocabulary could be used for certain structures within the level, like a short horizontal corridor/thin vertical shaft.
 
 ORIENTATION: The first grid row is the TOP of the level and the last row is the BOTTOM; gravity points
 down, toward the last row. The player spawn is where the player STARTS, and the player progresses AWAY from it
