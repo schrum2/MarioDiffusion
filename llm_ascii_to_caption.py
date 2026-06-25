@@ -123,7 +123,7 @@ REMINDERS:
 - Make sure your captions are each NOTICEABLY DISTINCT from one another in length, tone, and specificity:
 - For length: at least one caption should be long, one should be short, and the rest should
 fall in between.
-- For specificity: one or two captions should contain specific enemy/powerup names, while others can be vague and state enemy class (ranged, ground).
+- For specificity: one or two captions should contain specific enemy/power-up names, while others can be vague and state enemy class (ranged, ground).
 - You must return FIVE distinct captions, each on their own line.
 - Don't say things like "This level has..." or "The level features...". Just directly
 describe the level itself without mentioning "level".
@@ -132,7 +132,13 @@ describe the level itself without mentioning "level".
 
 
 # Trailing reminder appended as the final (freshest) user msg 
-CAPTION_REMINDER = "Reminder: output exactly five captions and nothing else, each on its own line with no numbering, labels, or blank lines. Break each caption into short '.'-separated phrases, and make the five intentionally diverse in length, specificity, and tone."
+CAPTION_REMINDER = ("Reminder: output exactly five captions and nothing else, each on its own line with no numbering, labels, or blank lines. "
+"Break each caption into short '.'-separated phrases, and make the five intentionally diverse in length, specificity, and tone. "
+"For vertical segments, do not guess at whether the segment is ascending or descending, unless it is absolutely clear by the level structure/metadata "
+"that you observe and are provided. For ambiguous vertical scenes, note the structure and verticality but don't assume directionality. "
+"You may still classify structures within a scene as ascending or descending, especially if there are notable structures "
+"present in horizontal (always left-to-right) level scenes."
+)
 
 
 
@@ -369,8 +375,8 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
         "how high the lowest standable floor sits in that column (rising values = steps/hills, a "
         "flat run = flat ground), while 'wall' marks a solid blocked column and 'pit' marks a column "
         "with no safe footing (an open drop, or a floor sealed off by hazards). It only tracks the "
-        "lowest floor, so read the grid for raised platforms or overhead structures above it."
-        "Keep in mind that the player always moves left-to-right in non-vertical segments, so base"
+        "lowest floor, so read the grid for raised platforms or overhead structures above it. "
+        "Keep in mind that the player always moves left-to-right in non-vertical segments, so base "
         "your ascending vs descending structure analysis based on this. \n"
         "- Ceiling describes the top row's overhead terrain; region boundaries map columns to "
         "left/center/right.\n"
