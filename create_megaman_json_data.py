@@ -172,12 +172,14 @@ def parse_args():
     parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
     parser.add_argument('--stride_y', type=int, default=1, help='How far the sliding window moves in the vertical direction during level scanning (sliding_window/snap modes only; must be >= 1)')
     parser.add_argument('--stride_x', type=int, default=1, help='How far the sliding window moves in the horizontal direction during level scanning (sliding_window/snap modes only; must be >= 1)')
+    parser.add_argument('--max_enemies', type=int, default=8, help='Filter out scenes with more than this many enemy tiles. Omit to disable.')
+    parser.add_argument('--include_moving_ground', action='store_true', help='Include scenes containing moving-ground/platform tiles (e.g. "M"). By default these are excluded since their motion is not represented in the static scene graphics.')
+    parser.add_argument('--min_content_pct', type=float, default=15, help='Filter out scenes where less than this percent of tiles are real content (not empty/passable/null). E.g. 15 requires at least 15%% non-empty tiles.')
 
     args = parser.parse_args()
     if args.stride_x < 1 or args.stride_y < 1:
         parser.error("--stride_x and --stride_y must be >= 1")
     return args
-
 
 def filter_traversable(all_samples, id_to_char, tile_descriptors, budget=100000):
     astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
@@ -198,12 +200,67 @@ def filter_traversable(all_samples, id_to_char, tile_descriptors, budget=100000)
           f"{remaining} levels remain ({pct:.1f}% of the dataset).")
     return all_samples
 
+def filter_scene_quality(all_samples, id_to_char, tile_descriptors, max_enemies=8, exclude_moving_ground=False, min_content_pct=15):
+    moving_ids = set()
+    enemy_ids = set()
+    empty_ids = set()
+    if exclude_moving_ground:
+        moving_ids = {tid for tid, ch in id_to_char.items() if "moving" in tile_descriptors.get(ch, [])}
+    if max_enemies is not None:
+        enemy_ids = {tid for tid, ch in id_to_char.items() if "enemy" in tile_descriptors.get(ch, [])}
+    if min_content_pct is not None:
+        #"Empty" content here means tiles tagged empty (air/water/etc.) or null (out of
+        #bounds padding) -- i.e. tiles that don't represent anything to interact with.
+        #Everything else (solid, hazard, enemy, climbable, powerup, spawn-adjacent
+        #structure) counts as real content.
+        empty_ids = {tid for tid, ch in id_to_char.items()
+                     if "empty" in tile_descriptors.get(ch, []) or "null" in tile_descriptors.get(ch, [])}
+
+    kept = []
+    removed_moving = 0
+    removed_enemies = 0
+    removed_low_content = 0
+    for s in all_samples:
+        scene = s["scene"]
+        total = len(scene) * len(scene[0])
+
+        if exclude_moving_ground and any(tile in moving_ids for row in scene for tile in row):
+            removed_moving += 1
+            continue
+
+        if max_enemies is not None:
+            enemy_count = sum(1 for row in scene for tile in row if tile in enemy_ids)
+            if enemy_count > max_enemies:
+                removed_enemies += 1
+                continue
+
+        if min_content_pct is not None:
+            empty_count = sum(1 for row in scene for tile in row if tile in empty_ids)
+            content_pct = 100.0 * (total - empty_count) / total if total else 0.0
+            if content_pct < min_content_pct:
+                removed_low_content += 1
+                continue
+
+        kept.append(s)
+
+    total_samples = len(all_samples)
+    remaining = len(kept)
+    print(f"Quality filter: removed {removed_moving} scenes with moving-ground tiles, "
+          f"{removed_enemies} scenes with more than {max_enemies} enemies, "
+          f"{removed_low_content} scenes below {min_content_pct}% content; "
+          f"{remaining}/{total_samples} remain.")
+    return kept
+
 
 def main():
 
     args = parse_args()
 
     levels = load_levels(args.levels)
+    #Mirrors load_levels' own sorted glob so level_files[i] is guaranteed to be the same
+    #file that produced levels[i] -- gives us a real filename to tag samples with, without
+    #needing to modify load_levels itself.
+    level_files = sorted(Path(args.levels).glob("*.txt"))
     _, id_to_char, tile_to_id, tile_descriptors = extract_tileset(args.tileset)
     null_chars = [key for key, value in tile_descriptors.items() if 'null' in value]
     wall_chars = [key for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
@@ -226,6 +283,11 @@ def main():
     duplicates_removed = 0
 
     for i in range(len(levels)):
+        #Source filename for this level, tagged onto every sample below so a bad scene
+        #can be traced back to exactly where it came from. Falls back to the index if
+        #level_files is ever shorter than levels for some reason.
+        source_level_name = level_files[i].name if i < len(level_files) else f"level_{i}"
+
         try:
             if args.scan_mode == 'snap':
                 #Two scans producing a mix of wide and tall scenes that snap to real
@@ -233,7 +295,7 @@ def main():
                 #Wide scenes are a target_width x nav_height null-free screen with
                 #SNAP_H_PAD_ROWS rows of null padding added on top (matching the path
                 #follower), for a final height of nav_height + SNAP_H_PAD_ROWS.
-                h_samples, h_json = snap_window_samples(
+                h_samples, h_json, h_coords = snap_window_samples(
                     levels[i], tile_to_id, args.target_width, nav_height, null_chars,
                     top_pad=SNAP_H_PAD_ROWS, x_stride=args.stride_x, y_stride=args.stride_y
                 )
@@ -248,20 +310,23 @@ def main():
                     v_screen_height, v_top_pad = nav_height, SNAP_H_PAD_ROWS
                 else:
                     v_screen_height, v_top_pad = args.target_height, 0
-                v_samples, v_json = snap_window_samples(
+                v_samples, v_json, v_coords = snap_window_samples(
                     levels[i], tile_to_id, nav_width, v_screen_height, null_chars,
                     top_pad=v_top_pad, x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 samples = h_samples + v_samples
                 json_caption_data = h_json + v_json
+                source_coords = h_coords + v_coords
+                scan_mode_tags = (["snap_wide"] * len(h_samples)) + (["snap_tall"] * len(v_samples))
             elif args.scan_mode == 'sliding_window':
-                samples, json_caption_data = sliding_window_samples(
+                samples, json_caption_data, source_coords = sliding_window_samples(
                     levels[i], tile_to_id, nav_width, nav_height, null_chars,
                     out_width=args.target_width, out_height=args.target_height,
                     x_stride=args.stride_x, y_stride=args.stride_y
                 )
+                scan_mode_tags = ["sliding_window"] * len(samples)
             elif i == 7:
-                samples, json_caption_data = parse_level(
+                samples, json_caption_data, source_coords = parse_level(
                     tile_to_id, levels[i], nav_width, nav_height,
                     null_chars, wall_chars,
                     out_width=args.target_width,
@@ -271,8 +336,9 @@ def main():
                     change_direction_overrides=overrides_1_7,
                     direction_captions=direction_captions
                 )
+                scan_mode_tags = ["path"] * len(samples)
             else:
-                samples, json_caption_data = parse_level(
+                samples, json_caption_data, source_coords = parse_level(
                     tile_to_id, levels[i], nav_width, nav_height,
                     null_chars, wall_chars,
                     out_width=args.target_width,
@@ -281,6 +347,7 @@ def main():
                     print_at_corners=False,
                     direction_captions=direction_captions
                 )
+                scan_mode_tags = ["path"] * len(samples)
 
         except ValueError as e:
             print(f"Skipping level {i}: {e}")
@@ -288,7 +355,7 @@ def main():
 
         print(f"Level {i} parsed successfully: {len(samples)} samples")
 
-        for sample, json_data in zip(samples, json_caption_data):
+        for sample, json_data, (src_x, src_y), mode_tag in zip(samples, json_caption_data, source_coords, scan_mode_tags):
 
             #json_data is None when directional captions are off (see parse_level /
             #snap_window_samples). Fall back to sentinel directions so the dedup key
@@ -311,7 +378,11 @@ def main():
 
             all_samples.append({
                 "scene": sample,
-                "data": json_data
+                "data": json_data,
+                "source_level": source_level_name,
+                "source_x": src_x,
+                "source_y": src_y,
+                "scan_mode": mode_tag
             })
 
     print(f"Removed {duplicates_removed} duplicate samples")
@@ -320,13 +391,15 @@ def main():
     if args.traversable_only:
         all_samples = filter_traversable(all_samples, id_to_char, tile_descriptors, budget=args.budget)
         
+    if args.max_enemies is not None or not args.include_moving_ground or args.min_content_pct is not None:
+        all_samples = filter_scene_quality(all_samples, id_to_char, tile_descriptors, max_enemies=args.max_enemies, exclude_moving_ground=not args.include_moving_ground, min_content_pct=args.min_content_pct)
+        
     output_data = all_samples
 
     output = args.output
     with open(output, 'w') as f:
         json.dump(output_data, f, indent=2)
     print(f"Saved to {output}")
-
 
 def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_width=None, out_height=None, x_stride = 1, y_stride = 1):
     out_width = out_width or width
@@ -337,6 +410,7 @@ def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_wid
 
     samples = []
     json_caption_data = []
+    source_coords = []
 
     for y in range(0, level_height - height + 1, y_stride):
         for x in range(0, level_width - width + 1, x_stride):
@@ -384,9 +458,12 @@ def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_wid
             encoded = [[tile_to_id.get(ch, tile_to_id.get(null, 0)) for ch in row] for row in sample]
             samples.append(encoded)
             json_caption_data.append({"entrance_direction": "RIGHT", "exit_direction": "RIGHT"})
+            #Source tile coords (top-left of the scanned window, before out_width/out_height
+            #padding) so a generated sample can be traced back to its exact spot in the
+            #original level for debugging.
+            source_coords.append((x, y))
 
-    return samples, json_caption_data
-
+    return samples, json_caption_data, source_coords
 
 #Slides an out_width x screen_height window over the level, keeping only screens that are
 #entirely null-free (@ / out-of-bounds), then adds top_pad rows of null padding on top.
@@ -401,6 +478,7 @@ def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars,
 
     samples = []
     json_caption_data = []
+    source_coords = []
 
     for y in range(0, level_height - screen_height + 1, y_stride):
         for x in range(0, level_width - out_width + 1, x_stride):
@@ -416,8 +494,11 @@ def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars,
             #None (not {}) keeps this parallel with the path-follower's "no captions"
             #convention; the caption consumer skips None but KeyErrors on an empty dict.
             json_caption_data.append(None)
+            #Source coords point at the top-left of the real (null-free) screen, i.e.
+            #below the synthetic top_pad rows -- so it points at actual level content.
+            source_coords.append((x, y))
 
-    return samples, json_caption_data
+    return samples, json_caption_data, source_coords
 
 #Parses through one complete level
 #width/height are the NAVIGATION (screen) dimensions; out_width/out_height are the
@@ -427,6 +508,17 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
 
     samples = []
     json_caption_data = []
+
+    #Creates a small json dictionary containin information on if there's a ceiling, bottomless pit, and the entrance/exit directions of the sample
+#Parses through one complete level
+#width/height are the NAVIGATION (screen) dimensions; out_width/out_height are the
+#output scene dimensions (default to a square of side `width` to match the old behaviour).
+def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], out_width=None, out_height=None, faithful_vertical=False, start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[], direction_captions = False):
+    level_sample=LevelSample(level, width, height, null_chars, wall_chars, out_width=out_width, out_height=out_height, faithful_vertical=faithful_vertical, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
+
+    samples = []
+    json_caption_data = []
+    source_coords = []
 
     #Creates a small json dictionary containin information on if there's a ceiling, bottomless pit, and the entrance/exit directions of the sample
     def get_json_caption_data(level_sample: LevelSample, prev_direction, current_direction):
@@ -447,6 +539,9 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
 
     moving=True
     samples.append(level_sample.get_sample_from_idx())
+    #Source tile coords (top-left of the navigation window) for this sample, captured at
+    #append-time so it lines up with whichever step of the path follower produced it.
+    source_coords.append((level_sample.x_idx, level_sample.y_idx))
 
     #Keep json_caption_data parallel with samples so the zip in main() lines up; append
     #None (not {}) when captions are off, since the caption consumer skips on None but
@@ -462,6 +557,7 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
         if not moving: 
             break
         samples.append(level_sample.get_sample_from_idx())
+        source_coords.append((level_sample.x_idx, level_sample.y_idx))
         current_direction = level_sample.direction
 
         if direction_captions:
@@ -475,7 +571,7 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
         for row in sample:
             encoded_sample.append([tile_to_id[c] for c in row])
         encoded_samples.append(encoded_sample)
-    return encoded_samples, json_caption_data
+    return encoded_samples, json_caption_data, source_coords
 
 
 #Finds the spawn sample to begin searching
