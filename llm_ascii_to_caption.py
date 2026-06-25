@@ -64,7 +64,7 @@ MM_TILESET_DICT = {
 
 
 
-OLLAMA_NUM_CTX = 16384
+OLLAMA_NUM_CTX = 32768
 EXPECTED_CAPTIONS = 5
 MAX_CAPTION_RETRIES = 20
 
@@ -128,57 +128,7 @@ describe the level itself without mentioning "level".
 
 
 
-# for local models, it's likely better to separate each of the 5 captions into their own focused call,
-# and have pre-defined style/tone/length/specificity/etc. requests for each. This should lighten the load
-# and make responses more consistent across iterations, which probably also helps the text encoders during training.
-# Each entry is the per-caption style directive sent as the final user turn alongside LOCAL_BASE_SYSTEM_PROMPT;
-# the list length defines how many captions the local branch produces (one focused call each).
-LOCAL_SYSTEM_PROMPT_STYLES = [
-    # 1 - short tag list
-    "Provide a succint list of discrete topic phrases that describe the level. Be specific and separate each idea/feature into its own '.'-separated phrase. Keep it short, just a few phrases.",
-    # 2 - natural sentence
-    "Caption the level with natural, human-like language. Describe what's in the level, with mildly creative diction. Keep it to one or two relaxed sentences.",
-    # 3 - specific names, enemies, and power-ups
-    "Write a medium-length caption that names the specific enemies and power-ups present and gives their rough locations in the level.",
-    # 4 - general: enemy classes only, no specific names
-    "Write a medium-length caption that refers to enemies only by class (ground enemy, flying enemy, ranged enemy) without naming any specific enemy or power-up. Focus on structure and layout.",
-    # 5 - long detailed walkthrough
-    "Write a long, detailed paragraph that walks through the level in order, covering structure, enemies, hazards, and items as they appear.",
-]
-
-
-# Shared base instructions for the local branch's single-caption calls. The grounding/orientation
-# rules mirror SYSTEM_PROMPT, but it asks for exactly ONE caption (the style comes in the final
-# user turn from LOCAL_SYSTEM_PROMPT_STYLES) so a small model carries far less at once.
-LOCAL_BASE_SYSTEM_PROMPT = """
-You are a Mega Man level captioning agent. You are given:
-1. An ASCII tile-set key (symbol -> meaning).
-2. An ASCII level grid (the first row is the TOP of the level, the last row is the BOTTOM;
-gravity points down).
-
-Write ONE caption describing the level, in the style requested in the final message.
-
-GROUNDING (most important):
-- Only describe what is directly visible in the grid via the tile key.
-- Never invent enemies, items, or structures. Never mention anything that is absent.
-- Do not name the raw tile symbols (P, #, |, etc.); describe the level in plain words.
-- Use positions for ROUGH placement only (start/middle/end, left/center/right, top/middle/bottom).
-Never state exact coordinates.
-
-ORIENTATION:
-- Travel toward the top of the grid is ascending; travel toward the bottom is descending.
-
-
-FORMATTING:
-- Output ONLY the single caption, on one line. No label, no quotes, no numbering, no extra text.
-- Use only commas and periods. No dashes or semicolons. Keep commas rare.
-- Break the caption into short '.'-separated phrases.
-- Do not start with "This level" or "The level features". Describe the level directly.
-"""
-
-
-# Trailing reminder appended as the final (freshest) user turn for the whole-batch API branches,
-# reinforcing the constraints these models break most often: the exact count and the bare format.
+# Trailing reminder appended as the final (freshest) user msg 
 CAPTION_REMINDER = (
     "Reminder: output exactly five captions and nothing else, each on its own line with no "
     "numbering, labels, or blank lines. Break each caption into short '.'-separated phrases, and "
@@ -345,40 +295,37 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
         """
         tileset_str = json.dumps(tileset, indent=2)
 
+    
+        context = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
+            {"role": "user", "content": f"Level Scene:\n{scene}"},
+            {"role": "user", "content": CAPTION_REMINDER}
+        ]
+
+      
+        # Retry until we get a compliant response, surfacing each failed attempt, and give up after MAX_CAPTION_RETRIES.
         captions = []
-        for idx, style in enumerate(LOCAL_SYSTEM_PROMPT_STYLES, start=1):
-            context = [
-                {"role": "system", "content": LOCAL_BASE_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
-                {"role": "user", "content": f"Level Scene:\n{scene}"},
-                {"role": "user", "content": f"Write ONE caption in this style: {style}"},
-            ]
+        for attempt in range(1, MAX_CAPTION_RETRIES + 1):
+            completion = ollama.chat(
+                model=model,
+                messages=context,
+                think=False,
+                options={"num_ctx": OLLAMA_NUM_CTX, "temperature": 0.4},
+            )
+            # fetch from schema
+            message = completion.message.content
 
-            # Retry until the model returns a non-empty caption; collapse any stray line breaks so
-            # one call yields exactly one caption line. Give up on this style after MAX_CAPTION_RETRIES.
-            caption = ""
-            for attempt in range(1, MAX_CAPTION_RETRIES + 1):
-                completion = ollama.chat(
-                    model=model,
-                    messages=context,
-                    think=False,
-                    options={"num_ctx": OLLAMA_NUM_CTX, "temperature": 0.4},
-                )
-                message = completion.message.content
-                caption = " ".join(line.strip() for line in message.split("\n") if line.strip())
+            captions = [line.strip() for line in message.split("\n") if line.strip()]
 
-                if caption:
-                    break
+            if len(captions) == EXPECTED_CAPTIONS:
+                return captions
 
-                print(f"[ollama retry] Style {idx}/{len(LOCAL_SYSTEM_PROMPT_STYLES)} attempt "
-                      f"{attempt}/{MAX_CAPTION_RETRIES} returned an empty caption; retrying...\n")
+            print(f"[ollama retry] Attempt {attempt}/{MAX_CAPTION_RETRIES} returned "
+                  f"{len(captions)} caption(s), expected {EXPECTED_CAPTIONS}; retrying...\n")
 
-            if not caption:
-                print(f"[ollama] Gave up on style {idx} after {MAX_CAPTION_RETRIES} attempts; "
-                      f"returning an empty caption for it.\n")
-
-            captions.append(caption)
-
+        print(f"[ollama] Gave up after {MAX_CAPTION_RETRIES} attempts; last response had "
+              f"{len(captions)} caption(s) instead of {EXPECTED_CAPTIONS}.\n")
         return captions
 
     else:
