@@ -313,7 +313,6 @@ def llm_caption(scene: str, game: str = "Mega Man", tileset: dict = MM_TILESET_D
                 think=False,
                 options={"num_ctx": OLLAMA_NUM_CTX, "temperature": 0.4},
             )
-            # fetch from schema
             message = completion.message.content
 
             captions = [line.strip() for line in message.split("\n") if line.strip()]
