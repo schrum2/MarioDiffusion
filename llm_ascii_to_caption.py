@@ -349,7 +349,7 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
 
     
     deterministic_msg = (
-        "For grounding, here is pre-computed structural metadata for this level. Treat it as "
+        "For grounding and reference, here is pre-computed structural metadata for this level. Treat it as "
         "accurate, stay consistent with it, and don't invent features it doesn't support or "
         "re-count terrain from the grid yourself. How to read it:\n"
         "- Object tile counts are RAW occupied-cell counts, NOT object counts. One placed thing "
@@ -360,7 +360,9 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
         "how high the lowest standable floor sits in that column (rising values = steps/hills, a "
         "flat run = flat ground), while 'wall' marks a solid blocked column and 'pit' marks a column "
         "with no safe footing (an open drop, or a floor sealed off by hazards). It only tracks the "
-        "lowest floor, so read the grid for raised platforms or overhead structures above it.\n"
+        "lowest floor, so read the grid for raised platforms or overhead structures above it."
+        "Keep in mind that the player always moves left-to-right in non-vertical segments, so base"
+        "your ascending vs descending structure analysis based on this. \n"
         "- Ceiling describes the top row's overhead terrain; region boundaries map columns to "
         "left/center/right.\n"
         "Still write the captions in your own words per the rules above:\n"
