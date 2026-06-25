@@ -22,7 +22,7 @@ When converting a `.txt` (VGLC format) file to `.mmlv`, the resulting file is au
 Automatic downloads based on ID can be done by running these two commands in order:
 
 ```
-cd batch
+cd MM_Batch
 Auto_Upload_MMMaker.bat
 ```
 
