@@ -7,6 +7,7 @@ captions are collected into a list (and optionally written to json) before being
 returned.
 """
 from pathlib import Path
+from collections import Counter
 import os
 import json
 import argparse
@@ -15,7 +16,6 @@ import ollama
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
-from MM_create_ascii_captions import assign_caption
 
 MM_TILESET_DICT = {
     "tiles" : {
@@ -204,35 +204,166 @@ def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT["tiles"]) -> dic
     return filtered
 
 
+# Tile chars that carry no object information and are left out of the metadata object
+# counts. Ground/wall ("#") is excluded too because it is summarized by the terrain
+# column heights instead of being counted cell-by-cell.
+_METADATA_SKIP_CHARS = {"P", "-", "t", "@", "#"}
+
+
 def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], char_to_id: dict[str, int],
                           tile_descriptors: dict, describe_locations: bool = False,
                           describe_absence: bool = False, data: dict = None) -> str:
     """
-    Fetch the deterministic caption for an integer tile-id scene from 
-    MM_create_ascii_captions.assign_caption, which are the default captions we've 
-    been training with. 
+    Build a block of pre-computed structural metadata for an integer tile-id scene, to feed
+    the LLM as grounding context (replacing the old MM_create_ascii_captions caption).
 
-    The resulting phrase string is passed to the LLM as an extra grounding context message so its 
-    captions stay consistent with the level features actually detected in the grid.
+    The metadata is purely mechanical fact about the grid that the LLM can lean on instead of
+    re-deriving it from the raw ASCII:
+      - raw occupied-cell counts per object tile type (readable names)
+      - terrain top-of-column heights (structural solid tiles, ignoring enemies/hazards)
+      - floor / ceiling analysis (top and bottom rows)
+      - left / center / right region column boundaries
 
     Args:
         scene: 2D grid of integer tile ids (the raw scene, not the ASCII decode).
         id_to_char, char_to_id, tile_descriptors: tileset maps from extract_tileset.
-        describe_locations / describe_absence: passed through to assign_caption.
-        data: optional per-scene metadata (entrance/exit direction); None for plain grids.
+        describe_locations / describe_absence / data: kept for signature compatibility with the
+            caller; this metadata builder doesn't use them.
 
     Returns:
-        The deterministic caption string for the scene.
+        A multi-line metadata string.
     """
-    return assign_caption(scene, id_to_char, char_to_id, tile_descriptors,
-                          describe_locations, describe_absence, data=data)
+    names = MM_TILESET_DICT["tiles"]
+
+    def is_null(tile: int) -> bool:
+        return "null" in tile_descriptors.get(id_to_char.get(tile), set())
+
+    # Scenes are padded up to 16x16 for the diffusion UNet, which adds rows of all-null
+    # tiles above the real 16x14 level. Drop those leading null rows so the ceiling analysis
+    # and terrain heights describe the actual playable area rather than the padding.
+    first_real = next((r for r in range(len(scene)) if not all(is_null(t) for t in scene[r])), len(scene))
+    scene = scene[first_real:] or scene
+
+    height = len(scene)
+    width = len(scene[0])
+
+    # Terrain = structural solid tiles (ground, walls, blocks); enemies and hazards that
+    # happen to be "solid" don't count as terrain.
+    def is_terrain(tile: int) -> bool:
+        desc = tile_descriptors.get(id_to_char.get(tile), set())
+        return "solid" in desc and "enemy" not in desc and "hazard" not in desc
+
+    # Object tile counts: raw occupied cells per type, by readable name, most common first 
+    counts = Counter()
+    for row in scene:
+        for tile in row:
+            char = id_to_char.get(tile)
+            if char is None or char in _METADATA_SKIP_CHARS:
+                continue
+            counts[char] += 1
+    if counts:
+        # Some tileset descriptions carry a ":" gloss (e.g. "Hazard Blocks: extends ..."); keep
+        # just the name before it so the count line reads cleanly ("Hazard Blocks: 2").
+        count_lines = "\n".join(
+            f"  {names.get(char, char).split(':')[0].strip()}: {n}"
+            for char, n in sorted(counts.items(), key=lambda kv: -kv[1])
+        )
+    else:
+        count_lines = "  (none)"
+
+    # Per-column ground profile: the elevation of the LOWEST standable floor surface, found by
+    # scanning up from the bottom. "Standable" reuses the astar/MegaManState (addOrb/placeSpawn) rule:
+    # a solid tile is a surface only if the two cells above it are open, since Mega Man is
+    # two tiles tall. Floating platforms higher up are ignored (the lowest surface
+    # wins); the model reads the grid for those. A column with no standable surface is reported as
+    # "wall" (mostly solid, blocked) or "pit" (no safe footing: open drop or hazard-sealed floor).
+    def is_open(tile: int) -> bool:
+        return "solid" not in tile_descriptors.get(id_to_char.get(tile), set())
+
+    ground = []
+    for c in range(width):
+        # Walk the column from the bottom row upward (stopping at row 2 so the two cells of head
+        # clearance above always exist) and take the first solid tile that has open space above it.
+        surface = next(
+            (r for r in range(height - 1, 1, -1)
+             if is_terrain(scene[r][c]) and is_open(scene[r - 1][c]) and is_open(scene[r - 2][c])),
+            None,
+        )
+        if surface is not None:
+            # Elevation = tiles between that surface and the bottom edge (0 = floor on the bottom row).
+            ground.append(str((height - 1) - surface))
+        else:
+            # Nowhere to stand (open, or floor sealed by hazards): wall if mostly solid, else pit.
+            solid = sum(1 for r in range(height) if is_terrain(scene[r][c]))
+            ground.append("wall" if solid * 2 >= height else "pit")
+    # Right-pad each token to a fixed width so the per-column values line up in one readable row.
+    ground_line = " ".join(f"{tok:>4}" for tok in ground)
+
+    # Ceiling (top row): solid coverage and contiguous gap count. The ground profile already
+    # describes the floor, but nothing else covers overhead terrain, so the top row is summarized
+    # here. It only counts as a real ceiling when solid tiles cover most of the row; a few solid
+    # cells up top are just the tips of structures poking through, not a ceiling.
+    def edge_summary(row: list[int]) -> str:
+        solid = sum(1 for t in row if is_terrain(t))
+        if solid == 0:
+            return "absent"
+        if solid == width:
+            return "solid across"
+        if solid * 2 < width:
+            return "mostly open"
+        gaps, in_gap = 0, False
+        for t in row:
+            if is_terrain(t):
+                in_gap = False
+            elif not in_gap:
+                gaps += 1
+                in_gap = True
+        return f"present with {gaps} gap" + ("s" if gaps != 1 else "")
+
+    ceiling = edge_summary(scene[0])
+
+    # Region boundaries: split the width into left / center / right thirds 
+    left_end = width // 3
+    center_end = 2 * width // 3
+    regions = (f"left=cols 1-{left_end}, center=cols {left_end + 1}-{center_end}, "
+               f"right=cols {center_end + 1}-{width}")
+
+    return (
+        "Object tile counts (raw occupied cells per type, one placed object may span several cells):\n"
+        f"{count_lines}\n\n"
+        f"Ground surface profile per column (columns 1-{width} left to right; each value is how "
+        "many tiles the lowest standable floor sits above the bottom, 0=floor at the very bottom; "
+        "'wall'=solid blocked column, 'pit'=no safe footing (an open drop, or a floor sealed off "
+        "by hazards)):\n"
+        f"  {ground_line}\n"
+        f"Ceiling (top row): {ceiling}\n\n"
+        "Region boundaries (use these when assigning left/center/right): "
+        f"{regions}"
+    )
 
 
 
 def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
 
     
-    deterministic_msg = f"For additional grounding, here is a deterministic structural analysis of this level's detected features. Treat it as accurate context to stay consistent with, but still write the captions in your own words per the rules above:\n {deterministic}"
+    deterministic_msg = (
+        "For grounding, here is pre-computed structural metadata for this level. Treat it as "
+        "accurate, stay consistent with it, and don't invent features it doesn't support or "
+        "re-count terrain from the grid yourself. How to read it:\n"
+        "- Object tile counts are RAW occupied-cell counts, NOT object counts. One placed thing "
+        "(a ladder, a stretch of water, a block structure) can span many cells, so a large count "
+        "usually means one big feature, not many separate ones. Use rough quantities, never exact "
+        "tile numbers.\n"
+        "- Ground surface profile per column gives the level's walkable floor shape: each value is "
+        "how high the lowest standable floor sits in that column (rising values = steps/hills, a "
+        "flat run = flat ground), while 'wall' marks a solid blocked column and 'pit' marks a column "
+        "with no safe footing (an open drop, or a floor sealed off by hazards). It only tracks the "
+        "lowest floor, so read the grid for raised platforms or overhead structures above it.\n"
+        "- Ceiling describes the top row's overhead terrain; region boundaries map columns to "
+        "left/center/right.\n"
+        "Still write the captions in your own words per the rules above:\n"
+        f"{deterministic}"
+    )
         
 
     if llm != "ollama":
