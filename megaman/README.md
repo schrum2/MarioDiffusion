@@ -1,6 +1,6 @@
 # Mega Man Maker
 
-Convert Mega Man levels between the [VGLC](https://github.com/TheVGLC/TheVGLC) ASCII format and the native Mega Man Maker `.mmlv` format.
+Convert Mega Man levels between the [VGLC](https://github.com/schrum2/TheVGLC) ASCII format and the native Mega Man Maker `.mmlv` format.
 
 ## Mega Man Conversions
 
