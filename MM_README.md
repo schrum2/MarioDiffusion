@@ -184,3 +184,32 @@ python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output
 
 python train_diffusion.py --text_conditional --mlm_model_dir MM-MLM-simple0 --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0
 ```
+
+## Create a filtered dataset (with quality filters and source tracking)
+
+The following new options are available for `create_megaman_json_data.py`. `--stride_x` and `--stride_y` control how far the scan window moves between samples (sliding_window/snap modes only); set both to the screen size (e.g. 16/14) for non-overlapping, screen-aligned extraction. `--scan_mode snap` extracts wide and tall scenes that snap to fully null-free screens. `--max_enemies N` drops any scene with more than `N` enemy tiles. `--min_content_pct P` drops any scene where less than `P`% of tiles are real content (i.e. not empty/passable/null), filtering out near-empty, unplayable scenes. `--include_moving_ground` includes scenes containing moving-ground/platform tiles, which are excluded by default since their motion isn't represented in the static tileset graphics.
+
+
+Generate a filtered, screen-aligned dataset with this command:
+```
+python create_megaman_json_data.py --levels ..\TheVGLC\MegaMan\Enhanced --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --output datasets\MM_Levels_Filtered.json
+```
+Then generate deterministic captions for it:
+```
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json --describe_absence
+```
+Build a tokenizer:
+```
+python tokenizer.py save --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
+```
+Train the text encoder (MLM):
+```
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl datasets\MM_Tokenizer-filtered-regular.pkl --output_dir MM-MLM-filtered-regular --seed 0
+```
+Train the text-conditional diffusion model:
+```
+python train_diffusion.py --pkl datasets\MM_Tokenizer-filtered-regular.pkl --json datasets\MM_LevelsAndCaptions-filtered-regular.json --augment --mlm_model_dir MM-MLM-filtered-regular --text_conditional --output_dir MM_conditional_filtered_regular0 --seed 0 --game MM-Full
+```
+Use `--game MM-Simple` instead if the dataset was generated with `--group_encodings`.
+
+**Known limitation:** Moving-ground platforms (the `M` tile) are excluded by default rather than properly represented, since we don't yet have graphics or a static-scene encoding for their motion. See the GitHub issue tracking proper tileset/graphics support for moving-ground platforms for the planned fix.

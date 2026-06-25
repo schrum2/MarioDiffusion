@@ -55,7 +55,6 @@ def describe_broken_cannons(scene, char_to_id, tile_descriptors, id_to_char):
     width = len(scene[0]) if height > 0 else 0
 
     def is_solid(r, c):
-        """Returns True if the tile at (r,c) is solid (and not air/passable)."""
         tile_char = id_to_char[scene[r][c]]
         return 'solid' in tile_descriptors.get(tile_char, [])
 
@@ -63,30 +62,22 @@ def describe_broken_cannons(scene, char_to_id, tile_descriptors, id_to_char):
         for c in range(width):
             tile = scene[r][c]
 
-            # Check cannon HEAD (B): must have B, b, or solid directly below
+            # Floating cannon head: B with no B, b, or solid directly below
             if tile == char_to_id['B']:
                 below_row = r + 1
                 if below_row >= height:
-                    count += 1  # floating off bottom of scene
+                    count += 1
                 else:
                     below = scene[below_row][c]
                     if (below != char_to_id['B'] and
                         below != char_to_id['b'] and
                         not is_solid(below_row, c)):
-                        count += 1  # cannon head floating over air
+                        count += 1
 
-            # Check cannon NECK (b): must eventually reach solid below (no air gaps)
+            # Broken neck: b with no B or b directly above it
             elif tile == char_to_id['b']:
-                # Only check the bottom of a neck stack (i.e. no b directly below)
-                below_row = r + 1
-                if below_row >= height:
-                    count += 1  # neck hanging off bottom
-                else:
-                    below = scene[below_row][c]
-                    if below == char_to_id['b'] or below == char_to_id['B']:
-                        pass  # not the bottom of the stack, skip
-                    elif not is_solid(below_row, c):
-                        count += 1  # bottom of neck stack is floating over air
+                if r == 0 or (scene[r-1][c] != char_to_id['B'] and scene[r-1][c] != char_to_id['b']):
+                    count += 1
 
     if count > 0:
         return f" {describe_quantity(count) if coarse_counts else count} broken " + ("cannons" if pluralize and count > 1 else "cannon") + "."
@@ -668,15 +659,21 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     question_block_phrase = count_caption_phrase(scene, [char_to_id['Q'], char_to_id['?']], "question block", "question blocks", describe_absence=describe_absence)
     add_to_caption(question_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in [char_to_id['Q'], char_to_id['?']]])
 
-    #print("after qb", (10,0) in already_accounted)
-    #print(already_accounted)
-    # Count cannons
-    cannon_phrase = count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons", describe_absence=describe_absence)
+    # Count cannons, excluding broken ones
+    def is_broken_B(r, c):
+        below_row = r + 1
+        if below_row >= len(scene):
+            return True
+        below = scene[below_row][c]
+        return (below != char_to_id['B'] and
+                below != char_to_id['b'] and
+                'solid' not in tile_descriptors.get(id_to_char[below], []))
+
+    broken_cannon_positions = {(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B'] and is_broken_B(r, c)}
+    cannon_phrase = count_caption_phrase(scene, [char_to_id['B']], "cannon", "cannons", describe_absence=describe_absence, exclude=broken_cannon_positions)
     cannon_locations = [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['B']]
     add_to_caption(cannon_phrase, cannon_locations)
     already_accounted.update(cannon_locations)
-
-    #print("after cannon", (10,0) in already_accounted)
 
     # Describe broken cannons
     broken_cannon_phrase = describe_broken_cannons(scene, char_to_id, tile_descriptors, id_to_char)
@@ -685,7 +682,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     # Count coins
     coin_phrase = count_caption_phrase(scene, [char_to_id['o']], "coin", "coins", describe_absence=describe_absence)
     add_to_caption(coin_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t == char_to_id['o']])
-
+    
     # Coin lines
     coin_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="coin", min_run_length=2)
     coin_line_phrase = describe_horizontal_lines(coin_lines, "coin line", describe_locations, describe_absence=describe_absence)
