@@ -214,7 +214,7 @@ Use `--game MM-Simple` instead if the dataset was generated with `--group_encodi
 
 **Known limitation:** Moving-ground platforms (the `M` tile) are excluded by default rather than properly represented, since we don't yet have graphics or a static-scene encoding for their motion. See the GitHub issue tracking proper tileset/graphics support for moving-ground platforms for the planned fix.
 
-# Mega Man Maker Conversion
+## Mega Man Maker Conversion
 
 Generated `.txt` files can be converted back into playable Mega Man Maker levels.
 
@@ -234,7 +234,7 @@ They appear in Mega Man Maker under:
 My Levels
 ```
 
-# Automatic Single-Level Download
+## Automatic Single-Level Download
 
 Download one Mega Man Maker level by ID.
 
@@ -249,7 +249,7 @@ Enter level ID when prompted.
 
 ---
 
-# Automatic Bulk Download
+## Automatic Bulk Download
 
 Download Mega Man Maker levels by ID, The downloader begins at level ID `200000` by default (recommended to start with 100 levels).
 
@@ -265,7 +265,7 @@ Downloaded `.mmlv` files are saved directly into:
 ```text
 %USERPROFILE%\AppData\Local\MegaMaker\Levels
 ```
-# Bulk Converter (MMLV --> VGLC)
+## Bulk Converter (MMLV --> VGLC)
 
 Convert downloaded `.mmlv` files into VGLC `.txt` files.
 

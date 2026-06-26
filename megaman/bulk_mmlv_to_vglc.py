@@ -1,7 +1,6 @@
 from pathlib import Path
 import argparse
-from mmlv_to_vglc import mmlv_to_vglc
-
+from mmlv_to_vglc import mmlv_to_grid
 
 def main():
     parser = argparse.ArgumentParser()
@@ -28,12 +27,12 @@ def main():
 
     for file in files:
         try:
-            lines = mmlv_to_vglc(file)
+            lines = mmlv_to_grid(file)
 
             out_file = output_dir / f"{file.stem}.txt"
 
             out_file.write_text(
-                "\n".join(lines) + "\n",
+                "\n".join("".join(row) for row in lines) + "\n",
                 encoding="utf-8"
             )
 
@@ -42,7 +41,7 @@ def main():
 
         except Exception as e:
             failed += 1
-            print("FAILED:", file.name, e)
+            print("\nFAILED:", file.name)
 
     print("\nDone")
     print("Success:", success)
