@@ -239,7 +239,7 @@ cd MM_Batch
 MM_conditional-embeddings.bat {embedding_dims}
 ```
 
-Manual steps for more control:
+## Manual steps for more control:
 
 Create the raw level samples (grouped/simple encoding):
 ```
