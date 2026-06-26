@@ -184,3 +184,4 @@ cython_debug/
 *.pdf
 *.dot
 AUGMENT_DATA
+*.csv
