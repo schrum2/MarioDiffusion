@@ -112,7 +112,7 @@ def main():
 
     # Initialize Plotter
     log_file = os.path.join(args.output_dir, 'training_log.jsonl')
-    plotter = Plotter(log_file=log_file, update_interval=5.0, left_key='loss', left_label='Loss', output_png='training_progress.png')
+    plotter = Plotter(log_file=log_file, update_interval=5.0, left_key='loss', left_label='Loss', output_png='training_progress.png', right_key=None, right_label=None)
 
     # Start plotting in a background thread
     plot_thread = threading.Thread(target=plotter.start_plotting)
