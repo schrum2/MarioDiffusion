@@ -24,3 +24,4 @@ anthropic==0.109.2
 dotenv==0.9.9
 ollama==0.6.2         
 openai==2.43.0
+requests==2.34.2
