@@ -325,7 +325,7 @@ Output:
 datasets\MM_Levels_Filtered.json
 ```
 
-## Generate Captions
+### Generate Captions
 
 Generate deterministic captions.
 
@@ -335,19 +335,19 @@ Run:
 python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json
 ```
 
-## Build Tokenizer
+### Build Tokenizer
 
 ```bash
 python tokenizer.py save --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
 ```
 
-## Train MLM Text Encoder
+### Train MLM Text Encoder
 
 ```bash
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl datasets\MM_Tokenizer-filtered-regular.pkl --output_dir MM-MLM-filtered-regular --seed 0
 ```
 
-## Train Conditional Diffusion Model
+### Train Conditional Diffusion Model
 
 ```bash
 python train_diffusion.py --pkl datasets\MM_Tokenizer-filtered-regular.pkl --json datasets\MM_LevelsAndCaptions-filtered-regular.json --augment --mlm_model_dir MM-MLM-filtered-regular --text_conditional --output_dir MM_conditional_filtered_regular0 --seed 0 --game MM-Full
@@ -365,7 +365,7 @@ To disable image saving:
 --save_image_epochs 100000
 ```
 
-## Generate Levels
+### Generate Levels
 
 Interactive GUI:
 
