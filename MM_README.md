@@ -282,49 +282,6 @@ datasets\MM_Maker_Levels
 ```
 ---
 
-### Create Filtered Dataset
-
-Create a filtered dataset from converted levels.
-
-The following options are available.
-
-`--stride_x`
-
-Horizontal scan distance.
-
-`--stride_y`
-
-Vertical scan distance.
-
-`--scan_mode snap`
-
-Extract screen-aligned scenes.
-
-`--max_enemies N`
-
-Remove scenes with too many enemies.
-
-`--min_content_pct P`
-
-Remove nearly empty scenes.
-
-`--include_moving_ground`
-
-Include moving platform tiles.
-
-Generate filtered dataset:
-
-```bash
-cd ..
-python create_megaman_json_data.py --levels datasets\MM_Maker_Levels --tileset datasets\MM.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --output datasets\MM_Levels_Filtered.json
-```
-
-Output:
-
-```text
-datasets\MM_Levels_Filtered.json
-```
-
 ## Generate Levels
 
 Interactive GUI:
