@@ -78,8 +78,13 @@ def main():
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--negative_samples', type=int, default=10)
-    parser.add_argument('--subsampling', action='store_true')
-    parser.add_argument('--subsample_threshold', type=float, default=0.001)
+    parser.add_argument('--no_subsampling', action='store_true',
+                        help='Disable Mikolov-style frequent-tile subsampling (enabled by default). Use this to reproduce old behavior.')
+    parser.add_argument('--subsample_threshold', type=float, default=0.03, # 0.03 found to be a good balance for MM2 data, but can be tuned
+                        help='Subsampling threshold (lower = more aggressive downsampling of frequent center tiles). '
+                             'Word2vec NLP defaults (1e-3 to 1e-5) assume much lower max-frequency than tile data typically has '
+                             '(e.g. a dominant background tile can be 40-60%% of centers) -- if background/filler tiles still '
+                             'dominate after enabling subsampling, try raising this (e.g. 0.05-0.2) rather than lowering it.')
     parser.add_argument('--vocab_size', type=int, default=None)
     parser.add_argument('--save_every', type=int, default=20,
                         help='Save checkpoint every N epochs. 0 disables periodic checkpointing.')
@@ -103,7 +108,7 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    dataset = PatchDataset(json_path=args.json_file, subsampling=args.subsampling, subsample_threshold=args.subsample_threshold, output_dir=args.output_dir)
+    dataset = PatchDataset(json_path=args.json_file, subsampling=not args.no_subsampling, subsample_threshold=args.subsample_threshold, output_dir=args.output_dir)
 
     # Determine vocab size
     detected_vocab = max(max(patch) for sample in dataset.patches for patch in sample) + 1

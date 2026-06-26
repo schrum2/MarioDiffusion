@@ -79,7 +79,6 @@ def main():
         os.makedirs(args.output_dir)
 
     # Load dataset
-# Load dataset
     dataset = PatchDataset(
         json_path=args.json_file,
         output_dir=args.output_dir,
