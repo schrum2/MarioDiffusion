@@ -1,5 +1,5 @@
-REM @echo off
-REM Usage: train-conditionali-embeddings.bat <seed> <embedding-len> 
+@echo off
+REM Usage: train-conditional-embeddings.bat <seed> <embedding-len>
 REM <seed> is optional, defaults to 0
 REM <embedding-len> is optional, defaults to 16
 cd ..
@@ -8,19 +8,30 @@ set SEED=%1
 if "%SEED%"=="" set SEED=0
 
 set EMBEDDING_DIM=%2
-if "%EMBEDDING_DIM%" == "" set EMBEDDING_DIM=16
+if "%EMBEDDING_DIM%"=="" set EMBEDDING_DIM=16
 
-python create_tile_level_json_data.py --output datasets\SMB1_3x3_tiles.json --tile_size 3 --levels "..\TheVGLC\Super Mario Bros\Processed"
-python create_tile_level_json_data.py --output datasets\SMB2_3x3_tiles.json --tile_size 3 --levels "..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
-python combine_data.py datasets\Mar1and2_3x3_tiles.json datasets\SMB1_3x3_tiles.json datasets\SMB2_3x3_tiles.json
+set "SMB1_JSON=datasets\SMB1_3x3_tiles.json"
+set "SMB2_JSON=datasets\SMB2_3x3_tiles.json"
+set "MAR12_JSON=datasets\Mar1and2_3x3_tiles.json"
+set "SMB1_LEVELS=..\TheVGLC\Super Mario Bros\Processed"
+set "SMB2_LEVELS=..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
 
+if not exist "%MAR12_JSON%" (
+    python create_tile_level_json_data.py --output "%SMB1_JSON%" --tile_size 3 --levels "%SMB1_LEVELS%"
+    python create_tile_level_json_data.py --output "%SMB2_JSON%" --tile_size 3 --levels "%SMB2_LEVELS%"
+    python combine_data.py "%MAR12_JSON%" "%SMB1_JSON%" "%SMB2_JSON%"
+)
 
-set MODEL_PATH="TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec%SEED%"
+set "MODEL_PATH=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec%SEED%"
+set "MLM_DIR=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-MLM-regular%SEED%"
+set "BLOCK2VEC_DIR=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-block2vec-embeddings%SEED%"
+set "SAMPLES_DIR=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec%SEED%-samples"
+set "EVAL_ARGS=--model_path %MODEL_PATH% --save_as_json --json datasets\Mar1and2_RandomTest-regular.json --random_width --width_range_json datasets\Mar1and2_LevelsAndCaptions-regular.json --num_tiles=13"
 
-python train_mlm.py --epochs 300 --save_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --test_json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --output_dir TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-MLM-regular%SEED% --seed %SEED%
-python train_block2vec.py --json_file datasets\Mar1and2_3x3_tiles.json --output_dir "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-block2vec-embeddings%SEED%" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
-python train_diffusion.py --augment --text_conditional --output_dir "%MODEL_PATH%" --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --mlm_model_dir "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-MLM-regular%SEED%" --block_embedding_model_path "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-block2vec-embeddings%SEED%" --plot_validation_caption_score
-python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec%SEED%-samples"
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --test_json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --output_dir "%MLM_DIR%" --seed %SEED%
+python train_block2vec.py --json_file "%MAR12_JSON%" --output_dir "%BLOCK2VEC_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
+python train_diffusion.py --augment --text_conditional --output_dir "%MODEL_PATH%" --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --mlm_model_dir "%MLM_DIR%" --block_embedding_model_path "%BLOCK2VEC_DIR%" --plot_validation_caption_score
+python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%"
 
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\Mar1and2_RandomTest-regular.json --output_dir samples-from-random-Mar1and2-captions --random_width --width_range_json datasets\Mar1and2_LevelsAndCaptions-regular.json --num_tiles=13
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json datasets\Mar1and2_RandomTest-regular.json --compare_checkpoints --random_width --width_range_json datasets\Mar1and2_LevelsAndCaptions-regular.json --num_tiles=13
+python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-Mar1and2-captions
+python evaluate_caption_adherence.py %EVAL_ARGS% --compare_checkpoints
