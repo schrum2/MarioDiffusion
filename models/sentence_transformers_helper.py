@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModel, CLIPTokenizer, CLIPTextModelWithProjection, T5EncoderModel
+from transformers import AutoTokenizer, AutoModel, CLIPTokenizer, CLIPTextModelWithProjection, T5EncoderModel, T5Tokenizer
 import torch
 import torch.nn.functional as F
 
@@ -45,7 +45,7 @@ def load_pretrained_encoder(model_name, device='cpu'):
         # decoder_input_ids; we only want the encoder tower. encode()'s mean-pooling branch
         # then handles its last_hidden_state like any other sentence encoder.
         model = T5EncoderModel.from_pretrained(model_name).to(device)
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = T5Tokenizer.from_pretrained(model_name)
         embedding_dim = model.config.d_model
     else:
         model = AutoModel.from_pretrained(model_name, trust_remote_code=True).to(device)
