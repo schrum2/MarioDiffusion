@@ -73,7 +73,11 @@ set "RANDOM_TEST_JSON=datasets\MM_RandomTest-%DATASET_INFIX%-regular.json"
 set "WIDTH_RANGE_JSON=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular.json"
 set "EVAL_ARGS=--model_path "%MODEL_PATH%" --save_as_json --json "%RANDOM_TEST_JSON%" --random_width --width_range_json "%WIDTH_RANGE_JSON%" --num_tiles=%NUM_TILES%"
 
-python train_mlm.py --epochs 300 --save_checkpoints --json "%MLM_JSON%" --pkl "%TOKENIZER_PKL%" --output_dir "%MLM_DIR%" --seed %SEED%
+if not exist "%MLM_DIR%" (
+    python train_mlm.py --epochs 300 --save_checkpoints --json "%MLM_JSON%" --pkl "%TOKENIZER_PKL%" --output_dir "%MLM_DIR%" --seed %SEED%
+) else (
+    echo Using existing MLM model: %MLM_DIR%
+)
 
 if not exist "%MM_JSON%" (
     if /I "%VARIANT%"=="simple" (
