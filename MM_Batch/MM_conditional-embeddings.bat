@@ -1,17 +1,8 @@
 
 set EMBEDDING_DIM=%1
-if "%EMBEDDING_DIM%" == "" set EMBEDDING_DIM=%EMBEDDING_DIM%
+if "%EMBEDDING_DIM%" == "" set EMBEDDING_DIM=16
 
-
-python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --group_encodings
-
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset datasets\MM_Simple_Tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
-
-python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
-
-python create_random_test_captions.py --save_file datasets\MM_RandomTest_simple-regular.json --json datasets\MM_LevelsAndCaptions-simple-regular.json --seed 0 --game MM-Simple
-
-python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --train_pct .9 --val_pct .05 --test_pct .05 --seed 0 --game mm-simple
+REM Run MM-data.bat first
 
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple0 --seed 0
 

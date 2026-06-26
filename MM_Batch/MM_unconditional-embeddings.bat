@@ -1,13 +1,8 @@
 
 set EMBEDDING_DIM=%1
-if "%EMBEDDING_DIM%" == "" set EMBEDDING_DIM=%EMBEDDING_DIM%
+if "%EMBEDDING_DIM%" == "" set EMBEDDING_DIM=16
 
-
-python create_megaman_json_data.py --output datasets\MM_Levels-simple.json  --group_encodings
-
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset datasets\MM_Simple_Tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
-
-python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --train_pct .9 --val_pct .05 --test_pct .05 --seed 0 --game mm-simple
+REM Run MM-data.bat first
 
 python create_tile_level_json_data.py --tileset datasets\MM_Simple_Tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM_VGLC_to_Simple.json
 
