@@ -227,14 +227,7 @@ def generate_levels(args):
 
             # Create a unique subdirectory for each batch
             start_index = batch_idx * args.batch_size
-            if args.game == "Mario":
-                visualize_samples(samples, args.output_dir, True, start_index)
-            elif args.game == "LR":
-                visualize_samples(samples, args.output_dir, True, start_index, game='LR')
-            elif args.game in ("MM-Simple", "MM-Full"):
-                visualize_samples(samples, args.output_dir, True, start_index, game=args.game)
-            else:
-                raise ValueError(f"Unknown game: {args.game}")
+            visualize_samples(samples, args.output_dir, True, start_index, game=args.game)
     
     # Concatenate all batches. With --random_width the batches have different widths and
     # can't be concatenated, so flatten to a list of per-sample (C,H,W) tensors instead;
