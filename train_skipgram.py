@@ -143,7 +143,7 @@ def main():
             factor=args.lr_factor,
             patience=args.lr_patience,
             min_lr=args.min_lr,
-            verbose=True,
+            # verbose=True, # deprecated
         )
     best_loss = float('inf')
     epochs_since_improvement = 0
