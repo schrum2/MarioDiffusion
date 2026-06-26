@@ -1,14 +1,14 @@
 @echo off
 REM Usage: train-unconditional-embeddings.bat <embedding-len> <seed>
-REM <embedding-len> is optional, defaults to 16
 REM <seed> is optional, defaults to 0
+REM <embedding-len> is optional, defaults to 16
 cd ..
 
-set "EMBEDDING_DIM=%1"
-if "%EMBEDDING_DIM%"=="" set "EMBEDDING_DIM=16"
+set SEED=%1
+if "%SEED%"=="" set SEED=0
 
-set "SEED=%2"
-if "%SEED%"=="" set "SEED=0"
+set EMBEDDING_DIM=%2
+if "%EMBEDDING_DIM%"=="" set EMBEDDING_DIM=16
 
 set "SMB1_JSON=datasets\SMB1_3x3_tiles.json"
 set "SMB2_JSON=datasets\SMB2_3x3_tiles.json"
