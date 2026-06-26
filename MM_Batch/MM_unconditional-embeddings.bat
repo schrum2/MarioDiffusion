@@ -3,6 +3,7 @@ set EMBEDDING_DIM=%1
 if "%EMBEDDING_DIM%" == "" set EMBEDDING_DIM=16
 
 REM Run MM-data.bat first
+cd ..
 
 python create_tile_level_json_data.py --tileset datasets\MM_Simple_Tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM_VGLC_to_Simple.json
 

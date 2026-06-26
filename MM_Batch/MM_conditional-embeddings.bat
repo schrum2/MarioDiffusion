@@ -3,6 +3,7 @@ set EMBEDDING_DIM=%1
 if "%EMBEDDING_DIM%" == "" set EMBEDDING_DIM=16
 
 REM Run MM-data.bat first
+cd ..
 
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple0 --seed 0
 
