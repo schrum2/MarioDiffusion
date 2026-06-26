@@ -82,5 +82,5 @@ if /I "%METHOD%"=="block2vec" (
 )
 
 python train_diffusion.py --game %GAME% --augment --block_embedding_model_path "%EMBEDDING_DIR%" --output_dir "%MODEL_PATH%" --num_epochs 500 --json "%TRAIN_JSON%" --val_json "%VAL_JSON%" --seed %SEED%
-python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%"
+python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%" --game %GAME%
 

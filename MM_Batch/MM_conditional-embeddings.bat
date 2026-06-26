@@ -90,7 +90,7 @@ if /I "%METHOD%"=="block2vec" (
 )
 
 python train_diffusion.py --text_conditional --mlm_model_dir "%MLM_DIR%" --game %GAME% --augment --block_embedding_model_path "%EMBEDDING_DIR%" --output_dir "%MODEL_PATH%" --num_epochs 500 --json "%DIFF_TRAIN_JSON%" --val_json "%DIFF_VAL_JSON%" --seed %SEED%
-python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%"
+python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%" --game %GAME%
 
 python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-MM-%DATASET_INFIX%-captions-w%WINDOW_SIZE%
 python evaluate_caption_adherence.py %EVAL_ARGS% --compare_checkpoints
