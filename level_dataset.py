@@ -13,6 +13,7 @@ from PIL import Image
 from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEGATED_PLURAL
 import numpy as np
 import util.common_settings as common_settings
+from util.size_utils import compute_size_buckets
 import re
 
 # Global variable to store the loaded sprite sheet
@@ -562,7 +563,7 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None, multiple_captions=False):
+    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None, multiple_captions=False, bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -579,6 +580,15 @@ class LevelDataset(Dataset):
                 ("caption", "caption1", "caption2", ...) and one is chosen at random on every
                 access. This becomes the only augmentation: phrase shuffling (augment) and scene
                 flipping (random_flip) are disabled so the selected caption is used verbatim.
+            bucket_levels (bool): If True (diff_text mode), the scenes are variable-size complete
+                levels. They are grouped into num_buckets size buckets and each scene is padded
+                (bottom/right, content anchored top-left) up to its bucket's shared shape with the
+                pad_tile_id tile, so a BucketBatchSampler can stack same-shape scenes per batch.
+            num_buckets (int): Number of size buckets when bucket_levels is set.
+            pad_tile_id (int): Tile id used to fill the pad region (the null/void tile, e.g. '@'
+                for Mega Man). Required when bucket_levels is set.
+            unet_factor (int): Bucket pad dimensions are rounded up to a multiple of this so the
+                padded scenes are denoisable by the UNet (2 ** (num_downsamples)).
         """
         assert mode in ["text", "diff_text"], "Mode must be 'text' or 'diff_text'."
 
@@ -593,6 +603,14 @@ class LevelDataset(Dataset):
         self.random_flip = random_flip and not multiple_captions
         self.num_tiles = num_tiles
         self.negative_captions = negative_captions
+
+        # Complete-level bucketing/padding (see _build_size_buckets, called below).
+        self.bucket_levels = bucket_levels
+        self.num_buckets = num_buckets
+        self.pad_tile_id = pad_tile_id
+        self.unet_factor = unet_factor
+        self.pad_size = None      # per-index (pad_h, pad_w) target, filled by _build_size_buckets
+        self.bucket_shapes = []   # unique (pad_h, pad_w) shapes across the dataset
 
         # For embeddings
         self.block_embeddings = block_embeddings # Store block embeddings
@@ -636,6 +654,36 @@ class LevelDataset(Dataset):
 
         self.remove_upside_down_pipes = remove_upside_down_pipes
         print("remove_upside_down_pipes:", self.remove_upside_down_pipes)
+
+        # Computed last so the bucket plan aligns with the final (post-shuffle) data order
+        # that __getitem__ indexes into.
+        if self.bucket_levels and self.mode == "diff_text":
+            self._build_size_buckets()
+
+    def _build_size_buckets(self):
+        """Assign each variable-size complete level a shared per-bucket pad shape.
+
+        Reads every scene's (width, height) from the raw grids, groups them into
+        self.num_buckets size buckets via compute_size_buckets, and records the
+        (pad_h, pad_w) each scene is padded up to in __getitem__. Stores the unique
+        bucket shapes in self.bucket_shapes (small -> large) so the sampler can group
+        same-shape scenes and training can benchmark each bucket size.
+        """
+        if self.pad_tile_id is None:
+            raise ValueError("bucket_levels requires pad_tile_id (the null/void tile id)")
+
+        sizes = [(len(s["scene"][0]), len(s["scene"])) for s in self.data]  # (w, h)
+        buckets = compute_size_buckets(sizes, self.num_buckets, factor=self.unet_factor)
+
+        self.pad_size = [None] * len(self.data)
+        for bucket in buckets:
+            shape = (bucket["pad_h"], bucket["pad_w"])
+            for i in bucket["indices"]:
+                self.pad_size[i] = shape
+        # Ordered small -> large to match compute_size_buckets' ordering.
+        self.bucket_shapes = [(b["pad_h"], b["pad_w"]) for b in buckets]
+        shape_desc = [f"{w}x{h} (n={len(b['indices'])})" for b, (h, w) in zip(buckets, self.bucket_shapes)]
+        print(f"bucket_levels: {len(self.data)} levels grouped into {len(buckets)} size bucket(s): {shape_desc}")
 
     def _augment_caption(self, caption):
         """Shuffles period-separated phrases in the caption."""
@@ -751,10 +799,37 @@ class LevelDataset(Dataset):
 
         one_hot_scene = one_hot_scene.permute(2, 0, 1)
 
+        # Complete-level mode: pad this scene up to its bucket's shared shape so the
+        # sampler can stack same-shape scenes. Content is anchored top-left and the
+        # pad region (bottom/right) is filled with the null/void tile.
+        if self.bucket_levels and self.pad_size is not None:
+            one_hot_scene = self._pad_to_bucket(one_hot_scene, self.pad_size[idx])
+
         if self.negative_captions:
             return one_hot_scene, augmented_caption, negative_caption
         else:
             return one_hot_scene, augmented_caption
+
+    def _pad_to_bucket(self, scene, pad_shape):
+        """Pad a (C, H, W) scene up to (C, pad_h, pad_w), null-filling the pad region.
+
+        Content is anchored at the top-left; the added bottom/right cells are set to
+        the null/void tile (pad_tile_id) -- a valid one-hot when using one-hot tiles,
+        or that tile's embedding vector in block-embedding mode.
+        """
+        pad_h, pad_w = pad_shape
+        c, h, w = scene.shape
+        if (h, w) == (pad_h, pad_w):
+            return scene
+        canvas = scene.new_zeros((c, pad_h, pad_w))
+        if self.block_embeddings is not None:
+            # Channels are embedding dims, so fill the canvas with the null tile's vector.
+            canvas[:] = self.block_embeddings[self.pad_tile_id].view(c, 1, 1)
+        else:
+            # Channels are tile ids, so a one-hot of the null tile is a single hot channel.
+            canvas[self.pad_tile_id] = 1.0
+        canvas[:, :h, :w] = scene
+        return canvas
 
         
 

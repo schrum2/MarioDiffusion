@@ -4,6 +4,7 @@ from pathlib import Path
 import util.common_settings as common_settings
 from captions.util import extract_tileset
 from create_level_json_data import load_levels
+from util.size_utils import level_content_box
 from enum import Enum
 import os
 import sys
@@ -168,7 +169,7 @@ def parse_args():
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
     parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
-    parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window', 'snap'], help='How to extract samples: path follower (default), sliding window, or snap (variable-dimension wide+tall scans that snap to valid content)')
+    parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window', 'snap', 'whole'], help='How to extract samples: path follower (default), sliding window, snap (variable-dimension wide+tall scans that snap to valid content), or whole (one sample = the entire level trimmed to its content bounding box, kept at its natural variable size)')
     parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
     parser.add_argument('--stride_y', type=int, default=1, help='How far the sliding window moves in the vertical direction during level scanning (sliding_window/snap modes only; must be >= 1)')
     parser.add_argument('--stride_x', type=int, default=1, help='How far the sliding window moves in the horizontal direction during level scanning (sliding_window/snap modes only; must be >= 1)')
@@ -325,6 +326,22 @@ def main():
                     x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 scan_mode_tags = ["sliding_window"] * len(samples)
+            elif args.scan_mode == 'whole':
+                # One sample = the entire level trimmed to its content bounding box,
+                # kept at its natural (variable) size. Air/null border is cut off;
+                # ragged rows are right-filled with the null tile so any out-of-region
+                # cell is the void tile (matching the analyze_level_dimensions measure).
+                null_char = null_chars[0] if null_chars else '@'
+                empty_chars = "-" + "".join(null_chars)
+                box = level_content_box(levels[i], empty_chars=empty_chars, fill=null_char)
+                if not box:
+                    raise ValueError("level has no content to extract")
+                null_id = tile_to_id.get(null_char, 0)
+                encoded = [[tile_to_id.get(ch, null_id) for ch in row] for row in box]
+                samples = [encoded]
+                json_caption_data = [None]
+                source_coords = [(0, 0)]
+                scan_mode_tags = ["whole"]
             elif i == 7:
                 samples, json_caption_data, source_coords = parse_level(
                     tile_to_id, levels[i], nav_width, nav_height,
@@ -388,11 +405,17 @@ def main():
     print(f"Removed {duplicates_removed} duplicate samples")
     print(f"Final dataset size: {len(all_samples)}")
 
-    if args.traversable_only:
-        all_samples = filter_traversable(all_samples, id_to_char, tile_descriptors, budget=args.budget)
-        
-    if args.max_enemies is not None or not args.include_moving_ground or args.min_content_pct is not None:
-        all_samples = filter_scene_quality(all_samples, id_to_char, tile_descriptors, max_enemies=args.max_enemies, exclude_moving_ground=not args.include_moving_ground, min_content_pct=args.min_content_pct)
+    # The quality/traversability filters are tuned for small navigation-sized windows
+    # (e.g. max_enemies=8, min_content_pct=15) and would delete entire levels in whole
+    # mode, so they are not applied there. A whole level is kept as-is.
+    if args.scan_mode == 'whole':
+        print("scan_mode=whole: skipping window-oriented quality/traversability filters")
+    else:
+        if args.traversable_only:
+            all_samples = filter_traversable(all_samples, id_to_char, tile_descriptors, budget=args.budget)
+
+        if args.max_enemies is not None or not args.include_moving_ground or args.min_content_pct is not None:
+            all_samples = filter_scene_quality(all_samples, id_to_char, tile_descriptors, max_enemies=args.max_enemies, exclude_moving_ground=not args.include_moving_ground, min_content_pct=args.min_content_pct)
         
     output_data = all_samples
 
@@ -502,7 +525,7 @@ def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars,
 
 #Parses through one complete level
 #width/height are the NAVIGATION (screen) dimensions; out_width/out_height are the
-#output scene dimensions (default to a square of side `width` to match the old behaviour).
+#output scene dimensions (default to a square of side 'width' to match the old behaviour).
 def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], out_width=None, out_height=None, faithful_vertical=False, start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[], direction_captions = False):
     level_sample=LevelSample(level, width, height, null_chars, wall_chars, out_width=out_width, out_height=out_height, faithful_vertical=faithful_vertical, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
 
@@ -512,7 +535,7 @@ def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=[
     #Creates a small json dictionary containin information on if there's a ceiling, bottomless pit, and the entrance/exit directions of the sample
 #Parses through one complete level
 #width/height are the NAVIGATION (screen) dimensions; out_width/out_height are the
-#output scene dimensions (default to a square of side `width` to match the old behaviour).
+#output scene dimensions (default to a square of side 'width' to match the old behaviour).
 def parse_level(tile_to_id, level, width, height, null_chars=['@'], wall_chars=['#'], out_width=None, out_height=None, faithful_vertical=False, start_direction=Direction.RIGHT, print_at_corners=False, change_direction_overrides=[], direction_captions = False):
     level_sample=LevelSample(level, width, height, null_chars, wall_chars, out_width=out_width, out_height=out_height, faithful_vertical=faithful_vertical, start_direction=start_direction, print_at_corners=print_at_corners, change_direction_overrides=change_direction_overrides)
 

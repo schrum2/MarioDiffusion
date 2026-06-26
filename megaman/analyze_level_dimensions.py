@@ -11,8 +11,8 @@ The Mario version reads "(source_num)"-delimited levels (many levels per file)
 via build_dataset_with_ascii.py. Mega Man VGLC data is laid out differently:
 each .txt file is ONE complete level (this is exactly what
 bulk_mmlv_to_vglc.py / mmlv_to_vglc.py write into folders like
-`megaman/vglc_out`). So instead of splitting files, we read each file as a
-single level using the repo's canonical `load_levels` reader -- the same reader
+'megaman/vglc_out'). So instead of splitting files, we read each file as a
+single level using the repo's canonical 'load_levels' reader -- the same reader
 create_megaman_json_data.py uses -- so "a level" here means the same thing it
 means downstream.
 
@@ -46,62 +46,16 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 from pathlib import Path  # noqa: E402
 from create_level_json_data import load_levels  # noqa: E402
+# level_content_box / level_dimensions live in util.size_utils so the dataset
+# builder (create_megaman_json_data.py) and this analysis share one trim+measure
+# implementation; compute_size_buckets is reused to overlay the training buckets.
+from util.size_utils import level_dimensions, compute_size_buckets  # noqa: E402
 
-
-def level_content_box(rows, empty_chars="-@"):
-    """Return one level's CONTENT bounding box as a list of equal-width strings.
-
-    Sky padding is excluded on all four sides: after stripping trailing
-    newlines, the empty characters in `empty_chars` are treated as blank, and
-    the tightest box that still contains every non-empty tile is cut out. So a
-    level whose tiles only span, say, 100 columns and 14 rows comes back as 14
-    strings of length 100, not the padded canvas size.
-
-    Ragged rows (shorter than the box) are right-filled with the first empty
-    char so every returned row is exactly the box width. Returns [] for a level
-    with no content at all.
-
-    In datasets/MM.json the air tile is '-' and '@' is the out-of-bounds null,
-    so the default treats both as empty.
-    """
-    rows = [r.rstrip("\r\n") for r in rows]
-    empty = set(empty_chars)
-    fill = empty_chars[0] if empty_chars else " "
-
-    def row_has_content(r):
-        return any(ch not in empty for ch in r)
-
-    # Vertical extent: first and last rows that hold any non-empty tile.
-    top = next((i for i, r in enumerate(rows) if row_has_content(r)), None)
-    if top is None:
-        return []
-    bottom = next(i for i in range(len(rows) - 1, -1, -1) if row_has_content(rows[i]))
-    content_rows = rows[top: bottom + 1]
-
-    # Horizontal extent: leftmost and rightmost columns holding a non-empty
-    # tile across the content rows.
-    left = min(
-        next(j for j, ch in enumerate(r) if ch not in empty)
-        for r in content_rows if row_has_content(r)
-    )
-    right = max(
-        max(j for j, ch in enumerate(r) if ch not in empty)
-        for r in content_rows if row_has_content(r)
-    )
-    width = right - left + 1
-    return [r[left: right + 1].ljust(width, fill) for r in content_rows]
-
-
-def level_dimensions(rows, empty_chars="-@"):
-    """Return (width, height) of one level's content bounding box.
-
-    Thin wrapper over level_content_box. Returns (0, 0) for a level with no
-    content at all.
-    """
-    box = level_content_box(rows, empty_chars=empty_chars)
-    if not box:
-        return 0, 0
-    return len(box[0]), len(box)
+# Mirror train_diffusion.py's default UNet so the bucket overlay rounds pad sizes the
+# same way training will. The UNet halves H/W at every downsample but the last, so the
+# spatial divisor is 2 ** (len(dim_mults) - 1). Pass --factor to match a non-default model.
+DEFAULT_DIM_MULTS = [1, 2, 4]
+DEFAULT_UNET_FACTOR = 2 ** (len(DEFAULT_DIM_MULTS) - 1)
 
 
 def collect_dimensions(input_path, empty_chars="-@"):
@@ -109,13 +63,13 @@ def collect_dimensions(input_path, empty_chars="-@"):
     list of (name, width, height) for each complete level found.
 
     Each .txt file is one complete level. We read content with the repo's
-    canonical `load_levels` so the measurement matches what the dataset builder
+    canonical 'load_levels' so the measurement matches what the dataset builder
     sees, and pair each level with its filename via the identical sorted glob.
     """
     path = Path(input_path)
     if path.is_dir():
         files = sorted(path.glob("*.txt"))
-        levels = load_levels(str(path))  # same sorted *.txt order as `files`
+        levels = load_levels(str(path))  # same sorted *.txt order as 'files'
     else:
         files = [path]
         with open(path, "r", encoding="utf-8") as f:
@@ -140,7 +94,7 @@ def _summary(values):
     )
 
 
-def make_plot(dims, output_path, title=None):
+def make_plot(dims, output_path, title=None, num_buckets=0, factor=DEFAULT_UNET_FACTOR):
     import matplotlib
 
     matplotlib.use("Agg")  # headless: never pop a window, just write the file
@@ -177,6 +131,25 @@ def make_plot(dims, output_path, title=None):
 
     cbar = fig.colorbar(sc, ax=ax)
     cbar.set_label("Number of levels at this exact size")
+
+    # Overlay the training buckets: each rectangle is the padded (pad_w, pad_h) a
+    # bucket pads its members up to, so you can eyeball how compute_size_buckets
+    # would split this distribution before committing to --num_buckets at training.
+    if num_buckets and num_buckets > 0:
+        from matplotlib.patches import Rectangle
+
+        bucket_sizes = [(w, h) for _, w, h in dims]
+        buckets = compute_size_buckets(bucket_sizes, num_buckets, factor=factor)
+        for b, bucket in enumerate(buckets):
+            ax.add_patch(Rectangle(
+                (0, 0), bucket["pad_w"], bucket["pad_h"],
+                fill=False, edgecolor="red", linestyle="--", linewidth=1.2, zorder=5,
+            ))
+            ax.annotate(
+                f"b{b}: {bucket['pad_w']}x{bucket['pad_h']} (n={len(bucket['indices'])})",
+                (bucket["pad_w"], bucket["pad_h"]), color="red", fontsize=8,
+                ha="right", va="bottom", zorder=6,
+            )
 
     ax.set_xlabel("Level width (columns / tiles)")
     ax.set_ylabel("Level height (rows / tiles)")
@@ -221,6 +194,11 @@ def main():
                         help="Characters treated as sky/air when trimming the content "
                              "bounding box. Default: '-@' (the MM.json air tile and the "
                              "out-of-bounds null). Every other character is a real tile.")
+    parser.add_argument("--num-buckets", type=int, default=0,
+                        help="If > 0, overlay the size buckets compute_size_buckets would "
+                             "produce for this many buckets (the same split used at training). "
+                             f"Pad sizes are rounded to the UNet divisor ({DEFAULT_UNET_FACTOR}, "
+                             f"from train_diffusion's default dim_mults {DEFAULT_DIM_MULTS}).")
     args = parser.parse_args()
 
     dims = collect_dimensions(args.input, empty_chars=args.empty_chars)
@@ -243,7 +221,8 @@ def main():
                 f.write(f"{safe},{w},{h}\n")
         print(f"Per-level dimensions written to {args.csv}")
 
-    make_plot(dims, args.output, title=args.title)
+    make_plot(dims, args.output, title=args.title,
+              num_buckets=args.num_buckets, factor=DEFAULT_UNET_FACTOR)
     print(f"Scatter plot written to {args.output}")
 
 
