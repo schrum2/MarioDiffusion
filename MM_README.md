@@ -1,215 +1,799 @@
 # Mega Man Generation
 
 Generate Mega Man level scenes with a diffusion model conditioned on text input.
-This Mega Man data is still experimental and on-going and the current results are not as good as the Mario levels and outputs. This mostly has to do with a smaller, more complex dataset, as well as incomplete code. Many features present in other games have not yet been implemented, but the core of the training and level generation works as intended.
 
-## Set up the repository
-This repository can be checked out with this command:
-```
+This Mega Man data is still experimental and ongoing. Current results are not as strong as Mario generation due to a smaller and more complex dataset, as well as incomplete code support. Many features present in other games have not yet been implemented, but the core training and generation pipeline works as intended.
+
+---
+
+# Repository Setup
+
+Clone the repository:
+
+```bash
 git clone https://github.com/schrum2/MarioDiffusion.git
 ```
-Data used for training our models already exists in the `datasets` directory of this repo,
-but you can recreate the data using these commands. First, you will need to check out 
-[my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC). Note that the following
-command should be executed in the parent directory of the `MarioDiffusion` repository so that
-the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the same directory:
-```
-git clone https://github.com/schrum2/TheVGLC.git
-```
 
-Then, enter the "MarioDiffusion" repository
-```
+Enter repository:
+
+```bash
 cd MarioDiffusion
 ```
 
-Before running any code, install all requirements with pip:
-```
+Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
-Before being able to generate Mega Man levels, you must create a dataset which happens below.
 
-## Create datasets
+Some older dataset pipelines require TheVGLC repository.
 
-Due to the massivly increased number of tiles in Mega Man, we split our data into 2 different games internally. "MM-Full" contains the full dataset of tiles, including unique enemies and powerups, while "MM-Simple" groups things like enemies, poweups, and hazards together, giving us a boost in performance, at the cost of some complexity.
+Clone in the parent directory of MarioDiffusion:
 
-In order to create the datasets for both versions of Mega Man, we will be running all of these commands twice. First, we need to create the raw 16X16 level samples with these commands:
-```
-python create_megaman_json_data.py --output datasets\\MM_Levels-full.json
-python create_megaman_json_data.py --output datasets\\MM_Levels-simple.json --group_encodings
+```bash
+git clone https://github.com/schrum2/TheVGLC.git
 ```
 
-The next step is to create captions for these raw levels, which can be done with this command:
-```
-python MM_create_ascii_captions.py --dataset datasets\\MM_Levels-full.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-full-regular.json
-python MM_create_ascii_captions.py --dataset datasets\\MM_Levels-simple.json --tileset datasets\\MM-simple-tileset.json --output datasets\\MM_LevelsAndCaptions-simple-regular.json
-```
-The last step is to create tokenizers for our data, which can be done like this:
+Directory structure should look like:
 
-```
-python tokenizer.py save --json datasets\\MM_LevelsAndCaptions-full-regular.json --pkl_file datasets\MM_Tokenizer-full-regular.pkl
-python tokenizer.py save --json datasets\\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
+```text
+ParentFolder/
+ ├── MarioDiffusion/
+ └── TheVGLC/
 ```
 
-All of this can be done with this batch file, which runs each of these commands in sequence:
+---
+
+# Mega Man Maker Full Pipeline (Online Levels → Diffusion Model)
+
+This pipeline downloads Mega Man Maker levels directly from online, converts them to VGLC format, creates datasets, captions them, and trains a text-conditional diffusion model.
+
+---
+
+## Step 1: Download Levels in Bulk
+
+Download Mega Man Maker levels by ID, The downloader begins at level ID `200000` by default.
+
+Recommended starting dataset:
+
+```text
+100 levels
 ```
+
+Run:
+
+```bash
+cd megaman
+python Bulk_Download.py --target 100
+```
+
+Downloaded `.mmlv` files are saved directly into:
+
+```text
+%USERPROFILE%\AppData\Local\MegaMaker\Levels
+```
+
+---
+
+## Step 2: Convert Levels to ASCII (VGLC Format)
+
+Convert downloaded `.mmlv` files into VGLC `.txt` files.
+
+Run:
+
+```bash
+cd megaman
+python bulk_mmlv_to_vglc.py --output ..\datasets\MM_Maker_Levels
+```
+
+- Converts every file to ASCII format
+- Saves `.txt` files into:
+
+```text
+datasets\MM_Maker_Levels
+```
+
+---
+
+
+## Step 3: Create Filtered Dataset
+
+Create a filtered dataset from converted levels.
+
+The following options are available.
+
+`--stride_x`
+
+Horizontal scan distance.
+
+`--stride_y`
+
+Vertical scan distance.
+
+`--scan_mode snap`
+
+Extract screen-aligned scenes.
+
+`--max_enemies N`
+
+Remove scenes with too many enemies.
+
+`--min_content_pct P`
+
+Remove nearly empty scenes.
+
+`--include_moving_ground`
+
+Include moving platform tiles.
+
+Generate filtered dataset:
+
+```bash
+cd ..
+python create_megaman_json_data.py --levels datasets\MM_Maker_Levels --tileset datasets\MM.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --output datasets\MM_Levels_Filtered.json
+```
+
+---
+
+## Step 4: Generate Captions
+
+Generate deterministic captions.
+
+Run:
+
+```bash
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json
+```
+
+---
+
+## Step 5: Build Tokenizer
+
+```bash
+python tokenizer.py save --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
+```
+
+---
+
+## Step 6: Train MLM Text Encoder
+
+```bash
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl datasets\MM_Tokenizer-filtered-regular.pkl --output_dir MM-MLM-filtered-regular --seed 0
+```
+
+---
+
+## Step 7: Train Conditional Diffusion Model
+
+```bash
+python train_diffusion.py --pkl datasets\MM_Tokenizer-filtered-regular.pkl --json datasets\MM_LevelsAndCaptions-filtered-regular.json --augment --mlm_model_dir MM-MLM-filtered-regular --text_conditional --output_dir MM_conditional_filtered_regular0 --seed 0 --game MM-Full
+```
+
+To disable image saving:
+
+```bash
+--save_image_epochs 100000
+```
+
+---
+
+## Step 8: Generate Levels
+
+Interactive GUI:
+
+```bash
+python interactive_tile_level_generator.py --model_path MM_conditional_filtered_regular0 --load_data datasets\MM_LevelsAndCaptions-filtered-regular.json --game MM-Full
+```
+
+Text prompt generation:
+
+```bash
+python text_to_level_diffusion.py --model_path MM_conditional_filtered_regular0 --game MM-Full
+```
+
+Batch generation:
+
+```bash
+python run_diffusion.py --model_path MM_conditional_filtered_regular0 --num_samples 100 --text_conditional --save_as_json --output_dir MM_conditional_filtered_regular0-samples --level_width 16 --game MM-Full
+```
+
+Browse generated levels:
+
+```bash
+python ascii_data_browser.py MM_conditional_filtered_regular0-samples\all_levels.json datasets\MM.json
+```
+
+---
+
+
+# Create Datasets (Legacy Full + Simple Pipeline)
+
+Mega Man internally supports two dataset modes.
+
+## MM-Full
+
+Full tile dataset.
+
+Includes:
+
+- all enemies
+- all hazards
+- all powerups
+- full tile diversity
+
+Tileset:
+
+```text
+datasets\MM.json
+```
+
+---
+
+## MM-Simple
+
+Compressed tile dataset.
+
+Groups:
+
+- enemies together
+- hazards together
+- powerups together
+
+Trades complexity for better training performance.
+
+Tileset:
+
+```text
+datasets\MM-simple-tileset.json
+```
+
+---
+
+## Create Raw Dataset Files
+
+Create both datasets.
+
+MM-Full:
+
+```bash
+python create_megaman_json_data.py --output datasets\MM_Levels-full.json
+```
+
+MM-Simple:
+
+```bash
+python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --group_encodings
+```
+
+# Caption Generation
+
+After raw datasets are created, captions must be generated for each scene.
+
+Captions are deterministic and rule-based (not LLM-generated).
+
+---
+
+## Generate Captions
+
+### MM-Full
+
+```bash
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels-full.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-full-regular.json
+```
+
+---
+
+### MM-Simple
+
+```bash
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset datasets\MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
+```
+
+Output files:
+
+```text
+datasets\MM_LevelsAndCaptions-full-regular.json
+datasets\MM_LevelsAndCaptions-simple-regular.json
+```
+
+---
+
+# Build Tokenizers
+
+A tokenizer converts captions into vocabulary tokens used by the MLM and diffusion model.
+
+---
+
+## MM-Full Tokenizer
+
+```bash
+python tokenizer.py save --json datasets\MM_LevelsAndCaptions-full-regular.json --pkl_file datasets\MM_Tokenizer-full-regular.pkl
+```
+
+---
+
+## MM-Simple Tokenizer
+
+```bash
+python tokenizer.py save --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
+```
+
+---
+
+# Automated Dataset Pipeline Batch Script
+
+The following batch file runs:
+
+- dataset creation
+- caption generation
+- tokenizer generation
+
+Run:
+
+```bash
 cd MM_Batch
 MM-data.bat
 ```
 
-Now you can browse level scenes and their captions with a command like this (the json file can be replaced by any levels and captions json file in datasets):
-```
+This executes the preprocessing pipeline automatically.
+
+---
+
+# Browse Dataset Scenes
+
+Browse extracted level scenes and their captions.
+
+Example using MM-Full:
+
+```bash
 python ascii_data_browser.py datasets\MM_LevelsAndCaptions-full-regular.json datasets\MM.json
 ```
 
-To train an unconditional diffusion model without any text embeddings, run this command:
-```
-python train_diffusion.py --json datasets\\MM_LevelsAndCaptions-simple-regular.json --augment --output_dir MM_unconditional_simple0 --seed 0 --game MM-Simple
+Example using MM-Simple:
+
+```bash
+python ascii_data_browser.py datasets\MM_LevelsAndCaptions-simple-regular.json datasets\MM-simple-tileset.json
 ```
 
-## Train text encoder
+---
 
-Masked language modeling is used to train the text embedding model. Use any dataset with an appropriate tokenizer, we will default to the ones for MM-Simple for the rest of the commands here, though both sub-games work fine:
+# Train Unconditional Diffusion Model
+
+Unconditional diffusion trains without text embeddings.
+
+---
+
+## Train MM-Simple Unconditional Model
+
+```bash
+python train_diffusion.py --json datasets\MM_LevelsAndCaptions-simple-regular.json --augment --output_dir MM_unconditional_simple0 --seed 0 --game MM-Simple
 ```
+
+Output:
+
+```text
+MM_unconditional_simple0
+```
+
+This model generates levels without captions.
+
+---
+
+# Train Text Encoder (MLM)
+
+Masked Language Modeling trains the text embedding model.
+
+Any caption dataset may be used.
+
+Examples below default to MM-Simple.
+
+---
+
+## Train MLM on MM-Simple
+
+```bash
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple-regular --seed 0
 ```
 
-## Train text-conditional diffusion model
+Output:
 
-Now that the text embedding model is ready, train a diffusion model conditioned on text embeddings from the descriptive captions. Note that this can take a while. We used relatively modest consumer GPUs, so our models took about 12 hours to train:
-```
-python train_diffusion.py --pkl datasets\MM_Tokenizer-simple-regular.pkl --json datasets\\MM_LevelsAndCaptions-simple-regular.json --augment --mlm_model_dir MM-MLM-simple-regular --text_conditional --output_dir MM_conditional_simple_regular0 --seed 0 --game MM-Simple
-```
-Another trick if you care more about speed than seeing intermediate results is to set `--save_image_epochs` to a large number (larger than the number of epochs), like this:
-
-```
-python train_diffusion.py --pkl datasets\MM_Tokenizer-simple-regular.pkl --json datasets\\MM_LevelsAndCaptions-simple-regular.json --augment --mlm_model_dir MM-MLM-simple-regular --text_conditional --output_dir MM_conditional_simple_regular0 --seed 0 --game MM-Simple --save_image_epochs 100000
+```text
+MM-MLM-simple-regular
 ```
 
-This process, from creating the level sample files all the way to diffusion training, can be done with this batch file (This only trains and runs the Simple version):
+---
+
+## Train MLM on MM-Full
+
+```bash
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-full-regular.json --pkl datasets\MM_Tokenizer-full-regular.pkl --output_dir MM-MLM-full-regular --seed 0
 ```
+
+---
+
+# Train Text-Conditional Diffusion Model
+
+Once MLM training is complete, train a diffusion model conditioned on text captions.
+
+Training can take:
+
+```text
+~12 hours on consumer GPU
+```
+
+---
+
+## MM-Simple Conditional Model
+
+```bash
+python train_diffusion.py --pkl datasets\MM_Tokenizer-simple-regular.pkl --json datasets\MM_LevelsAndCaptions-simple-regular.json --augment --mlm_model_dir MM-MLM-simple-regular --text_conditional --output_dir MM_conditional_simple_regular0 --seed 0 --game MM-Simple
+```
+
+---
+
+## MM-Full Conditional Model
+
+```bash
+python train_diffusion.py --pkl datasets\MM_Tokenizer-full-regular.pkl --json datasets\MM_LevelsAndCaptions-full-regular.json --augment --mlm_model_dir MM-MLM-full-regular --text_conditional --output_dir MM_conditional_full_regular0 --seed 0 --game MM-Full
+```
+
+---
+
+## Faster Training Option
+
+If intermediate images are not needed, disable frequent image saving.
+
+Add:
+
+```bash
+--save_image_epochs 100000
+```
+
+Example:
+
+```bash
+python train_diffusion.py --pkl datasets\MM_Tokenizer-simple-regular.pkl --json datasets\MM_LevelsAndCaptions-simple-regular.json --augment --mlm_model_dir MM-MLM-simple-regular --text_conditional --output_dir MM_conditional_simple_regular0 --seed 0 --game MM-Simple --save_image_epochs 100000
+```
+
+---
+
+# Automated Conditional Pipeline Batch Script
+
+This batch file executes:
+
+- dataset creation
+- caption generation
+- tokenizer creation
+- MLM training
+- conditional diffusion training
+
+Run:
+
+```bash
 cd MM_Batch
 MM_conditional.bat
 ```
 
+Note:
 
-## Generate levels from text-conditional diffusion model
+This batch file currently trains only:
 
-In order to generate levels from a base caption, use this command:
+```text
+MM-Simple
 ```
+
+---
+
+## Generate Filtered Captions
+
+Corrected command:
+
+```bash
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json
+```
+
+Important:
+
+Do NOT use:
+
+```bash
+--describe_absence
+```
+
+It has been removed.
+
+---
+
+## Build Filtered Tokenizer
+
+```bash
+python tokenizer.py save --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
+```
+
+---
+
+## Train Filtered MLM
+
+```bash
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl datasets\MM_Tokenizer-filtered-regular.pkl --output_dir MM-MLM-filtered-regular --seed 0
+```
+
+---
+
+## Train Filtered Conditional Model
+
+```bash
+python train_diffusion.py --pkl datasets\MM_Tokenizer-filtered-regular.pkl --json datasets\MM_LevelsAndCaptions-filtered-regular.json --augment --mlm_model_dir MM-MLM-filtered-regular --text_conditional --output_dir MM_conditional_filtered_regular0 --seed 0 --game MM-Full
+```
+
+Use:
+
+```bash
+--game MM-Simple
+```
+
+if dataset used:
+
+```bash
+--group_encodings
+```
+
+# Generate Levels from Trained Models
+
+After training finishes, levels can be generated from either unconditional or text-conditional models.
+
+---
+
+# Generate from Text Prompt
+
+Generate levels directly from a text description.
+
+Example using MM-Simple:
+
+```bash
 python text_to_level_diffusion.py --model_path MM_conditional_simple_regular0 --game MM-Simple
 ```
-An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on:
 
-```
-python interactive_tile_level_generator.py --model_path MM_conditional_simple_regular0 --load_data datasets\\MM_LevelsAndCaptions-simple-regular.json --game MM-Simple
+Example using MM-Full:
+
+```bash
+python text_to_level_diffusion.py --model_path MM_conditional_full_regular0 --game MM-Full
 ```
 
-## Generate levels in batch with run_diffusion.py
+The program will prompt for text input.
 
-To generate a batch of levels from an unconditional MM-Simple model:
+Example prompt:
 
+```text
+many enemies. ladder on left. open space.
 ```
-python run_diffusion.py --model_path MM_unconditional_simple0 --num_samples 100 --save_as_json --output_dir MM_unconditional_simple0-samples --level_width 16 -```
--game MM-Simple
-```
-For a text-conditional model, add `--text_conditional`:
 
+---
+
+# Interactive GUI Generator
+
+A GUI allows phrase selection from known captions.
+
+This is often easier than manual prompt writing.
+
+The phrase selection is built from the dataset used during training.
+
+---
+
+## MM-Simple GUI
+
+```bash
+python interactive_tile_level_generator.py --model_path MM_conditional_simple_regular0 --load_data datasets\MM_LevelsAndCaptions-simple-regular.json --game MM-Simple
 ```
+
+---
+
+## MM-Full GUI
+
+```bash
+python interactive_tile_level_generator.py --model_path MM_conditional_full_regular0 --load_data datasets\MM_LevelsAndCaptions-full-regular.json --game MM-Full
+```
+
+---
+
+# Batch Generation with run_diffusion.py
+
+Generate large batches of levels automatically.
+
+---
+
+## Unconditional MM-Simple Generation
+
+```bash
+python run_diffusion.py --model_path MM_unconditional_simple0 --num_samples 100 --save_as_json --output_dir MM_unconditional_simple0-samples --level_width 16 --game MM-Simple
+```
+
+---
+
+## Conditional MM-Simple Generation
+
+```bash
 python run_diffusion.py --model_path MM_conditional_simple_regular0 --num_samples 100 --text_conditional --save_as_json --output_dir MM_conditional_simple_regular0-samples --level_width 16 --game MM-Simple
 ```
-Browse the generated levels with:
 
+---
+
+## Conditional MM-Full Generation
+
+```bash
+python run_diffusion.py --model_path MM_conditional_full_regular0 --num_samples 100 --text_conditional --save_as_json --output_dir MM_conditional_full_regular0-samples --level_width 16 --game MM-Full
 ```
+
+---
+
+# Browse Generated Levels
+
+View generated levels visually.
+
+MM-Simple:
+
+```bash
 python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.json datasets\MM-simple-tileset.json
 ```
-For the full tileset, swap `MM-Simple` with `MM-Full` and point to the appropriate model and tileset.
 
-## Mega Man Maker
+MM-Full:
 
-This is the link to learn more about Mega Man Maker:
-
-[Mega Man Maker](https://github.com/schrum2/MarioDiffusion/tree/dev_alaaAlmzayen/megaman)
-
-
-## Train and generate levels from unconditional model with block2vec tile embedding model (experimental)
-
-By default, unconditional diffusion models represent each tile as a one-hot vector. Block2Vec replaces this representation with learned embedding vectors for each tile type. It is trained on 3×3 tile windows so that tiles that are contextually similar in the game end up with similar vectors. 
-
-To train and run an unconditional model with tile embeddings, you can run this batch file
-and opt to include an argument for the size of the latent embedding space by including an integer for the number of embedding dimensions (default 16)
+```bash
+python ascii_data_browser.py MM_conditional_full_regular0-samples\all_levels.json datasets\MM.json
 ```
+
+---
+
+# Mega Man Maker Conversion and Playtesting
+
+Generated `.txt` files can be converted back into playable Mega Man Maker levels.
+
+Use:
+
+```bash
+cd MM_batch
+MegaManMaker.bat
+```
+
+Drag and drop:
+
+- `.mmlv` → converts to `.txt`
+- `.txt` → converts to `.mmlv`
+
+They appear in Mega Man Maker under:
+
+```text
+My Levels
+```
+---
+
+# Automatic Single-Level Download
+
+Download one Mega Man Maker level by ID.
+
+Run:
+
+```bash
+cd MM_Batch
+Auto_Upload_MMMaker.bat
+```
+
+Enter level ID when prompted.
+
+---
+
+# Unconditional Block2Vec Pipeline
+
+Batch file:
+
+```bash
 MM_batch\MM_unconditional-embedding.bat {embedding_dims}
 ```
 
-You can gain more control in the process and train a tile embedding model from 3x3 tile samples:
-``` 
-python create_tile_level_json_data.py --tileset datasets\MM-simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
+Default embedding dimension:
 
+```text
+16
+```
+
+---
+
+## Create 3x3 Tile Dataset
+
+```bash
+python create_tile_level_json_data.py --tileset datasets\MM-simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
+```
+
+---
+
+## Train Block2Vec Embeddings
+
+```bash
 python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
 ```
-Training diffusion model with block2vec tile embeddings instead of one-hot encoding
-``` 
-python train_diffusion.py  --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0 
-```
-Generating levels
-``` 
-python run_diffusion.py --model_path --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_samples 100 --save_as_json --output_dir "Mar1and2-unconditional-block2vec-samples" --game MM-Simple 
+
+---
+
+## Train Diffusion with Block Embeddings
+
+```bash
+python train_diffusion.py --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0
 ```
 
-##
+---
 
-Additionally, you can train a conditional model with block2vec tile embeddings by running this batch file:
-```
-cd batch
-MM_conditional-embeddings.bat {embedding dims}
-```
-If you would like more control in the process, you can follow these steps:
+## Generate Levels with Block2Vec Model
+
+```bash
+python run_diffusion.py --model_path MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_samples 100 --save_as_json --output_dir MM-simple-block2vec-samples --game MM-Simple
 ```
 
+---
+
+# Conditional Block2Vec Pipeline
+
+Batch script:
+
+```bash
+cd MM_batch
+MM_conditional-embeddings.bat {embedding_dims}
+```
+
+---
+
+## Manual Pipeline
+
+Create MM-Simple dataset:
+
+```bash
 python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --group_encodings
+```
 
+Generate captions:
+
+```bash
 python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset datasets\MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
+```
 
-python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
+Create tokenizer:
 
+```bash
+python tokenizer.py save --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
+```
+
+Create random test captions:
+
+```bash
 python create_random_test_captions.py --save_file datasets\MM_RandomTest_simple-regular.json --json datasets\MM_LevelsAndCaptions-simple-regular.json --seed 0 --game MM-Simple
+```
 
-python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --train_pct .9 --val_pct .05 --test_pct .05 --seed 0 --game mm-simple
+Split dataset:
 
+```bash
+python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --train_pct .9 --val_pct .05 --test_pct .05 --seed 0 --game MM-Simple
+```
+
+Train MLM:
+
+```bash
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple0 --seed 0
+```
 
+Create tile dataset:
+
+```bash
 python create_tile_level_json_data.py --tileset datasets\MM-simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
+```
 
+Train Block2Vec:
+
+```bash
 python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
+```
 
+Train conditional diffusion:
+
+```bash
 python train_diffusion.py --text_conditional --mlm_model_dir MM-MLM-simple0 --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0
 ```
-
-## Create a filtered dataset (with quality filters and source tracking)
-
-The following new options are available for `create_megaman_json_data.py`. `--stride_x` and `--stride_y` control how far the scan window moves between samples (sliding_window/snap modes only); set both to the screen size (e.g. 16/14) for non-overlapping, screen-aligned extraction. `--scan_mode snap` extracts wide and tall scenes that snap to fully null-free screens. `--max_enemies N` drops any scene with more than `N` enemy tiles. `--min_content_pct P` drops any scene where less than `P`% of tiles are real content (i.e. not empty/passable/null), filtering out near-empty, unplayable scenes. `--include_moving_ground` includes scenes containing moving-ground/platform tiles, which are excluded by default since their motion isn't represented in the static tileset graphics.
-
-
-Generate a filtered, screen-aligned dataset with this command:
-```
-python create_megaman_json_data.py --levels ..\TheVGLC\MegaMan\Enhanced --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --output datasets\MM_Levels_Filtered.json
-```
-Then generate deterministic captions for it:
-```
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json --describe_absence
-```
-Build a tokenizer:
-```
-python tokenizer.py save --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
-```
-Train the text encoder (MLM):
-```
-python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl datasets\MM_Tokenizer-filtered-regular.pkl --output_dir MM-MLM-filtered-regular --seed 0
-```
-Train the text-conditional diffusion model:
-```
-python train_diffusion.py --pkl datasets\MM_Tokenizer-filtered-regular.pkl --json datasets\MM_LevelsAndCaptions-filtered-regular.json --augment --mlm_model_dir MM-MLM-filtered-regular --text_conditional --output_dir MM_conditional_filtered_regular0 --seed 0 --game MM-Full
-```
-Use `--game MM-Simple` instead if the dataset was generated with `--group_encodings`.
-
-**Known limitation:** Moving-ground platforms (the `M` tile) are excluded by default rather than properly represented, since we don't yet have graphics or a static-scene encoding for their motion. See the GitHub issue tracking proper tileset/graphics support for moving-ground platforms for the planned fix.
+---
