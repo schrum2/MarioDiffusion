@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModel, CLIPTokenizer, CLIPTextModelWithProjection
+from transformers import AutoTokenizer, AutoModel, CLIPTokenizer, CLIPTextModelWithProjection, T5EncoderModel
 import torch
 import torch.nn.functional as F
 
@@ -23,18 +23,30 @@ def resolve_clip_repo(model_name):
     return _CLIP_REPO_MAP.get(model_name.lower(), model_name)
 
 
+def is_t5_model(model_name):
+    """True if the requested pretrained text encoder is a T5 encoder stack."""
+    return "t5" in model_name.lower()
+
+
 def load_pretrained_encoder(model_name, device='cpu'):
     """Load a pretrained text encoder + its tokenizer and report its embedding dimension.
 
-    Handles both the mean-pooled sentence encoders (MiniLM, GTE) loaded via AutoModel and the
-    CLIP text tower, which needs CLIPTextModelWithProjection. Returns (model, tokenizer, dim) so
-    both train_diffusion.py and the pipeline's from_pretrained share one loading path.
+    Handles the mean-pooled sentence encoders (MiniLM, GTE) loaded via AutoModel, the CLIP text
+    tower (CLIPTextModelWithProjection), and the T5 encoder stack. Returns (model, tokenizer, dim)
+    so both train_diffusion.py and the pipeline's from_pretrained share one loading path.
     """
     if is_clip_model(model_name):
         repo = resolve_clip_repo(model_name)
         model = CLIPTextModelWithProjection.from_pretrained(repo).to(device)
         tokenizer = CLIPTokenizer.from_pretrained(repo)
         embedding_dim = model.config.projection_dim
+    elif is_t5_model(model_name):
+        # AutoModel would load the full encoder-decoder T5Model, whose forward needs
+        # decoder_input_ids; we only want the encoder tower. encode()'s mean-pooling branch
+        # then handles its last_hidden_state like any other sentence encoder.
+        model = T5EncoderModel.from_pretrained(model_name).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        embedding_dim = model.config.d_model
     else:
         model = AutoModel.from_pretrained(model_name, trust_remote_code=True).to(device)
         tokenizer = AutoTokenizer.from_pretrained(model_name)
