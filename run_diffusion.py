@@ -15,6 +15,38 @@ from LR_create_ascii_captions import save_level_data as lr_save_level_data
 from MM_create_ascii_captions import save_level_data as mm_save_level_data
 
 
+def crop_null_border(scene, null_id):
+    """Strip whole bottom rows and right columns that are entirely 'null_id'.
+
+    Complete levels are trained with content anchored top-left and the pad region
+    (bottom/right) filled with the null/void tile, so trimming full-null bottom rows
+    and right columns recovers the level's real extent. At least one row and column
+    are always kept. Returns a list of lists.
+    """
+    grid = np.asarray(scene)
+    if grid.ndim != 2 or grid.size == 0:
+        return scene
+    rows, cols = grid.shape
+    while rows > 1 and bool((grid[rows - 1, :cols] == null_id).all()):
+        rows -= 1
+    while cols > 1 and bool((grid[:rows, cols - 1] == null_id).all()):
+        cols -= 1
+    return grid[:rows, :cols].tolist()
+
+
+def resolve_null_tile_id(args):
+    """Return the null/void tile id for --crop_null_border: --pad_tile_id if given,
+    else the 'null'-descriptor tile resolved from --tileset."""
+    if args.pad_tile_id is not None:
+        return args.pad_tile_id
+    from captions.util import extract_tileset
+    _, _, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+    null_chars = [c for c, d in tile_descriptors.items() if 'null' in d]
+    if not null_chars:
+        raise ValueError("--crop_null_border needs a null tile: none found in --tileset; pass --pad_tile_id.")
+    return char_to_id[null_chars[0]]
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate levels using a trained diffusion model")
     
@@ -29,6 +61,9 @@ def parse_args():
     parser.add_argument("--visualize", action="store_true", help="Additionally save each generated sample with its A* path overlaid (filename tagged 'solved'/'unsolved')")
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--level_width", type=int, default=None, help="Overrides width from unet if specified")
+    parser.add_argument("--level_height", type=int, default=None, help="Overrides height from unet if specified (e.g. to request a specific complete-level bucket size)")
+    parser.add_argument("--crop_null_border", action="store_true", help="After generation, strip whole rows/columns of the null/void pad tile from the bottom/right of each saved level (recovers the real extent of complete levels trained with null padding)")
+    parser.add_argument("--pad_tile_id", type=int, default=None, help="Null/void tile id used by --crop_null_border (defaults to the 'null'-descriptor tile resolved from --tileset)")
 
     # Randomized width: draw one width per batch within a range, so a single run yields levels
     # of varying sizes. Mutually exclusive in spirit with --level_width (which fixes the width).
@@ -152,6 +187,9 @@ def generate_levels(args):
     if args.level_width is not None:
         scene_width = args.level_width
         print(f"Overriding model width to {scene_width} tiles")
+    if args.level_height is not None:
+        scene_height = args.level_height
+        print(f"Overriding model height to {scene_height} tiles")
 
     # Set up per-batch random width if requested (one width per batch keeps each batch uniform).
     if args.random_width:
@@ -215,6 +253,10 @@ def generate_levels(args):
 
     if args.save_as_json:
         scenes = samples_to_scenes(all_samples)
+        if args.crop_null_border:
+            null_id = resolve_null_tile_id(args)
+            scenes = [crop_null_border(scene, null_id) for scene in scenes]
+            print(f"Cropped null border (tile {null_id}) from {len(scenes)} saved level(s)")
         if args.game == "Mario":
             save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False)
         elif args.game == "LR":

@@ -83,7 +83,10 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument("--multiple_captions", action="store_true", help="Each sample stores several captions ('caption', 'caption1', ...); select one at random per access instead of phrase-shuffle augmentation. This becomes the only augmentation (phrase shuffling and scene flipping are disabled).")
-    
+    parser.add_argument("--complete_levels", action="store_true", help="Treat scenes as variable-size complete levels: group them into --num_buckets size buckets and pad each up to its bucket's shared shape with the null/void tile (--pad_tile_id). Use with datasets built via 'create_megaman_json_data.py --scan_mode whole'.")
+    parser.add_argument("--num_buckets", type=int, default=5, help="Number of size buckets when --complete_levels is set.")
+    parser.add_argument("--pad_tile_id", type=int, default=None, help="Tile id used to fill the pad region under --complete_levels (the null/void tile). Defaults to the 'null'-descriptor tile resolved from --tileset.")
+
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
     parser.add_argument("--pretrained_language_model", type=str, default=None, help="Link to a pre-trained language model, everything after huggingface.co/. This will override the mlm_model_dir argument.")
@@ -410,20 +413,38 @@ def main():
     else:
         print("No block embedding model specified. One-hot encoding enabled.")
 
-    train_dataloader, val_dataloader, sample_widths = gen_train_help.create_dataloaders(json_path=args.json,
+    # Under --complete_levels the dataset pads variable-size levels to per-bucket shapes.
+    # Resolve the pad tile (default: the 'null'-descriptor tile from the tileset) and the
+    # UNet spatial divisor so bucket pad dimensions stay denoisable.
+    pad_tile_id = args.pad_tile_id
+    unet_factor = 2 ** (len(args.dim_mults) - 1)
+    if args.complete_levels and pad_tile_id is None:
+        _, _, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+        null_chars = [c for c, d in tile_descriptors.items() if 'null' in d]
+        if not null_chars:
+            raise ValueError("--complete_levels needs a pad tile: no 'null' tile in --tileset; pass --pad_tile_id explicitly.")
+        pad_tile_id = char_to_id[null_chars[0]]
+        print(f"Resolved pad_tile_id={pad_tile_id} ('{null_chars[0]}') from {args.tileset}")
+
+    train_dataloader, val_dataloader, sample_shapes = gen_train_help.create_dataloaders(json_path=args.json,
                                         val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
                                         augment=args.augment, num_tiles=args.num_tiles,
                                         negative_prompt_training=args.negative_prompt_training,
                                         block_embeddings=block_embeddings, batch_size=args.batch_size,
                                         persistent_workers=(not args.auto_augment),
-                                        multiple_captions=args.multiple_captions)
+                                        multiple_captions=args.multiple_captions,
+                                        bucket_levels=args.complete_levels, num_buckets=args.num_buckets,
+                                        pad_tile_id=pad_tile_id, unet_factor=unet_factor)
 
-    # Persist the BucketBatchSampler's scene-width range alongside the model so post-training
-    # tools (evaluate_caption_adherence.py, run_diffusion.py) can randomize generated widths
+    # Persist the BucketBatchSampler's scene shapes alongside the model so post-training
+    # tools (evaluate_caption_adherence.py, run_diffusion.py) can randomize generated sizes
     # over the same range the model was trained on, without re-reading the training dataset.
-    if sample_widths:
+    # shapes are (height, width) tuples; "widths" is kept for backward compatibility.
+    if sample_shapes:
+        sample_widths = [w for (_h, w) in sample_shapes]
         with open(os.path.join(args.output_dir, "training_widths.json"), "w") as f:
             json.dump({
+                "shapes": sorted([list(s) for s in sample_shapes]),
                 "widths": sorted(sample_widths),
                 "min": min(sample_widths),
                 "max": max(sample_widths),
@@ -461,9 +482,15 @@ def main():
             caption_text = str(sample) 
         seen_caption_set.add(canonicalize_caption(caption_text)) 
 
-    first_sample = train_dataloader.dataset[0]
-    scene_height = first_sample[0].shape[1]
-    scene_width = first_sample[0].shape[2]
+    if args.complete_levels and sample_shapes:
+        # Scenes vary in size across buckets; the UNet is fully convolutional so sample_size is
+        # only the config default. Use the largest bucket shape so it covers every bucket.
+        scene_height = max(h for (h, _w) in sample_shapes)
+        scene_width = max(w for (_h, w) in sample_shapes)
+    else:
+        first_sample = train_dataloader.dataset[0]
+        scene_height = first_sample[0].shape[1]
+        scene_width = first_sample[0].shape[2]
 
     print(f"Scene height: {scene_height}")
     print(f"Scene width: {scene_width}")
@@ -1008,7 +1035,7 @@ def main():
                     # Create a new DataLoader with multiple workers, but do NOT use persistent_workers.
                     # This retains parallel data loading without keeping worker processes and dataset copies alive across
                     # augmentation steps (safer memory usage than persistent_workers=True).
-                    # Rebuild with BucketBatchSampler so newly added samples are re-bucketed by width
+                    # Rebuild with BucketBatchSampler so newly added samples are re-bucketed by shape
                     new_sampler = gen_train_help.BucketBatchSampler(train_dataset, args.batch_size, drop_last=True, shuffle=True)
                     raw_new_loader = DataLoader(
                         train_dataset,
@@ -1016,8 +1043,8 @@ def main():
                         num_workers=4,
                         persistent_workers=False,
                     )
-                    # Re-bucketing may surface new widths from augmented samples; refresh benchmark widths.
-                    sample_widths = new_sampler.shapes
+                    # Re-bucketing may surface new shapes from augmented samples; refresh benchmark shapes.
+                    sample_shapes = new_sampler.shapes
 
                     train_dataloader = accelerator.prepare(raw_new_loader)
 
@@ -1166,15 +1193,15 @@ def main():
                     pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
 
                 
-                # Generate sample levels at up to the first four scene widths present in the dataset
-                # so mixed-size training is benchmarked across sizes. A single-width dataset loops
+                # Generate sample levels at up to the first four scene shapes present in the dataset
+                # so mixed-size training is benchmarked across sizes. A single-shape dataset loops
                 # once and is unchanged. start_index keeps filenames unique within the one dir.
-                for i, width in enumerate(sample_widths[:4]):
+                for i, (sh, sw) in enumerate(sample_shapes[:4]):
                     with torch.no_grad():
                         samples = pipeline(
-                            batch_size=4// min(len(sample_widths), 4),  # Divide batch across widths to keep total samples consistent
-                            height=scene_height,
-                            width=width,
+                            batch_size=4// min(len(sample_shapes), 4),  # Divide batch across shapes to keep total samples consistent
+                            height=sh,
+                            width=sw,
                             generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                             num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                             output_type="tensor",
