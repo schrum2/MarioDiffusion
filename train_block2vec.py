@@ -9,6 +9,7 @@ from util.plotter import Plotter  # Import the Plotter class
 from patch_dataset import PatchDataset
 from models.block2vec_model import Block2Vec
 import util.common_settings as common_settings
+from embedding_analysis import UpdateCounter, analyze_embeddings
 
 # ====== Defaults, but overridden by params ======
 EMBEDDING_DIM = 16
@@ -38,6 +39,13 @@ def main():
     parser.add_argument('--lr', type=float, default=LR, help='Learning rate')
     parser.add_argument('--negative_samples', type=int, default=NEGATIVE_SAMPLES, help='Number of negative context tiles per positive pair')
     parser.add_argument('--vocab_size', type=int, default=None, help='Number of tile types. Defaults to the largest tile id in the data + 1. Set this to the tileset size so every tile id gets an embedding row.')
+    parser.add_argument('--no_subsampling', action='store_true',
+                        help='Disable Mikolov-style frequent-tile subsampling (enabled by default). Use this to reproduce old behavior.')
+    parser.add_argument('--subsample_threshold', type=float, default=0.03, # 0.03 found to be a good balance for MM2 data, but can be tuned
+                        help='Subsampling threshold (lower = more aggressive downsampling of frequent center tiles). '
+                             'Word2vec NLP defaults (1e-3 to 1e-5) assume much lower max-frequency than tile data typically has '
+                             '(e.g. a dominant background tile can be 40-60%% of centers) -- if background/filler tiles still '
+                             'dominate after enabling subsampling, try raising this (e.g. 0.05-0.2) rather than lowering it.')
     parser.add_argument('--use_class_weights', action='store_true', help='Use inverse-frequency class weights to upweight rare center tiles')
     parser.add_argument('--focal_gamma', type=float, default=0.0, help='Focal loss gamma. 0 = disabled')
     parser.add_argument('--label_smoothing', type=float, default=0.0, help='Label smoothing (not used for BCE negative sampling, kept for future)')
@@ -71,9 +79,14 @@ def main():
         os.makedirs(args.output_dir)
 
     # Load dataset
-    dataset = PatchDataset(json_path=args.json_file, output_dir=args.output_dir)
+# Load dataset
+    dataset = PatchDataset(
+        json_path=args.json_file,
+        output_dir=args.output_dir,
+        subsampling=not args.no_subsampling,
+        subsample_threshold=args.subsample_threshold,
+    )
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-
     # Compute vocab size from the actual dataset to handle any tile set (Mario, MM, etc.)
     try:
         detected_vocab = max(max(patch) for sample in dataset.patches for patch in sample) + 1
@@ -96,6 +109,11 @@ def main():
 
     # Model, optimizer
     model = Block2Vec(vocab_size=vocab_size, embedding_dim=args.embedding_dim, negative_samples=args.negative_samples)
+    # --- snapshot embeddings before training, for "distance moved" diagnostics ---
+    init_in_embed = model.in_embed.weight.detach().clone()
+    # --- tracks how many times each tile id is actually used as a training center ---
+    update_counter = UpdateCounter(vocab_size)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = None
     if args.lr_patience > 0:
@@ -156,6 +174,7 @@ def main():
 
             # Accumulate per-class stats
             batch_centers = center.unsqueeze(1).expand(-1, context.shape[1]).reshape(-1)
+            update_counter.update(batch_centers)          
             for i, c in enumerate(batch_centers.tolist()):
                 per_class_loss_sum[c] += per_example_loss[i].item()
                 per_class_count[c] += 1
@@ -203,6 +222,17 @@ def main():
     # ====== Save Embeddings ======
     model.save_pretrained(args.output_dir)
     print(f"Embeddings saved to {args.output_dir}")
+
+    # --- write analysis report + figures ---
+    dataset_center_counts = getattr(dataset, "center_counts", None)
+    analyze_embeddings(
+        model=model,
+        output_dir=args.output_dir,
+        update_counter=update_counter,
+        dataset_center_counts=dataset_center_counts,
+        init_in_embed=init_in_embed,
+        top_k_neighbors=5,
+    )
 
     # Stop the plotting thread
     plotter.stop_plotting()
