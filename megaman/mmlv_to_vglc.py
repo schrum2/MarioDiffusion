@@ -1,6 +1,4 @@
 """
-mmlv_to_vglc.py  –  Convert Mega Man Maker .mmlv files to VGLC ASCII .txt
-
 Format discoveries from reverse-engineering real .mmlv files:
   - Entries look like:  fieldXpx,Ypx="value"
   - Coordinates are in pixels (multiply by 16 per tile)
