@@ -1,6 +1,6 @@
 # Mega Man Maker
 
-Convert Mega Man levels between the [VGLC](https://github.com/TheVGLC/TheVGLC) ASCII format and the native Mega Man Maker `.mmlv` format.
+Convert Mega Man levels between the [VGLC](https://github.com/schrum2/TheVGLC) ASCII format and the native Mega Man Maker `.mmlv` format.
 
 ## Mega Man Conversions
 
@@ -22,7 +22,7 @@ When converting a `.txt` (VGLC format) file to `.mmlv`, the resulting file is au
 Automatic downloads based on ID can be done by running these two commands in order:
 
 ```
-cd batch
+cd MM_Batch
 Auto_Upload_MMMaker.bat
 ```
 
@@ -46,7 +46,7 @@ Additionally, to upload a desired number of levels use command:
 
 ```
 cd megaman
-Bulk_Download.py --target 
+Bulk_Download.py --target <count>
 ```
 
 Enter a level ID when prompted — it will download directly to your Mega Man Maker levels folder.
