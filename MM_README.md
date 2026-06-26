@@ -34,14 +34,14 @@ Due to the massivly increased number of tiles in Mega Man, we split our data int
 
 In order to create the datasets for both versions of Mega Man, we will be running all of these commands twice. First, we need to create the raw 16X16 level samples with these commands:
 ```
-python create_megaman_json_data.py --output datasets\\MM_Levels_Full.json
-python create_megaman_json_data.py --output datasets\\MM_Levels_Simple.json --group_encodings
+python create_megaman_json_data.py --output datasets\\MM_Levels-full.json
+python create_megaman_json_data.py --output datasets\\MM_Levels-simple.json --group_encodings
 ```
 
 The next step is to create captions for these raw levels, which can be done with this command:
 ```
-python MM_create_ascii_captions.py --dataset datasets\\MM_Levels_Full.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-full-regular.json
-python MM_create_ascii_captions.py --dataset datasets\\MM_Levels_Simple.json --tileset datasets\\MM-simple-tileset.json --output datasets\\MM_LevelsAndCaptions-simple-regular.json
+python MM_create_ascii_captions.py --dataset datasets\\MM_Levels-full.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-full-regular.json
+python MM_create_ascii_captions.py --dataset datasets\\MM_Levels-simple.json --tileset datasets\\MM-simple-tileset.json --output datasets\\MM_LevelsAndCaptions-simple-regular.json
 ```
 The last step is to create tokenizers for our data, which can be done like this:
 
