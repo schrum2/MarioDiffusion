@@ -111,8 +111,9 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             with open(encoder_config, "r") as f:
                 encoder_config = json.load(f)
 
-            text_encoder = AutoModel.from_pretrained(encoder_config['text_encoder_name'], trust_remote_code=True)
-            tokenizer = AutoTokenizer.from_pretrained(encoder_config['tokenizer_name'])
+            # Same shared loader as training, so CLIP (CLIPTextModelWithProjection) reloads as the
+            # right class rather than a bare AutoModel that encode() wouldn't recognize.
+            text_encoder, tokenizer, _ = st_helper.load_pretrained_encoder(encoder_config['text_encoder_name'])
             
         #Legacy loading system, loads models directly if the whole thing is saved in the directory
         elif os.path.exists(text_encoder_path):
