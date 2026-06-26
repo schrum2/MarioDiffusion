@@ -14,6 +14,15 @@ pip install -r requirements.txt
 ## Automatic Single-Level Download
 
 Download one Mega Man Maker level by ID.
+ 
+```bash
+cd MM_Batch
+Auto_Upload_MMaker.bat 544895
+```
+ 
+Replace `544895` with the level ID you want. Saves automatically to `datasets\MM_Maker_Levels_Raw` — no prompt needed.
+
+use this command for prompt: 
 
 ```bash
 cd MM_Batch
