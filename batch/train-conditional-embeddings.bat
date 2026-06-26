@@ -1,14 +1,26 @@
 @echo off
-REM Usage: train-conditional-embeddings.bat <seed> <embedding-len>
+REM Usage: train-conditional-embeddings.bat <seed> <method> <embedding-len>
 REM <seed> is optional, defaults to 0
+REM <method> is optional, defaults to block2vec. Must be skip or block2vec.
 REM <embedding-len> is optional, defaults to 16
 cd ..
 
 set SEED=%1
 if "%SEED%"=="" set SEED=0
 
-set EMBEDDING_DIM=%2
+set METHOD=%2
+set EMBEDDING_DIM=%3
+
+if "%METHOD%"=="" set METHOD=block2vec
 if "%EMBEDDING_DIM%"=="" set EMBEDDING_DIM=16
+
+if /I "%METHOD%"=="skip" set "METHOD=skip"
+if /I "%METHOD%"=="block2vec" set "METHOD=block2vec"
+if /I not "%METHOD%"=="skip" if /I not "%METHOD%"=="block2vec" (
+    echo ERROR: Invalid embedding method: %METHOD%
+    echo Must be skip or block2vec.
+    exit /b 1
+)
 
 set "SMB1_JSON=datasets\SMB1_3x3_tiles.json"
 set "SMB2_JSON=datasets\SMB2_3x3_tiles.json"
@@ -22,15 +34,19 @@ if not exist "%MAR12_JSON%" (
     python combine_data.py "%MAR12_JSON%" "%SMB1_JSON%" "%SMB2_JSON%"
 )
 
-set "MODEL_PATH=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec%SEED%"
+set "EMBEDDING_DIR=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-%METHOD%-embeddings%SEED%"
+set "MODEL_PATH=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-%METHOD%-%SEED%"
 set "MLM_DIR=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-MLM-regular%SEED%"
-set "BLOCK2VEC_DIR=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-block2vec-embeddings%SEED%"
-set "SAMPLES_DIR=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-block2vec%SEED%-samples"
+set "SAMPLES_DIR=TILE_EMBEDDING%EMBEDDING_DIM%_Mar1and2-conditional-%METHOD%-%SEED%-samples"
 set "EVAL_ARGS=--model_path %MODEL_PATH% --save_as_json --json datasets\Mar1and2_RandomTest-regular.json --random_width --width_range_json datasets\Mar1and2_LevelsAndCaptions-regular.json --num_tiles=13"
 
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --test_json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --output_dir "%MLM_DIR%" --seed %SEED%
-python train_block2vec.py --json_file "%MAR12_JSON%" --output_dir "%BLOCK2VEC_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
-python train_diffusion.py --augment --text_conditional --output_dir "%MODEL_PATH%" --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --mlm_model_dir "%MLM_DIR%" --block_embedding_model_path "%BLOCK2VEC_DIR%" --plot_validation_caption_score
+if /I "%METHOD%"=="block2vec" (
+    python train_block2vec.py --json_file "%MAR12_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
+) else (
+    python train_skipgram.py --json_file "%MAR12_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
+)
+python train_diffusion.py --augment --text_conditional --output_dir "%MODEL_PATH%" --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --mlm_model_dir "%MLM_DIR%" --block_embedding_model_path "%EMBEDDING_DIR%" --plot_validation_caption_score
 python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%"
 
 python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-Mar1and2-captions
