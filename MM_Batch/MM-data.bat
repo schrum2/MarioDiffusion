@@ -10,7 +10,7 @@ python create_megaman_json_data.py --output datasets\\MM_Levels_Simple.json --gr
 
 :: Generate captions for Mega Man
 python MM_create_ascii_captions.py --dataset datasets\\MM_Levels_Full.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-full-regular.json
-python MM_create_ascii_captions.py --dataset datasets\\MM_Levels_Simple.json --tileset datasets\\MM_Simple_Tileset.json --output datasets\\MM_LevelsAndCaptions-simple-regular.json
+python MM_create_ascii_captions.py --dataset datasets\\MM_Levels_Simple.json --tileset datasets\\MM-simple-tileset.json --output datasets\\MM_LevelsAndCaptions-simple-regular.json
 
 :: Tokenize Mega Man data
 python tokenizer.py save --json_file datasets\\MM_LevelsAndCaptions-full-regular.json --pkl_file datasets\MM_Tokenizer-full-regular.pkl

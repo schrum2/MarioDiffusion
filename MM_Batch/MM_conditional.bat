@@ -20,7 +20,7 @@ if "%VARIANT%"=="full" (
 else (
     set GAME=MM-Simple
     set DATASET_INFIX=simple
-    set TILESET=datasets\MM_Simple_Tileset.json
+    set TILESET=datasets\MM-simple-tileset.json
     set RAW_JSON=datasets\MM_Levels_Simple.json
     set NUM_TILES=13
 )

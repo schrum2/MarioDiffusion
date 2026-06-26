@@ -24,9 +24,9 @@ REM Run MM-data.bat first
 cd ..
 
 set "MM_JSON=datasets\MM_3x3_Tiles-simple.json"
-set "MM_TILESET=datasets\MM_Simple_Tileset.json"
+set "MM_TILESET=datasets\MM-simple-tileset.json"
 set "MM_LEVELS=..\TheVGLC\MegaMan\Enhanced"
-set "MM_CHAR_MAP=datasets\MM_VGLC_to_Simple.json"
+set "MM_CHAR_MAP=datasets\MM-VGLC-to-simple.json"
 set "EMBEDDING_DIR=MM-simple-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%"
 set "MODEL_PATH=MM-simple-unconditional%SEED%-%METHOD%%EMBEDDING_DIM%"
 set "SAMPLES_DIR=MM-simple-unconditional%SEED%-%METHOD%%EMBEDDING_DIM%-samples"

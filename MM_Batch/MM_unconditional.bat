@@ -12,7 +12,7 @@ if "%width%"=="" set width_suffix=
 cd ..
 python create_megaman_json_data.py --output datasets\MM_Levels-simple%width_suffix%.json --target_height %height% --target_width %width% --group_encodings
 
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple%width_suffix%.json --tileset datasets\MM_Simple_Tileset.json --output datasets\MM_LevelsAndCaptions-simple%width_suffix%-regular.json
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple%width_suffix%.json --tileset datasets\MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple%width_suffix%-regular.json
 
 python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple%width_suffix%-regular.json --pkl_file datasets\MM_Tokenizer-simple%width_suffix%-regular.pkl
 
