@@ -280,3 +280,109 @@ python bulk_mmlv_to_vglc.py --output ..\datasets\MM_Maker_Levels
 ```text
 datasets\MM_Maker_Levels
 ```
+---
+
+## Create Filtered Dataset
+
+Create a filtered dataset from converted levels.
+
+The following options are available.
+
+`--stride_x`
+
+Horizontal scan distance.
+
+`--stride_y`
+
+Vertical scan distance.
+
+`--scan_mode snap`
+
+Extract screen-aligned scenes.
+
+`--max_enemies N`
+
+Remove scenes with too many enemies.
+
+`--min_content_pct P`
+
+Remove nearly empty scenes.
+
+`--include_moving_ground`
+
+Include moving platform tiles.
+
+Generate filtered dataset:
+
+```bash
+cd ..
+python create_megaman_json_data.py --levels datasets\MM_Maker_Levels --tileset datasets\MM.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --output datasets\MM_Levels_Filtered.json
+```
+
+Output:
+
+```text
+datasets\MM_Levels_Filtered.json
+```
+
+## Generate Captions
+
+Generate deterministic captions.
+
+Run:
+
+```bash
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json
+```
+
+## Build Tokenizer
+
+```bash
+python tokenizer.py save --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
+```
+
+## Train MLM Text Encoder
+
+```bash
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl datasets\MM_Tokenizer-filtered-regular.pkl --output_dir MM-MLM-filtered-regular --seed 0
+```
+
+## Train Conditional Diffusion Model
+
+```bash
+python train_diffusion.py --pkl datasets\MM_Tokenizer-filtered-regular.pkl --json datasets\MM_LevelsAndCaptions-filtered-regular.json --augment --mlm_model_dir MM-MLM-filtered-regular --text_conditional --output_dir MM_conditional_filtered_regular0 --seed 0 --game MM-Full
+```
+
+Training time:
+
+```text
+~12 hours on consumer GPU
+```
+
+To disable image saving:
+
+```bash
+--save_image_epochs 100000
+```
+
+## Generate Levels
+
+Interactive GUI:
+
+```bash
+python interactive_tile_level_generator.py --model_path MM_conditional_filtered_regular0 --load_data datasets\MM_LevelsAndCaptions-filtered-regular.json --game MM-Full
+```
+
+Text prompt generation:
+
+```bash
+python text_to_level_diffusion.py --model_path MM_conditional_filtered_regular0 --game MM-Full
+```
+
+Browse generated levels:
+
+```bash
+python ascii_data_browser.py MM_conditional_filtered_regular0-samples\all_levels.json datasets\MM.json
+```
+
+---
