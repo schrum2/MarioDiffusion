@@ -192,11 +192,11 @@ The following new options are available for `create_megaman_json_data.py`. `--st
 
 Generate a filtered, screen-aligned dataset with this command:
 ```
-python create_megaman_json_data.py --levels ..\TheVGLC\MegaMan\Enhanced --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --output datasets\MM_Levels_Filtered.json
+python create_megaman_json_data.py --levels datasets\MM_Maker_Levels --tileset datasets\MM.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --output datasets\MM_Levels_Filtered.json
 ```
 Then generate deterministic captions for it:
 ```
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json --describe_absence
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json
 ```
 Build a tokenizer:
 ```
@@ -325,47 +325,7 @@ Output:
 datasets\MM_Levels_Filtered.json
 ```
 
-### Generate Captions
-
-Generate deterministic captions.
-
-Run:
-
-```bash
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json
-```
-
-### Build Tokenizer
-
-```bash
-python tokenizer.py save --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
-```
-
-### Train MLM Text Encoder
-
-```bash
-python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl datasets\MM_Tokenizer-filtered-regular.pkl --output_dir MM-MLM-filtered-regular --seed 0
-```
-
-### Train Conditional Diffusion Model
-
-```bash
-python train_diffusion.py --pkl datasets\MM_Tokenizer-filtered-regular.pkl --json datasets\MM_LevelsAndCaptions-filtered-regular.json --augment --mlm_model_dir MM-MLM-filtered-regular --text_conditional --output_dir MM_conditional_filtered_regular0 --seed 0 --game MM-Full
-```
-
-Training time:
-
-```text
-~12 hours on consumer GPU
-```
-
-To disable image saving:
-
-```bash
---save_image_epochs 100000
-```
-
-### Generate Levels
+## Generate Levels
 
 Interactive GUI:
 
