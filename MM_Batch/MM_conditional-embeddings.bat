@@ -1,22 +1,52 @@
+@echo off
+REM Usage: MM_conditional-embeddings.bat <seed> <method> <embedding-len>
+REM <seed> is optional, defaults to 0
+REM <method> is optional, defaults to block2vec. Must be skip or block2vec.
+REM <embedding-len> is optional, defaults to 16
 
-set EMBEDDING_DIM=%1
-if "%EMBEDDING_DIM%" == "" set EMBEDDING_DIM=%EMBEDDING_DIM%
+set SEED=%1
+if "%SEED%"=="" set SEED=0
 
+set METHOD=%2
+set EMBEDDING_DIM=%3
+if "%METHOD%"=="" set METHOD=block2vec
+if "%EMBEDDING_DIM%"=="" set EMBEDDING_DIM=16
 
-python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --group_encodings
+if /I "%METHOD%"=="skip" set "METHOD=skip"
+if /I "%METHOD%"=="block2vec" set "METHOD=block2vec"
+if /I not "%METHOD%"=="skip" if /I not "%METHOD%"=="block2vec" (
+    echo ERROR: Invalid embedding method: %METHOD%
+    echo Must be skip or block2vec.
+    exit /b 1
+)
 
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset datasets\MM_Simple_Tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
+REM Run MM-data.bat first
+cd ..
 
-python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
+set "MM_JSON=datasets\MM_3x3_Tiles-simple.json"
+set "MM_TILESET=datasets\MM-simple-tileset.json"
+set "MM_LEVELS=..\TheVGLC\MegaMan\Enhanced"
+set "MM_CHAR_MAP=datasets\MM-VGLC-to-simple.json"
+set "EMBEDDING_DIR=MM-simple-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%"
+set "MODEL_PATH=MM-simple-conditional%SEED%-%METHOD%%EMBEDDING_DIM%"
+set "MLM_DIR=MM-MLM-simple%SEED%"
+set "SAMPLES_DIR=MM-simple-conditional%SEED%-%METHOD%%EMBEDDING_DIM%-samples"
+set "EVAL_ARGS=--model_path %MODEL_PATH% --save_as_json --json datasets\MM_RandomTest-simple-regular.json --random_width --width_range_json datasets\MM_LevelsAndCaptions-simple-regular.json --num_tiles=13"
 
-python create_random_test_captions.py --save_file datasets\MM_RandomTest_simple-regular.json --json datasets\MM_LevelsAndCaptions-simple-regular.json --seed 0 --game MM-Simple
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir "%MLM_DIR%" --seed %SEED%
 
-python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --train_pct .9 --val_pct .05 --test_pct .05 --seed 0 --game mm-simple
+if not exist "%MM_JSON%" (
+    python create_tile_level_json_data.py --tileset "%MM_TILESET%" --levels "%MM_LEVELS%" --output "%MM_JSON%" --tile_size 3 --char_map "%MM_CHAR_MAP%"
+)
 
-python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple0 --seed 0
+if /I "%METHOD%"=="block2vec" (
+    python train_block2vec.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
+) else (
+    python train_skipgram.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
+)
 
-python create_tile_level_json_data.py --tileset datasets\MM_Simple_Tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM_VGLC_to_Simple.json
+python train_diffusion.py --text_conditional --mlm_model_dir "%MLM_DIR%" --game MM-Simple --augment --block_embedding_model_path "%EMBEDDING_DIR%" --output_dir "%MODEL_PATH%" --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed %SEED%
+python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%"
 
-python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
-
-python train_diffusion.py --text_conditional --mlm_model_dir MM-MLM-simple0 --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0 
+python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-MM-simple-captions
+python evaluate_caption_adherence.py %EVAL_ARGS% --compare_checkpoints

@@ -13,7 +13,7 @@ if "%SIZE%"=="" (
 
 python create_megaman_json_data.py --output datasets\MM_Levels-simple%WIDTH%-filtered.json --group_encodings --traversable_only --target_width %WIDTH% --target_height %HEIGHT%
 
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple%WIDTH%-filtered.json --tileset datasets\MM_Simple_Tileset.json --output datasets\MM_LevelsAndCaptions-simple%WIDTH%-filtered-regular.json
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple%WIDTH%-filtered.json --tileset datasets\MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple%WIDTH%-filtered-regular.json
 
 python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple%WIDTH%-filtered-regular.json --pkl_file datasets\MM_Tokenizer-simple%WIDTH%-filtered-regular.pkl
 

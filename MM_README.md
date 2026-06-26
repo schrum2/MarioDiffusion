@@ -34,14 +34,14 @@ Due to the massivly increased number of tiles in Mega Man, we split our data int
 
 In order to create the datasets for both versions of Mega Man, we will be running all of these commands twice. First, we need to create the raw 16X16 level samples with these commands:
 ```
-python create_megaman_json_data.py --output datasets\\MM_Levels_Full.json
-python create_megaman_json_data.py --output datasets\\MM_Levels_Simple.json --group_encodings
+python create_megaman_json_data.py --output datasets\\MM_Levels-full.json
+python create_megaman_json_data.py --output datasets\\MM_Levels-simple.json --group_encodings
 ```
 
 The next step is to create captions for these raw levels, which can be done with this command:
 ```
-python MM_create_ascii_captions.py --dataset datasets\\MM_Levels_Full.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-full-regular.json
-python MM_create_ascii_captions.py --dataset datasets\\MM_Levels_Simple.json --tileset datasets\\MM_Simple_Tileset.json --output datasets\\MM_LevelsAndCaptions-simple-regular.json
+python MM_create_ascii_captions.py --dataset datasets\\MM_Levels-full.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-full-regular.json
+python MM_create_ascii_captions.py --dataset datasets\\MM_Levels-simple.json --tileset datasets\\MM-simple-tileset.json --output datasets\\MM_LevelsAndCaptions-simple-regular.json
 ```
 The last step is to create tokenizers for our data, which can be done like this:
 
@@ -120,7 +120,7 @@ python run_diffusion.py --model_path MM_conditional_simple_regular0 --num_sample
 Browse the generated levels with:
 
 ```
-python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.json datasets\MM_Simple_Tileset.json
+python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.json datasets\MM-simple-tileset.json
 ```
 For the full tileset, swap `MM-Simple` with `MM-Full` and point to the appropriate model and tileset.
 
@@ -143,7 +143,7 @@ MM_batch\MM_unconditional-embedding.bat {embedding_dims}
 
 You can gain more control in the process and train a tile embedding model from 3x3 tile samples:
 ``` 
-python create_tile_level_json_data.py --tileset datasets\MM_Simple_Tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM_VGLC_to_Simple.json
+python create_tile_level_json_data.py --tileset datasets\MM-simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
 
 python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
 ```
@@ -168,7 +168,7 @@ If you would like more control in the process, you can follow these steps:
 
 python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --group_encodings
 
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset datasets\MM_Simple_Tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset datasets\MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
 
 python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
 
@@ -178,7 +178,7 @@ python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.js
 
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple0 --seed 0
 
-python create_tile_level_json_data.py --tileset datasets\MM_Simple_Tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM_VGLC_to_Simple.json
+python create_tile_level_json_data.py --tileset datasets\MM-simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
 
 python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
 

@@ -26,4 +26,4 @@ MM_SIMPLE_TILE_COUNT = 13
 MM_FULL_TILE_COUNT = 41
 
 MM_FULL_TILESET = 'datasets/MM.json'
-MM_SIMPLE_TILESET = 'datasets/MM_Simple_Tileset.json'
+MM_SIMPLE_TILESET = 'datasets/MM-simple-tileset.json'

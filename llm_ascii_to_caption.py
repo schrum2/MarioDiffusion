@@ -10,6 +10,7 @@ from pathlib import Path
 from collections import Counter
 import os
 import json
+import time
 import argparse
 
 import ollama
@@ -146,7 +147,7 @@ CAPTION_REMINDER = ("Reminder: output exactly five captions and nothing else, ea
 "For vertical segments, do not guess at whether the segment is ascending or descending, unless it is absolutely clear by the level structure/metadata "
 "that you observe and are provided. For ambiguous vertical scenes, note the structure and verticality but don't assume directionality. "
 "You may still classify structures within a scene as ascending or descending, especially if there are notable structures "
-"present in horizontal (always left-to-right) level scenes."
+"present in horizontal (always left-to-right) level scenes. Don't explicitly state that a level is left-to-right; that information is already known."
 )
 
 
@@ -384,9 +385,11 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
         "how high the lowest standable floor sits in that column (rising values = steps/hills, a "
         "flat run = flat ground), while 'wall' marks a solid blocked column and 'pit' marks a column "
         "with no safe footing (an open drop, or a floor sealed off by hazards). It only tracks the "
-        "lowest floor, so read the grid for raised platforms or overhead structures above it. "
+        "lowest floor, so read the grid for raised platforms or overhead structures above it. This output " 
+        "should shape your classification of the ground, not simply the tiles at the very bottom row. "
         "Keep in mind that the player always moves left-to-right in non-vertical segments, so base "
-        "your ascending vs descending structure analysis based on this. \n"
+        "your ascending vs descending structure analysis based on this. DO NOT explicitly mention 'ground levels' "
+        "in your captions; use the data to inform your natural captions.\n"
         "- Ceiling describes the top row's overhead terrain; region boundaries map columns to "
         "left/center/right.\n"
         "Still write the captions in your own words per the rules above:\n"
@@ -576,6 +579,10 @@ def main() -> list[list[str]]:
     # Label combining the inference source and resolved model; printed and stored per entry.
     llmstr = f"{args.llm} - {model}"
 
+    # Mark the start of the full captioning process to report total elapsed time at the end.
+    start_time = time.time()
+    print(f"[timing] Captioning started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n")
+
     # caption each scene, append back to running lists
     for i, (scene, label) in enumerate(scenes):
 
@@ -609,6 +616,12 @@ def main() -> list[list[str]]:
         # ugly but necessary; want single json object with flat fields scene, cap, cap1, ..., cap4.
         # "scene" holds the original integer tile-id grid
         captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4], "model": llmstr})
+
+    # Mark the end of the full captioning process and report total elapsed time.
+    end_time = time.time()
+    elapsed = end_time - start_time
+    print(f"[timing] Captioning finished at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}\n")
+    print(f"[timing] Total captioning time: {elapsed:.2f}s ({elapsed / 60:.2f} min)\n")
 
     # save to specified output dir if specified
     if args.output:
