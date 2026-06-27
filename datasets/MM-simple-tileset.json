@@ -1,43 +1,43 @@
 {
     "tiles": {
         "#": [
-            "wall",
+            "ground",
             "solid",
-            "ground"
+            "wall"
         ],
         "@": [
             "null"
         ],
         "A": [
-            "penetrable",
             "passable",
-            "solid"
+            "solid",
+            "penetrable"
         ],
         "B": [
             "penetrable",
-            "breakable",
-            "solid"
+            "solid",
+            "breakable"
         ],
         "C": [
             "passable",
             "hazard"
         ],
         "D": [
-            "movable",
-            "passable"
+            "passable",
+            "movable"
         ],
         "H": [
-            "solid",
-            "hazard"
-        ],
-        "M": [
-            "penetrable",
-            "moving",
+            "hazard",
             "solid"
         ],
+        "M": [
+            "moving",
+            "solid",
+            "penetrable"
+        ],
         "|": [
-            "climbable",
-            "passable"
+            "passable",
+            "climbable"
         ],
         "~": [
             "passable",
@@ -45,13 +45,13 @@
             "water"
         ],
         "a": [
-            "ranged",
             "damaging",
+            "ranged",
             "enemy"
         ],
         "l": [
-            "collectable",
             "passable",
+            "collectable",
             "powerup"
         ],
         "-": [
