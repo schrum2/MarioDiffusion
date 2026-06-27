@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from safetensors.torch import save_file
 from torch.utils.data import DataLoader, TensorDataset
 from util.plotter import Plotter
+from embedding_analysis import UpdateCounter, analyze_embeddings
 
 # Ensure repo root on path
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -24,6 +25,8 @@ from patch_dataset import PatchDataset
 class SkipGramModel(nn.Module):
     def __init__(self, vocab_size, embedding_dim):
         super().__init__()
+        self.vocab_size = vocab_size
+        self.embedding_dim = embedding_dim
         self.in_embed = nn.Embedding(vocab_size, embedding_dim)
         self.out_embed = nn.Embedding(vocab_size, embedding_dim)
         initrange = 0.5 / embedding_dim
@@ -139,6 +142,8 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = SkipGramModel(vocab_size=vocab_size, embedding_dim=args.embedding_dim).to(device)
+    init_in_embed = model.in_embed.weight.detach().clone()
+    update_counter = UpdateCounter(vocab_size)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = None
     if args.lr_patience > 0:
@@ -168,6 +173,7 @@ def main():
         for centers_batch, contexts_batch in loader:
             centers_batch = centers_batch.to(device)
             contexts_batch = contexts_batch.to(device)
+            update_counter.update(centers_batch)
             B = centers_batch.size(0)
             # negative sampling
             neg = np.random.choice(vocab_size, size=(B, args.negative_samples), p=unigram)
@@ -223,6 +229,15 @@ def main():
             'embedding_dim': int(args.embedding_dim),
             'negative_samples': int(args.negative_samples)
         }, f, indent=2)
+
+    analyze_embeddings(
+        model=model,
+        output_dir=args.output_dir,
+        update_counter=update_counter,
+        dataset_center_counts=getattr(dataset, 'center_counts', None),
+        init_in_embed=init_in_embed,
+        top_k_neighbors=5,
+    )
 
     plotter.stop_plotting()
     plot_thread.join(timeout=1)
