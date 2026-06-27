@@ -41,7 +41,7 @@ def main():
     parser.add_argument('--vocab_size', type=int, default=None, help='Number of tile types. Defaults to the largest tile id in the data + 1. Set this to the tileset size so every tile id gets an embedding row.')
     parser.add_argument('--no_subsampling', action='store_true',
                         help='Disable Mikolov-style frequent-tile subsampling (enabled by default). Use this to reproduce old behavior.')
-    parser.add_argument('--subsample_threshold', type=float, default=0.03, # 0.03 found to be a good balance for MM2 data, but can be tuned
+    parser.add_argument('--subsample_threshold', type=float, default=0.05,
                         help='Subsampling threshold (lower = more aggressive downsampling of frequent center tiles). '
                              'Word2vec NLP defaults (1e-3 to 1e-5) assume much lower max-frequency than tile data typically has '
                              '(e.g. a dominant background tile can be 40-60%% of centers) -- if background/filler tiles still '
