@@ -63,9 +63,9 @@ cd ..
 
 set "MM_JSON=datasets\MM_%WINDOW_SIZE%x%WINDOW_SIZE%_Tiles-%DATASET_INFIX%.json"
 set "EMBEDDING_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-embeddings%SEED%"
-set "MODEL_PATH=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-conditional%SEED%"
-set "MLM_DIR=MM-%DATASET_INFIX%-MLM%SEED%"
-set "SAMPLES_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-conditional%SEED%-samples"
+set "MODEL_PATH=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-conditional-regular%SEED%"
+set "MLM_DIR=MM-%DATASET_INFIX%-MLM-regular%SEED%"
+set "SAMPLES_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-conditional-regular%SEED%-samples"
 set "MLM_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular.json"
 set "TOKENIZER_PKL=datasets\MM-%DATASET_INFIX%_Tokenizer-regular.pkl"
 set "DIFF_TRAIN_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-train.json"

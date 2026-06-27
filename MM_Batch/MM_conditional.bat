@@ -13,7 +13,7 @@ if "%VARIANT%"=="full" (
     set GAME=MM-Full
     set DATASET_INFIX=full
     set TILESET=datasets\MM.json
-    set RAW_JSON=datasets\MM_Levels-full.json
+    set RAW_JSON=datasets\MM-full_Levels.json
     set NUM_TILES=41
 ) 
 
@@ -21,25 +21,19 @@ else (
     set GAME=MM-Simple
     set DATASET_INFIX=simple
     set TILESET=datasets\MM-simple-tileset.json
-    set RAW_JSON=datasets\MM_Levels-simple.json
+    set RAW_JSON=datasets\MM-simple_Levels.json
     set NUM_TILES=13
 )
 
-set JSON_TRAIN=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular.json
-set JSON_TEST=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular-test.json
-set JSON_RANDOM=datasets\MM_RandomTest-%DATASET_INFIX%-regular.json
-set PKL=datasets\MM_Tokenizer-%DATASET_INFIX%-regular.pkl
-set MLM_OUTPUT=MM-MLM-%DATASET_INFIX%-regular%SEED%
-set DIFF_OUTPUT=MM_conditional_%DATASET_INFIX%_regular%SEED%
+set JSON_TRAIN=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular.json
+set JSON_TEST=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-test.json
+set JSON_RANDOM=datasets\MM-%DATASET_INFIX%_RandomTest-regular.json
+set PKL=datasets\MM-%DATASET_INFIX%_Tokenizer-regular.pkl
+set MLM_OUTPUT=MM-%DATASET_INFIX%-MLM-regular%SEED%
+set DIFF_OUTPUT=MM-%DATASET_INFIX%-conditional-regular%SEED%
 
-if "%VARIANT%"=="full" (
-    python create_megaman_json_data.py --output %RAW_JSON%
-) else (
-    python create_megaman_json_data.py --output %RAW_JSON% --group_encodings
-)
+REM Run MM-data.bat first to generate the necessary JSON and PKL files
 
-python MM_create_ascii_captions.py --dataset %RAW_JSON% --tileset %TILESET% --output %JSON_TRAIN%
-python tokenizer.py save --json %JSON_TRAIN% --pkl_file %PKL%
 python train_mlm.py --epochs 300 --save_checkpoints --json %JSON_TRAIN% --pkl %PKL% --output_dir %MLM_OUTPUT% --seed %SEED%
 python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir %DIFF_OUTPUT% --num_epochs 500 --json %JSON_TRAIN% --pkl %PKL% --mlm_model_dir %MLM_OUTPUT% --plot_validation_caption_score --seed %SEED% --game %GAME%
 
