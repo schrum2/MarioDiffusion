@@ -1,4 +1,4 @@
-@echo off
+REM @echo off
 pushd "%~dp0"
 REM Usage: train-unconditional-embeddings.bat <seed> <method> <embedding-len>
 REM <seed> is optional, defaults to 0

@@ -1,4 +1,4 @@
-@echo off
+REM @echo off
 pushd "%~dp0"
 REM Usage: MM_conditional-embeddings.bat [seed] [simple|full] [block2vec/skip] [embedding-len] [window-size]
 REM <variant> is optional, defaults to simple.
@@ -64,7 +64,7 @@ cd ..
 set "MM_JSON=datasets\MM_%WINDOW_SIZE%x%WINDOW_SIZE%_Tiles-%DATASET_INFIX%.json"
 set "EMBEDDING_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%-w%WINDOW_SIZE%"
 set "MODEL_PATH=MM-%DATASET_INFIX%-conditional%SEED%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%"
-set "MLM_DIR=MM-MLM-%DATASET_INFIX%%SEED%-w%WINDOW_SIZE%"
+set "MLM_DIR=MM-MLM-%DATASET_INFIX%%SEED%"
 set "SAMPLES_DIR=MM-%DATASET_INFIX%-conditional%SEED%-%METHOD%%EMBEDDING_DIM%-samples-w%WINDOW_SIZE%"
 set "MLM_JSON=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular.json"
 set "TOKENIZER_PKL=datasets\MM_Tokenizer-%DATASET_INFIX%-regular.pkl"

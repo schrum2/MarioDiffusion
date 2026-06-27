@@ -1,4 +1,4 @@
-@echo off
+REM @echo off
 pushd "%~dp0"
 REM Usage: MM_unconditional-embeddings.bat [seed] [simple|full] [block2vec/skip] [embedding-len] [window-size]
 REM <variant> is optional, defaults to simple.
