@@ -1,4 +1,5 @@
 @echo off
+pushd "%~dp0"
 REM Usage: MM_conditional-embeddings.bat [seed] [simple|full] [block2vec/skip] [embedding-len] [window-size]
 REM <variant> is optional, defaults to simple.
 REM <method> is optional, defaults to block2vec. Must be skip or block2vec.
@@ -98,3 +99,6 @@ python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_
 
 python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-MM-%DATASET_INFIX%-captions-w%WINDOW_SIZE%
 python evaluate_caption_adherence.py %EVAL_ARGS% --compare_checkpoints
+
+popd
+exit /b
