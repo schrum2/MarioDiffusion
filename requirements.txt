@@ -15,6 +15,8 @@ huggingface_hub==0.28.1
 matplotlib==3.10.0
 timm==0.9.12
 mario-gpt==0.1.3
+sentencepiece
+tiktoken
 send2trash==1.8.3
 cmaes==0.11.1
 
