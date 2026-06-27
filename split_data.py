@@ -13,7 +13,7 @@ COMMAND LINE: python split_data.py --json_file SMB1_LevelsAndCaptions-regular-te
 def parse_args():
     parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
     parser.add_argument("--json_file", type=str, required=True, help="Path to dataset JSON file")
-    parser.add_argument("--game", type=str, required=True, choices=["mario", "loderunner", "mm-simple", "mm-full"], help="Game name")
+    parser.add_argument("--game", type=str, required=True, choices=["Mario", "mario", "loderunner", "mm-simple", "mm-full", "MM-Simple", "MM-Full"], help="Game name")
     parser.add_argument("--train_pct", type=float, default=0.8, help="Train split percentage")
     parser.add_argument("--val_pct", type=float, default=0.1, help="Validation split percentage")
     parser.add_argument("--test_pct", type=float, default=0.1, help="Test split percentage")
