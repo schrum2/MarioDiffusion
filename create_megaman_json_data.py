@@ -145,7 +145,7 @@ def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'dataset
         tile_dict = {"tiles" : tile_dict}
         
         with open(output, 'w') as f:
-            json.dump(tile_dict, f, indent=4)
+            json.dump(tile_dict, f, indent=4, sort_keys=True)
 
         #Add in the old tiles to allow for encoding of everything
         tile_to_id_enemies = {char: tile_to_id[basic_enemy_char] for char in enemies}
