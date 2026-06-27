@@ -1,4 +1,5 @@
 @echo off
+pushd "%~dp0"
 REM Usage: train-conditional-embeddings.bat <seed> <method> <embedding-len>
 REM <seed> is optional, defaults to 0
 REM <method> is optional, defaults to block2vec. Must be skip or block2vec.
@@ -51,3 +52,6 @@ python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_
 
 python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-Mar1and2-captions
 python evaluate_caption_adherence.py %EVAL_ARGS% --compare_checkpoints
+
+popd
+exit /b

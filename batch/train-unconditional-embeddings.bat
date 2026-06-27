@@ -1,4 +1,5 @@
 @echo off
+pushd "%~dp0"
 REM Usage: train-unconditional-embeddings.bat <seed> <method> <embedding-len>
 REM <seed> is optional, defaults to 0
 REM <method> is optional, defaults to block2vec. Must be skip or block2vec.
@@ -43,10 +44,5 @@ if /I "%METHOD%"=="block2vec" (
 python train_diffusion.py --augment --output_dir "%MODEL_PATH%" --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --block_embedding_model_path "%EMBEDDING_DIR%" --plot_validation_caption_score
 python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%"
 
-
-
-
-
-
-
-
+popd
+exit /b
