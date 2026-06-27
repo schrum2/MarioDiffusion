@@ -62,11 +62,11 @@ REM Run MM-data.bat first
 cd ..
 
 set "MM_JSON=datasets\MM_%WINDOW_SIZE%x%WINDOW_SIZE%_Tiles-%DATASET_INFIX%.json"
-set "EMBEDDING_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%-w%WINDOW_SIZE%"
-set "MODEL_PATH=MM-%DATASET_INFIX%-unconditional%SEED%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%"
-set "SAMPLES_DIR=MM-%DATASET_INFIX%-unconditional%SEED%-%METHOD%%EMBEDDING_DIM%-samples-w%WINDOW_SIZE%"
-set "TRAIN_JSON=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular-train.json"
-set "VAL_JSON=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular-validate.json"
+set "EMBEDDING_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-embeddings%SEED%"
+set "MODEL_PATH=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-unconditional%SEED%"
+set "SAMPLES_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-unconditional%SEED%-samples"
+set "TRAIN_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-train.json"
+set "VAL_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-validate.json"
 
 if not exist "%MM_JSON%" (
     if /I "%VARIANT%"=="simple" (
@@ -76,10 +76,12 @@ if not exist "%MM_JSON%" (
     )
 )
 
-if /I "%METHOD%"=="block2vec" (
-    python train_block2vec.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
-) else (
-    python train_skipgram.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
+if not exist "%EMBEDDING_DIR%" (
+    if /I "%METHOD%"=="block2vec" (
+        python train_block2vec.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
+    ) else (
+        python train_skipgram.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
+    )
 )
 
 python train_diffusion.py --game %GAME% --augment --block_embedding_model_path "%EMBEDDING_DIR%" --output_dir "%MODEL_PATH%" --num_epochs 500 --json "%TRAIN_JSON%" --val_json "%VAL_JSON%" --seed %SEED%

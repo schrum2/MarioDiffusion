@@ -62,16 +62,16 @@ REM Run MM-data.bat first
 cd ..
 
 set "MM_JSON=datasets\MM_%WINDOW_SIZE%x%WINDOW_SIZE%_Tiles-%DATASET_INFIX%.json"
-set "EMBEDDING_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%-w%WINDOW_SIZE%"
-set "MODEL_PATH=MM-%DATASET_INFIX%-conditional%SEED%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%"
-set "MLM_DIR=MM-MLM-%DATASET_INFIX%%SEED%"
-set "SAMPLES_DIR=MM-%DATASET_INFIX%-conditional%SEED%-%METHOD%%EMBEDDING_DIM%-samples-w%WINDOW_SIZE%"
-set "MLM_JSON=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular.json"
-set "TOKENIZER_PKL=datasets\MM_Tokenizer-%DATASET_INFIX%-regular.pkl"
-set "DIFF_TRAIN_JSON=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular-train.json"
-set "DIFF_VAL_JSON=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular-validate.json"
-set "RANDOM_TEST_JSON=datasets\MM_RandomTest-%DATASET_INFIX%-regular.json"
-set "WIDTH_RANGE_JSON=datasets\MM_LevelsAndCaptions-%DATASET_INFIX%-regular.json"
+set "EMBEDDING_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-embeddings%SEED%"
+set "MODEL_PATH=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-conditional%SEED%"
+set "MLM_DIR=MM-%DATASET_INFIX%-MLM%SEED%"
+set "SAMPLES_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-conditional%SEED%-samples"
+set "MLM_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular.json"
+set "TOKENIZER_PKL=datasets\MM-%DATASET_INFIX%_Tokenizer-regular.pkl"
+set "DIFF_TRAIN_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-train.json"
+set "DIFF_VAL_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-validate.json"
+set "RANDOM_TEST_JSON=datasets\MM-%DATASET_INFIX%_RandomTest-regular.json"
+set "WIDTH_RANGE_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular.json"
 set "EVAL_ARGS=--model_path "%MODEL_PATH%" --save_as_json --json "%RANDOM_TEST_JSON%" --random_width --width_range_json "%WIDTH_RANGE_JSON%" --num_tiles=%NUM_TILES%"
 
 if not exist "%MLM_DIR%" (
@@ -88,16 +88,18 @@ if not exist "%MM_JSON%" (
     )
 )
 
-if /I "%METHOD%"=="block2vec" (
-    python train_block2vec.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
-) else (
-    python train_skipgram.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
+if not exist "%EMBEDDING_DIR%" (
+    if /I "%METHOD%"=="block2vec" (
+        python train_block2vec.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
+    ) else (
+        python train_skipgram.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
+    )
 )
 
 python train_diffusion.py --text_conditional --mlm_model_dir "%MLM_DIR%" --game %GAME% --augment --block_embedding_model_path "%EMBEDDING_DIR%" --output_dir "%MODEL_PATH%" --num_epochs 500 --json "%DIFF_TRAIN_JSON%" --val_json "%DIFF_VAL_JSON%" --seed %SEED%
 python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%" --game %GAME%
 
-python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-MM-%DATASET_INFIX%-captions-w%WINDOW_SIZE%
+python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-MM-%DATASET_INFIX%-captions
 python evaluate_caption_adherence.py %EVAL_ARGS% --compare_checkpoints
 
 popd
