@@ -49,8 +49,18 @@ class PatchDataset(Dataset):
         plt.xlabel("Tile ID (center)")
         plt.ylabel("Frequency (after subsampling)")
         plt.title("Center Tile Distribution After Subsampling")
+
         if save_path:
             plt.savefig(save_path)
+            plt.close()
+
+            # Save raw data
+            report_path = os.path.splitext(save_path)[0] + ".txt"
+            with open(report_path, "w") as f:
+                f.write("Tile ID\tFrequency\n")
+                f.write("-----------------\n")
+                for tile, freq in zip(tiles, freqs):
+                    f.write(f"{tile}\t{freq}\n")
         else:
             plt.show()
 
