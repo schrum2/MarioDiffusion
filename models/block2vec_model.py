@@ -174,8 +174,21 @@ class Block2Vec(nn.Module):
         # Initialize model
         model = cls(**config)
 
-        # Load weights
+        # Load weights. strict=False so older checkpoints saved before the
+        # negative_sampling_probs buffer existed still load cleanly -- the
+        # constructor already initializes that buffer to the uniform
+        # fallback, so a missing key just means "this checkpoint predates
+        # weighted negative sampling," not a real mismatch.
         state_dict = load_file(os.path.join(model_directory, "model.safetensors"))
-        model.load_state_dict(state_dict)
+        missing, unexpected = model.load_state_dict(state_dict, strict=False)
+        if unexpected:
+            raise RuntimeError(f"Unexpected key(s) in state_dict: {unexpected}")
+        allowed_missing = {"negative_sampling_probs"}
+        unallowed_missing = set(missing) - allowed_missing
+        if unallowed_missing:
+            raise RuntimeError(f"Missing key(s) in state_dict: {sorted(unallowed_missing)}")
+        if "negative_sampling_probs" in missing:
+            print(f"Note: checkpoint at '{model_directory}' has no saved negative_sampling_probs "
+                  f"(predates weighted negative sampling or is skipgram model) -- using uniform fallback.")
 
         return model
