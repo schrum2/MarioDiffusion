@@ -13,10 +13,10 @@ from embedding_analysis import UpdateCounter, analyze_embeddings
 
 # ====== Defaults, but overridden by params ======
 EMBEDDING_DIM = 16
-BATCH_SIZE = 32
+BATCH_SIZE = 1024
 EPOCHS = 100
 LR = 1e-3
-NEGATIVE_SAMPLES = 5
+NEGATIVE_SAMPLES = 10
 VOCAB_SIZE = common_settings.MARIO_TILE_COUNT
 
 def print_nearest_neighbors(model, tile_id, k=5):

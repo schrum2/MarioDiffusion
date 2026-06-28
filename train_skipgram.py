@@ -76,7 +76,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--json_file', required=True)
     parser.add_argument('--output_dir', default='skipgram_out')
-    parser.add_argument('--embedding_dim', type=int, default=32)
+    parser.add_argument('--embedding_dim', type=int, default=16)
     parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--lr', type=float, default=1e-3)
