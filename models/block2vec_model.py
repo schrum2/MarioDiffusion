@@ -8,12 +8,16 @@ from safetensors.torch import save_file, load_file
 class Block2Vec(nn.Module):
     """Block2Vec model that learns tile embeddings through context prediction"""
 
-    def __init__(self, vocab_size, embedding_dim, negative_samples=5):
+    def __init__(self, vocab_size, embedding_dim, negative_samples=5, negative_sampling_weights=None):
         """
         Args:
             vocab_size (int): Number of unique tiles
             embedding_dim (int): Size of embedding vectors
             negative_samples (int): Number of negative context tiles per positive pair
+            negative_sampling_weights (Tensor, optional): shape (vocab_size,) of
+                unnormalized weights for sampling negatives (e.g. unigram^0.75
+                frequency, matching the word2vec/skip-gram convention). If None,
+                negatives are sampled uniformly over the vocab (legacy behavior).
         """
         super().__init__()
         if negative_samples < 1:
@@ -30,6 +34,18 @@ class Block2Vec(nn.Module):
         initrange = 0.5 / embedding_dim
         nn.init.uniform_(self.in_embed.weight.data, -initrange, initrange)
         nn.init.constant_(self.out_embed.weight.data, 0)
+
+        # Stored as a buffer so it moves with .to(device) and is saved/loaded
+        # with the model, but isn't a learnable parameter.
+        if negative_sampling_weights is not None:
+            weights = torch.as_tensor(negative_sampling_weights, dtype=torch.float)
+            if weights.shape != (vocab_size,):
+                raise ValueError(f"negative_sampling_weights must have shape ({vocab_size},), got {tuple(weights.shape)}")
+            probs = weights / weights.sum()
+        else:
+            # Uniform fallback (legacy behavior)
+            probs = torch.full((vocab_size,), 1.0 / vocab_size, dtype=torch.float)
+        self.register_buffer("negative_sampling_probs", probs)
 
     def forward(self, center_ids, context_ids, sample_weights=None, focal_gamma: float = 0.0, return_per_example: bool = False):
         """
@@ -89,22 +105,32 @@ class Block2Vec(nn.Module):
         return per_example_loss.mean()
 
     def _sample_negative_ids(self, positive_context_ids):
-        """Sample negatives for each pair, excluding that pair's true context tile."""
+        """Sample negatives for each pair, excluding that pair's true context tile.
+
+        Draws from self.negative_sampling_probs (unigram^0.75 if provided at
+        construction, otherwise uniform) rather than a flat torch.randint --
+        this matches the word2vec-style "hard negative" convention of sampling
+        frequent tiles more often as negatives too.
+        """
         if self.vocab_size < 2:
             raise ValueError("Negative sampling requires vocab_size >= 2")
 
-        shape = (positive_context_ids.numel(), self.negative_samples)
-        neg_ids = torch.randint(0, self.vocab_size, shape, device=positive_context_ids.device)
+        n = positive_context_ids.numel()
+        probs = self.negative_sampling_probs.to(positive_context_ids.device)
+
+        def draw(num):
+            # torch.multinomial draws `num` samples per row; we want
+            # n * self.negative_samples total i.i.d. draws from the same
+            # 1D distribution, so sample with replacement from a single row.
+            return torch.multinomial(probs, num, replacement=True)
+
+        neg_ids = draw(n * self.negative_samples).view(n, self.negative_samples)
         positives = positive_context_ids.unsqueeze(1)
         matches_positive = neg_ids.eq(positives)
 
         while matches_positive.any():
-            neg_ids[matches_positive] = torch.randint(
-                0,
-                self.vocab_size,
-                (matches_positive.sum().item(),),
-                device=positive_context_ids.device,
-            )
+            num_resample = matches_positive.sum().item()
+            neg_ids[matches_positive] = draw(num_resample)
             matches_positive = neg_ids.eq(positives)
 
         return neg_ids
