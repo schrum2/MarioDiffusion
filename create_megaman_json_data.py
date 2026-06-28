@@ -141,7 +141,7 @@ def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'dataset
 
         #Create a new tileset to match these tiles
         output = os.path.join(new_tileset_dir, "MM-simple-tileset.json")
-        tile_dict = {tile: list(tile_descriptors.get(tile)) for tile in tile_to_id}
+        tile_dict = {tile: sorted(list(tile_descriptors.get(tile))) for tile in tile_to_id}
         tile_dict = {"tiles" : tile_dict}
         
         with open(output, 'w') as f:
