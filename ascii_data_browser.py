@@ -117,6 +117,8 @@ class TileViewer(tk.Tk):
                 return_details=True
             )
         elif self.game.get()=="MM-Full" or self.game.get()=="MM-Simple":
+            print(sample.keys())
+            print("CAPTION =", sample.get("caption"))
             s = sample['caption'] #Done for clarity
             # mm_assign_caption requires an extra argument for some encoded data that the level parser finds. This code moves those keys along
             data = {
@@ -437,6 +439,11 @@ class TileViewer(tk.Tk):
             self.load_files_from_paths(self.dataset_path, self.tileset_path)
 
     def load_files_from_paths(self, dataset_path, tileset_path):
+
+        print("DATASET =", dataset_path)
+        print("TILESET =", tileset_path)
+        #print("TILE DESCRIPTORS =", self.tile_descriptors)
+
         self.dataset_path = dataset_path
         try:
             with open(dataset_path, 'r') as f:
@@ -675,7 +682,7 @@ class TileViewer(tk.Tk):
                     tile_id = sample['scene'][y][x]
                     text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
                     # Convert (r, g, b) float tuple to hex color string
-                    r, g, b = colors[tile_id]
+                    r, g, b = colors[tile_id % len(colors)]
                     color_hex = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
                     # Find all matching phrases for this coordinate

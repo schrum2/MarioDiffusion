@@ -519,7 +519,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     hazard_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'hazard' in value]
     moving_plat_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'moving' in value]
     wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value) and ("hazard" not in value))]
-    disappearing_ids = [char_to_id["A"]] #There's nothing unique about the descriptors for disappearing blocks, so we just set it here
+    disappearing_ids = [char_to_id["A"]] if "A" in char_to_id else [] #There's nothing unique about the descriptors for disappearing blocks, so we just set it here
     
     #Ideas:
     #Walls for each size/exit directions
