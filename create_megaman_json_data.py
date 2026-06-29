@@ -169,7 +169,7 @@ def parse_args():
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
     parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
-    parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window', 'snap', 'whole'], help='How to extract samples: path follower (default), sliding window, snap (variable-dimension wide+tall scans that snap to valid content), or whole (one sample = the entire level trimmed to its content bounding box, kept at its natural variable size)')
+    parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window', 'snap', 'screen_grid', 'whole'], help='How to extract samples: path follower (default), sliding window, snap (variable-dimension wide+tall scans that snap to valid content), screen_grid (tile the level into a 2x2 (or screens_x x screens_y) grid of Mega Man Maker screens, keeping windows where at least 3/4 of the quadrants are occupied, with null padding on top to reach target_height -- e.g. target 32x32 -> 32x28 content + 4 pad rows), or whole (one sample = the entire level trimmed to its content bounding box, kept at its natural variable size)')
     parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
     parser.add_argument('--stride_y', type=int, default=1, help='How far the sliding window moves in the vertical direction during level scanning (sliding_window/snap modes only; must be >= 1)')
     parser.add_argument('--stride_x', type=int, default=1, help='How far the sliding window moves in the horizontal direction during level scanning (sliding_window/snap modes only; must be >= 1)')
@@ -298,7 +298,7 @@ def main():
                 #follower), for a final height of nav_height + SNAP_H_PAD_ROWS.
                 h_samples, h_json, h_coords = snap_window_samples(
                     levels[i], tile_to_id, args.target_width, nav_height, null_chars,
-                    top_pad=SNAP_H_PAD_ROWS, x_stride=args.stride_x, y_stride=args.stride_y
+                    top_pad=args.target_height % 14, x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 #Tall scenes are a nav_width x target_height null-free screen with no
                 #padding. But when target_height is no taller than the standard padded
@@ -342,6 +342,37 @@ def main():
                 json_caption_data = [None]
                 source_coords = [(0, 0)]
                 scan_mode_tags = ["whole"]
+            elif args.scan_mode == 'screen_grid':
+                #32x32-style scenes built from the Mega Man Maker screen grid. Each MMLV
+                #screen is nav_width x nav_height (16x14), and the converter fills whole
+                #screens as either all-null ('@', a screen that doesn't exist) or real
+                #content. We tile the level with a window spanning screens_x x screens_y
+                #screens -- the non-padded content region -- moving in screen-sized strides
+                #(pass --stride_x 16 --stride_y 14 for the standard overlapping scan). A
+                #window is kept only if at least 3/4 of its quadrants are occupied (no more
+                #than 1/4 of the screen-sized quadrants are null), then top_pad null rows are
+                #added on top so the final scene reaches target_height. Default 32x32: 2x2
+                #screens = 32x28 content + 4 null pad rows.
+                screen_w, screen_h = nav_width, nav_height
+                screens_x = max(1, args.target_width // screen_w)
+                screens_y = max(1, args.target_height // screen_h)
+                content_h = screens_y * screen_h
+                top_pad = args.target_height - content_h
+                if top_pad < 0:
+                    raise ValueError(
+                        f"target_height ({args.target_height}) is smaller than "
+                        f"{screens_y} screens ({content_h}); cannot pad a negative number of rows"
+                    )
+                total_quadrants = screens_x * screens_y
+                #"No more than 1/4 of the quadrants null" -> for a 2x2 grid this allows 1
+                #null quadrant, i.e. requires at least 3 of 4 occupied.
+                min_occupied = total_quadrants - (total_quadrants // 4)
+                samples, json_caption_data, source_coords = screen_grid_samples(
+                    levels[i], tile_to_id, screen_w, screen_h, screens_x, screens_y,
+                    top_pad, null_chars, min_occupied,
+                    x_stride=args.stride_x, y_stride=args.stride_y
+                )
+                scan_mode_tags = ["screen_grid"] * len(samples)
             elif i == 7:
                 samples, json_caption_data, source_coords = parse_level(
                     tile_to_id, levels[i], nav_width, nav_height,
@@ -519,6 +550,63 @@ def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars,
             json_caption_data.append(None)
             #Source coords point at the top-left of the real (null-free) screen, i.e.
             #below the synthetic top_pad rows -- so it points at actual level content.
+            source_coords.append((x, y))
+
+    return samples, json_caption_data, source_coords
+
+#Tiles the level into a screens_x x screens_y grid of Mega Man Maker screens (each
+#screen_width x screen_height) and slides that grid over the level in (x_stride, y_stride)
+#steps. Each screen-sized quadrant counts as "occupied" if it holds at least one non-null
+#tile (a real screen, even if it is only walkable '-' sky) and as null if it is entirely
+#out-of-bounds void ('@'). A window is kept only when at least min_occupied_quadrants of its
+#screens_x*screens_y quadrants are occupied, then top_pad rows of null padding are added on
+#top. The content region is (screens_x*screen_width) x (screens_y*screen_height); the final
+#scene is top_pad rows taller. With screen 16x14, a 2x2 grid + 4 pad rows yields the 32x32
+#scenes used by the 'screen_grid' scan mode. Pass x_stride/y_stride = 16/14 for the standard
+#screen-aligned (single-screen-overlap) scan.
+def screen_grid_samples(level, tile_to_id, screen_width, screen_height, screens_x, screens_y,
+                        top_pad, null_chars, min_occupied_quadrants, x_stride=None, y_stride=None):
+    null_set = set(null_chars)
+    null_id = tile_to_id.get(null_chars[0], 0)
+    content_width = screens_x * screen_width
+    content_height = screens_y * screen_height
+    x_stride = x_stride or screen_width
+    y_stride = y_stride or screen_height
+    level_height = len(level)
+    level_width = len(level[0])
+
+    samples = []
+    json_caption_data = []
+    source_coords = []
+
+    for y in range(0, level_height - content_height + 1, y_stride):
+        for x in range(0, level_width - content_width + 1, x_stride):
+            window = [level[y+r][x:x+content_width] for r in range(content_height)]
+
+            #Count occupied quadrants: each quadrant is one screen_width x screen_height
+            #block, occupied if any tile in it is non-null.
+            occupied = 0
+            for qy in range(screens_y):
+                r0 = qy * screen_height
+                for qx in range(screens_x):
+                    c0 = qx * screen_width
+                    if any(window[r0+dr][c0+dc] not in null_set
+                           for dr in range(screen_height)
+                           for dc in range(screen_width)):
+                        occupied += 1
+            if occupied < min_occupied_quadrants:
+                continue
+
+            #top_pad synthetic null rows on top, then the encoded content window below.
+            encoded = [[null_id] * content_width for _ in range(top_pad)]
+            for row in window:
+                encoded.append([tile_to_id.get(ch, null_id) for ch in row])
+            samples.append(encoded)
+            #None (not {}) keeps this parallel with the path-follower's "no captions"
+            #convention; the caption consumer skips None but KeyErrors on an empty dict.
+            json_caption_data.append(None)
+            #Source coords point at the top-left of the real content region, i.e. below the
+            #synthetic top_pad rows -- so it points at actual level content.
             source_coords.append((x, y))
 
     return samples, json_caption_data, source_coords
