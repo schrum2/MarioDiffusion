@@ -29,3 +29,15 @@ if /I "%SPLIT%"=="split" (
 )
 
 python train_diffusion.py --text_conditional --game MM-Full --tileset datasets\MM.json --json datasets\MM_LevelsAndLLMCaptions-full-train.json --val_json datasets\MM_LevelsAndLLMCaptions-full-validate.json --multiple_captions --pretrained_language_model "%MODEL_NAME%" --num_epochs 500 --output_dir "%DIFF_OUTPUT%" --seed %SEED% %SPLIT_FLAG%
+
+REM Post-training evaluation 
+REM 100 unconditional samples from the trained model
+python run_diffusion.py --model_path "%DIFF_OUTPUT%" --num_samples 100 --text_conditional --save_as_json --output_dir "%DIFF_OUTPUT%-unconditional-samples" --game MM-Full
+
+REM Generate a sample for every training caption and save each input prompt next to its generated scene
+REM Output: <model>\samples-from-train-captions\all_levels.json
+python evaluate_caption_adherence.py --model_path "%DIFF_OUTPUT%" --json datasets\MM_LevelsAndLLMCaptions-full-train.json --num_tiles 41 --no_caption_score --save_as_json --output_dir samples-from-train-captions
+
+REM Same for every test caption
+REM Output: <model>\samples-from-test-captions\all_levels.json
+python evaluate_caption_adherence.py --model_path "%DIFF_OUTPUT%" --json datasets\MM_LevelsAndLLMCaptions-full-test.json --num_tiles 41 --no_caption_score --save_as_json --output_dir samples-from-test-captions
