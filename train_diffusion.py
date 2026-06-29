@@ -529,6 +529,7 @@ def main():
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types = [item.replace("CrossAttn", "") for item in args.down_block_types],
             up_block_types=[item.replace("CrossAttn", "") for item in args.up_block_types],
+            attention_head_dim=args.attention_head_dim,  # Number of attention heads: only matters if some AttnDownBlock2D or AttnUpBlock2D are used
         )
     
     # Setup the noise scheduler
