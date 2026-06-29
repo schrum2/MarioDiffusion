@@ -271,8 +271,9 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
 
 def find_ladders(scene, ladder_ids, already_accounted = set(), describe_absence=False):
     """
-    Finds vertical lines (runs) of ladder tiles.
-    Returns a list of (y, start_x, end_x) tuples
+    Finds vertical lines (runs) of ladder tiles, and categorizes each by whether
+    it connects to the top, bottom, both (full height), or neither (middle) of the scene.
+    Returns a caption phrase describing the ladders.
     """
 
     ladders = []
@@ -298,16 +299,43 @@ def find_ladders(scene, ladder_ids, already_accounted = set(), describe_absence=
                 else:
                     break
             already_accounted.update(possible_locations) # Blocks of the line are now accounted for
-            ladders.append((y-1, run_start, x))
+            run_end = y - 1
+            ladders.append((run_end, run_start, x))
 
+    if len(ladders) == 0:
+        if describe_absence:
+            return f" {describe_quantity(0) if coarse_counts else 0} ladder{'s' if pluralize else ''}."
+        else:
+            return ""
 
-    # Return the caption
-    count = len(ladders)
-    if count == 0 and not describe_absence: #If we don't want absence captions we shouldn't add them in
-        return ""
-    else:
-        return f" {describe_quantity(count) if coarse_counts else count} ladder{'s' if pluralize and count != 1 else ''}."
+    # Categorize each ladder run by where it connects
+    categories = {"full height": 0, "at bottom": 0, "at top": 0, "in the middle": 0}
+    for run_end, run_start, x in ladders:
+        touches_top = (run_start == 0)
+        touches_bottom = (run_end == height - 1)
+        if touches_top and touches_bottom:
+            categories["full height"] += 1
+        elif touches_bottom:
+            categories["at bottom"] += 1
+        elif touches_top:
+            categories["at top"] += 1
+        else:
+            categories["in the middle"] += 1
 
+    parts = []
+    for category, count in categories.items():
+        if count == 0:
+            continue
+        if category == "full height":
+            label = "full height ladder"
+            suffix = ""
+        else:
+            label = "ladder"
+            suffix = f" {category}"
+        plural_label = label + "s" if pluralize and count != 1 else label
+        parts.append(f"{describe_quantity(count) if coarse_counts else count} {plural_label}{suffix}")
+
+    return " " + ". ".join(parts) + "."
 
 def find_water_caption(scene, empty_ids, water_ids, describe_absence=False):
     """
@@ -389,12 +417,16 @@ def analyze_ceiling(scene, wall_ids, describe_absence, ceiling_row = 2):
         return ""  # Not enough solid tiles for a ceiling
 
 # We need another seperate function, for the same reason
-def analyze_floor(scene, wall_ids, describe_absence, floor_row = 15):
+def analyze_floor(scene, wall_ids, describe_absence, floor_row=15, ladder_ids=None):
     """Analyzes the last row of the 16X16 scene and generates a floor description."""
+    if ladder_ids is None:
+        ladder_ids = []
     WIDTH = len(scene[0])
     last_row = scene[floor_row]  # The FLOOR row of the scene
-    solid_count = sum(1 for tile in last_row if tile in wall_ids)
-    passable_count = sum(1 for tile in last_row if tile not in wall_ids)
+    # A ladder tile at the floor isn't a fall-through gap, so treat it like solid floor for this purpose
+    non_gap_ids = set(wall_ids) | set(ladder_ids)
+    solid_count = sum(1 for tile in last_row if tile in non_gap_ids)
+    passable_count = sum(1 for tile in last_row if tile not in non_gap_ids)
 
     if solid_count == WIDTH:
         return " full floor."
@@ -408,8 +440,8 @@ def analyze_floor(scene, wall_ids, describe_absence, floor_row = 15):
         gaps = 0
         in_gap = False
         for tile in last_row:
-            # Enemies are also a gap since they immediately fall into the gap
-            if tile not in wall_ids:
+            # Enemies are also a gap since they immediately fall into the gap. Ladders are not gaps.
+            if tile not in non_gap_ids:
                 if not in_gap:
                     gaps += 1
                     in_gap = True
@@ -421,14 +453,13 @@ def analyze_floor(scene, wall_ids, describe_absence, floor_row = 15):
         chunks = 0
         in_chunk = False
         for tile in last_row:
-            if tile in wall_ids:
+            if tile in non_gap_ids:
                 if not in_chunk:
                     chunks += 1
                     in_chunk = True
             else:
                 in_chunk = False
         return f" giant gap with {describe_quantity(chunks) if coarse_counts else chunks} chunk"+("s" if pluralize and chunks != 1 else "")+" of floor."
-
 
 def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence):
     """Processes the dataset and generates captions for each level scene."""
@@ -519,8 +550,8 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     hazard_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'hazard' in value]
     moving_plat_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'moving' in value]
     wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value) and ("hazard" not in value))]
-    disappearing_ids = [char_to_id["A"]] #There's nothing unique about the descriptors for disappearing blocks, so we just set it here
-    
+    disappearing_ids = [char_to_id["A"]] if "A" in char_to_id else [] 
+
     #Ideas:
     #Walls for each size/exit directions
     #Some kind of data transfer telling us which way the level is moving
@@ -602,7 +633,8 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         scene,
         wall_ids,
         describe_absence=describe_absence,
-        floor_row=floor_row
+        floor_row=floor_row,
+        ladder_ids=ladder_ids
     )
     already_accounted.update(floor_tiles)
     add_to_caption(floor_phrase, floor_tiles)
