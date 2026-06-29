@@ -108,7 +108,7 @@ while downloaded < TARGET_DOWNLOADS:
             f.write("-" * 60 + "\n\n")
 
         downloaded += 1
-        print(f" Downloaded: {level_id} ({downloaded}/{TARGET_DOWNLOADS})")
+        print(f"Downloaded: {level_id} ({downloaded}/{TARGET_DOWNLOADS})")
 
     except Exception as e:
         print(f"[ERROR] {level_id} → {e}")
