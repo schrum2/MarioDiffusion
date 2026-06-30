@@ -72,7 +72,7 @@ set "DIFF_TRAIN_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-train
 set "DIFF_VAL_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-validate.json"
 set "RANDOM_TEST_JSON=datasets\MM-%DATASET_INFIX%_RandomTest-regular.json"
 set "WIDTH_RANGE_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular.json"
-set "EVAL_ARGS=--model_path "%MODEL_PATH%" --save_as_json --json "%RANDOM_TEST_JSON%" --random_width --width_range_json "%WIDTH_RANGE_JSON%" --num_tiles=%NUM_TILES%"
+set "EVAL_ARGS=--model_path "%MODEL_PATH%" --save_as_json --json "%RANDOM_TEST_JSON%" --random_width --width_range_json "%WIDTH_RANGE_JSON%" --num_tiles=%NUM_TILES% --game %GAME%"
 
 if not exist "%MLM_DIR%" (
     python train_mlm.py --epochs 300 --save_checkpoints --json "%MLM_JSON%" --pkl "%TOKENIZER_PKL%" --output_dir "%MLM_DIR%" --seed %SEED%
