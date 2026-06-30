@@ -54,9 +54,58 @@ def moving_platform(x: int, y: int) -> List[str]:
     ]
 
 def water_tile(x: int, y: int) -> List[str]:
+    # Real Mega Man Maker water uses e=178 (verified against a labelled level);
+    # mmlv_to_vglc still also accepts the legacy 177 for backward compatibility.
     return [
         f'o{x},{y}="9999.000000"',
-        f'e{x},{y}="177.000000"',
+        f'e{x},{y}="178.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def disappearing_block(x: int, y: int) -> List[str]:
+    # Appearing/disappearing ("Yoku") block, gimmick id 5.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="5.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def fake_block(x: int, y: int) -> List[str]:
+    # Fake / secret transparent block, gimmick id 54.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'h{x},{y}="2.000000"',
+        f'e{x},{y}="54.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def hazard_emitter(x: int, y: int) -> List[str]:
+    # Electric/hazard emitter (the passable 'C' hazard), gimmick id 4.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="4.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def fire_emitter(x: int, y: int) -> List[str]:
+    # Changkey fire-wave emitter (the vertical fire pillar 'I' tile), gimmick id 124.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="124.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def weapon_energy(x: int, y: int) -> List[str]:
+    # The Magnet Beam ('U') has no Mega Man Maker equivalent, so it is emitted as a
+    # small weapon-energy pickup (pickup id 3) per the project decision to fold it in.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="3.000000"',
+        f'd{x},{y}="7.000000"',
         f'a{x},{y}="1.000000"',
     ]
 
@@ -233,9 +282,11 @@ def enemy_footholder(x: int, y: int) -> List[str]:
     ]
 
 def enemy_jumper(x: int, y: int) -> List[str]:
+    # Kamadoma stand-in (enemy id 18): the real Kamadoma isn't in Mega Man Maker, so
+    # the substitute jumping enemy that 'q' maps to is emitted here.
     return [
         f'o{x},{y}="9999.000000"',
-        f'e{x},{y}="159.000000"',
+        f'e{x},{y}="18.000000"',
         f'd{x},{y}="5.000000"',
         f'b{x},{y}="-1.000000"',
         f'a{x},{y}="1.000000"',
@@ -255,8 +306,8 @@ CHAR_MAP = {
     '@': None,
     '-': None,
     '#': solid_block,
-    'A': solid_block,
-    't': solid_block,
+    'A': disappearing_block,
+    't': fake_block,
     '|': ladder_tile,
     'H': spike_tile,
     'B': breakable_tile,
@@ -264,9 +315,10 @@ CHAR_MAP = {
     '~': water_tile,
     'Z': orb_tile,
     'P': player_tile,
-    'C': solid_block,
+    'C': hazard_emitter,
+    'I': fire_emitter,
     '+': [], 'L': [], 'l': [], 'W': [], 'w': [],
-    'D': [], 'U': [], '*': [],
+    'D': [], 'U': weapon_energy, '*': [],
     'a': enemy_ground,
     'b': enemy_flying,
     '<': enemy_octopus_lr,
