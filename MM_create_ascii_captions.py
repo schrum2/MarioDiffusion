@@ -269,45 +269,76 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
     return result if result else []
 
 
-def find_ladders(scene, ladder_ids, already_accounted = set(), describe_absence=False):
+def find_ladders(scene, ladder_ids, already_accounted=set(), describe_absence=False):
     """
-    Finds vertical lines (runs) of ladder tiles.
-    Returns a list of (y, start_x, end_x) tuples
+    Finds vertical runs of ladder tiles and classifies each by where it connects
+    within the playable area (excluding the 2-row ceiling and the floor row):
+    top only, bottom only, both (full height), or neither (middle).
     """
-
-    ladders = []
+    ladders = []  # list of (start_y, end_y, x)
     height = len(scene)
     width = len(scene[0]) if height > 0 else 0
 
-    for x in range(width):
+    ceiling_row = 2          # rows 0-1 are non-playable ceiling
+    floor_row = height - 1   # last row is the floor
+    playable_top = ceiling_row
+    playable_bottom = floor_row - 1
 
+    for x in range(width):
         y = 0
         while y < height:
             if scene[y][x] not in ladder_ids:
                 y += 1
                 continue
 
-            # Start of valid run
             possible_locations = set()
             run_start = y
             while y < height:
-
                 if scene[y][x] in ladder_ids:
-                    possible_locations.add( (y,x) )
+                    possible_locations.add((y, x))
                     y += 1
                 else:
                     break
-            already_accounted.update(possible_locations) # Blocks of the line are now accounted for
-            ladders.append((y-1, run_start, x))
+            already_accounted.update(possible_locations)
+            run_end = y - 1
+            ladders.append((run_start, run_end, x))
 
+    if not ladders:
+        if describe_absence:
+            return " no ladders."
+        else:
+            return ""
 
-    # Return the caption
-    count = len(ladders)
-    if count == 0 and not describe_absence: #If we don't want absence captions we shouldn't add them in
-        return ""
-    else:
-        return f" {describe_quantity(count) if coarse_counts else count} ladder{'s' if pluralize and count != 1 else ''}."
+    categories = {"both": [], "top": [], "bottom": [], "middle": []}
+    for start_y, end_y, x in ladders:
+        connects_top = start_y <= playable_top
+        connects_bottom = end_y >= playable_bottom
+        if connects_top and connects_bottom:
+            categories["both"].append((start_y, end_y, x))
+        elif connects_top:
+            categories["top"].append((start_y, end_y, x))
+        elif connects_bottom:
+            categories["bottom"].append((start_y, end_y, x))
+        else:
+            categories["middle"].append((start_y, end_y, x))
 
+    suffix_map = {"top": "at top", "bottom": "at bottom", "middle": "in the middle"}
+
+    phrases = []
+    for cat in ("both", "top", "bottom", "middle"):
+        items = categories[cat]
+        if not items:
+            continue
+        count = len(items)
+        plural = "s" if pluralize and count != 1 else ""
+        quantity = describe_quantity(count) if coarse_counts else count
+
+        if cat == "both":
+            phrases.append(f" {quantity} full height ladder{plural}.")
+        else:
+            phrases.append(f" {quantity} ladder{plural} {suffix_map[cat]}.")
+
+    return "".join(phrases)
 
 def find_water_caption(scene, empty_ids, water_ids, describe_absence=False):
     """
@@ -519,7 +550,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     hazard_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'hazard' in value]
     moving_plat_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'moving' in value]
     wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value) and ("hazard" not in value))]
-    disappearing_ids = [char_to_id["A"]] #There's nothing unique about the descriptors for disappearing blocks, so we just set it here
+    disappearing_ids = [char_to_id["A"]] if "A" in char_to_id else [] #There's nothing unique about the descriptors for disappearing blocks, so we just set it here
     
     #Ideas:
     #Walls for each size/exit directions

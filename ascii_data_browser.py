@@ -118,14 +118,10 @@ class TileViewer(tk.Tk):
                 return_details=True
             )
         elif self.game.get()=="MM-Full" or self.game.get()=="MM-Simple":
-            s = sample['caption'] #Done for clarity
-            # mm_assign_caption requires an extra argument for some encoded data that the level parser finds. This code moves those keys along
-            data = {
-                # String parsing to find entrance key
-                "entrance_direction": s[s.find("entrance direction")+len("entrance direction ") : s.find(".", s.find("entrance direction"))],
-                #String parsing to find exit key
-                "exit_direction": s[s.find("exit direction")+len("exit direction ") : s.find(".", s.find("exit direction"))]
-            }
+            # Use the entrance/exit direction data baked into the sample itself
+            # (populated by create_megaman_json_data.py when run with --direction_captions),
+            # instead of parsing it back out of the previous caption text.
+            data = sample.get('data', None)
 
             caption, details = mm_assign_caption(
                 sample['scene'],
@@ -372,11 +368,42 @@ class TileViewer(tk.Tk):
             "Mega Man (Full)": "MM-Full"
         }
         
-        #Method called every time the dropdown is updated to use the mapping, and putting it in self.game
+       #Method called every time the dropdown is updated to use the mapping, and putting it in self.game
         def on_game_select(Event=None):
             game_display_var = self.game_display_var.get()
             self.game.set(self.game_display_to_real_mapping.get(game_display_var, game_display_var))
-        
+
+            # Auto-switch tileset AND dataset to match the newly selected game, so we don't
+            # end up applying e.g. the MM-Simple tileset to an MM-Full dataset (and vice versa).
+            game_to_tileset = {
+                "Mario": common_settings.MARIO_TILESET,
+                "LR": common_settings.LR_TILESET,
+                "MM-Simple": common_settings.MM_SIMPLE_TILESET,
+                "MM-Full": common_settings.MM_FULL_TILESET,
+            }
+            #game_to_dataset = {
+                #"Mario": "datasets/SMB1_LevelsAndCaptions-regular.json",
+                #"LR": "datasets/Mar1and2_LevelsAndCaptions-regular.json",
+                #"MM-Simple": "datasets/MM-simple_LevelsAndCaptions-regular.json",
+                #"MM-Full": "datasets/MM-full_LevelsAndCaptions-regular.json",
+            #}
+
+            new_tileset_path = game_to_tileset.get(self.game.get())
+            #new_dataset_path = game_to_dataset.get(self.game.get())
+
+            tileset_changed = (new_tileset_path and os.path.isfile(new_tileset_path)
+                                and new_tileset_path != self.tileset_path)
+            #dataset_changed = (new_dataset_path and os.path.isfile(new_dataset_path)
+                                #and new_dataset_path != self.dataset_path)
+
+            if tileset_changed:
+                self.tileset_path = new_tileset_path
+            #if dataset_changed:
+                #self.dataset_path = new_dataset_path
+
+            if (tileset_changed or dataset_changed) and self.dataset_path and self.tileset_path:
+                self.load_files_from_paths(self.dataset_path, self.tileset_path)
+
         #Creating the game dropdown
         self.game_display_var = tk.StringVar(value="Mario")
         self.game = tk.StringVar(value=self.game_display_to_real_mapping[self.game_display_var.get()])
@@ -445,6 +472,11 @@ class TileViewer(tk.Tk):
             self.load_files_from_paths(self.dataset_path, self.tileset_path)
 
     def load_files_from_paths(self, dataset_path, tileset_path):
+
+        print("DATASET =", dataset_path)
+        print("TILESET =", tileset_path)
+        #print("TILE DESCRIPTORS =", self.tile_descriptors)
+
         self.dataset_path = dataset_path
         try:
             with open(dataset_path, 'r') as f:
@@ -683,7 +715,7 @@ class TileViewer(tk.Tk):
                     tile_id = sample['scene'][y][x]
                     text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
                     # Convert (r, g, b) float tuple to hex color string
-                    r, g, b = colors[tile_id]
+                    r, g, b = colors[tile_id % len(colors)]
                     color_hex = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
                     # Find all matching phrases for this coordinate
