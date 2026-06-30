@@ -41,6 +41,7 @@ class TileViewer(tk.Tk):
         self.id_to_char = {}
         self.current_sample_idx = 0
         self.caption_cycle_idx = 0  # which caption field is shown when a scene has several
+        self.show_prompt = False  # text box shows the scene's 'prompt' field instead of caption
         self.show_ids = tk.BooleanVar(value=False)
         #self.describe_locations = tk.BooleanVar(value=False)
         self.describe_absence = tk.BooleanVar(value=False)
@@ -279,6 +280,13 @@ class TileViewer(tk.Tk):
             self.caption_cycle_frame, text="Cycle Caption", command=self.cycle_caption
         )
         self.caption_cycle_label = tk.Label(self.caption_cycle_frame, text="")
+
+        # Button to switch the text box between the scene's caption and its optional
+        # 'prompt' field. Like the cycle controls, it stays hidden unless the current scene
+        # actually has a 'prompt' field.
+        self.prompt_toggle_button = tk.Button(
+            self.caption_cycle_frame, text="Show Prompt", command=self.toggle_prompt
+        )
 
         # Combined navigation and info frame
         nav_info_frame = tk.Frame(self)
@@ -716,30 +724,44 @@ class TileViewer(tk.Tk):
                         fill=color_hex
                     )
 
-        # Update caption text widget. A scene may carry several caption fields
-        # (e.g. caption, caption1, ... from llm_ascii_to_caption); pick the one the cycle
-        # button currently points at and show/hide the cycle control accordingly.
-        caption_keys = self._sorted_caption_keys(
-            [k for k in sample if isinstance(k, str) and k.startswith("caption")]
-        )
-        if self.caption_cycle_idx >= len(caption_keys):
-            self.caption_cycle_idx = 0
-        self._update_caption_cycle_controls(len(caption_keys))
+        # Update the text box below the scene. It normally shows the scene's caption(s),
+        # but can be toggled to show an optional 'prompt' field when one is present.
+        has_prompt = isinstance(sample, dict) and 'prompt' in sample
+        self._update_prompt_toggle_control(has_prompt)
 
-        self.caption_text.configure(state="normal")
-        self.caption_text.delete("1.0", tk.END)
-        current_caption_key = caption_keys[self.caption_cycle_idx] if caption_keys else 'caption'
-        caption_text = sample.get(current_caption_key, '')
-        caption_parts = caption_text.split('.')
-        for part in caption_parts:
-            part = part.strip()
-            if part:
-                part = part + "."  # Add back period
-                color = phrase_colors.get(part, "black")  # Remove period for color lookup
-                part = part + " " # Add space for readability
-                self.caption_text.tag_configure(color, foreground=color)
-                self.caption_text.insert(tk.END, part, (color, "center"))
-        # Grow the caption box to fit the full caption so long captions aren't clipped.
+        if self.show_prompt and has_prompt:
+            # Showing the raw prompt: hide the caption-cycle controls and render it as
+            # plain (uncolored) text, since prompts don't carry per-phrase detail coords.
+            self._update_caption_cycle_controls(0)
+            self.caption_text.configure(state="normal")
+            self.caption_text.delete("1.0", tk.END)
+            self.caption_text.tag_configure("black", foreground="black")
+            self.caption_text.insert(tk.END, str(sample.get('prompt', '')), ("black", "center"))
+        else:
+            # A scene may carry several caption fields (e.g. caption, caption1, ... from
+            # llm_ascii_to_caption); pick the one the cycle button currently points at and
+            # show/hide the cycle control accordingly.
+            caption_keys = self._sorted_caption_keys(
+                [k for k in sample if isinstance(k, str) and k.startswith("caption")]
+            )
+            if self.caption_cycle_idx >= len(caption_keys):
+                self.caption_cycle_idx = 0
+            self._update_caption_cycle_controls(len(caption_keys))
+
+            self.caption_text.configure(state="normal")
+            self.caption_text.delete("1.0", tk.END)
+            current_caption_key = caption_keys[self.caption_cycle_idx] if caption_keys else 'caption'
+            caption_text = sample.get(current_caption_key, '')
+            caption_parts = caption_text.split('.')
+            for part in caption_parts:
+                part = part.strip()
+                if part:
+                    part = part + "."  # Add back period
+                    color = phrase_colors.get(part, "black")  # Remove period for color lookup
+                    part = part + " " # Add space for readability
+                    self.caption_text.tag_configure(color, foreground=color)
+                    self.caption_text.insert(tk.END, part, (color, "center"))
+        # Grow the text box to fit the full content so long captions/prompts aren't clipped.
         self._resize_caption_box()
         # Do not set state to disabled, so user can select/copy
         # self.caption_text.configure(state="disabled")
@@ -774,6 +796,23 @@ class TileViewer(tk.Tk):
         else:
             self.caption_cycle_button.pack_forget()
             self.caption_cycle_label.pack_forget()
+
+    def _update_prompt_toggle_control(self, has_prompt):
+        """Show the prompt toggle button only when the current scene has a 'prompt' field;
+        otherwise hide it. The label reflects what the button will switch the box to."""
+        if has_prompt:
+            if not self.prompt_toggle_button.winfo_ismapped():
+                self.prompt_toggle_button.pack(side=tk.LEFT, padx=5)
+            self.prompt_toggle_button.config(
+                text="Show Caption" if self.show_prompt else "Show Prompt"
+            )
+        else:
+            self.prompt_toggle_button.pack_forget()
+
+    def toggle_prompt(self):
+        """Toggle the text box below the scene between its caption and its 'prompt' field."""
+        self.show_prompt = not self.show_prompt
+        self.redraw()
 
     def _resize_caption_box(self):
         """Grow/shrink the caption box so the whole caption is visible without scrolling.
