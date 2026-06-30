@@ -105,7 +105,10 @@ def parse_args():
                        default=["CrossAttnUpBlock2D", "CrossAttnUpBlock2D", "CrossAttnUpBlock2D"], 
                        help="Up block types for UNet")
     parser.add_argument("--attention_head_dim", type=int, default=8, help="Number of attention heads")
-    
+    parser.add_argument("--max_grad_norm", type=float, default=1.0, help="Max gradient norm for clipping")
+
+
+
     # Training args
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--num_epochs", type=int, default=500, help="Number of training epochs")
@@ -529,6 +532,7 @@ def main():
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types = [item.replace("CrossAttn", "") for item in args.down_block_types],
             up_block_types=[item.replace("CrossAttn", "") for item in args.up_block_types],
+            attention_head_dim=args.attention_head_dim,  # Number of attention heads: only matters if some AttnDownBlock2D or AttnUpBlock2D are used
         )
     
     # Setup the noise scheduler
@@ -781,6 +785,8 @@ def main():
                     args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator
                 )
                 accelerator.backward(loss)
+                if accelerator.sync_gradients:
+                    accelerator.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()

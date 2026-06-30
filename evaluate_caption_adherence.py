@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps") # Large reduction from the 500 used during training
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
+    parser.add_argument("--no_caption_score", action="store_true", help="Skip the caption-adherence score calculation and just generate a sample for each prompt.")
     parser.add_argument("--resume", action="store_true", help="Resume an interrupted checkpoint comparison run")
 
     # Used to generate captions when generating images
@@ -208,9 +209,10 @@ def main():
         # Just run on one model and get samples as well
         width_range = resolve_eval_width_range(args)
         per_width_scores = {}
-        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores)
+        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score)
 
-        print(f"Average caption adherence score: {avg_score:.4f}")
+        if avg_score is not None:
+            print(f"Average caption adherence score: {avg_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
         # Show how many samples were generated at each width and how well each width scored.
         # A width missing here means no caption was generated at that size.
@@ -232,7 +234,14 @@ def main():
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
-            if args.num_tiles == common_settings.MARIO_TILE_COUNT:
+            if args.no_caption_score:
+                # No structured caption is computed for these prompts (they are LLM/natural-language),
+                # so just pair each input prompt with the scene the model generated for it. This is
+                # what lets you check whether the output matches the input it was trained on.
+                paired = [{"prompt": prompt, "scene": scene} for prompt, scene in zip(all_prompts, scenes)]
+                with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
+                    json.dump(paired, f, indent=4)
+            elif args.num_tiles == common_settings.MARIO_TILE_COUNT:
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
             elif args.num_tiles == common_settings.LR_TILE_COUNT:
                 tileset = common_settings.LR_TILESET
@@ -358,7 +367,11 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None, compute_score=True):
+
+    # compute_score=False skips deriving a structured caption from each generated scene and scoring
+    # it against the prompt. Use it for natural-language (LLM) captions, where that comparison is
+    # meaningless. Samples and prompts are still collected; avg_score is returned as None.
 
     # Optional per-width score collection. When the caller passes a dict, each sample's caption
     # score is appended under the width it was generated at (per_width_scores[width] -> list of
@@ -450,6 +463,13 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     
                 all_prompts.append(caption)
 
+                # For LLM/natural-language prompts there is no structured caption to derive or
+                # compare, so just keep the generated sample and move on.
+                if not compute_score:
+                    all_samples.append(samples[i])
+                    total_count += 1
+                    continue
+
                 sample = samples[i].unsqueeze(0)
                 #print("sample.shape", sample.shape)
                 sample_indices = convert_to_level_format(sample)
@@ -494,7 +514,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
         if output: print(f"Batch {batch_idx+1}/{len(dataloader)}:")
 
-    avg_score = score_sum / total_count
+    avg_score = (score_sum / total_count) if compute_score and total_count else None
     # Stack all per-sample (C,H,W) tensors into one (N,C,H,W) batch. With random_width the
     # widths differ across batches and can't be stacked, so keep a list of (C,H,W) tensors;
     # downstream samples_to_scenes / per-sample visualization handle either form.
