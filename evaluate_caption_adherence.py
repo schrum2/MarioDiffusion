@@ -30,8 +30,10 @@ def parse_args():
     # Dataset args
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
-    parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
-    parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") 
+    parser.add_argument("--game", type=str, default=None, choices=["Mario", "LR", "MM-Simple", "MM-Full"], help="Game to evaluate: selects the tileset, scene shape, tile count, and the tiles used for rendering. This is the main way to pick a game, and how Mega Man should be resolved. When omitted, the game is derived from --num_tiles (+ --mm) for backward compatibility.")
+    parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types (used to derive the game when --game is not given)")
+    parser.add_argument("--mm", action="store_true", help="Backward-compatible shorthand for Mega Man when --game is not given: routes the 13-tile case to MM-Simple instead of Mario (they share a tile count). Prefer --game MM-Simple / --game MM-Full.")
+    parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps") # Large reduction from the 500 used during training
@@ -66,6 +68,38 @@ def parse_args():
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
 
     return parser.parse_args()
+
+# Per-game settings: (num_tiles, tileset, height, width). resolve_game() picks a game from --game
+# (primary) or, for older calls, from --num_tiles (+ --mm). The tileset must match the tile count
+# so the deterministic caption script can read every tile (MM-Full uses the 41-tile MM.json).
+GAME_SETTINGS = {
+    "Mario":     (common_settings.MARIO_TILE_COUNT,     common_settings.MARIO_TILESET,     common_settings.MARIO_HEIGHT,   common_settings.MARIO_WIDTH),
+    "LR":        (common_settings.LR_TILE_COUNT,        common_settings.LR_TILESET,        common_settings.LR_HEIGHT,      common_settings.LR_WIDTH),
+    "MM-Simple": (common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_SIMPLE_TILESET, common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
+    "MM-Full":   (common_settings.MM_FULL_TILE_COUNT,   common_settings.MM_FULL_TILESET,   common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
+}
+
+def resolve_game(args):
+    """Map the CLI args to (game, num_tiles, tileset, height, width, path_to_json).
+
+    --game is the primary selector and the main way to choose Mega Man. When it is omitted, the
+    game is derived from --num_tiles (+ --mm) so older calls keep working: 8 -> LR, 41 -> MM-Full,
+    13 -> Mario, or MM-Simple when --mm is set (Mario and MM-Simple share a 13-tile count).
+    """
+    if args.game is not None:
+        game = args.game
+    elif args.num_tiles == common_settings.LR_TILE_COUNT:
+        game = "LR"
+    elif args.num_tiles == common_settings.MM_FULL_TILE_COUNT:
+        game = "MM-Full"
+    elif args.mm:
+        game = "MM-Simple"
+    else:
+        game = "Mario"
+    num_tiles, tileset, height, width = GAME_SETTINGS[game]
+    # Lode Runner has always evaluated against its regular caption set, ignoring --json.
+    path_to_json = "datasets/LR_LevelsAndCaptions-regular.json" if game == "LR" else args.json
+    return game, num_tiles, tileset, height, width, path_to_json
 
 def resolve_eval_width_range(args):
     """Resolve (min_width, max_width) for --random_width, or None when it is disabled.
@@ -111,22 +145,7 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
 
-    # Based on the number of tiles, decides which game to run
-    if args.num_tiles == common_settings.MARIO_TILE_COUNT:
-            tileset = common_settings.MARIO_TILESET
-            height = common_settings.MARIO_HEIGHT
-            width = common_settings.MARIO_WIDTH
-            path_to_json = args.json
-    elif args.num_tiles == common_settings.LR_TILE_COUNT:
-            tileset = common_settings.LR_TILESET
-            height = common_settings.LR_HEIGHT
-            width = common_settings.LR_WIDTH
-            path_to_json = "datasets/LR_LevelsAndCaptions-regular.json"
-    elif args.num_tiles in [common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_FULL_TILE_COUNT]:
-            tileset = common_settings.MM_SIMPLE_TILESET
-            height = common_settings.MEGAMAN_HEIGHT
-            width = common_settings.MEGAMAN_WIDTH
-            path_to_json = args.json
+    game, num_tiles, tileset, height, width, path_to_json = resolve_game(args)
 
 
     if not args.compare_checkpoints:
@@ -169,7 +188,7 @@ def main():
         shuffle=False,
         mode="text",
         augment=False,
-        num_tiles=args.num_tiles
+        num_tiles=num_tiles
     )
     scene_widths = {len(item["scene"][0]) for item in dataset.data if isinstance(item, dict) and item.get("scene")}
 
@@ -223,28 +242,35 @@ def main():
                 print(f"\twidth {w}: {len(scores)} samples, avg score {sum(scores) / len(scores):.4f}")
         
         if args.save_image_samples:
-            game = 'LR' if args.num_tiles == common_settings.LR_TILE_COUNT else 'Mario'
-            if args.num_tiles in (common_settings.MARIO_TILE_COUNT, common_settings.LR_TILE_COUNT):
-                if isinstance(all_samples, list):
-                    # Mixed widths can't be stacked into one tensor; render each sample on its own.
-                    for i, sample in enumerate(all_samples):
-                        visualize_samples(sample.unsqueeze(0), args.output_dir, start_index=i, prompts=[all_prompts[i]], game=game)
-                else:
-                    visualize_samples(all_samples, args.output_dir, prompts=all_prompts, game=game)
+            if isinstance(all_samples, list):
+                # Mixed widths can't be stacked into one tensor; render each sample on its own.
+                for i, sample in enumerate(all_samples):
+                    visualize_samples(sample.unsqueeze(0), args.output_dir, start_index=i, prompts=[all_prompts[i]], game=game)
+            else:
+                visualize_samples(all_samples, args.output_dir, prompts=all_prompts, game=game)
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
             if args.no_caption_score:
-                # No structured caption is computed for these prompts (they are LLM/natural-language),
-                # so just pair each input prompt with the scene the model generated for it. This is
-                # what lets you check whether the output matches the input it was trained on.
-                paired = [{"prompt": prompt, "scene": scene} for prompt, scene in zip(all_prompts, scenes)]
+                # These prompts are LLM/natural-language, so no adherence score is computed. Keep the
+                # original input in "prompt", and also attach a deterministic "caption" derived from
+                # the generated scene by the per-game caption script. The "caption" field is what lets
+                # the json open in ascii_data_browser.py (which reads sample["caption"]).
+                paired = []
+                for prompt, scene in zip(all_prompts, scenes):
+                    if game == "LR":
+                        capt_scene = [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
+                        caption = lr_assign_caption(capt_scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+                    elif game in ("MM-Simple", "MM-Full"):
+                        caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+                    else:  # Mario
+                        caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+                    paired.append({"prompt": prompt, "caption": caption, "scene": scene})
                 with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
                     json.dump(paired, f, indent=4)
-            elif args.num_tiles == common_settings.MARIO_TILE_COUNT:
+            elif game == "Mario":
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
-            elif args.num_tiles == common_settings.LR_TILE_COUNT:
-                tileset = common_settings.LR_TILESET
+            elif game == "LR":
                 scenes = [
                             [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
                             for scene in scenes
@@ -254,21 +280,7 @@ def main():
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True):
 
-    if args.num_tiles == common_settings.MARIO_TILE_COUNT:
-            tileset = common_settings.MARIO_TILESET
-            height = common_settings.MARIO_HEIGHT
-            width = common_settings.MARIO_WIDTH
-            path_to_json = args.json
-    elif args.num_tiles == common_settings.LR_TILE_COUNT:
-            tileset = common_settings.LR_TILESET
-            height = common_settings.LR_HEIGHT
-            width = common_settings.LR_WIDTH
-            path_to_json = "datasets/LR_LevelsAndCaptions-regular.json"
-    elif args.num_tiles in [common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_FULL_TILE_COUNT]:
-            tileset = common_settings.MM_SIMPLE_TILESET
-            height = common_settings.MEGAMAN_HEIGHT
-            width = common_settings.MEGAMAN_WIDTH
-            path_to_json = args.json
+    _, _, _, height, width, path_to_json = resolve_game(args)
 
     width_range = resolve_eval_width_range(args)
 
