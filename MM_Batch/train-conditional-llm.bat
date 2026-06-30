@@ -28,16 +28,29 @@ if /I "%SPLIT%"=="split" (
     set SPLIT_FLAG=
 )
 
-python train_diffusion.py --text_conditional --game MM-Full --tileset datasets\MM.json --json datasets\MM_LevelsAndLLMCaptions-full-train.json --val_json datasets\MM_LevelsAndLLMCaptions-full-validate.json --multiple_captions --pretrained_language_model "%MODEL_NAME%" --num_epochs 500 --output_dir "%DIFF_OUTPUT%" --seed %SEED% %SPLIT_FLAG%
+REM Per-execution timing log: each step appends a timestamped record. The log is
+REM saved under timing_logs\ during the run then moved into the trained model's directory at the end
+set TIMING_LOG=timing_logs\%DIFF_OUTPUT%.jsonl
+if exist "%TIMING_LOG%" del "%TIMING_LOG%"
+python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train-conditional-llm pipeline start"
 
-REM Post-training evaluation 
+python train_diffusion.py --text_conditional --game MM-Full --tileset datasets\MM.json --json datasets\MM_LevelsAndLLMCaptions-full-train.json --val_json datasets\MM_LevelsAndLLMCaptions-full-validate.json --multiple_captions --pretrained_language_model "%MODEL_NAME%" --num_epochs 500 --output_dir "%DIFF_OUTPUT%" --seed %SEED% %SPLIT_FLAG%
+python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
+
+REM Post-training evaluation
 REM 100 unconditional samples from the trained model
 python run_diffusion.py --model_path "%DIFF_OUTPUT%" --num_samples 100 --text_conditional --save_as_json --output_dir "%DIFF_OUTPUT%-unconditional-samples" --game MM-Full
+python log_timestamp.py --log_file %TIMING_LOG% --event "unconditional sampling"
 
 REM Generate a sample for every training caption and save each input prompt next to its generated scene
 REM Output: <model>\samples-from-train-captions\all_levels.json
-python evaluate_caption_adherence.py --model_path "%DIFF_OUTPUT%" --json datasets\MM_LevelsAndLLMCaptions-full-train.json --num_tiles 41 --no_caption_score --save_as_json --output_dir samples-from-train-captions
+python evaluate_caption_adherence.py --model_path "%DIFF_OUTPUT%" --json datasets\MM_LevelsAndLLMCaptions-full-train.json --num_tiles 41 --game MM-Full --no_caption_score --save_as_json --output_dir samples-from-train-captions
+python log_timestamp.py --log_file %TIMING_LOG% --event "evaluate train-caption adherence"
 
 REM Same for every test caption
 REM Output: <model>\samples-from-test-captions\all_levels.json
-python evaluate_caption_adherence.py --model_path "%DIFF_OUTPUT%" --json datasets\MM_LevelsAndLLMCaptions-full-test.json --num_tiles 41 --no_caption_score --save_as_json --output_dir samples-from-test-captions
+python evaluate_caption_adherence.py --model_path "%DIFF_OUTPUT%" --json datasets\MM_LevelsAndLLMCaptions-full-test.json --num_tiles 41 --game MM-Full --no_caption_score --save_as_json --output_dir samples-from-test-captions
+python log_timestamp.py --log_file %TIMING_LOG% --event "evaluate test-caption adherence"
+
+REM Pipeline finished: move the timing log into the trained model's directory.
+move /Y %TIMING_LOG% "%DIFF_OUTPUT%\pipeline_timing.jsonl"
