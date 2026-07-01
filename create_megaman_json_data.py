@@ -298,7 +298,8 @@ def main():
                 #follower), for a final height of nav_height + SNAP_H_PAD_ROWS.
                 h_samples, h_json, h_coords = snap_window_samples(
                     levels[i], tile_to_id, args.target_width, nav_height, null_chars,
-                    top_pad=args.target_height % 14, x_stride=args.stride_x, y_stride=args.stride_y
+                    top_pad=args.target_height % 14, x_stride=args.stride_x, y_stride=args.stride_y,
+                    direction_captions=direction_captions
                 )
                 #Tall scenes are a nav_width x target_height null-free screen with no
                 #padding. But when target_height is no taller than the standard padded
@@ -313,7 +314,8 @@ def main():
                     v_screen_height, v_top_pad = args.target_height, 0
                 v_samples, v_json, v_coords = snap_window_samples(
                     levels[i], tile_to_id, nav_width, v_screen_height, null_chars,
-                    top_pad=v_top_pad, x_stride=args.stride_x, y_stride=args.stride_y
+                    top_pad=v_top_pad, x_stride=args.stride_x, y_stride=args.stride_y,
+                    direction_captions=direction_captions
                 )
                 samples = h_samples + v_samples
                 json_caption_data = h_json + v_json
@@ -525,7 +527,7 @@ def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_wid
 #like the path follower's nav window and like the vertical scan), and the only null is the
 #synthetic padding added on top. Output scenes are (screen_height + top_pad) tall. Air ('-')
 #is legitimate content, so only @ matters. Used by the 'snap' scan mode.
-def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars, top_pad=0, x_stride=1, y_stride=1):
+def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars, top_pad=0, x_stride=1, y_stride=1, direction_captions=False):
     null_id = tile_to_id.get(null_chars[0], 0)
     level_height = len(level)
     level_width = len(level[0])
@@ -533,6 +535,17 @@ def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars,
     samples = []
     json_caption_data = []
     source_coords = []
+
+    #Snap-mode scenes don't come from a walked path, so there's no real "entrance/exit"
+    #the way parse_level() has one. We use top_pad as the signal for orientation: wide
+    #scenes (top_pad > 0, mirroring the path follower's padding) are treated as moving
+    #horizontally so ceiling/floor captions apply the same way path-mode scenes do; tall
+    #scenes (top_pad == 0) are treated as moving vertically, so ceiling is correctly
+    #skipped for them (ceiling captions only fire for horizontal exit directions).
+    if top_pad > 0:
+        sample_direction_data = {"entrance_direction": "RIGHT", "exit_direction": "RIGHT"}
+    else:
+        sample_direction_data = {"entrance_direction": "DOWN", "exit_direction": "DOWN"}
 
     for y in range(0, level_height - screen_height + 1, y_stride):
         for x in range(0, level_width - out_width + 1, x_stride):
@@ -546,8 +559,9 @@ def snap_window_samples(level, tile_to_id, out_width, screen_height, null_chars,
                 encoded.append([tile_to_id.get(ch, null_id) for ch in row])
             samples.append(encoded)
             #None (not {}) keeps this parallel with the path-follower's "no captions"
-            #convention; the caption consumer skips None but KeyErrors on an empty dict.
-            json_caption_data.append(None)
+            #convention when direction_captions is off; the caption consumer skips None
+            #but KeyErrors on an empty dict.
+            json_caption_data.append(sample_direction_data if direction_captions else None)
             #Source coords point at the top-left of the real (null-free) screen, i.e.
             #below the synthetic top_pad rows -- so it points at actual level content.
             source_coords.append((x, y))
