@@ -3,9 +3,14 @@ from typing import Dict, Optional
 
 
 class GrammarGenerator:
-    def __init__(self, seed=512, describe_absence=False, no_upside_down_pipes=False):
+    def __init__(self, seed=512, describe_absence=False, no_upside_down_pipes=False,
+                 include_entrance_exit=False):
         random.seed(seed)
         self.describe_absence = describe_absence
+        # Entrance/exit direction phrases are off by default since they don't reflect
+        # what's actually in most captioned scenes; pass include_entrance_exit=True
+        # to turn them back on.
+        self.include_entrance_exit = include_entrance_exit
 
         self.topic_phrases = {
             "floor": [
@@ -73,10 +78,27 @@ class GrammarGenerator:
                 "several platforms",
             ],
             "ladder": [
-                "one ladder",
-                "two ladders",
-                "a few ladders",
-                "several ladders",
+                # Single-category phrases, covering all four ladder types
+                "one ladder at top",
+                "two ladders at top",
+                "a few ladders at top",
+                "one ladder at bottom",
+                "two ladders at bottom",
+                "a few ladders at bottom",
+                "one ladder in the middle",
+                "two ladders in the middle",
+                "a few ladders in the middle",
+                "one full height ladder",
+                "two full height ladders",
+                "a few full height ladders",
+                # Occasional combos of two ladder types in the same scene, since real
+                # scenes sometimes have more than one kind of ladder at once. Kept rare
+                # relative to the single-category phrases above.
+                "one ladder at top. one ladder at bottom",
+                "one ladder at top. one full height ladder",
+                "one ladder at bottom. one full height ladder",
+                "a few ladders at bottom. one ladder at top",
+                "one ladder in the middle. one full height ladder",
             ],
             "tower": [
                 "one tower",
@@ -163,36 +185,48 @@ class GrammarGenerator:
         return None
 
     def generate_sentence(self, min_topics: int = 1, max_topics: int = 10) -> str:
-        num_topics = random.randint(min_topics, max_topics)
-        entrance_phrase, exit_phrase = self.generate_entrance_exit()
-        selected_phrases = [entrance_phrase, exit_phrase]
-        used_topics = {"entrance direction", "exit direction"}
-        available_topics = [t for t in self.topic_keywords if t not in used_topics]
+            num_topics = random.randint(min_topics, max_topics)
+            selected_phrases = []
+            used_topics = set()
 
-        for _ in range(num_topics):
-            if not available_topics:
-                break
+            if self.include_entrance_exit:
+                entrance_phrase, exit_phrase = self.generate_entrance_exit()
+                selected_phrases.extend([entrance_phrase, exit_phrase])
+                used_topics.update({"entrance direction", "exit direction"})
+            else:
+                # Keep these out of the random pool entirely when the flag is off,
+                # not just unselected by default.
+                used_topics.update({"entrance direction", "exit direction"})
 
-            topic = random.choice(available_topics)
-            available_topics.remove(topic)
-            used_topics.add(topic)
+            available_topics = [t for t in self.topic_keywords if t not in used_topics]
 
-            for group in self.exclusive_groups:
-                if topic in group:
-                    for exclusive_topic in group:
-                        if exclusive_topic in available_topics and exclusive_topic != topic:
-                            available_topics.remove(exclusive_topic)
+            for _ in range(num_topics):
+                if not available_topics:
+                    break
 
-            phrase = random.choice(self.topic_phrases[topic])
-            selected_phrases.append(phrase)
+                topic = random.choice(available_topics)
+                available_topics.remove(topic)
+                used_topics.add(topic)
 
-        if self.describe_absence:
-            for topic in self.topic_keywords:
-                if topic not in used_topics and topic in self.absence_phrases:
-                    selected_phrases.append(self.absence_phrases[topic])
+                for group in self.exclusive_groups:
+                    if topic in group:
+                        for exclusive_topic in group:
+                            if exclusive_topic in available_topics and exclusive_topic != topic:
+                                available_topics.remove(exclusive_topic)
 
-        random.shuffle(selected_phrases)
-        return ". ".join(selected_phrases) + "."
+                phrase = random.choice(self.topic_phrases[topic])
+                selected_phrases.append(phrase)
+
+            if self.describe_absence:
+                for topic in self.topic_keywords:
+                    if topic == "entrance direction" or topic == "exit direction":
+                        if not self.include_entrance_exit:
+                            continue
+                    if topic not in used_topics and topic in self.absence_phrases:
+                        selected_phrases.append(self.absence_phrases[topic])
+
+            random.shuffle(selected_phrases)
+            return ". ".join(selected_phrases) + "."
 
     def generate_entrance_exit(self):
         """Generate sensible entrance/exit direction pair matching training data conventions."""
@@ -223,7 +257,10 @@ class GrammarGenerator:
             phrase_topic = self.get_topic_from_phrase(phrase)
             if not phrase_topic:
                 return False
-            if phrase_topic in seen_topics:
+            # Ladder is allowed to appear as more than one phrase per sentence
+            # (e.g. "one ladder at top" + "one full height ladder" as separate
+            # sub-phrases from a combo entry), so don't reject repeats of it.
+            if phrase_topic in seen_topics and phrase_topic != "ladder":
                 return False
             for group in self.exclusive_groups:
                 if phrase_topic in group:
@@ -235,7 +272,14 @@ class GrammarGenerator:
 
 if __name__ == "__main__":
     generator = GrammarGenerator(seed=512, describe_absence=False)
-    print("Generated sentences:")
+    print("Generated sentences (entrance/exit off by default):")
     for _ in range(5):
         sentence = generator.generate_sentence()
         print(f"- {sentence}")
+
+    print("\nGenerated sentences (entrance/exit enabled):")
+    generator2 = GrammarGenerator(seed=512, describe_absence=False, include_entrance_exit=True)
+    for _ in range(5):
+        sentence = generator2.generate_sentence()
+        print(f"- {sentence}")
+

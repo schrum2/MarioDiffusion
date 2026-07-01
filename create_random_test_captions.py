@@ -40,6 +40,12 @@ def parse_args():
         choices=["Mario", "LR", "MM-Simple", "MM-Full", "Other"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
+    parser.add_argument(
+        "--include_entrance_exit",
+        action="store_true",
+        default=False,
+        help="Include entrance/exit direction phrases in generated Mega Man captions (off by default)"
+    )
     
     return parser.parse_args()
 
@@ -68,14 +74,16 @@ def main():
         args.tileset = common_settings.MM_SIMPLE_TILESET
         generator = MM_GrammarGenerator(
             seed=args.seed,
-            describe_absence=args.describe_absence
+            describe_absence=args.describe_absence,
+            include_entrance_exit=args.include_entrance_exit
         )
     elif args.game == "MM-Full":
         args.num_tiles = common_settings.MM_FULL_TILE_COUNT
         args.tileset = common_settings.MM_FULL_TILESET
         generator = MM_GrammarGenerator(
             seed=args.seed,
-            describe_absence=args.describe_absence
+            describe_absence=args.describe_absence,
+            include_entrance_exit=args.include_entrance_exit
         )
     elif args.game == "Other":
         # The generic generator learns its topics from the training data, so it is

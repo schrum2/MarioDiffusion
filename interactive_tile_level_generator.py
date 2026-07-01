@@ -2057,9 +2057,8 @@ class MegaManLayoutEditor:
         mmlv_path = os.path.join(levels_dir, level_name + ".mmlv")
 
         try:
-            kept = [r for r in rows if any(ch != '@' for ch in r)]
             with open(txt_path, 'w') as f:
-                f.write("\n".join(kept))
+                f.write("\n".join(rows))
 
             from megaman.vglc_to_mmlv import convert
 

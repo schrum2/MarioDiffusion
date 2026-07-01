@@ -282,7 +282,7 @@ def find_ladders(scene, ladder_ids, already_accounted=set(), describe_absence=Fa
     ceiling_row = 2          # rows 0-1 are non-playable ceiling
     floor_row = height - 1   # last row is the floor
     playable_top = ceiling_row
-    playable_bottom = floor_row - 1
+    playable_bottom = floor_row 
 
     for x in range(width):
         y = 0
