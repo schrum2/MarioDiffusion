@@ -90,15 +90,6 @@ def hazard_emitter(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
-def fire_emitter(x: int, y: int) -> List[str]:
-    # Changkey fire-wave emitter (the vertical fire pillar 'I' tile), gimmick id 124.
-    return [
-        f'o{x},{y}="9999.000000"',
-        f'e{x},{y}="124.000000"',
-        f'd{x},{y}="6.000000"',
-        f'a{x},{y}="1.000000"',
-    ]
-
 def weapon_energy(x: int, y: int) -> List[str]:
     # The Magnet Beam ('U') has no Mega Man Maker equivalent, so it is emitted as a
     # small weapon-energy pickup (pickup id 3) per the project decision to fold it in.
@@ -316,7 +307,7 @@ CHAR_MAP = {
     'Z': orb_tile,
     'P': player_tile,
     'C': hazard_emitter,
-    'I': fire_emitter,
+    'I': enemy_tackle_fire,
     '+': [], 'L': [], 'l': [], 'W': [], 'w': [],
     'D': [], 'U': weapon_energy, '*': [],
     'a': enemy_ground,

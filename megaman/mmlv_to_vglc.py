@@ -99,7 +99,8 @@ ENEMY_E_TO_CHAR = {
     52: "i",   # Watcher (floating, ranged)
     56: "j",   # Killer Bullet (flying)
     57: "k",   # Killer Bullet Spawner
-    58: "m",   # Tackle Fire (jumping)
+    58: "I",   # Tackle Fire enemy -> the 'I' fire tile. ('m' is Bombombomb, which has
+               # no Mega Man Maker equivalent, so nothing here maps to it.)
     59: "n",   # Flying Shell/Mambu (flying)
     60: "o",   # Flying Shell/Mambu Spawner
     45: "p",   # Footholder (flying platform)
@@ -121,7 +122,8 @@ GIMMICK_E_TO_CHAR = {
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
     4:  "C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward")
-    124:"I",   # Changkey fire-wave emitter (the vertical fire pillar 'I' tile)
+    73: "M",   # conveyor belt -> mapped to the moving-platform tile (verified test level)
+    124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
 }
 
 # d == 7 (pickups): the 'e' subtype id -> VGLC char.  Pickup ids are a small
@@ -152,6 +154,18 @@ BOSS_E_TO_CHAR = {
     1:  "D",   # Horizontal Boss Door
     16: "M",   # Party Balloon (rideable transport)
 }
+
+# Water / liquid tiles: a water cell carries only an 'e' id (no d/i), and Mega Man Maker
+# uses a distinct id for every liquid family (water/acid/lava/oil/...) and each surface vs
+# extends-downward variant. All of them collapse to the single water tile '~'. These ids
+# were captured from a labelled test level containing one of every water tile type and
+# nothing else; the contiguous clusters are the different families/variants.
+WATER_E_IDS = (
+    set(range(177, 195))    # 177-194
+    | set(range(621, 629))  # 621-628
+    | set(range(1153, 1164))  # 1153-1163
+    | {1210, 1211, 1687}
+)
 
 
 def classify(cell: dict) -> str:
@@ -186,10 +200,10 @@ def classify(cell: dict) -> str:
     if i is not None:
         return TILE_I_TO_CHAR.get(int(i))           # None for an unknown tile id
 
-    # Water: real Mega Man Maker levels tag water cells with e=178 (no i/d), verified
-    # against a labelled test level; 177 is also accepted for backward compatibility
-    # with the value vglc_to_mmlv historically emitted.
-    if cell.get("e") in (177.0, 178.0):
+    # Water: liquid cells carry only an 'e' id (no i/d). Every liquid family/variant id
+    # in WATER_E_IDS collapses to the single water tile '~'.
+    e = cell.get("e")
+    if e is not None and int(e) in WATER_E_IDS:
         return "~"
 
     # Cell exists but carries no recognised tile/object field.
