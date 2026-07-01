@@ -34,6 +34,18 @@ set TIMING_LOG=timing_logs\%DIFF_OUTPUT%.jsonl
 if exist "%TIMING_LOG%" del "%TIMING_LOG%"
 python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train-conditional-llm pipeline start"
 
+REM Build the Mega Man level dataset from the VGLC levels (default extraction params)
+python create_megaman_json_data.py --output datasets\MM_Levels-full.json
+python log_timestamp.py --log_file %TIMING_LOG% --event "create level dataset"
+
+REM Caption every scene with an LLM (local ollama model by default)
+python llm_ascii_to_caption.py --levels datasets\MM_Levels-full.json --tileset datasets\MM.json --llm ollama --output datasets\MM_LevelsAndLLMCaptions-full.json
+python log_timestamp.py --log_file %TIMING_LOG% --event "llm captioning"
+
+REM Split the captioned dataset into train/validate/test sets
+python split_data.py --json_file datasets\MM_LevelsAndLLMCaptions-full.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM-Full
+python log_timestamp.py --log_file %TIMING_LOG% --event "split data"
+
 python train_diffusion.py --text_conditional --game MM-Full --tileset datasets\MM.json --json datasets\MM_LevelsAndLLMCaptions-full-train.json --val_json datasets\MM_LevelsAndLLMCaptions-full-validate.json --multiple_captions --pretrained_language_model "%MODEL_NAME%" --num_epochs 500 --output_dir "%DIFF_OUTPUT%" --seed %SEED% %SPLIT_FLAG%
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
 
