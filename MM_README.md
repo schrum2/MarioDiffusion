@@ -163,25 +163,6 @@ Browse level scenes and their captions:
 python ascii_data_browser.py datasets\MM_LevelsAndCaptions-full-regular.json datasets\MM.json
 ```
 
-## LLM captions (llm_ascii_to_caption.py)
-
-Instead of the deterministic captions from `MM_create_ascii_captions.py`, you can choose to caption levels with an LLM. This produces five diverse natural-language captions per scene, grounded on pre-computed structural metadata about the scene. `--llm` picks the inference source: `ollama` runs a local model (default), while `claude` and `openai` call their respective APIs and require an API key in `.env`. `--levels` accepts either a JSON dataset from `create_megaman_json_data.py` or a directory of VGLC-ASCII `.txt` files. `--model` overrides the per-source default model (qwen3.5:9b for Ollama, Sonnet 4.6 for Claude, GPT-5.1 for OpenAI), and `--limit` caps how many scenes are captioned.
-
-Example usage that captions the complete levels in the VGLC:
-```bash
-python llm_ascii_to_caption.py --levels ..\TheVGLC\MegaMan\Enhanced --tileset datasets\MM.json --llm ollama --output datasets\MM_LevelsAndLLMCaptions-full.json
-```
-
-### Training Models with LLM Captions
- 
- To create a LLM-captioned dataset and train a conditional diffusion model with it, you can call `train-conditional-llm.bat`. It builds the level dataset with `create_megaman_json_data.py`, captions it with `llm_ascii_to_caption.py`, splits the result into train/validate/test sets, then trains a text-conditional diffusion model on the LLM captions using a general-purpose pretrained text encoder (from Hugging Face). 
-```bash
-cd MM_Batch
-train-conditional-llm.bat 0 MiniLM [split]
-```
-
-It takes an optional seed (defaults to `0`), a pretrained text encoder (`MiniLM`, `GTE`, `CLIP`, or `T5`, defaults to `MiniLM`), and an optional `split` flag that gives each caption sentence its own embedding vector.
-
 
 
 ## Train local text encoder
@@ -317,6 +298,29 @@ Train the text-conditional diffusion model on the train/validate split, using bo
 ```
 python train_diffusion.py --text_conditional --mlm_model_dir MM-MLM-simple0 --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0
 ```
+
+
+
+## LLM captions (experimental)
+
+Instead of the deterministic captions from `MM_create_ascii_captions.py`, you can choose to caption levels with an LLM. This produces five diverse natural-language captions per scene, grounded on pre-computed structural metadata about the scene. `--llm` picks the inference source: `ollama` runs a local model (default), while `claude` and `openai` call their respective APIs and require an API key in `.env`. `--levels` accepts either a JSON dataset from `create_megaman_json_data.py` or a directory of VGLC-ASCII `.txt` files. `--model` overrides the per-source default model (qwen3.5:9b for Ollama, Sonnet 4.6 for Claude, GPT-5.1 for OpenAI), and `--limit` caps how many scenes are captioned.
+
+Example usage that captions the complete levels in the VGLC:
+```bash
+python llm_ascii_to_caption.py --levels ..\TheVGLC\MegaMan\Enhanced --tileset datasets\MM.json --llm ollama --output datasets\MM_LevelsAndLLMCaptions-full.json
+```
+
+### Training Models with LLM Captions
+ 
+ To create a LLM-captioned dataset and train a conditional diffusion model with it, you can call `train-conditional-llm.bat`. It builds the level dataset with `create_megaman_json_data.py`, captions it with `llm_ascii_to_caption.py`, splits the result into train/validate/test sets, then trains a text-conditional diffusion model on the LLM captions using a general-purpose pretrained text encoder (from Hugging Face). 
+```bash
+cd MM_Batch
+train-conditional-llm.bat 0 MiniLM [split]
+```
+
+It takes an optional seed (defaults to `0`), a pretrained text encoder (`MiniLM`, `GTE`, `CLIP`, or `T5`, defaults to `MiniLM`), and an optional `split` flag that gives each caption sentence its own embedding vector.
+
+
 
 ## Mega Man Maker
 
