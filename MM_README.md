@@ -320,6 +320,21 @@ train-conditional-llm.bat 0 MiniLM [split]
 
 It takes an optional seed (defaults to `0`), a pretrained text encoder (`MiniLM`, `GTE`, `CLIP`, or `T5`, defaults to `MiniLM`), and an optional `split` flag that gives each caption sentence its own embedding vector.
 
+## Timing the pipeline
+
+The training-pipeline batch files (`MM_conditional*.bat`, `MM_unconditional*.bat`, `train-conditional-llm.bat`) record how long each stage takes. After every major step (dataset creation, captioning, MLM training, etc.) the batch file appends a timestamp to a per-run log via `log_timestamp.py`. When the run finishes, the log is moved into the trained model's directory as `pipeline_timing.jsonl` (next to `training_log_.jsonl`).
+
+A log entry looks like the following:
+```json
+{"timestamp": "2026-06-29 14:03:12", "event": "diffusion training", "status": "complete", "elapsed_seconds_since_prev": 8421.0, "prev_event": "MLM training"}
+```
+
+You can also log steps from your own custom training pipelines like so:
+```bash
+python log_timestamp.py --log_file timing_logs\my-run.jsonl --status start --event "pipeline start"
+python log_timestamp.py --log_file timing_logs\my-run.jsonl --event "MMLV download"
+```
+
 
 
 ## Mega Man Maker

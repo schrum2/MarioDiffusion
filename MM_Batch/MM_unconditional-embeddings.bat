@@ -68,6 +68,12 @@ set "SAMPLES_DIR=MM-%DATASET_INFIX%-%METHOD%%EMBEDDING_DIM%-w%WINDOW_SIZE%-uncon
 set "TRAIN_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-train.json"
 set "VAL_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular-validate.json"
 
+REM Per-execution timing log: staged under timing_logs\ during the run, then moved
+REM into the trained diffusion model's directory at the end.
+set "TIMING_LOG=timing_logs\%MODEL_PATH%.jsonl"
+if exist "%TIMING_LOG%" del "%TIMING_LOG%"
+python log_timestamp.py --log_file "%TIMING_LOG%" --status start --event "MM_unconditional-embeddings pipeline start"
+
 if not exist "%MM_JSON%" (
     if /I "%VARIANT%"=="simple" (
         python create_tile_level_json_data.py --tileset "%MM_TILESET%" --levels "%MM_LEVELS%" --output "%MM_JSON%" --tile_size %WINDOW_SIZE% --char_map "%MM_CHAR_MAP%"
@@ -75,6 +81,7 @@ if not exist "%MM_JSON%" (
         python create_tile_level_json_data.py --tileset "%MM_TILESET%" --levels "%MM_LEVELS%" --output "%MM_JSON%" --tile_size %WINDOW_SIZE%
     )
 )
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "tile windows dataset ready"
 
 if not exist "%EMBEDDING_DIR%" (
     if /I "%METHOD%"=="block2vec" (
@@ -83,9 +90,15 @@ if not exist "%EMBEDDING_DIR%" (
         python train_skipgram.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
     )
 )
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "embedding training"
 
 python train_diffusion.py --game %GAME% --augment --block_embedding_model_path "%EMBEDDING_DIR%" --output_dir "%MODEL_PATH%" --num_epochs 500 --json "%TRAIN_JSON%" --val_json "%VAL_JSON%" --seed %SEED%
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "diffusion training"
 python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%" --game %GAME%
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "sampling"
+
+REM move the timing log into the trained model's directory
+move /Y "%TIMING_LOG%" "%MODEL_PATH%\pipeline_timing.jsonl"
 
 popd
 exit /b
