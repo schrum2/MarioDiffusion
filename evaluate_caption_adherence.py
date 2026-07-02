@@ -270,6 +270,16 @@ def main():
                     json.dump(paired, f, indent=4)
             elif game == "Mario":
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
+            elif game in ("MM-Simple", "MM-Full"):
+                # Same output shape as the no_caption_score MM path: keep the input prompt and a
+                # deterministic caption derived from the generated scene so the json opens in
+                # ascii_data_browser.py. Without this branch MM writes nothing when scoring is on.
+                paired = []
+                for prompt, scene in zip(all_prompts, scenes):
+                    caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+                    paired.append({"prompt": prompt, "caption": caption, "scene": scene})
+                with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
+                    json.dump(paired, f, indent=4)
             elif game == "LR":
                 scenes = [
                             [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]

@@ -60,7 +60,7 @@ MM_TILESET_DICT = {
         "d": "Ranged Pickelman enemy",
         "h": "Crazy Razy enemy",
         "n": "Flying PePe penguin enemy",
-        "I": "Changkey vertical fire pillar"
+        "I": "Tackle Fire Enemies"
     }
 }
 

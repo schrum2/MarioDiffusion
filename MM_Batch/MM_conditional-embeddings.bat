@@ -74,11 +74,18 @@ set "RANDOM_TEST_JSON=datasets\MM-%DATASET_INFIX%_RandomTest-regular.json"
 set "WIDTH_RANGE_JSON=datasets\MM-%DATASET_INFIX%_LevelsAndCaptions-regular.json"
 set "EVAL_ARGS=--model_path "%MODEL_PATH%" --save_as_json --json "%RANDOM_TEST_JSON%" --random_width --width_range_json "%WIDTH_RANGE_JSON%" --num_tiles=%NUM_TILES% --game %GAME%"
 
+REM Per-execution timing log: staged under timing_logs\ during the run, then moved
+REM into the trained diffusion model's directory at the end.
+set "TIMING_LOG=timing_logs\%MODEL_PATH%.jsonl"
+if exist "%TIMING_LOG%" del "%TIMING_LOG%"
+python log_timestamp.py --log_file "%TIMING_LOG%" --status start --event "MM_conditional-embeddings pipeline start"
+
 if not exist "%MLM_DIR%" (
     python train_mlm.py --epochs 300 --save_checkpoints --json "%MLM_JSON%" --pkl "%TOKENIZER_PKL%" --output_dir "%MLM_DIR%" --seed %SEED%
 ) else (
     echo Using existing MLM model: %MLM_DIR%
 )
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "MLM model ready"
 
 if not exist "%MM_JSON%" (
     if /I "%VARIANT%"=="simple" (
@@ -87,6 +94,7 @@ if not exist "%MM_JSON%" (
         python create_tile_level_json_data.py --tileset "%MM_TILESET%" --levels "%MM_LEVELS%" --output "%MM_JSON%" --tile_size %WINDOW_SIZE%
     )
 )
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "tile windows dataset ready"
 
 if not exist "%EMBEDDING_DIR%" (
     if /I "%METHOD%"=="block2vec" (
@@ -95,12 +103,19 @@ if not exist "%EMBEDDING_DIR%" (
         python train_skipgram.py --json_file "%MM_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 300
     )
 )
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "embedding training"
 
 python train_diffusion.py --text_conditional --mlm_model_dir "%MLM_DIR%" --game %GAME% --augment --block_embedding_model_path "%EMBEDDING_DIR%" --output_dir "%MODEL_PATH%" --num_epochs 500 --json "%DIFF_TRAIN_JSON%" --val_json "%DIFF_VAL_JSON%" --seed %SEED%
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "diffusion training"
 python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%" --game %GAME%
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "sampling"
 
 python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-MM-%DATASET_INFIX%-captions
 python evaluate_caption_adherence.py %EVAL_ARGS% --compare_checkpoints
+python log_timestamp.py --log_file "%TIMING_LOG%" --event "caption adherence evaluation"
+
+REM move the timing log into the trained model's directory
+move /Y "%TIMING_LOG%" "%MODEL_PATH%\pipeline_timing.jsonl"
 
 popd
 exit /b
