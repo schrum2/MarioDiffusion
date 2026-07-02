@@ -81,7 +81,8 @@ class BucketBatchSampler:
 def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles,
                        negative_prompt_training, block_embeddings, batch_size,
                        persistent_workers=True, multiple_captions=False,
-                       bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1):
+                       bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1,
+                       num_workers=4, pin_memory=False):
     """
     Create PyTorch dataloaders for training and validation datasets.
 
@@ -151,8 +152,9 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
     train_dataloader = DataLoader(
         train_dataset,
         batch_sampler=train_sampler,
-        num_workers=4,
-        persistent_workers=persistent_workers
+        num_workers=num_workers,
+        persistent_workers=persistent_workers,
+        pin_memory=pin_memory
     )
 
     val_dataloader = None
@@ -161,8 +163,9 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
         val_dataloader = DataLoader(
             val_dataset,
             batch_sampler=BucketBatchSampler(val_dataset, batch_size, drop_last=False, shuffle=False),
-            num_workers=4,
-            persistent_workers=True
+            num_workers=num_workers,
+            persistent_workers=True,
+            pin_memory=pin_memory
         )
 
     # Unique training-set scene widths, used to benchmark variably-sized samples during training.
