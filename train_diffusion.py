@@ -115,11 +115,12 @@ def parse_args():
     parser.add_argument("--lr_scheduler_cycles", type=float, default=0.5, help="Number of cycles for the cosine learning rate scheduler")
     parser.add_argument("--save_image_epochs", type=int, default=20, help="Save generated levels every N epochs")
     parser.add_argument("--save_model_epochs", type=int, default=20, help="Save model every N epochs")
-    parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help="Mixed precision type")
+    parser.add_argument("--mixed_precision", type=str, default="fp16", choices=["no", "fp16", "bf16"], help="Mixed precision type")
     parser.add_argument("--gradient_checkpointing", action="store_true", help="Enable gradient checkpointing to reduce VRAM usage at the cost of slower training")
-    parser.add_argument("--num_workers", type=int, default=4, help="Number of DataLoader worker processes")
-    parser.add_argument("--pin_memory", action="store_true", help="Use pinned memory for faster host-to-device transfers when CUDA is available")
-    parser.add_argument("--use_tf32", action="store_true", help="Enable TF32 matmul kernels on supported NVIDIA GPUs for faster training")
+    parser.add_argument("--num_workers", type=int, default=8, help="Number of DataLoader worker processes")
+    parser.add_argument("--no_pin_memory", dest="pin_memory", action="store_false", help="Disable pinned memory for host-to-device transfers when CUDA is available")
+    parser.add_argument("--no_tf32", dest="use_tf32", action="store_false", help="Disable TF32 matmul kernels on supported NVIDIA GPUs")
+    parser.set_defaults(pin_memory=True, use_tf32=True)
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--validate_epochs", type=int, default=5, help="Calculate validation loss every N epochs")
     parser.add_argument("--max_iterations", type=float, default=float("inf"), help="Maximum number of training iterations (global steps). Training will stop when this is exceeded. Default is infinity (no limit).")
@@ -129,7 +130,7 @@ def parse_args():
     parser.add_argument("--best_model_criterion",type=str,default="val_loss",choices=["val_loss", "caption_score"],help="Criterion to determine the best model: 'val_loss' for lowest validation loss, 'caption_score' for highest caption score")
     
     # Diffusion scheduler args
-    parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
+    parser.add_argument("--num_train_timesteps", type=int, default=100000, help="Number of diffusion timesteps")
     parser.add_argument("--num_inference_timesteps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of diffusion timesteps during inference (samples, caption adherence)")
     parser.add_argument("--beta_schedule", type=str, default="linear", help="Beta schedule type")
     parser.add_argument("--beta_start", type=float, default=0.0001, help="Beta schedule start value")
@@ -189,7 +190,11 @@ def parse_args():
         help="Number of epochs to wait for improvement before early stopping."
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.mixed_precision == "fp16" and not torch.cuda.is_available():
+        print("Warning: No CUDA device found, falling back from fp16 to no mixed precision.")
+        args.mixed_precision = "no"
+    return args
 
 # TODO: We'll probably want to move this somewhere else eventually
 def compute_sprite_scaling_factors(json_path, num_tiles, n):
