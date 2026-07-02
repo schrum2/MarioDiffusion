@@ -45,24 +45,35 @@ MEGAMAN_SCREEN_WIDTH = 16  # Mega Man Maker's screen grid width, used to scan
                             # which empty cells are walkable sky vs truly outside any screen
 
 
-# Object-layer field regex.  The leading '^' (with re.MULTILINE) keeps us on
-# true object lines ('i…', 'd…', 'e…') and skips the digit-prefixed layer lines
-# ('2d0,…', '1a…', '4a…') that otherwise leak a phantom enemy into the level.
-_FIELD_RE = re.compile(r'^([a-z])(\d+),(\d+)="([^"]+)"', re.MULTILINE)
+# Object field regex.  The leading '^' (with re.MULTILINE) keeps us on true
+# object lines and skips the digit-prefixed section lines ('2d0,…', '1a…', '4a…')
+# that otherwise leak a phantom enemy into the level.
+#
+# An optional 'z<NN>' prefix (e.g. 'z20o3376,3088=…', 'z60e3216,3088=…') marks an
+# object placed on a non-default LAYER.  Newer Mega Man Maker versions (1.10+) put
+# things like water (z20) and some enemies/gimmicks (z60) on these layers; the old
+# regex matched only the default (prefix-less) layer and silently dropped every
+# layered object -- which is why water never appeared in the converted data. We now
+# capture the optional layer in group 1 and key cells by (layer, x, y) so objects on
+# different layers at the same coordinate stay separate instead of merging fields.
+_FIELD_RE = re.compile(r'^(z\d+)?([a-z])(\d+),(\d+)="([^"]+)"', re.MULTILINE)
 
 
-def parse_mmlv(path: Path) -> Dict[Tuple[int,int], dict]:
-    """Return sparse dict of (tile_x, tile_y) -> {field: float_value}."""
+def parse_mmlv(path: Path) -> Dict[Tuple[str,int,int], dict]:
+    """Return sparse dict of (layer, tile_x, tile_y) -> {field: float_value}.
+
+    'layer' is "" for the default/main layer or the raw prefix (e.g. "z20") for a
+    layered object. mmlv_to_grid collapses the layers back down to one char per cell.
+    """
     text = path.read_bytes().decode("utf-8", errors="replace").replace('\r', '')
-    cells: Dict[Tuple[int,int], dict] = {}
+    cells: Dict[Tuple[str,int,int], dict] = {}
     for m in _FIELD_RE.finditer(text):
-        field = m.group(1)
-        tx = int(m.group(2)) // TILE_PX
-        ty = int(m.group(3)) // TILE_PX
-        val = float(m.group(4))
-        if (tx, ty) not in cells:
-            cells[(tx, ty)] = {}
-        cells[(tx, ty)][field] = val
+        layer = m.group(1) or ""
+        field = m.group(2)
+        tx = int(m.group(3)) // TILE_PX
+        ty = int(m.group(4)) // TILE_PX
+        val = float(m.group(5))
+        cells.setdefault((layer, tx, ty), {})[field] = val
     return cells
 
 
@@ -88,12 +99,14 @@ ENEMY_E_TO_CHAR = {
     52: "i",   # Watcher (floating, ranged)
     56: "j",   # Killer Bullet (flying)
     57: "k",   # Killer Bullet Spawner
-    58: "m",   # Tackle Fire (jumping)
+    58: "I",   # Tackle Fire enemy -> the 'I' fire tile. ('m' is Bombombomb, which has
+               # no Mega Man Maker equivalent, so nothing here maps to it.)
     59: "n",   # Flying Shell/Mambu (flying)
     60: "o",   # Flying Shell/Mambu Spawner
     45: "p",   # Footholder (flying platform)
     63: "b",   # Bunby Heli (flying)
-    159: "q",  # Kamadoma (jumping)
+    18: "q",   # Kamadoma stand-in: the real Kamadoma isn't in Mega Man Maker, so the
+               # closest jumping enemy (id 18) is mapped to the 'q' tile in its place.
 }
 
 # d == 6 (level objects / gimmick blocks): the 'e' subtype id -> VGLC char.
@@ -106,6 +119,11 @@ GIMMICK_E_TO_CHAR = {
     9:  "B",   # 1x1 breakable block
     45: "B",   # 2x2 breakable block
     31: "M",   # moving platform
+    5:  "A",   # appearing/disappearing block (verified against a labelled test level)
+    54: "t",   # fake / secret transparent block (verified against a labelled test level)
+    4:  "C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward")
+    73: "M",   # conveyor belt -> mapped to the moving-platform tile (verified test level)
+    124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
 }
 
 # d == 7 (pickups): the 'e' subtype id -> VGLC char.  Pickup ids are a small
@@ -136,6 +154,18 @@ BOSS_E_TO_CHAR = {
     1:  "D",   # Horizontal Boss Door
     16: "M",   # Party Balloon (rideable transport)
 }
+
+# Water / liquid tiles: a water cell carries only an 'e' id (no d/i), and Mega Man Maker
+# uses a distinct id for every liquid family (water/acid/lava/oil/...) and each surface vs
+# extends-downward variant. All of them collapse to the single water tile '~'. These ids
+# were captured from a labelled test level containing one of every water tile type and
+# nothing else; the contiguous clusters are the different families/variants.
+WATER_E_IDS = (
+    set(range(177, 195))    # 177-194
+    | set(range(621, 629))  # 621-628
+    | set(range(1153, 1164))  # 1153-1163
+    | {1210, 1211, 1687}
+)
 
 
 def classify(cell: dict) -> str:
@@ -170,8 +200,10 @@ def classify(cell: dict) -> str:
     if i is not None:
         return TILE_I_TO_CHAR.get(int(i))           # None for an unknown tile id
 
-    # Water uses the vglc_to_mmlv convention (e=177 with no i/d).
-    if cell.get("e") == 177.0:
+    # Water: liquid cells carry only an 'e' id (no i/d). Every liquid family/variant id
+    # in WATER_E_IDS collapses to the single water tile '~'.
+    e = cell.get("e")
+    if e is not None and int(e) in WATER_E_IDS:
         return "~"
 
     # Cell exists but carries no recognised tile/object field.
@@ -207,15 +239,32 @@ def fill_walkable_by_screen_grid(grid, char_cells, min_x, min_y, width, height):
 
     return grid
 
+def _layer_rank(layer: str) -> int:
+    """Placement priority for collapsing layered objects onto one grid cell.
+
+    Lower rank wins (placed first, never overwritten). The default/main layer ("")
+    holds the primary gameplay objects and wins outright; higher z-layers (z60) hold
+    foreground enemies/gimmicks and beat lower z-layers (z20) such as the water
+    background, so an enemy standing in water shows the enemy, not the water.
+    """
+    if layer == "":
+        return 0
+    return 1000 - int(layer[1:])
+
+
 def mmlv_to_grid(path: Path):
     """Convert one .mmlv to a 2-D list of VGLC chars."""
     cells = parse_mmlv(path)
 
+    # Collapse the (layer, x, y) objects down to one char per (x, y). Process layers in
+    # priority order and keep the first char placed at each coordinate, so a foreground
+    # object never gets overwritten by a background one (e.g. water under an enemy).
     char_cells: Dict[Tuple[int,int], str] = {}
-    for coord, cell in cells.items():
+    for (_layer, tx, ty), cell in sorted(cells.items(), key=lambda kv: _layer_rank(kv[0][0])):
         ch = classify(cell)
-        if ch is not None:
-            char_cells[coord] = ch
+        if ch is None or (tx, ty) in char_cells:
+            continue
+        char_cells[(tx, ty)] = ch
 
     if not char_cells:
         return []
