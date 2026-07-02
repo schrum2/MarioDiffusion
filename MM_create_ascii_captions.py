@@ -282,7 +282,7 @@ def find_ladders(scene, ladder_ids, already_accounted=set(), describe_absence=Fa
     ceiling_row = 2          # rows 0-1 are non-playable ceiling
     floor_row = height - 1   # last row is the floor
     playable_top = ceiling_row
-    playable_bottom = floor_row - 1
+    playable_bottom = floor_row 
 
     for x in range(width):
         y = 0
@@ -305,9 +305,9 @@ def find_ladders(scene, ladder_ids, already_accounted=set(), describe_absence=Fa
 
     if not ladders:
         if describe_absence:
-            return " no ladders."
+            return [(" no ladders.", set())]
         else:
-            return ""
+            return []
 
     categories = {"both": [], "top": [], "bottom": [], "middle": []}
     for start_y, end_y, x in ladders:
@@ -324,7 +324,9 @@ def find_ladders(scene, ladder_ids, already_accounted=set(), describe_absence=Fa
 
     suffix_map = {"top": "at top", "bottom": "at bottom", "middle": "in the middle"}
 
-    phrases = []
+    # One (phrase, coords) tuple per ladder category, so each subtype gets its own
+    # entry in `details` instead of being merged into one combo string.
+    result = []
     for cat in ("both", "top", "bottom", "middle"):
         items = categories[cat]
         if not items:
@@ -334,11 +336,14 @@ def find_ladders(scene, ladder_ids, already_accounted=set(), describe_absence=Fa
         quantity = describe_quantity(count) if coarse_counts else count
 
         if cat == "both":
-            phrases.append(f" {quantity} full height ladder{plural}.")
+            phrase = f" {quantity} full height ladder{plural}."
         else:
-            phrases.append(f" {quantity} ladder{plural} {suffix_map[cat]}.")
+            phrase = f" {quantity} ladder{plural} {suffix_map[cat]}."
 
-    return "".join(phrases)
+        coords = {(y, x) for start_y, end_y, x in items for y in range(start_y, end_y + 1)}
+        result.append((phrase, coords))
+
+    return result
 
 def find_water_caption(scene, empty_ids, water_ids, describe_absence=False):
     """
@@ -662,9 +667,9 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     # Solid structures
     
     #Count ladders
-    ladders_phrase = find_ladders(scene, ladder_ids, already_accounted, describe_absence)
-    add_to_caption(ladders_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in ladder_ids])
-
+    ladder_phrases = find_ladders(scene, ladder_ids, already_accounted, describe_absence)
+    for phrase, coords in ladder_phrases:
+        add_to_caption(phrase, coords)
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
     structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
