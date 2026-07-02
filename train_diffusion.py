@@ -130,7 +130,7 @@ def parse_args():
     parser.add_argument("--best_model_criterion",type=str,default="val_loss",choices=["val_loss", "caption_score"],help="Criterion to determine the best model: 'val_loss' for lowest validation loss, 'caption_score' for highest caption score")
     
     # Diffusion scheduler args
-    parser.add_argument("--num_train_timesteps", type=int, default=100000, help="Number of diffusion timesteps")
+    parser.add_argument("--num_train_timesteps", type=int, default=1000, help="Number of diffusion timesteps")
     parser.add_argument("--num_inference_timesteps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of diffusion timesteps during inference (samples, caption adherence)")
     parser.add_argument("--beta_schedule", type=str, default="linear", help="Beta schedule type")
     parser.add_argument("--beta_start", type=float, default=0.0001, help="Beta schedule start value")
