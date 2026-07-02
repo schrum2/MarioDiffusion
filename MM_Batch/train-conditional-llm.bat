@@ -1,4 +1,4 @@
-REM @echo off
+@echo off
 REM Usage: train-conditional-llm.bat <seed> <model> [split]
 REM Trains a text-conditional diffusion model on LLM MM captions using a general-purpose pretrained text encoder.
 REM <seed>  is optional, defaults to 0

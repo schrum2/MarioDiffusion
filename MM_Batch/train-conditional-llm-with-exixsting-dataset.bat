@@ -1,5 +1,5 @@
-REM @echo off
-REM Usage: train-conditional-llm.bat <seed> <model> [split] 
+@echo off
+REM Usage: train-conditional-llm.bat <seed> <model> <dataset> [split] 
 REM Trains a text-conditional diffusion model on LLM MM captions using a general-purpose pretrained text encoder.
 REM <seed>  is optional, defaults to 0
 REM <model> should be "MiniLM", "GTE", "CLIP", or "T5", defaults to MiniLM
@@ -43,10 +43,10 @@ python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train-co
 
 
 REM Split the captioned dataset into train/validate/test sets
-python split_data.py --json_file datasets\%DATA%.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM-Full
+python split_data.py --json_file %DATA%.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM-Full
 python log_timestamp.py --log_file %TIMING_LOG% --event "split data"
 
-python train_diffusion.py --text_conditional --game MM-Full --tileset datasets\MM.json --json datasets\%DATA%-train.json --val_json datasets\%DATA%-validate.json --multiple_captions --pretrained_language_model "%MODEL_NAME%" --num_epochs 500 --output_dir "%DIFF_OUTPUT%" --seed %SEED% %SPLIT_FLAG%
+python train_diffusion.py --text_conditional --game MM-Full --tileset datasets\MM.json --json %DATA%-train.json --val_json %DATA%-validate.json --multiple_captions --pretrained_language_model "%MODEL_NAME%" --num_epochs 500 --output_dir "%DIFF_OUTPUT%" --seed %SEED% %SPLIT_FLAG%
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
 
 REM Post-training evaluation
@@ -61,7 +61,7 @@ REM python log_timestamp.py --log_file %TIMING_LOG% --event "evaluate train-capt
 
 REM Same for every test caption
 REM Output: <model>\samples-from-test-captions\all_levels.json
-python evaluate_caption_adherence.py --model_path "%DIFF_OUTPUT%" --json datasets\MM_LevelsAndLLMCaptions-full-test.json --num_tiles 41 --game MM-Full --no_caption_score --save_as_json --output_dir samples-from-test-captions
+python evaluate_caption_adherence.py --model_path "%DIFF_OUTPUT%" --json %DATA%-test.json --num_tiles 41 --game MM-Full --no_caption_score --save_as_json --output_dir samples-from-test-captions
 python log_timestamp.py --log_file %TIMING_LOG% --event "evaluate test-caption adherence"
 
 REM Pipeline finished: move the timing log into the trained model's directory.
