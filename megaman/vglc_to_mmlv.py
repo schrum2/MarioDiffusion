@@ -53,6 +53,31 @@ def moving_platform(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def conveyor_right(x: int, y: int) -> List[str]:
+    # Conveyor belt (gimmick id 73) that pushes right. Fields match a labelled test
+    # level: right-facing belts carry no 'b'; the belt-art fields are p=3, f=4.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'p{x},{y}="3.000000"',
+        f'f{x},{y}="4.000000"',
+        f'e{x},{y}="73.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def conveyor_left(x: int, y: int) -> List[str]:
+    # Conveyor belt (gimmick id 73) that pushes left. Same as the right belt plus
+    # b=-1 (the left-facing flag observed in the labelled test level).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'p{x},{y}="3.000000"',
+        f'f{x},{y}="4.000000"',
+        f'e{x},{y}="73.000000"',
+        f'b{x},{y}="-1.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def water_tile(x: int, y: int) -> List[str]:
     # Real Mega Man Maker water uses e=178 (verified against a labelled level);
     # mmlv_to_vglc still also accepts the legacy 177 for backward compatibility.
@@ -303,6 +328,8 @@ CHAR_MAP = {
     'H': spike_tile,
     'B': breakable_tile,
     'M': moving_platform,
+    '>': conveyor_right,
+    'E': conveyor_left,
     '~': water_tile,
     'Z': orb_tile,
     'P': player_tile,
