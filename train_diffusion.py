@@ -370,6 +370,10 @@ def main():
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
+        torch.backends.cuda.matmul.allow_tf32 = args.use_tf32
+        torch.backends.cudnn.allow_tf32 = args.use_tf32
+        torch.backends.cudnn.benchmark = True
+        torch.set_float32_matmul_precision("high" if args.use_tf32 else "highest")
     
     # Setup accelerator
     accelerator = Accelerator(
