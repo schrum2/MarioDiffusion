@@ -228,7 +228,7 @@ def main():
         # Just run on one model and get samples as well
         width_range = resolve_eval_width_range(args)
         per_width_scores = {}
-        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score)
+        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score, game=game)
 
         if avg_score is not None:
             print(f"Average caption adherence score: {avg_score:.4f}")
@@ -280,7 +280,7 @@ def main():
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True):
 
-    _, _, _, height, width, path_to_json = resolve_game(args)
+    game, _, _, height, width, path_to_json = resolve_game(args)
 
     width_range = resolve_eval_width_range(args)
 
@@ -352,7 +352,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
             per_width_scores = {}
             avg_score, _, _, _ = calculate_caption_score_and_samples(
-                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores
+                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, game=game
             )
 
             # Collapse the per-width score lists into mean scores for this checkpoint.
@@ -379,8 +379,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None, compute_score=True):
-
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None, compute_score=True, game=None):
     # compute_score=False skips deriving a structured caption from each generated scene and scoring
     # it against the prompt. Use it for natural-language (LLM) captions, where that comparison is
     # meaningless. Samples and prompts are still collected; avg_score is returned as None.
@@ -491,20 +490,20 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
                 # TODO: More reliable way to detect if we are in Mega Man vs Mario, rather than relying on the presence of the "A" tile in char_to_id? Maybe just pass in a game type argument?
 
-                if height == common_settings.LR_HEIGHT:
+                if game == "LR":
                     scene = [[tile % common_settings.LR_TILE_COUNT for tile in s] for s in scene]
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-                elif height == common_settings.MEGAMAN_HEIGHT and "A" in char_to_id: # Mario does not have an "A" tile, though Mario and Mega Man have the same height:
+                elif game in ("MM-Simple", "MM-Full"):
                     actual_caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-                elif height == common_settings.MARIO_HEIGHT:
+                else:  # Mario
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
 
                 if output: print(f"\t{caption}")
-                if height == common_settings.LR_HEIGHT:
+                if game == "LR":
                     compare_score = lr_compare_captions(caption, actual_caption)
-                elif height == common_settings.MEGAMAN_HEIGHT and "A" in char_to_id: # Mario does not have an "A" tile, though Mario and Mega Man have the same height:
+                elif game in ("MM-Simple", "MM-Full"):
                     compare_score = mm_compare_captions(caption, actual_caption)
-                elif height == common_settings.MARIO_HEIGHT:
+                else:  # Mario
                     compare_score = compare_captions(caption, actual_caption)
 
                 if output: print(f"\tcompare_score: {compare_score}")

@@ -68,16 +68,23 @@ def extract_phrases(caption, debug=False):
         
         if matching_phrases:
             # Filter out "no ..." phrases as equivalent to absence
-            phrase = matching_phrases[0]
-            if phrase.lower().startswith("no "):
+            non_absence_phrases = [p for p in matching_phrases if not p.lower().startswith("no ")]
+
+            if not non_absence_phrases:
+                # Only "no ..." phrase(s) matched — treat as absence
                 topic_to_phrase[topic] = None
+                already_matched_phrases.update(matching_phrases)
                 if debug:
                     print(f"[Extract] Topic '{topic}': detected 'no ...', treating as None")
             else:
+                # Combine every matching phrase for this topic (e.g. multiple ladder
+                # types) into one string instead of keeping only the first and
+                # silently dropping the rest.
+                phrase = ". ".join(non_absence_phrases)
                 topic_to_phrase[topic] = phrase
-                already_matched_phrases.add(phrase)  # Mark this phrase as matched
+                already_matched_phrases.update(matching_phrases)  # Mark all as matched
                 if debug:
-                    print(f"[Extract] Topic '{topic}': found phrase '{phrase}'")
+                    print(f"[Extract] Topic '{topic}': found phrase(s) '{phrase}'")
         else:
             topic_to_phrase[topic] = None
             if debug:

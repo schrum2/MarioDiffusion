@@ -51,7 +51,7 @@ Convert downloaded `.mmlv` files into VGLC `.txt` files.
 
 ```bash
 cd megaman
-python bulk_mmlv_to_vglc.py --output ..\datasets\MM_Maker_Levels
+python bulk_mmlv_to_vglc.py --output ..\datasets\MMLV_Maker_Levels
 ```
 
 Saves `.txt` files into:
@@ -61,57 +61,60 @@ datasets\MM_Maker_Levels
 
 ## Create a filtered dataset (with quality filters and source tracking)
 
-`--stride_x` and `--stride_y` control how far the scan window moves between samples; set both to the screen size (16/14) for non-overlapping, screen-aligned extraction. `--scan_mode snap` extracts scenes that snap to fully null-free screens. `--max_enemies N` drops scenes with more than `N` enemy tiles. `--min_content_pct P` drops scenes where less than `P`% of tiles are real content. `--include_moving_ground` includes moving-ground/platform tiles, excluded by default since their motion isn't represented in the static tileset graphics.
+`--stride_x` and `--stride_y` control how far the scan window moves between samples; set both to the screen size (16/14) for non-overlapping, screen-aligned extraction. `--scan_mode snap` extracts scenes that snap to fully null-free screens. `--max_enemies N` drops scenes with more than `N` enemy tiles. `--min_content_pct P` drops scenes where less than `P`% of tiles are real content. `--include_moving_ground` includes moving-ground/platform tiles, which are excluded by default since their motion isn't represented in the static tileset graphics but are needed here for full structure coverage. `--direction_captions` attaches entrance/exit direction data to each scene (required for ceiling captions to ever be generated).
+
+All of this — filtering, captioning, tokenizing, random test caption generation, and train/validate/test splitting — can be done at once with:
+```bash
+cd MM_Batch
+MMLV-data.bat
+```
+
+Or run each step manually:
 
 ```bash
 cd ..
-python create_megaman_json_data.py --levels datasets\MM_Maker_Levels --tileset datasets\MM.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --output datasets\MM_Levels_Filtered.json
+python megaman\bulk_mmlv_to_vglc.py --output datasets\MMLV_Maker_Levels
+python create_megaman_json_data.py --levels datasets\MMLV_Maker_Levels --tileset datasets\MM.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --direction_captions --include_moving_ground --output datasets\MMLV_Levels.json
+python MM_create_ascii_captions.py --dataset datasets\MMLV_Levels.json --tileset datasets\MM.json --output datasets\MMLV_LevelsAndCaptions-regular.json
+python tokenizer.py save --json datasets\MMLV_LevelsAndCaptions-regular.json --pkl_file datasets\MMLV_Tokenizer-regular.pkl
+python create_random_test_captions.py --save_file datasets\MMLV_RandomTest-regular.json --json datasets\MMLV_LevelsAndCaptions-regular.json --seed 0 --game MM-Full
+python split_data.py --json_file datasets\MMLV_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM-Full
 ```
 
-Then generate deterministic captions for it:
-```
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-filtered-regular.json
-```
-
-Build a tokenizer:
-```
-python tokenizer.py save --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
-```
-
-Train the text encoder (MLM):
-```
-python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl datasets\MM_Tokenizer-filtered-regular.pkl --output_dir MM-MLM-filtered-regular --seed 0
+Train the text encoder (MLM) on the training split:
+```bash
+python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MMLV_LevelsAndCaptions-regular-train.json --val_json datasets\MMLV_LevelsAndCaptions-regular-validate.json --test_json datasets\MMLV_LevelsAndCaptions-regular-test.json --pkl datasets\MMLV_Tokenizer-regular.pkl --output_dir MMLV-MLM-regular0 --seed 0
 ```
 
 Train the text-conditional diffusion model:
-```
-python train_diffusion.py --pkl datasets\MM_Tokenizer-filtered-regular.pkl --json datasets\MM_LevelsAndCaptions-filtered-regular.json --augment --mlm_model_dir MM-MLM-filtered-regular --text_conditional --output_dir MM_conditional_filtered_regular0 --seed 0 --game MM-Full
+```bash
+python train_diffusion.py --pkl datasets\MMLV_Tokenizer-regular.pkl --json datasets\MMLV_LevelsAndCaptions-regular-train.json --val_json datasets\MMLV_LevelsAndCaptions-regular-validate.json --augment --mlm_model_dir MMLV-MLM-regular0 --text_conditional --output_dir MMLV_conditional_regular0 --seed 0 --game MM-Full
 ```
 
-Use `--game MM-Simple` instead if the dataset was generated with `--group_encodings`. For a quick test run instead of waiting on full training, add `--num_epochs 2 --save_image_epochs 100000`.
+For a quick test run instead of waiting on full training, add `--num_epochs 2 --save_image_epochs 100000`.
 
-**Known limitation:** Moving-ground platforms (the `M` tile) are excluded by default rather than properly represented, since we don't yet have graphics or a static-scene encoding for their motion. See the GitHub issue tracking proper tileset/graphics support for moving-ground platforms for the planned fix.
+**Known limitation:** Moving-ground platforms (the `M` tile) are included here via `--include_moving_ground`, but their motion is not represented in the static scene graphics. See the GitHub issue tracking proper tileset/graphics support for moving-ground platforms for the planned fix.
 
 ## Generate Levels
 
 Interactive GUI:
 ```bash
-python interactive_tile_level_generator.py --model_path MM_conditional_filtered_regular0 --load_data datasets\MM_LevelsAndCaptions-filtered-regular.json --game MM-Full
+python interactive_tile_level_generator.py --model_path MMLV_conditional_regular0 --load_data datasets\MMLV_LevelsAndCaptions-regular.json --game MM-Full
 ```
 
 Text prompt generation:
 ```bash
-python text_to_level_diffusion.py --model_path MM_conditional_filtered_regular0 --game MM-Full
+python text_to_level_diffusion.py --model_path MMLV_conditional_regular0 --game MM-Full
 ```
 
 Batch generation:
 ```bash
-python run_diffusion.py --model_path MM_conditional_filtered_regular0 --num_samples 100 --text_conditional --save_as_json --output_dir MM_conditional_filtered_regular0-samples --level_width 16 --game MM-Full
+python run_diffusion.py --model_path MMLV_conditional_regular0 --num_samples 100 --text_conditional --save_as_json --output_dir MMLV_conditional_regular0-samples --level_width 16 --game MM-Full
 ```
 
 Browse generated levels:
 ```bash
-python ascii_data_browser.py MM_conditional_filtered_regular0-samples\all_levels.json datasets\MM.json
+python ascii_data_browser.py MMLV_conditional_regular0-samples\all_levels.json datasets\MM.json
 ```
 
 ## Mega Man Maker Conversion

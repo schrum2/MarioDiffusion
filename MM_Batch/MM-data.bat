@@ -5,8 +5,8 @@ cd ..
 
 
 :: Convert Mega Man raw level data to JSON
-python create_megaman_json_data.py --output datasets\\MM-full_Levels.json
-python create_megaman_json_data.py --output datasets\\MM-simple_Levels.json --group_encodings
+python create_megaman_json_data.py --output datasets\\MM-full_Levels.json --direction_captions --include_moving_ground
+python create_megaman_json_data.py --output datasets\\MM-simple_Levels.json --group_encodings --direction_captions --include_moving_ground
 
 :: Generate captions for Mega Man
 python MM_create_ascii_captions.py --dataset datasets\\MM-full_Levels.json --tileset datasets\\MM.json --output datasets\\MM-full_LevelsAndCaptions-regular.json
