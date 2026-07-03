@@ -122,7 +122,7 @@ GIMMICK_E_TO_CHAR = {
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
     4:  "C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward")
-    73: "M",   # conveyor belt -> mapped to the moving-platform tile (verified test level)
+    73: ">",   # conveyor belt (direction resolved in classify(): 'b'=-1 -> left 'E', else right '>')
     124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
 }
 
@@ -189,6 +189,11 @@ def classify(cell: dict) -> str:
                 return "^" if (g is not None and int(g) in (90, 270)) else "<"
             return ENEMY_E_TO_CHAR.get(ei, "a")     # unknown enemy -> generic
         if dc == 6:                                 # level object / gimmick block
+            if ei == 73:                            # conveyor belt: 'b'=-1 faces left, else right.
+                # Every conveyor variant shares d6/e73 (only the belt art fields f/p
+                # differ), so gate solely on the id and read 'b' for the push direction.
+                b = cell.get("b")
+                return "E" if (b is not None and int(b) == -1) else ">"
             return GIMMICK_E_TO_CHAR.get(ei, "#")
         if dc == 7:                                 # pickup (energy/life/1-up/tank …)
             return PICKUP_E_TO_CHAR.get(ei, "w")

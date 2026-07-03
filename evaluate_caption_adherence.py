@@ -71,7 +71,7 @@ def parse_args():
 
 # Per-game settings: (num_tiles, tileset, height, width). resolve_game() picks a game from --game
 # (primary) or, for older calls, from --num_tiles (+ --mm). The tileset must match the tile count
-# so the deterministic caption script can read every tile (MM-Full uses the 41-tile MM.json).
+# so the deterministic caption script can read every tile (MM-Full uses the 43-tile MM.json).
 GAME_SETTINGS = {
     "Mario":     (common_settings.MARIO_TILE_COUNT,     common_settings.MARIO_TILESET,     common_settings.MARIO_HEIGHT,   common_settings.MARIO_WIDTH),
     "LR":        (common_settings.LR_TILE_COUNT,        common_settings.LR_TILESET,        common_settings.LR_HEIGHT,      common_settings.LR_WIDTH),

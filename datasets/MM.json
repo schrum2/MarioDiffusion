@@ -40,6 +40,8 @@
         "d": ["enemy", "damaging", "ranged"],
         "h": ["enemy", "damaging", "ranged"],
         "n": ["enemy", "damaging", "flying"],
-        "I": ["enemy", "damaging", "jumping"]
+        "I": ["enemy", "damaging", "jumping"],
+        ">": ["solid", "conveyor"],
+        "E": ["solid", "conveyor"]
     }
 }

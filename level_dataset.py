@@ -311,7 +311,10 @@ def mm_tiles(game):
             (4,6),    #38 = Crazy razy enemy
             (4,7),    #39 = PePe penguin enemy
             
-            (3,7)     #40 = Changkey fire pillar enemy (reuses the tackle-fire sprite, which doesn't actually have its own tile in MM.json)
+            (3,7),    #40 = tackle fire enemy (the 'I' tile; needs its own entry so tile 40 stays aligned)
+
+            (1,8),    #41 = Right Conveyor Belt tile (pushes Mega Man to the right)
+            (1,9)     #42 = Left Conveyor Belt tile (pushes Mega Man to the left)
         ]
     else:
         MM_tile_coordinates = [
