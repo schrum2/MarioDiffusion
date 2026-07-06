@@ -33,6 +33,7 @@ _RENDER_INFO = {
     "LR": (common_settings.LR_TILE_COUNT, common_settings.LR_TILE_PIXEL_DIM),
     "MM-Simple": (common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_TILE_PIXEL_DIM),
     "MM-Full": (common_settings.MM_FULL_TILE_COUNT, common_settings.MM_TILE_PIXEL_DIM),
+    "MMLV": (common_settings.MMLV_TILE_COUNT, common_settings.MM_TILE_PIXEL_DIM),
 }
 
 # Overlay colors (RGBA). Visited cells are faint so the path stays readable.

@@ -325,15 +325,17 @@ def untraversable_indices(scenes, game, id_to_char, tile_descriptors,
 def _render_target(game, tileset_path):
     """Map a game (and tileset) to the name level_dataset.visualize_samples expects."""
     if game == "MM":
-        full = os.path.basename(common_settings.MM_FULL_TILESET)
-        return "MM-Full" if os.path.basename(tileset_path) == full else "MM-Simple"
+        base = os.path.basename(tileset_path)
+        if base == os.path.basename(common_settings.MMLV_TILESET):
+            return "MMLV"
+        return "MM-Full" if base == os.path.basename(common_settings.MM_FULL_TILESET) else "MM-Simple"
     return game  # "Mario" / "LR"
 
 
 # Render-style game names (as used by run_diffusion and the GUIs) -> the game names
 # evaluate() understands. The render name itself doubles as visualize_path's target.
 RENDER_GAME_TO_TRAV = {"Mario": "Mario", "LR": "LR",
-                       "MM-Simple": "MM", "MM-Full": "MM"}
+                       "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MM"}
 
 
 def astar_path_image(scene, game, id_to_char, tile_descriptors, budget=100000,

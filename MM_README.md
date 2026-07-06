@@ -74,11 +74,11 @@ Or run each step manually:
 ```bash
 cd ..
 python megaman\bulk_mmlv_to_vglc.py --output datasets\MMLV_Maker_Levels
-python create_megaman_json_data.py --levels datasets\MMLV_Maker_Levels --tileset datasets\MM.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --direction_captions --include_moving_ground --output datasets\MMLV_Levels.json
-python MM_create_ascii_captions.py --dataset datasets\MMLV_Levels.json --tileset datasets\MM.json --output datasets\MMLV_LevelsAndCaptions-regular.json
+python create_megaman_json_data.py --levels datasets\MMLV_Maker_Levels --tileset datasets\MMLV.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --direction_captions --include_moving_ground --output datasets\MMLV_Levels.json
+python MM_create_ascii_captions.py --dataset datasets\MMLV_Levels.json --tileset datasets\MMLV.json --output datasets\MMLV_LevelsAndCaptions-regular.json
 python tokenizer.py save --json datasets\MMLV_LevelsAndCaptions-regular.json --pkl_file datasets\MMLV_Tokenizer-regular.pkl
-python create_random_test_captions.py --save_file datasets\MMLV_RandomTest-regular.json --json datasets\MMLV_LevelsAndCaptions-regular.json --seed 0 --game MM-Full
-python split_data.py --json_file datasets\MMLV_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM-Full
+python create_random_test_captions.py --save_file datasets\MMLV_RandomTest-regular.json --json datasets\MMLV_LevelsAndCaptions-regular.json --seed 0 --game MMLV
+python split_data.py --json_file datasets\MMLV_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MMLV
 ```
 
 Train the text encoder (MLM) on the training split:
@@ -88,7 +88,7 @@ python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MMLV_LevelsA
 
 Train the text-conditional diffusion model:
 ```bash
-python train_diffusion.py --pkl datasets\MMLV_Tokenizer-regular.pkl --json datasets\MMLV_LevelsAndCaptions-regular-train.json --val_json datasets\MMLV_LevelsAndCaptions-regular-validate.json --augment --mlm_model_dir MMLV-MLM-regular0 --text_conditional --output_dir MMLV_conditional_regular0 --seed 0 --game MM-Full
+python train_diffusion.py --pkl datasets\MMLV_Tokenizer-regular.pkl --json datasets\MMLV_LevelsAndCaptions-regular-train.json --val_json datasets\MMLV_LevelsAndCaptions-regular-validate.json --augment --mlm_model_dir MMLV-MLM-regular0 --text_conditional --output_dir MMLV_conditional_regular0 --seed 0 --game MMLV
 ```
 
 For a quick test run instead of waiting on full training, add `--num_epochs 2 --save_image_epochs 100000`.
@@ -99,22 +99,22 @@ For a quick test run instead of waiting on full training, add `--num_epochs 2 --
 
 Interactive GUI:
 ```bash
-python interactive_tile_level_generator.py --model_path MMLV_conditional_regular0 --load_data datasets\MMLV_LevelsAndCaptions-regular.json --game MM-Full
+python interactive_tile_level_generator.py --model_path MMLV_conditional_regular0 --load_data datasets\MMLV_LevelsAndCaptions-regular.json --game MMLV
 ```
 
 Text prompt generation:
 ```bash
-python text_to_level_diffusion.py --model_path MMLV_conditional_regular0 --game MM-Full
+python text_to_level_diffusion.py --model_path MMLV_conditional_regular0 --game MMLV
 ```
 
 Batch generation:
 ```bash
-python run_diffusion.py --model_path MMLV_conditional_regular0 --num_samples 100 --text_conditional --save_as_json --output_dir MMLV_conditional_regular0-samples --level_width 16 --game MM-Full
+python run_diffusion.py --model_path MMLV_conditional_regular0 --num_samples 100 --text_conditional --save_as_json --output_dir MMLV_conditional_regular0-samples --level_width 16 --game MMLV
 ```
 
 Browse generated levels:
 ```bash
-python ascii_data_browser.py MMLV_conditional_regular0-samples\all_levels.json datasets\MM.json
+python ascii_data_browser.py MMLV_conditional_regular0-samples\all_levels.json datasets\MMLV.json
 ```
 
 ## Mega Man Maker Conversion
