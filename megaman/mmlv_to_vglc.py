@@ -319,8 +319,8 @@ def convert(src: Path, dst: Path):
 
 def main():
     ap = argparse.ArgumentParser(description="Convert .mmlv → VGLC .txt")
-    ap.add_argument("input",  help=".mmlv file or directory of .mmlv files")
-    ap.add_argument("output", nargs="?", default=None,
+    ap.add_argument("--input",  help=".mmlv file or directory of .mmlv files")
+    ap.add_argument("--output", nargs="?", default=None,
                     help="Output directory for .txt files (default: 'txt/' next to input)")
     args = ap.parse_args()
 
