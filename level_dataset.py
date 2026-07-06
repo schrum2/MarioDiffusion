@@ -264,7 +264,9 @@ def mm_tiles(game):
         _sprite_sheet = Image.open(_sprite_sheet_name)
 
     # Hardcoded coordinates for the first 10 tiles (row, col)
-    if game == 'MM-Full':
+    # MMLV uses the same sprite layout as MM-Full; its 2 extra tiles are the conveyor
+    # entries (ids 41/42) already listed at the end of this table.
+    if game == 'MM-Full' or game == 'MMLV':
         MM_tile_coordinates = [
             (0,0),    #0 = Player/Spawn point
             (0,1),    #1 = null
@@ -399,7 +401,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
             #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = common_settings.MARIO_TILE_PIXEL_DIM
-        elif game == 'MM-Simple' or game == 'MM-Full':
+        elif game == 'MM-Simple' or game == 'MM-Full' or game == 'MMLV':
             tile_images = mm_tiles(game)
             tile_size = common_settings.MM_TILE_PIXEL_DIM
         else:
