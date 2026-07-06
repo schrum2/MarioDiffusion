@@ -17,7 +17,6 @@ import random
 SNAP_H_PAD_ROWS = 2
 
 
-
 #This enum is for the readability of the direction enum
 class Axis(Enum):
     VERT=0
@@ -123,8 +122,10 @@ def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'dataset
         if group_empty_tiles:
             basic_empty_tile_char = "-" #Air tile
             empty_tiles = [x for x in tile_chars if ("empty" in tile_descriptors.get(x)) and ("water" not in tile_descriptors.get(x))]
-        
+
         #Clearing up grouped data, adding basic examples back in
+        #Conveyors are left as their own distinct tiles: MM.json has none, and MMLV keeps
+        #them as solid conveyor tiles rather than collapsing them into the generic block.
         cleared_list_of_chars = [x for x in tile_chars if x not in enemies+powerups+empty_tiles]
         
         #We do sadly have to do this twice to avoid appending empty chars
@@ -163,6 +164,7 @@ def parse_args():
     parser.add_argument('--tileset', default='datasets/MM.json', help='Path to the tile set JSON')
     parser.add_argument('--levels', default='../TheVGLC/MegaMan/Enhanced', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output directory')
+    parser.add_argument('--no_filter', action='store_true', help='Disable all quality/playable-area filtering; write every extracted scene to --output. (A* traversability filtering, --traversable_only, is off by default regardless.)')
     parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene height (e.g., 16 or 32). Navigation still uses the screen height for path mode.')
     parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width for path mode.')
     parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
@@ -176,81 +178,135 @@ def parse_args():
     parser.add_argument('--max_enemies', type=int, default=8, help='Filter out scenes with more than this many enemy tiles. Omit to disable.')
     parser.add_argument('--include_moving_ground', action='store_true', help='Include scenes containing moving-ground/platform tiles (e.g. "M"). By default these are excluded since their motion is not represented in the static scene graphics.')
     parser.add_argument('--min_content_pct', type=float, default=15, help='Filter out scenes where less than this percent of tiles are real content (not empty/passable/null). E.g. 15 requires at least 15%% non-empty tiles.')
+    parser.add_argument('--min_playable_tiles', type=int, default=10, help='Filter out scenes where a flood fill starting from the border reaches fewer than this many open (non-wall, non-null) tiles -- i.e. scenes with almost no playable area connected to their edges. Default 10 (out of 224 in a 16x14 scene); set to 0 to disable.')
 
     args = parser.parse_args()
     if args.stride_x < 1 or args.stride_y < 1:
         parser.error("--stride_x and --stride_y must be >= 1")
     return args
 
-def filter_traversable(all_samples, id_to_char, tile_descriptors, budget=100000):
-    astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
-    if astar_dir not in sys.path:
-        sys.path.insert(0, astar_dir)
-    from astar_traversability_check import untraversable_indices
+def border_flood_fill_count(scene, blocking_ids):
+    """Count how many 'open' tiles are reachable by a 4-connected flood fill that starts
+    from every open tile on the scene's border (top/bottom rows, left/right columns).
 
-    scenes = [s["scene"] for s in all_samples]
-    bad_indices = untraversable_indices(scenes, "MM", id_to_char, tile_descriptors, budget=budget)
+    'Open' = not a wall (solid, non-penetrable) and not null padding. The player enters
+    a scene from its edges, so this measures the size of the playable region that is
+    actually connected to those edges -- a scene whose only open space is a small sealed
+    pocket in the interior scores 0 here even though it has open tiles. Used as a cheap
+    additional traversability/playable-area signal alongside the A* check."""
+    height = len(scene)
+    width = len(scene[0]) if height else 0
+    if not width:
+        return 0
 
-    for idx in sorted(bad_indices, reverse=True):
-        del all_samples[idx]
+    visited = [[False] * width for _ in range(height)]
+    stack = []
 
-    total = len(scenes)
-    remaining = len(all_samples)
-    pct = (100.0 * remaining / total) if total else 0.0
-    print(f"Traversability filter: removed {len(bad_indices)}/{total} un-traversable scenes; "
-          f"{remaining} levels remain ({pct:.1f}% of the dataset).")
-    return all_samples
+    def seed(x, y):
+        if not visited[y][x] and scene[y][x] not in blocking_ids:
+            visited[y][x] = True
+            stack.append((x, y))
 
-def filter_scene_quality(all_samples, id_to_char, tile_descriptors, max_enemies=8, exclude_moving_ground=False, min_content_pct=15):
-    moving_ids = set()
-    enemy_ids = set()
-    empty_ids = set()
-    if exclude_moving_ground:
-        moving_ids = {tid for tid, ch in id_to_char.items() if "moving" in tile_descriptors.get(ch, [])}
-    if max_enemies is not None:
-        enemy_ids = {tid for tid, ch in id_to_char.items() if "enemy" in tile_descriptors.get(ch, [])}
-    if min_content_pct is not None:
-        #"Empty" content here means tiles tagged empty (air/water/etc.) or null (out of
-        #bounds padding) -- i.e. tiles that don't represent anything to interact with.
-        #Everything else (solid, hazard, enemy, climbable, powerup, spawn-adjacent
-        #structure) counts as real content.
-        empty_ids = {tid for tid, ch in id_to_char.items()
-                     if "empty" in tile_descriptors.get(ch, []) or "null" in tile_descriptors.get(ch, [])}
+    for x in range(width):
+        seed(x, 0)
+        seed(x, height - 1)
+    for y in range(height):
+        seed(0, y)
+        seed(width - 1, y)
+
+    count = 0
+    while stack:
+        x, y = stack.pop()
+        count += 1
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if 0 <= nx < width and 0 <= ny < height and not visited[ny][nx] \
+                    and scene[ny][nx] not in blocking_ids:
+                visited[ny][nx] = True
+                stack.append((nx, ny))
+    return count
+
+
+#Ordered so that when a scene fails more than one check, we report the most fundamental
+#reason first (can't be traversed at all -> no playable area -> too dense with enemies ->
+#static-motion tiles -> not enough real content).
+FILTER_REASONS = ("not_traversable", "insufficient_playable_area",
+                  "too_many_enemies", "moving_ground", "low_content")
+
+def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only=False,
+                  budget=100000, max_enemies=8, exclude_moving_ground=True,
+                  min_content_pct=15, min_playable_tiles=10):
+    """Split all_samples into (kept, filtered). Each filtered sample is returned as a copy
+    tagged with a 'filter_reason' key (one of FILTER_REASONS) recording why it was cut.
+
+    Filters, in priority order:
+      not_traversable          -- A* orb check fails (only when traversable_only is set)
+      insufficient_playable_area -- border-originating flood fill reaches < min_playable_tiles
+      too_many_enemies         -- more than max_enemies enemy tiles
+      moving_ground            -- contains moving-ground/platform tiles (static graphics can't show motion)
+      low_content              -- less than min_content_pct real (non-empty/null) content
+    Any threshold passed as None (or, for min_playable_tiles, <= 0) disables that check."""
+    wall_ids = {tid for tid, ch in id_to_char.items()
+                if "solid" in tile_descriptors.get(ch, []) and "penetrable" not in tile_descriptors.get(ch, [])}
+    null_ids = {tid for tid, ch in id_to_char.items() if "null" in tile_descriptors.get(ch, [])}
+    #Tiles the flood fill treats as impassable: solid walls plus out-of-bounds null padding.
+    blocking_ids = wall_ids | null_ids
+
+    moving_ids = {tid for tid, ch in id_to_char.items() if "moving" in tile_descriptors.get(ch, [])} \
+        if exclude_moving_ground else set()
+    enemy_ids = {tid for tid, ch in id_to_char.items() if "enemy" in tile_descriptors.get(ch, [])} \
+        if max_enemies is not None else set()
+    #"Empty" content = tiles tagged empty (air/water/etc.) or null (out of bounds padding),
+    #i.e. tiles that don't represent anything to interact with. Everything else (solid,
+    #hazard, enemy, climbable, powerup) counts as real content.
+    empty_ids = {tid for tid, ch in id_to_char.items()
+                 if "empty" in tile_descriptors.get(ch, []) or "null" in tile_descriptors.get(ch, [])} \
+        if min_content_pct is not None else set()
+
+    #The A* pass is a batch call, so precompute the un-traversable index set once up front.
+    untraversable = set()
+    if traversable_only:
+        astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+        if astar_dir not in sys.path:
+            sys.path.insert(0, astar_dir)
+        from astar_traversability_check import untraversable_indices
+        scenes = [s["scene"] for s in all_samples]
+        untraversable = set(untraversable_indices(scenes, "MM", id_to_char, tile_descriptors, budget=budget))
 
     kept = []
-    removed_moving = 0
-    removed_enemies = 0
-    removed_low_content = 0
-    for s in all_samples:
+    filtered = []
+    reason_counts = {r: 0 for r in FILTER_REASONS}
+
+    for idx, s in enumerate(all_samples):
         scene = s["scene"]
         total = len(scene) * len(scene[0])
+        reason = None
 
-        if exclude_moving_ground and any(tile in moving_ids for row in scene for tile in row):
-            removed_moving += 1
-            continue
-
-        if max_enemies is not None:
-            enemy_count = sum(1 for row in scene for tile in row if tile in enemy_ids)
-            if enemy_count > max_enemies:
-                removed_enemies += 1
-                continue
-
-        if min_content_pct is not None:
+        if traversable_only and idx in untraversable:
+            reason = "not_traversable"
+        elif min_playable_tiles and min_playable_tiles > 0 \
+                and border_flood_fill_count(scene, blocking_ids) < min_playable_tiles:
+            reason = "insufficient_playable_area"
+        elif max_enemies is not None \
+                and sum(1 for row in scene for tile in row if tile in enemy_ids) > max_enemies:
+            reason = "too_many_enemies"
+        elif exclude_moving_ground and any(tile in moving_ids for row in scene for tile in row):
+            reason = "moving_ground"
+        elif min_content_pct is not None and total:
             empty_count = sum(1 for row in scene for tile in row if tile in empty_ids)
-            content_pct = 100.0 * (total - empty_count) / total if total else 0.0
+            content_pct = 100.0 * (total - empty_count) / total
             if content_pct < min_content_pct:
-                removed_low_content += 1
-                continue
+                reason = "low_content"
 
-        kept.append(s)
+        if reason is None:
+            kept.append(s)
+        else:
+            reason_counts[reason] += 1
+            filtered.append({**s, "filter_reason": reason})
 
     total_samples = len(all_samples)
-    remaining = len(kept)
-    print(f"Quality filter: removed {removed_moving} scenes with moving-ground tiles, "
-          f"{removed_enemies} scenes with more than {max_enemies} enemies, "
-          f"{removed_low_content} scenes below {min_content_pct}% content; "
-          f"{remaining}/{total_samples} remain.")
-    return kept
+    print(f"Filtering: kept {len(kept)}/{total_samples}, removed {len(filtered)} "
+          f"({', '.join(f'{r}={reason_counts[r]}' for r in FILTER_REASONS)}).")
+    return kept, filtered
 
 
 def main():
@@ -441,21 +497,33 @@ def main():
     # The quality/traversability filters are tuned for small navigation-sized windows
     # (e.g. max_enemies=8, min_content_pct=15) and would delete entire levels in whole
     # mode, so they are not applied there. A whole level is kept as-is.
+    filtered_samples = []
     if args.scan_mode == 'whole':
         print("scan_mode=whole: skipping window-oriented quality/traversability filters")
+    elif args.no_filter:
+        print("--no_filter: skipping all quality/playable-area filtering")
     else:
-        if args.traversable_only:
-            all_samples = filter_traversable(all_samples, id_to_char, tile_descriptors, budget=args.budget)
-
-        if args.max_enemies is not None or not args.include_moving_ground or args.min_content_pct is not None:
-            all_samples = filter_scene_quality(all_samples, id_to_char, tile_descriptors, max_enemies=args.max_enemies, exclude_moving_ground=not args.include_moving_ground, min_content_pct=args.min_content_pct)
-        
-    output_data = all_samples
+        all_samples, filtered_samples = apply_filters(
+            all_samples, id_to_char, tile_descriptors,
+            traversable_only=args.traversable_only, budget=args.budget,
+            max_enemies=args.max_enemies, exclude_moving_ground=not args.include_moving_ground,
+            min_content_pct=args.min_content_pct, min_playable_tiles=args.min_playable_tiles,
+        )
 
     output = args.output
     with open(output, 'w') as f:
-        json.dump(output_data, f, indent=2)
-    print(f"Saved to {output}")
+        json.dump(all_samples, f, indent=2)
+    print(f"Saved {len(all_samples)} kept samples to {output}")
+
+    # Write the filtered-out scenes (each tagged with its filter_reason) to a sibling file
+    # so they can be inspected/audited instead of being silently discarded. Named by
+    # tacking "-filtered" onto --output, e.g. MM_Levels.json -> MM_Levels-filtered.json.
+    if filtered_samples:
+        stem, ext = os.path.splitext(output)
+        filtered_output = f"{stem}-filtered{ext or '.json'}"
+        with open(filtered_output, 'w') as f:
+            json.dump(filtered_samples, f, indent=2)
+        print(f"Saved {len(filtered_samples)} filtered samples to {filtered_output}")
 
 def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_width=None, out_height=None, x_stride = 1, y_stride = 1):
     out_width = out_width or width
