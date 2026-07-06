@@ -119,19 +119,25 @@ python ascii_data_browser.py MMLV_conditional_regular0-samples\all_levels.json d
 
 ## Mega Man Maker Conversion
 
-Generated `.txt` files can be converted back into playable Mega Man Maker levels.
+Generated `.txt` files can be converted back into playable Mega Man Maker levels, and downloaded `.mmlv` files can be converted into VGLC `.txt` files.
 
+```bash
+cd MM_Batch
+MegaManMaker.bat path\to\file.mmlv
+```
+or
+```bash
+cd MM_Batch
+MegaManMaker.bat path\to\file.txt
+```
+
+Replace the path with the file you want to convert. `.mmlv` files convert to `.txt`; `.txt` files convert to `.mmlv` and are copied automatically into your Mega Man Maker `My Levels` folder.
+
+You can also drag and drop a file onto the window, or run it with no argument for a prompt:
 ```bash
 cd MM_Batch
 MegaManMaker.bat
 ```
-
-Drag and drop:
-- `.mmlv` → converts to `.txt`
-- `.txt` → converts to `.mmlv`
-
-They appear in Mega Man Maker under `My Levels`.
-
 ---
 
 ## Alternate workflow: full dataset from TheVGLC
@@ -343,3 +349,30 @@ python log_timestamp.py --log_file timing_logs\my-run.jsonl --event "MMLV downlo
 ## Mega Man Maker
 
 [Mega Man Maker](https://github.com/schrum2/MarioDiffusion/tree/dev_alaaAlmzayen/megaman)
+
+
+## Evaluate caption adherence of text-conditional diffusion model
+
+You can evaluate the final model's ability to adhere to input captions with this command:
+
+```
+python evaluate_caption_adherence.py --model_path MM_conditional_full_regular0 --save_as_json --json datasets\MMLV_LevelsAndCaptions-regular.json --output_dir text-to-level-final --game MM-Full
+```
+You can also evaluate how caption adherence changed during training with respect to the testing set:
+
+```
+python evaluate_caption_adherence.py --model_path MM_conditional_full_regular0 --save_as_json --json datasets\MMLV_LevelsAndCaptions-regular-test.json --compare_checkpoints --game MM-Full
+```
+However, it is easy to match captions that are similar to real game captions. You can evaluate how caption adherence changed during training with respect to previously unseen randomly generated captions too:
+
+```
+python evaluate_caption_adherence.py --model_path MM_conditional_full_regular0 --save_as_json --json datasets\MMLV_RandomTest-regular.json --compare_checkpoints --game MM-Full
+```
+
+Entrance/exit direction captions (added via `--direction_captions` earlier in the pipeline) are automatically excluded from caption-adherence scoring, so no extra flags are needed here to account for them.
+
+If you'd like to create all the generated data used to evaluate caption adherence in one step, you can do so by running the batch file like this:
+
+```
+batch\evaluate_caption_adherence_multi.bat MM_conditional_full_regular0 regular MMLV
+```
