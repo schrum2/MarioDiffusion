@@ -13,6 +13,16 @@ Format discoveries from reverse-engineering real .mmlv files:
     'd' from those as an entity produced a phantom enemy in the top of the left column of
     almost every converted level.  parse_mmlv now anchors to the start of a
     line so only true object-layer fields (no digit prefix) are read.
+  - MM Maker builds levels from discrete 16x14 screen chunks, and its screen grid is
+    anchored at the world origin (screen corners fall on tile multiples of 16 in x and
+    14 in y).  mmlv_to_grid exploits that: it snaps every object to its chunk and pads
+    the bounding box out to whole chunks, so the ASCII always tiles into 16x14 chunks
+    that line up with what the player sees -- including protrusions, which claim their
+    own padded chunk above/below the main band rather than shifting everything.  The
+    '2' screen markers (2a enabled / 2d background) are deliberately NOT used to crop:
+    2a-vs-content differed for <0.1% of screens across the corpus, and 2d is only the
+    painted subset of the playable area, so cropping by it deletes large unpainted-but-
+    built regions.  Content alone defines the crop.
   - Object-layer fields we use:
       i = tile id:    1=solid block, 2=spike, 3=ladder
       d = object class: 4=player spawn, 5=enemy, 6=gimmick/block, 7=pickup,
@@ -77,7 +87,7 @@ def parse_mmlv(path: Path) -> Dict[Tuple[str,int,int], dict]:
     return cells
 
 
-#  decode tables (inverse of megaman/vglc_to_mmlv.py) 
+#  decode tables (inverse of megaman/vglc_to_mmlv.py)
 
 # Tile layer: the 'i' field id -> VGLC char.
 TILE_I_TO_CHAR = {1: "#", 2: "H", 3: "|"}
@@ -258,7 +268,14 @@ def _layer_rank(layer: str) -> int:
 
 
 def mmlv_to_grid(path: Path):
-    """Convert one .mmlv to a 2-D list of VGLC chars."""
+    """Convert one .mmlv to a 2-D list of VGLC chars.
+
+    The output is always a whole number of 16x14 screen chunks.  We take the bounding
+    box of every chunk that holds an object and pad it out to whole chunks, so no tile
+    is ever dropped -- content that protrudes one screen past the play band just claims
+    its own padded chunk, keeping 16x14 chunk scans aligned to what the game shows.
+    """
+    path = Path(path)
     cells = parse_mmlv(path)
 
     # Collapse the (layer, x, y) objects down to one char per (x, y). Process layers in
@@ -274,11 +291,19 @@ def mmlv_to_grid(path: Path):
     if not char_cells:
         return []
 
-    xs = [c[0] for c in char_cells]
-    ys = [c[1] for c in char_cells]
-
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
+    # Crop rectangle (inclusive tile coords), snapped to whole 16x14 screen chunks.
+    # Snap each object to the top-left tile of its screen chunk and take the bounding
+    # box over that set: this pads out to whole chunks so a 1-tile overhang past a
+    # chunk border simply claims its own chunk, and the grid always tiles cleanly.
+    # (MM Maker anchors its screen grid at the origin, so //16 and //14 land on real
+    # screen boundaries -- which is what keeps 16x14 chunk scans aligned to the game.)
+    crop_screens = {((tx // MEGAMAN_SCREEN_WIDTH) * MEGAMAN_SCREEN_WIDTH,
+                     (ty // MEGAMAN_PLAYABLE_HEIGHT) * MEGAMAN_PLAYABLE_HEIGHT)
+                    for (tx, ty) in char_cells}
+    sx = [s[0] for s in crop_screens]
+    sy = [s[1] for s in crop_screens]
+    min_x, max_x = min(sx), max(sx) + (MEGAMAN_SCREEN_WIDTH - 1)
+    min_y, max_y = min(sy), max(sy) + (MEGAMAN_PLAYABLE_HEIGHT - 1)
 
     width = max_x - min_x + 1
     height = max_y - min_y + 1
