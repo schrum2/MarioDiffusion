@@ -117,7 +117,7 @@ class TileViewer(tk.Tk):
                 debug=True,
                 return_details=True
             )
-        elif self.game.get()=="MM-Full" or self.game.get()=="MM-Simple":
+        elif self.game.get()=="MM-Full" or self.game.get()=="MM-Simple" or self.game.get()=="MMLV":
             # Use the entrance/exit direction data baked into the sample itself
             # (populated by create_megaman_json_data.py when run with --direction_captions),
             # instead of parsing it back out of the previous caption text.
@@ -182,7 +182,7 @@ class TileViewer(tk.Tk):
 
         game = self.game.get()   # "Mario" / "LR" / "MM-Simple" / "MM-Full"
         trav_game = {"Mario": "Mario", "LR": "LR",
-                     "MM-Simple": "MM", "MM-Full": "MM"}.get(game)
+                     "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MM"}.get(game)
         if trav_game is None:
             return None
         try:
@@ -365,7 +365,8 @@ class TileViewer(tk.Tk):
             "Mario": "Mario",
             "Lode Runner": "LR",
             "Mega Man (Simple)": "MM-Simple",
-            "Mega Man (Full)": "MM-Full"
+            "Mega Man (Full)": "MM-Full",
+            "Mega Man (Maker)": "MMLV"
         }
         
        #Method called every time the dropdown is updated to use the mapping, and putting it in self.game
@@ -380,6 +381,7 @@ class TileViewer(tk.Tk):
                 "LR": common_settings.LR_TILESET,
                 "MM-Simple": common_settings.MM_SIMPLE_TILESET,
                 "MM-Full": common_settings.MM_FULL_TILESET,
+                "MMLV": common_settings.MMLV_TILESET,
             }
             #game_to_dataset = {
                 #"Mario": "datasets/SMB1_LevelsAndCaptions-regular.json",
@@ -401,7 +403,7 @@ class TileViewer(tk.Tk):
             #if dataset_changed:
                 #self.dataset_path = new_dataset_path
 
-            if (tileset_changed or dataset_changed) and self.dataset_path and self.tileset_path:
+            if tileset_changed and self.dataset_path and self.tileset_path:
                 self.load_files_from_paths(self.dataset_path, self.tileset_path)
 
         #Creating the game dropdown
@@ -409,7 +411,7 @@ class TileViewer(tk.Tk):
         self.game = tk.StringVar(value=self.game_display_to_real_mapping[self.game_display_var.get()])
         self.game_label = ttk.Label(self.composed_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)"], state="readonly")
+        self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"], state="readonly")
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", on_game_select)
 
@@ -620,7 +622,7 @@ class TileViewer(tk.Tk):
         # See if running Lode Runner
         if self.game.get()=="LR":
             TOPIC_KEYWORDS = LR_TOPIC_KEYWORDS
-        elif self.game.get()=="MM-Simple" or self.game.get()=="MM-Full":
+        elif self.game.get()=="MM-Simple" or self.game.get()=="MM-Full" or self.game.get()=="MMLV":
             TOPIC_KEYWORDS = MM_TOPIC_KEYWORDS
         # If not Lode Runner or Mega Man, use the default topic keywords of Mario
         else:
@@ -672,6 +674,8 @@ class TileViewer(tk.Tk):
                     num_classes = common_settings.LR_TILE_COUNT
                 elif self.game.get()=="MM-Simple":
                     num_classes = common_settings.MM_SIMPLE_TILE_COUNT
+                elif self.game.get()=="MMLV":
+                    num_classes = common_settings.MMLV_TILE_COUNT
                 else: #Goes to MM-Full if all other cases fail
                     num_classes = common_settings.MM_FULL_TILE_COUNT
 

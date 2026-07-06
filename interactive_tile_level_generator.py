@@ -243,7 +243,7 @@ class CaptionBuilder(ParentBuilder):
         
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)"], state="readonly", font=GUI_FONT)
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"], state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", lambda e: self.update_mario_only_buttons()) 
         self.update_mario_only_buttons() 
@@ -664,7 +664,12 @@ class CaptionBuilder(ParentBuilder):
                     scene = [[x % number_of_tiles for x in row] for row in scene]
                     tileset_path = common_settings.MM_FULL_TILESET
                     _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                
+                elif game_selected == "Mega Man (Maker)":
+                    number_of_tiles = common_settings.MMLV_TILE_COUNT
+                    scene = [[x % number_of_tiles for x in row] for row in scene]
+                    tileset_path = common_settings.MMLV_TILESET
+                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+
                 self.generated_scenes.append(scene)
                 #selected_game = self.game_var.get()
                 if game_selected == "Lode Runner":
@@ -675,7 +680,7 @@ class CaptionBuilder(ParentBuilder):
                     pil_img = visualize_samples(images)
                 else:
                     actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-                    pil_img = visualize_samples(images, game="MM-Simple" if game_selected == "Mega Man (Simple)" else "MM-Full")
+                    pil_img = visualize_samples(images, game={"Mega Man (Simple)": "MM-Simple", "Mega Man (Maker)": "MMLV"}.get(game_selected, "MM-Full"))
 
                 self.generated_images.append(pil_img)
                 img_tk = ImageTk.PhotoImage(pil_img)
@@ -882,6 +887,10 @@ Average Segment Score: {avg_segment_score}"""
             number_of_tiles = common_settings.MM_FULL_TILE_COUNT
             scene = [[x % number_of_tiles for x in row] for row in scene]
             tileset_path = common_settings.MM_FULL_TILESET
+        elif game_selected == "Mega Man (Maker)":
+            number_of_tiles = common_settings.MMLV_TILE_COUNT
+            scene = [[x % number_of_tiles for x in row] for row in scene]
+            tileset_path = common_settings.MMLV_TILESET
         self.composed_scenes.append(scene)
 
         # Create and store the thumbnail
@@ -1043,7 +1052,7 @@ Average Segment Score: {avg_segment_score}"""
         if selected_game == "Lode Runner":
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             level.play(game="loderunner", level_idx=1)
-        elif selected_game in ("Mega Man (Simple)", "Mega Man (Full)"):
+        elif selected_game in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
             self._play_megaman_level(idx)
         else:
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
@@ -1161,6 +1170,9 @@ Average Segment Score: {avg_segment_score}"""
         elif game_selected == "Mega Man (Full)":
             game_name = "MM-Full"
             num_classes = common_settings.MM_FULL_TILE_COUNT
+        elif game_selected == "Mega Man (Maker)":
+            game_name = "MMLV"
+            num_classes = common_settings.MMLV_TILE_COUNT
         else:
             game_name = "Mario"
             num_classes = common_settings.MARIO_TILE_COUNT
@@ -1211,6 +1223,7 @@ Average Segment Score: {avg_segment_score}"""
             "Lode Runner": "LR",
             "Mega Man (Simple)": "MM-Simple",
             "Mega Man (Full)": "MM-Full",
+            "Mega Man (Maker)": "MMLV",
         }.get(self.game_var.get())
         if game_name is None:
             return None, False, {}
@@ -1307,12 +1320,12 @@ Average Segment Score: {avg_segment_score}"""
         if not is_mario:
             self.use_snes_graphics.set(False)
 
-        is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)")
+        is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)")
         self.mm_layout_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
 
     def open_megaman_layout_editor(self):
         global game_selected
-        if game_selected not in ("Mega Man (Simple)", "Mega Man (Full)"):
+        if game_selected not in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
             messagebox.showinfo("Mega Man only", "Switch the game dropdown to a Mega Man mode to use this tool.")
             return
         if not self.composed_scenes:
@@ -1387,6 +1400,8 @@ class LevelEditor:
             return mm_tiles("MM-Simple")
         elif game == "Mega Man (Full)":
             return mm_tiles("MM-Full")
+        elif game == "Mega Man (Maker)":
+            return mm_tiles("MMLV")
         return mario_tiles()
 
 class MegaManLayoutEditor:
@@ -2081,7 +2096,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
@@ -2103,6 +2118,9 @@ if __name__ == "__main__":
     elif args.game == "MM-Full":
         game_selected = "Mega Man (Full)"
         tileset_path = common_settings.MM_FULL_TILESET
+    elif args.game == "MMLV":
+        game_selected = "Mega Man (Maker)"
+        tileset_path = common_settings.MMLV_TILESET
 
     root = tk.Tk()
     app = CaptionBuilder(root)

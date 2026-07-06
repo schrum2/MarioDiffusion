@@ -37,7 +37,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full", "Other"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "Other"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
     parser.add_argument(
@@ -85,6 +85,14 @@ def main():
             describe_absence=args.describe_absence,
             include_entrance_exit=args.include_entrance_exit
         )
+    elif args.game == "MMLV":
+        args.num_tiles = common_settings.MMLV_TILE_COUNT
+        args.tileset = common_settings.MMLV_TILESET
+        generator = MM_GrammarGenerator(
+            seed=args.seed,
+            describe_absence=args.describe_absence,
+            include_entrance_exit=args.include_entrance_exit
+        )
     elif args.game == "Other":
         # The generic generator learns its topics from the training data, so it is
         # built after the dataset is loaded (below).
@@ -126,7 +134,7 @@ def main():
                 compare_score = compare_captions(caption, new_caption)
             elif args.game == "LR":
                 compare_score = lr_compare_captions(caption, new_caption)
-            elif args.game in ["MM-Simple", "MM-Full"]:
+            elif args.game in ["MM-Simple", "MM-Full", "MMLV"]:
                 compare_score = mm_compare_captions(caption, new_caption)
             caption_is_new = compare_score != 1.0 # Perfect score of 1.0 if captions are the same
             if not caption_is_new:

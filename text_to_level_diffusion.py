@@ -33,7 +33,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
@@ -276,6 +276,9 @@ if __name__ == "__main__":
         elif args.game == "MM-Full":
             args.num_tiles = common_settings.MM_FULL_TILE_COUNT
             args.tileset = common_settings.MM_FULL_TILESET
+        elif args.game == "MMLV":
+            args.num_tiles = common_settings.MMLV_TILE_COUNT
+            args.tileset = common_settings.MMLV_TILESET
         else:
             raise ValueError(f"Unknown game: {args.game}")
     
