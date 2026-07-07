@@ -47,6 +47,7 @@ class TileViewer(tk.Tk):
         self.describe_absence = tk.BooleanVar(value=False)
         self.show_images = False        # image view vs numeric/character grid
         self.show_astar_path = False    # overlay the A* path on the image view
+        self.show_filter_reason = False # show each entry's 'filter_reason' field (from *-filtered datasets)
 
         # UI
         self.create_widgets()
@@ -117,7 +118,7 @@ class TileViewer(tk.Tk):
                 debug=True,
                 return_details=True
             )
-        elif self.game.get()=="MM-Full" or self.game.get()=="MM-Simple":
+        elif self.game.get()=="MM-Full" or self.game.get()=="MM-Simple" or self.game.get()=="MMLV":
             # Use the entrance/exit direction data baked into the sample itself
             # (populated by create_megaman_json_data.py when run with --direction_captions),
             # instead of parsing it back out of the previous caption text.
@@ -165,6 +166,36 @@ class TileViewer(tk.Tk):
             self.show_images = True
         self.redraw()
 
+    def toggle_filter_reason(self):
+        """Toggle display of the current entry's 'filter_reason' field (present on entries
+        from the *-filtered datasets)."""
+        self.show_filter_reason = not getattr(self, 'show_filter_reason', False)
+        self.toggle_filter_reason_button.config(
+            text="Hide Filter Reason" if self.show_filter_reason else "Show Filter Reason"
+        )
+        self.redraw()
+
+    def _update_filter_reason_display(self, sample):
+        """Show the filter-reason toggle button and line only for entries that carry filter-reason info"""
+        reasons = None
+        if isinstance(sample, dict):
+            reasons = sample.get('filter_reasons')
+            if reasons is None:
+                single = sample.get('filter_reason')  # backward-compat: old single-reason entries
+                reasons = [single] if single is not None else None
+        if not reasons:
+            # No field on this entry: hide the button and clear the line.
+            self.toggle_filter_reason_button.pack_forget()
+            self.filter_reason_label.config(text="")
+            return
+        if not self.toggle_filter_reason_button.winfo_ismapped():
+            self.toggle_filter_reason_button.pack(side=tk.LEFT, padx=5)
+        if getattr(self, 'show_filter_reason', False):
+            label = "Filter reasons" if len(reasons) != 1 else "Filter reason"
+            self.filter_reason_label.config(text=f"{label}: {', '.join(reasons)}")
+        else:
+            self.filter_reason_label.config(text="")
+
     def _astar_overlay_image(self, scene):
         """
         Render scene with its A* path and explored cells 
@@ -182,7 +213,7 @@ class TileViewer(tk.Tk):
 
         game = self.game.get()   # "Mario" / "LR" / "MM-Simple" / "MM-Full"
         trav_game = {"Mario": "Mario", "LR": "LR",
-                     "MM-Simple": "MM", "MM-Full": "MM"}.get(game)
+                     "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MM"}.get(game)
         if trav_game is None:
             return None
         try:
@@ -232,6 +263,19 @@ class TileViewer(tk.Tk):
 
         toggle_astar_button = tk.Button(checkbox_frame, text="Toggle A* Path", command=self.toggle_astar_path)
         toggle_astar_button.pack(side=tk.LEFT, padx=5)
+
+        # Toggle for revealing the 'filter_reason' field carried by entries in the
+        # *-filtered datasets (created by create_megaman_json_data.py's apply_filters).
+        # Packed dynamically in _update_filter_reason_display: it only appears for entries
+        # that actually have a 'filter_reason' field.
+        self.toggle_filter_reason_button = tk.Button(
+            checkbox_frame, text="Show Filter Reason", command=self.toggle_filter_reason
+        )
+
+        # Line showing the current entry's filter_reason, only while the toggle above is on.
+        # Kept in its own always-packed label so toggling its text doesn't shift the layout.
+        self.filter_reason_label = tk.Label(self, text="", fg="red")
+        self.filter_reason_label.pack(pady=(0, 2))
 
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
@@ -365,7 +409,8 @@ class TileViewer(tk.Tk):
             "Mario": "Mario",
             "Lode Runner": "LR",
             "Mega Man (Simple)": "MM-Simple",
-            "Mega Man (Full)": "MM-Full"
+            "Mega Man (Full)": "MM-Full",
+            "Mega Man (Maker)": "MMLV"
         }
         
        #Method called every time the dropdown is updated to use the mapping, and putting it in self.game
@@ -380,6 +425,7 @@ class TileViewer(tk.Tk):
                 "LR": common_settings.LR_TILESET,
                 "MM-Simple": common_settings.MM_SIMPLE_TILESET,
                 "MM-Full": common_settings.MM_FULL_TILESET,
+                "MMLV": common_settings.MMLV_TILESET,
             }
             #game_to_dataset = {
                 #"Mario": "datasets/SMB1_LevelsAndCaptions-regular.json",
@@ -401,7 +447,7 @@ class TileViewer(tk.Tk):
             #if dataset_changed:
                 #self.dataset_path = new_dataset_path
 
-            if (tileset_changed or dataset_changed) and self.dataset_path and self.tileset_path:
+            if tileset_changed and self.dataset_path and self.tileset_path:
                 self.load_files_from_paths(self.dataset_path, self.tileset_path)
 
         #Creating the game dropdown
@@ -409,7 +455,7 @@ class TileViewer(tk.Tk):
         self.game = tk.StringVar(value=self.game_display_to_real_mapping[self.game_display_var.get()])
         self.game_label = ttk.Label(self.composed_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)"], state="readonly")
+        self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"], state="readonly")
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", on_game_select)
 
@@ -620,7 +666,7 @@ class TileViewer(tk.Tk):
         # See if running Lode Runner
         if self.game.get()=="LR":
             TOPIC_KEYWORDS = LR_TOPIC_KEYWORDS
-        elif self.game.get()=="MM-Simple" or self.game.get()=="MM-Full":
+        elif self.game.get()=="MM-Simple" or self.game.get()=="MM-Full" or self.game.get()=="MMLV":
             TOPIC_KEYWORDS = MM_TOPIC_KEYWORDS
         # If not Lode Runner or Mega Man, use the default topic keywords of Mario
         else:
@@ -672,6 +718,8 @@ class TileViewer(tk.Tk):
                     num_classes = common_settings.LR_TILE_COUNT
                 elif self.game.get()=="MM-Simple":
                     num_classes = common_settings.MM_SIMPLE_TILE_COUNT
+                elif self.game.get()=="MMLV":
+                    num_classes = common_settings.MMLV_TILE_COUNT
                 else: #Goes to MM-Full if all other cases fail
                     num_classes = common_settings.MM_FULL_TILE_COUNT
 
@@ -755,6 +803,9 @@ class TileViewer(tk.Tk):
                         anchor="center",
                         fill=color_hex
                     )
+
+        # Refresh the filter_reason line for this entry (shown only while the toggle is on).
+        self._update_filter_reason_display(sample)
 
         # Update the text box below the scene. It normally shows the scene's caption(s),
         # but can be toggled to show an optional 'prompt' field when one is present.

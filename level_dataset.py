@@ -264,6 +264,8 @@ def mm_tiles(game):
         _sprite_sheet = Image.open(_sprite_sheet_name)
 
     # Hardcoded coordinates for the first 10 tiles (row, col)
+    # MMLV uses the same sprite layout as MM-Full; its 2 extra tiles are the conveyor
+    # entries (ids 41/42) already listed at the end of this table.
     if game == 'MM-Full':
         MM_tile_coordinates = [
             (0,0),    #0 = Player/Spawn point
@@ -310,9 +312,66 @@ def mm_tiles(game):
             (4,5),    #37 = Picket man enemy
             (4,6),    #38 = Crazy razy enemy
             (4,7),    #39 = PePe penguin enemy
+        
             
-            (3,7)     #40 = Changkey fire pillar enemy (reuses the tackle-fire sprite, which doesn't actually have its own tile in MM.json)
         ]
+
+    elif game == "MMLV": 
+        
+        MM_tile_coordinates = [
+
+            (0,0),    #0 = Air/empty tile
+            (0,1),    #1 = null
+            (0,2),    #44 = Falling Platform Tile
+            (0,3),    #3 = Water
+            (0,4),    #4 = ground/wall
+            (0,5),    #5 = Ladder
+            (0,6),    #6 = Breakable block
+            (0,7),    #7 = Fake blocks (look solid but aren't)
+            (0,8),    #8 = Appearing/disappearing block
+            (0,9),    #9 = Moving platform
+            (0,10),   #10 = Door
+
+            (1,0),    #11 = Large ammo pack
+            (1,1),    #12 = Small ammo pack
+            (1,2),    #13 = Large health pack
+            (1,3),    #14 = Small health pack
+            (1,4),    #15 = Extra life
+            (1,5),    #16 = Yashichi, a special item that completely fills health and ammo (only shows up in the final level)
+
+            (1,7),    #18 = Orb collectable to get a new weapon
+            (1,8),    #41 = Right Conveyor Belt tile (pushes Mega Man to the right)
+            (1,9),    #42 = Left Conveyor Belt tile (pushes Mega Man to the left)
+            (1, 10),  #43 = Teleporter 
+             
+            (2,0),    #19 = Spikes
+            (2,1),    #20 = Fire Pillar
+            (2,2),    #45 = Fan 
+             
+
+            (3,0),    #21 = Foot holder enemy/platform
+            (3,1),    #22 = Sniper Joe enemy
+
+            (3,3),    #24 = Flying shell enemy spawner
+
+            (3,5),    #26 = Killer bullet enemy
+            (3,6),    #27 = Spine enemy
+            (3,7),    #28 = Beak enemy
+            (3,8),    #29 = Screw bomber enemy
+            (3,9),    #30 = Tackle fire enemy
+            (3,10),   #31 = Watcher enemy
+
+
+            (4,1),    #33 = Octopus battery enemy
+            (4,2),    #34 = Big eye enemy
+
+            (4,4),    #36 = Met enemy
+            (4,5),    #37 = Picket man enemy
+            (4,6),    #38 = Crazy razy enemy
+
+    ]
+
+           
     else:
         MM_tile_coordinates = [
             (0,4),     #0 = ground/wall
@@ -396,7 +455,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
             #print("Using Mario tiles")
             tile_images = mario_tiles()
             tile_size = common_settings.MARIO_TILE_PIXEL_DIM
-        elif game == 'MM-Simple' or game == 'MM-Full':
+        elif game == 'MM-Simple' or game == 'MM-Full' or game == 'MMLV':
             tile_images = mm_tiles(game)
             tile_size = common_settings.MM_TILE_PIXEL_DIM
         else:

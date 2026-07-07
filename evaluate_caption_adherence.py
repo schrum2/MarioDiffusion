@@ -30,7 +30,7 @@ def parse_args():
     # Dataset args
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
-    parser.add_argument("--game", type=str, default=None, choices=["Mario", "LR", "MM-Simple", "MM-Full"], help="Game to evaluate: selects the tileset, scene shape, tile count, and the tiles used for rendering. This is the main way to pick a game, and how Mega Man should be resolved. When omitted, the game is derived from --num_tiles (+ --mm) for backward compatibility.")
+    parser.add_argument("--game", type=str, default=None, choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV"], help="Game to evaluate: selects the tileset, scene shape, tile count, and the tiles used for rendering. This is the main way to pick a game, and how Mega Man should be resolved. When omitted, the game is derived from --num_tiles (+ --mm) for backward compatibility.")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types (used to derive the game when --game is not given)")
     parser.add_argument("--mm", action="store_true", help="Backward-compatible shorthand for Mega Man when --game is not given: routes the 13-tile case to MM-Simple instead of Mario (they share a tile count). Prefer --game MM-Simple / --game MM-Full.")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
@@ -71,12 +71,14 @@ def parse_args():
 
 # Per-game settings: (num_tiles, tileset, height, width). resolve_game() picks a game from --game
 # (primary) or, for older calls, from --num_tiles (+ --mm). The tileset must match the tile count
-# so the deterministic caption script can read every tile (MM-Full uses the 41-tile MM.json).
+# so the deterministic caption script can read every tile (MM-Full uses the 41-tile MM.json;
+# MMLV uses the 43-tile MMLV.json that adds the conveyor tiles).
 GAME_SETTINGS = {
     "Mario":     (common_settings.MARIO_TILE_COUNT,     common_settings.MARIO_TILESET,     common_settings.MARIO_HEIGHT,   common_settings.MARIO_WIDTH),
     "LR":        (common_settings.LR_TILE_COUNT,        common_settings.LR_TILESET,        common_settings.LR_HEIGHT,      common_settings.LR_WIDTH),
     "MM-Simple": (common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_SIMPLE_TILESET, common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
     "MM-Full":   (common_settings.MM_FULL_TILE_COUNT,   common_settings.MM_FULL_TILESET,   common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
+    "MMLV":      (common_settings.MMLV_TILE_COUNT,      common_settings.MMLV_TILESET,      common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
 }
 
 def resolve_game(args):
@@ -84,12 +86,14 @@ def resolve_game(args):
 
     --game is the primary selector and the main way to choose Mega Man. When it is omitted, the
     game is derived from --num_tiles (+ --mm) so older calls keep working: 8 -> LR, 41 -> MM-Full,
-    13 -> Mario, or MM-Simple when --mm is set (Mario and MM-Simple share a 13-tile count).
+    43 -> MMLV, 13 -> Mario, or MM-Simple when --mm is set (Mario and MM-Simple share a 13-tile count).
     """
     if args.game is not None:
         game = args.game
     elif args.num_tiles == common_settings.LR_TILE_COUNT:
         game = "LR"
+    elif args.num_tiles == common_settings.MMLV_TILE_COUNT:
+        game = "MMLV"
     elif args.num_tiles == common_settings.MM_FULL_TILE_COUNT:
         game = "MM-Full"
     elif args.mm:
@@ -261,7 +265,7 @@ def main():
                     if game == "LR":
                         capt_scene = [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
                         caption = lr_assign_caption(capt_scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
-                    elif game in ("MM-Simple", "MM-Full"):
+                    elif game in ("MM-Simple", "MM-Full", "MMLV"):
                         caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
                     else:  # Mario
                         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
@@ -270,7 +274,7 @@ def main():
                     json.dump(paired, f, indent=4)
             elif game == "Mario":
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
-            elif game in ("MM-Simple", "MM-Full"):
+            elif game in ("MM-Simple", "MM-Full", "MMLV"):
                 # Same output shape as the no_caption_score MM path: keep the input prompt and a
                 # deterministic caption derived from the generated scene so the json opens in
                 # ascii_data_browser.py. Without this branch MM writes nothing when scoring is on.
@@ -503,7 +507,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 if game == "LR":
                     scene = [[tile % common_settings.LR_TILE_COUNT for tile in s] for s in scene]
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-                elif game in ("MM-Simple", "MM-Full"):
+                elif game in ("MM-Simple", "MM-Full", "MMLV"):
                     actual_caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 else:  # Mario
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
@@ -511,7 +515,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 if output: print(f"\t{caption}")
                 if game == "LR":
                     compare_score = lr_compare_captions(caption, actual_caption)
-                elif game in ("MM-Simple", "MM-Full"):
+                elif game in ("MM-Simple", "MM-Full", "MMLV"):
                     compare_score = mm_compare_captions(caption, actual_caption)
                 else:  # Mario
                     compare_score = compare_captions(caption, actual_caption)

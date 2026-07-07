@@ -13,6 +13,16 @@ Format discoveries from reverse-engineering real .mmlv files:
     'd' from those as an entity produced a phantom enemy in the top of the left column of
     almost every converted level.  parse_mmlv now anchors to the start of a
     line so only true object-layer fields (no digit prefix) are read.
+  - MM Maker builds levels from discrete 16x14 screen chunks, and its screen grid is
+    anchored at the world origin (screen corners fall on tile multiples of 16 in x and
+    14 in y).  mmlv_to_grid exploits that: it snaps every object to its chunk and pads
+    the bounding box out to whole chunks, so the ASCII always tiles into 16x14 chunks
+    that line up with what the player sees -- including protrusions, which claim their
+    own padded chunk above/below the main band rather than shifting everything.  The
+    '2' screen markers (2a enabled / 2d background) are deliberately NOT used to crop:
+    2a-vs-content differed for <0.1% of screens across the corpus, and 2d is only the
+    painted subset of the playable area, so cropping by it deletes large unpainted-but-
+    built regions.  Content alone defines the crop.
   - Object-layer fields we use:
       i = tile id:    1=solid block, 2=spike, 3=ladder
       d = object class: 4=player spawn, 5=enemy, 6=gimmick/block, 7=pickup,
@@ -77,7 +87,7 @@ def parse_mmlv(path: Path) -> Dict[Tuple[str,int,int], dict]:
     return cells
 
 
-#  decode tables (inverse of megaman/vglc_to_mmlv.py) 
+#  decode tables (inverse of megaman/vglc_to_mmlv.py)
 
 # Tile layer: the 'i' field id -> VGLC char.
 TILE_I_TO_CHAR = {1: "#", 2: "H", 3: "|"}
@@ -122,8 +132,15 @@ GIMMICK_E_TO_CHAR = {
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
     4:  "C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward")
-    73: "M",   # conveyor belt -> mapped to the moving-platform tile (verified test level)
+    73: ">",   # conveyor belt (direction resolved in classify(): 'b'=-1 -> left 'E', else right '>')
     124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
+    11: "F",   # falling platform: a solid block that drops when stood on. Verified d6/e11
+               # from a labelled test level (a 6-tile stretch of them).
+    43: "x",   # fan: blows Mega Man upward. Verified d6/e43 from the same test level
+               # (three fans placed below the falling platforms).
+    266:"T",   # teleporter (paired warp gimmick). Verified d6/e266 from a test level of
+               # paired teleporters. Style (f=0..3), partner-destination link (m/n) and
+               # usage-limit (h) all vary per teleporter but collapse to the single T tile.
 }
 
 # d == 7 (pickups): the 'e' subtype id -> VGLC char.  Pickup ids are a small
@@ -189,6 +206,11 @@ def classify(cell: dict) -> str:
                 return "^" if (g is not None and int(g) in (90, 270)) else "<"
             return ENEMY_E_TO_CHAR.get(ei, "a")     # unknown enemy -> generic
         if dc == 6:                                 # level object / gimmick block
+            if ei == 73:                            # conveyor belt: 'b'=-1 faces left, else right.
+                # Every conveyor variant shares d6/e73 (only the belt art fields f/p
+                # differ), so gate solely on the id and read 'b' for the push direction.
+                b = cell.get("b")
+                return "E" if (b is not None and int(b) == -1) else ">"
             return GIMMICK_E_TO_CHAR.get(ei, "#")
         if dc == 7:                                 # pickup (energy/life/1-up/tank …)
             return PICKUP_E_TO_CHAR.get(ei, "w")
@@ -253,7 +275,14 @@ def _layer_rank(layer: str) -> int:
 
 
 def mmlv_to_grid(path: Path):
-    """Convert one .mmlv to a 2-D list of VGLC chars."""
+    """Convert one .mmlv to a 2-D list of VGLC chars.
+
+    The output is always a whole number of 16x14 screen chunks.  We take the bounding
+    box of every chunk that holds an object and pad it out to whole chunks, so no tile
+    is ever dropped -- content that protrudes one screen past the play band just claims
+    its own padded chunk, keeping 16x14 chunk scans aligned to what the game shows.
+    """
+    path = Path(path)
     cells = parse_mmlv(path)
 
     # Collapse the (layer, x, y) objects down to one char per (x, y). Process layers in
@@ -269,11 +298,19 @@ def mmlv_to_grid(path: Path):
     if not char_cells:
         return []
 
-    xs = [c[0] for c in char_cells]
-    ys = [c[1] for c in char_cells]
-
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
+    # Crop rectangle (inclusive tile coords), snapped to whole 16x14 screen chunks.
+    # Snap each object to the top-left tile of its screen chunk and take the bounding
+    # box over that set: this pads out to whole chunks so a 1-tile overhang past a
+    # chunk border simply claims its own chunk, and the grid always tiles cleanly.
+    # (MM Maker anchors its screen grid at the origin, so //16 and //14 land on real
+    # screen boundaries -- which is what keeps 16x14 chunk scans aligned to the game.)
+    crop_screens = {((tx // MEGAMAN_SCREEN_WIDTH) * MEGAMAN_SCREEN_WIDTH,
+                     (ty // MEGAMAN_PLAYABLE_HEIGHT) * MEGAMAN_PLAYABLE_HEIGHT)
+                    for (tx, ty) in char_cells}
+    sx = [s[0] for s in crop_screens]
+    sy = [s[1] for s in crop_screens]
+    min_x, max_x = min(sx), max(sx) + (MEGAMAN_SCREEN_WIDTH - 1)
+    min_y, max_y = min(sy), max(sy) + (MEGAMAN_PLAYABLE_HEIGHT - 1)
 
     width = max_x - min_x + 1
     height = max_y - min_y + 1
@@ -314,8 +351,8 @@ def convert(src: Path, dst: Path):
 
 def main():
     ap = argparse.ArgumentParser(description="Convert .mmlv → VGLC .txt")
-    ap.add_argument("input",  help=".mmlv file or directory of .mmlv files")
-    ap.add_argument("output", nargs="?", default=None,
+    ap.add_argument("--input",  help=".mmlv file or directory of .mmlv files")
+    ap.add_argument("--output", nargs="?", default=None,
                     help="Output directory for .txt files (default: 'txt/' next to input)")
     args = ap.parse_args()
 

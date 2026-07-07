@@ -80,7 +80,8 @@ def lr_tile(descs):
 def mm_tile(descs):
     """Descriptors -> MegaManState tile ids. Static hazards (spikes, fire pillars)
     stay deadly, but enemies are treated as passable empty (the agent is assumed to
-    deal with them). 'penetrable' solids (e.g. appearing blocks) are also passable"""
+    deal with them). Appearing/disappearing blocks ("A") are solid ground, so the agent
+    can stand on them instead of falling through their "passable" descriptor."""
     if "null" in descs:
         return mm.MEGA_MAN_TILE_NULL          # 9: out-of-bounds padding
     if "climbable" in descs:
@@ -95,9 +96,14 @@ def mm_tile(descs):
         return mm.MEGA_MAN_TILE_HAZARD         # 3: spikes / fire pillars stay deadly
     if "moving" in descs:
         return mm.MEGA_MAN_TILE_MOVING_PLATFORM  # 5
-    if "solid" in descs and "penetrable" not in descs:
+    # Any remaining solid is ground -- crucially including "penetrable" solids like the
+    # appearing/disappearing block ("A"), which carries both "solid" and "passable". The
+    # other penetrable solids (breakable "B", moving "M", solid enemies) are already
+    # classified above, so only the appearing/disappearing block reaches here; treating
+    # it as ground lets the agent stand on those blocks rather than fall through them.
+    if "solid" in descs:
         return mm.MEGA_MAN_TILE_GROUND         # 1
-    return mm.MEGA_MAN_TILE_EMPTY              # 0 (empty, passable, penetrable solids, items)
+    return mm.MEGA_MAN_TILE_EMPTY              # 0 (empty, passable, items)
 
 
 def translate_scene(scene, id_to_char, tile_descriptors, tile_fn):
@@ -325,15 +331,17 @@ def untraversable_indices(scenes, game, id_to_char, tile_descriptors,
 def _render_target(game, tileset_path):
     """Map a game (and tileset) to the name level_dataset.visualize_samples expects."""
     if game == "MM":
-        full = os.path.basename(common_settings.MM_FULL_TILESET)
-        return "MM-Full" if os.path.basename(tileset_path) == full else "MM-Simple"
+        base = os.path.basename(tileset_path)
+        if base == os.path.basename(common_settings.MMLV_TILESET):
+            return "MMLV"
+        return "MM-Full" if base == os.path.basename(common_settings.MM_FULL_TILESET) else "MM-Simple"
     return game  # "Mario" / "LR"
 
 
 # Render-style game names (as used by run_diffusion and the GUIs) -> the game names
 # evaluate() understands. The render name itself doubles as visualize_path's target.
 RENDER_GAME_TO_TRAV = {"Mario": "Mario", "LR": "LR",
-                       "MM-Simple": "MM", "MM-Full": "MM"}
+                       "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MM"}
 
 
 def astar_path_image(scene, game, id_to_char, tile_descriptors, budget=100000,
