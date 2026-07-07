@@ -134,6 +134,13 @@ GIMMICK_E_TO_CHAR = {
     4:  "C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward")
     73: ">",   # conveyor belt (direction resolved in classify(): 'b'=-1 -> left 'E', else right '>')
     124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
+    11: "F",   # falling platform: a solid block that drops when stood on. Verified d6/e11
+               # from a labelled test level (a 6-tile stretch of them).
+    43: "x",   # fan: blows Mega Man upward. Verified d6/e43 from the same test level
+               # (three fans placed below the falling platforms).
+    266:"T",   # teleporter (paired warp gimmick). Verified d6/e266 from a test level of
+               # paired teleporters. Style (f=0..3), partner-destination link (m/n) and
+               # usage-limit (h) all vary per teleporter but collapse to the single T tile.
 }
 
 # d == 7 (pickups): the 'e' subtype id -> VGLC char.  Pickup ids are a small
