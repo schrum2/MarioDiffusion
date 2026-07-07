@@ -47,6 +47,7 @@ class TileViewer(tk.Tk):
         self.describe_absence = tk.BooleanVar(value=False)
         self.show_images = False        # image view vs numeric/character grid
         self.show_astar_path = False    # overlay the A* path on the image view
+        self.show_filter_reason = False # show each entry's 'filter_reason' field (from *-filtered datasets)
 
         # UI
         self.create_widgets()
@@ -165,6 +166,28 @@ class TileViewer(tk.Tk):
             self.show_images = True
         self.redraw()
 
+    def toggle_filter_reason(self):
+        """Toggle display of the current entry's 'filter_reason' field (present on entries
+        from the *-filtered datasets)."""
+        self.show_filter_reason = not getattr(self, 'show_filter_reason', False)
+        self.toggle_filter_reason_button.config(
+            text="Hide Filter Reason" if self.show_filter_reason else "Show Filter Reason"
+        )
+        self.redraw()
+
+    def _update_filter_reason_display(self, sample):
+        """Update the filter-reason line under the toggle. Shows the entry's reason when the
+        toggle is on and the field is present, notes its absence when on but missing, and
+        stays blank when the toggle is off."""
+        if not getattr(self, 'show_filter_reason', False):
+            self.filter_reason_label.config(text="")
+            return
+        reason = sample.get('filter_reason') if isinstance(sample, dict) else None
+        if reason is not None:
+            self.filter_reason_label.config(text=f"Filter reason: {reason}")
+        else:
+            self.filter_reason_label.config(text="Filter reason: (none for this entry)")
+
     def _astar_overlay_image(self, scene):
         """
         Render scene with its A* path and explored cells 
@@ -232,6 +255,18 @@ class TileViewer(tk.Tk):
 
         toggle_astar_button = tk.Button(checkbox_frame, text="Toggle A* Path", command=self.toggle_astar_path)
         toggle_astar_button.pack(side=tk.LEFT, padx=5)
+
+        # Toggle for revealing the 'filter_reason' field carried by entries in the
+        # *-filtered datasets (created by create_megaman_json_data.py's apply_filters).
+        self.toggle_filter_reason_button = tk.Button(
+            checkbox_frame, text="Show Filter Reason", command=self.toggle_filter_reason
+        )
+        self.toggle_filter_reason_button.pack(side=tk.LEFT, padx=5)
+
+        # Line showing the current entry's filter_reason, only while the toggle above is on.
+        # Kept in its own always-packed label so toggling its text doesn't shift the layout.
+        self.filter_reason_label = tk.Label(self, text="", fg="red")
+        self.filter_reason_label.pack(pady=(0, 2))
 
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
@@ -759,6 +794,9 @@ class TileViewer(tk.Tk):
                         anchor="center",
                         fill=color_hex
                     )
+
+        # Refresh the filter_reason line for this entry (shown only while the toggle is on).
+        self._update_filter_reason_display(sample)
 
         # Update the text box below the scene. It normally shows the scene's caption(s),
         # but can be toggled to show an optional 'prompt' field when one is present.
