@@ -176,11 +176,14 @@ class TileViewer(tk.Tk):
         self.redraw()
 
     def _update_filter_reason_display(self, sample):
-        """Show the filter-reason toggle button and line only for entries that actually
-        carry a 'filter_reason' field. Entries without it hide the button entirely; when
-        present, the line shows the reason while the toggle is on and stays blank otherwise."""
-        reason = sample.get('filter_reason') if isinstance(sample, dict) else None
-        if reason is None:
+        """Show the filter-reason toggle button and line only for entries that carry filter-reason info"""
+        reasons = None
+        if isinstance(sample, dict):
+            reasons = sample.get('filter_reasons')
+            if reasons is None:
+                single = sample.get('filter_reason')  # backward-compat: old single-reason entries
+                reasons = [single] if single is not None else None
+        if not reasons:
             # No field on this entry: hide the button and clear the line.
             self.toggle_filter_reason_button.pack_forget()
             self.filter_reason_label.config(text="")
@@ -188,7 +191,8 @@ class TileViewer(tk.Tk):
         if not self.toggle_filter_reason_button.winfo_ismapped():
             self.toggle_filter_reason_button.pack(side=tk.LEFT, padx=5)
         if getattr(self, 'show_filter_reason', False):
-            self.filter_reason_label.config(text=f"Filter reason: {reason}")
+            label = "Filter reasons" if len(reasons) != 1 else "Filter reason"
+            self.filter_reason_label.config(text=f"{label}: {', '.join(reasons)}")
         else:
             self.filter_reason_label.config(text="")
 

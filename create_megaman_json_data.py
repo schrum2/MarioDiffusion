@@ -9,6 +9,7 @@ from enum import Enum
 import os
 import sys
 import random
+import time
 
 
 #Snap mode: number of null padding rows added on top of each wide (horizontal) scene,
@@ -164,13 +165,14 @@ def parse_args():
     parser.add_argument('--tileset', default='datasets/MM.json', help='Path to the tile set JSON')
     parser.add_argument('--levels', default='../TheVGLC/MegaMan/Enhanced', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output directory')
-    parser.add_argument('--no_filter', action='store_true', help='Disable all quality/playable-area filtering; write every extracted scene to --output. (A* traversability filtering, --traversable_only, is off by default regardless.)')
+    parser.add_argument('--no_filter', action='store_true', help='Disable all quality/playable-area filtering (including the A* traversability filter); write every extracted scene to --output.')
     parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene height (e.g., 16 or 32). Navigation still uses the screen height for path mode.')
     parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width for path mode.')
     parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
-    parser.add_argument('--traversable_only', action='store_true', help='Filter out un-traversable scenes (via the A* check) before writing the dataset')
-    parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by --traversable_only (higher = more thorough, slower)')
+    #The A* traversability filter is on by default now (also feeds the low-content check in apply_filters); --no_traversable_filter turns the hard filter off.
+    parser.add_argument('--no_traversable_filter', dest='traversable_only', action='store_false', default=True, help='Disable filtering out A*-untraversable scenes (this filter is ON by default). The A* path length is still computed for the low-content rescue check regardless.')
+    parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by the traversability check (higher = more thorough, slower)')
     parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window', 'snap', 'screen_grid', 'whole'], help='How to extract samples: path follower (default), sliding window, snap (variable-dimension wide+tall scans that snap to valid content), screen_grid (tile the level into a 2x2 (or screens_x x screens_y) grid of Mega Man Maker screens, keeping windows where at least 3/4 of the quadrants are occupied, with null padding on top to reach target_height -- e.g. target 32x32 -> 32x28 content + 4 pad rows), or whole (one sample = the entire level trimmed to its content bounding box, kept at its natural variable size)')
     parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
     parser.add_argument('--stride_y', type=int, default=1, help='How far the sliding window moves in the vertical direction during level scanning (sliding_window/snap modes only; must be >= 1)')
@@ -179,6 +181,7 @@ def parse_args():
     parser.add_argument('--include_moving_ground', action='store_true', help='Include scenes containing moving-ground/platform tiles (e.g. "M"). By default these are excluded since their motion is not represented in the static scene graphics.')
     parser.add_argument('--min_content_pct', type=float, default=7, help='Filter out scenes where less than this percent of tiles are real content (not empty/passable/null). E.g. 15 requires at least 15%% non-empty tiles.')
     parser.add_argument('--min_playable_tiles', type=int, default=10, help='Filter out scenes where a flood fill starting from the border reaches fewer than this many open (non-wall, non-null) tiles -- i.e. scenes with almost no playable area connected to their edges. Default 10 (out of 224 in a 16x14 scene); set to 0 to disable.')
+    parser.add_argument('--min_content_path_len', type=int, default=14, help='Low-content rescue: a scene flagged as low-content is kept anyway if the A* agent can traverse it along a path at least this many steps long (default 14, a little under the scene width). This spares genuinely sparse-but-playable scenes (e.g. spread-out parkour rooms). Set to 0 to disable the rescue.')
 
     args = parser.parse_args()
     if args.stride_x < 1 or args.stride_y < 1:
@@ -241,19 +244,29 @@ def border_flood_fill_count(scene, blocking_ids, void_ids=frozenset()):
 FILTER_REASONS = ("not_traversable", "insufficient_playable_area",
                   "too_many_enemies", "moving_ground", "low_content")
 
-def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only=False,
+def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only=True,
                   budget=100000, max_enemies=8, exclude_moving_ground=True,
-                  min_content_pct=15, min_playable_tiles=10):
+                  min_content_pct=15, min_playable_tiles=10, min_content_path_len=14):
     """Split all_samples into (kept, filtered). Each filtered sample is returned as a copy
-    tagged with a 'filter_reason' key (one of FILTER_REASONS) recording why it was cut.
+    tagged with a 'filter_reasons' key: the list of *every* reason it was cut (a subset of
+    FILTER_REASONS, in priority order), not just the first.
 
     Filters, in priority order:
-      not_traversable          -- A* orb check fails (only when traversable_only is set)
+      not_traversable          -- A* orb check fails (only cuts when traversable_only is set)
       insufficient_playable_area -- border-originating flood fill reaches < min_playable_tiles
       too_many_enemies         -- more than max_enemies enemy tiles
       moving_ground            -- contains moving-ground/platform tiles (static graphics can't show motion)
       low_content              -- less than min_content_pct real (non-empty/null) content
-    Any threshold passed as None (or, for min_playable_tiles, <= 0) disables that check."""
+    Any threshold passed as None (or, for min_playable_tiles/min_content_path_len, <= 0)
+    disables that check.
+
+    The A* pass feeds both not_traversable and a low_content rescue: a scene flagged
+    low_content but which the A* agent can actually traverse along a path >= min_content_path_len
+    steps is a genuinely sparse-but-playable scene (e.g. a spread-out parkour room), so the
+    low_content reason is dropped and, absent any other reason, the scene is kept. A* is the
+    expensive step, so it only runs where it can change the outcome: on every scene when
+    traversable_only is set, but otherwise only on scenes whose sole reason is low_content
+    (the only case the rescue can affect)."""
     wall_ids = {tid for tid, ch in id_to_char.items()
                 if "solid" in tile_descriptors.get(ch, []) and "penetrable" not in tile_descriptors.get(ch, [])}
     null_ids = {tid for tid, ch in id_to_char.items() if "null" in tile_descriptors.get(ch, [])}
@@ -271,46 +284,83 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
                  if "empty" in tile_descriptors.get(ch, []) or "null" in tile_descriptors.get(ch, [])} \
         if min_content_pct is not None else set()
 
-    #The A* pass is a batch call, so precompute the un-traversable index set once up front.
-    untraversable = set()
-    if traversable_only:
-        astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
-        if astar_dir not in sys.path:
-            sys.path.insert(0, astar_dir)
-        from astar_traversability_check import untraversable_indices
-        scenes = [s["scene"] for s in all_samples]
-        untraversable = set(untraversable_indices(scenes, "MM", id_to_char, tile_descriptors, budget=budget))
-
-    kept = []
-    filtered = []
-    reason_counts = {r: 0 for r in FILTER_REASONS}
-
-    for idx, s in enumerate(all_samples):
+    #First pass: collect the cheap (non-A*) reasons for every scene, in FILTER_REASONS
+    #(priority) order but excluding the A*-derived not_traversable, which is prepended later.
+    base_reasons = []
+    for s in all_samples:
         scene = s["scene"]
         total = len(scene) * len(scene[0])
-        reason = None
-
-        if traversable_only and idx in untraversable:
-            reason = "not_traversable"
-        elif min_playable_tiles and min_playable_tiles > 0 \
+        reasons = []
+        if min_playable_tiles and min_playable_tiles > 0 \
                 and border_flood_fill_count(scene, blocking_ids, null_ids) < min_playable_tiles:
-            reason = "insufficient_playable_area"
-        elif max_enemies is not None \
+            reasons.append("insufficient_playable_area")
+        if max_enemies is not None \
                 and sum(1 for row in scene for tile in row if tile in enemy_ids) > max_enemies:
-            reason = "too_many_enemies"
-        elif exclude_moving_ground and any(tile in moving_ids for row in scene for tile in row):
-            reason = "moving_ground"
-        elif min_content_pct is not None and total:
+            reasons.append("too_many_enemies")
+        if exclude_moving_ground and any(tile in moving_ids for row in scene for tile in row):
+            reasons.append("moving_ground")
+        if min_content_pct is not None and total:
             empty_count = sum(1 for row in scene for tile in row if tile in empty_ids)
             content_pct = 100.0 * (total - empty_count) / total
             if content_pct < min_content_pct:
-                reason = "low_content"
+                reasons.append("low_content")
+        base_reasons.append(reasons)
 
-        if reason is None:
+    #The A* pass is the expensive part, so only run it where its result can change the
+    #outcome. When traversable_only is on, every scene needs it (A* decides not_traversable,
+    #and its path length can also rescue a low_content scene). When the traversability filter
+    #is off, A* can *only* rescue a scene whose sole problem is low_content -- a scene with any
+    #other reason stays filtered regardless -- so we run it just on those. evaluate() is the
+    #traversability dispatcher; call it directly to get both the reached flag and path length.
+    if traversable_only:
+        astar_indices = range(len(all_samples))
+    else:
+        astar_indices = [i for i, r in enumerate(base_reasons) if r == ["low_content"]]
+
+    traversable_flags = {}   # idx -> reached-goal bool (only for scenes A* was run on)
+    path_lengths = {}        # idx -> A* solution length (or None)
+    if astar_indices:
+        astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+        if astar_dir not in sys.path:
+            sys.path.insert(0, astar_dir)
+        from astar_traversability_check import evaluate
+        for i in astar_indices:
+            ok, stats, _info = evaluate("MM", all_samples[i]["scene"], id_to_char,
+                                        tile_descriptors, budget, False)
+            traversable_flags[i] = ok
+            path_lengths[i] = stats.get("path_length")
+
+    kept = []
+    filtered = []
+    #Per-reason tallies: a scene can trip several filters, so these can sum to more than the
+    #number of filtered scenes.
+    reason_counts = {r: 0 for r in FILTER_REASONS}
+
+    for idx, s in enumerate(all_samples):
+        #Collect *every* reason this scene trips, in FILTER_REASONS (priority) order.
+        reasons = list(base_reasons[idx])
+
+        #not_traversable is the highest-priority reason, so it goes at the front.
+        if traversable_only and not traversable_flags[idx]:
+            reasons.insert(0, "not_traversable")
+
+        #Low-content rescue: if the only thing wrong is sparseness, but the A* agent can
+        #actually traverse this scene along a long path (>= min_content_path_len steps, a bit
+        #under the scene width), it is a legitimately sparse-but-playable scene rather than
+        #empty filler -- drop the low_content reason. Any other reason still cuts it. (A* was
+        #only run for these scenes when the traversability filter is off, hence the .get.)
+        path_len = path_lengths.get(idx)
+        if "low_content" in reasons and traversable_flags.get(idx, False) \
+                and min_content_path_len and min_content_path_len > 0 \
+                and path_len is not None and path_len >= min_content_path_len:
+            reasons.remove("low_content")
+
+        if not reasons:
             kept.append(s)
         else:
-            reason_counts[reason] += 1
-            filtered.append({**s, "filter_reason": reason})
+            for r in reasons:
+                reason_counts[r] += 1
+            filtered.append({**s, "filter_reasons": reasons})
 
     total_samples = len(all_samples)
     print(f"Filtering: kept {len(kept)}/{total_samples}, removed {len(filtered)} "
@@ -503,6 +553,10 @@ def main():
     print(f"Removed {duplicates_removed} duplicate samples")
     print(f"Final dataset size: {len(all_samples)}")
 
+    #Time the filtering + save stage. The A* traversability pass runs on every scene here
+    #and dominates the runtime, so report how long it takes to produce the final datasets.
+    filter_start = time.perf_counter()
+
     # The quality/traversability filters are tuned for small navigation-sized windows
     # (e.g. max_enemies=8, min_content_pct=15) and would delete entire levels in whole
     # mode, so they are not applied there. A whole level is kept as-is.
@@ -517,6 +571,7 @@ def main():
             traversable_only=args.traversable_only, budget=args.budget,
             max_enemies=args.max_enemies, exclude_moving_ground=not args.include_moving_ground,
             min_content_pct=args.min_content_pct, min_playable_tiles=args.min_playable_tiles,
+            min_content_path_len=args.min_content_path_len,
         )
 
     output = args.output
@@ -524,7 +579,7 @@ def main():
         json.dump(all_samples, f, indent=2)
     print(f"Saved {len(all_samples)} kept samples to {output}")
 
-    # Write the filtered-out scenes (each tagged with its filter_reason) to a sibling file
+    # Write the filtered-out scenes (each tagged with its filter_reasons) to a sibling file
     # so they can be inspected/audited instead of being silently discarded. Named by
     # tacking "-filtered" onto --output, e.g. MM_Levels.json -> MM_Levels-filtered.json.
     if filtered_samples:
@@ -533,6 +588,9 @@ def main():
         with open(filtered_output, 'w') as f:
             json.dump(filtered_samples, f, indent=2)
         print(f"Saved {len(filtered_samples)} filtered samples to {filtered_output}")
+
+    elapsed = time.perf_counter() - filter_start
+    print(f"Filtering + save took {elapsed:.1f}s ({elapsed / 60:.1f} min)")
 
 def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_width=None, out_height=None, x_stride = 1, y_stride = 1):
     out_width = out_width or width
