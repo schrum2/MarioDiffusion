@@ -185,15 +185,13 @@ def parse_args():
         parser.error("--stride_x and --stride_y must be >= 1")
     return args
 
-def border_flood_fill_count(scene, blocking_ids):
-    """Count how many 'open' tiles are reachable by a 4-connected flood fill that starts
-    from every open tile on the scene's border (top/bottom rows, left/right columns).
+def border_flood_fill_count(scene, blocking_ids, void_ids=frozenset()):
+    """ 
+    Count how many tiles are reachable by a fill seeded from
+    every open tile the player could enter the scene from.
 
-    'Open' = not a wall (solid, non-penetrable) and not null padding. The player enters
-    a scene from its edges, so this measures the size of the playable region that is
-    actually connected to those edges -- a scene whose only open space is a small sealed
-    pocket in the interior scores 0 here even though it has open tiles. Used as a cheap
-    additional traversability/playable-area signal alongside the A* check."""
+    Used to filter out scenes that are completely blocked in
+    """
     height = len(scene)
     width = len(scene[0]) if height else 0
     if not width:
@@ -207,12 +205,23 @@ def border_flood_fill_count(scene, blocking_ids):
             visited[y][x] = True
             stack.append((x, y))
 
+    # Literal grid border: ceiling, floor, and the left/right columns.
     for x in range(width):
         seed(x, 0)
         seed(x, height - 1)
     for y in range(height):
         seed(0, y)
         seed(width - 1, y)
+
+    # Openings onto the off-screen void: any open tile next to null padding is also an
+    # entrance (e.g. an open ceiling sitting under padding rows, or padding along a side).
+    if void_ids:
+        for y in range(height):
+            for x in range(width):
+                if scene[y][x] in void_ids:
+                    for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                        if 0 <= nx < width and 0 <= ny < height:
+                            seed(nx, ny)
 
     count = 0
     while stack:
@@ -284,7 +293,7 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
         if traversable_only and idx in untraversable:
             reason = "not_traversable"
         elif min_playable_tiles and min_playable_tiles > 0 \
-                and border_flood_fill_count(scene, blocking_ids) < min_playable_tiles:
+                and border_flood_fill_count(scene, blocking_ids, null_ids) < min_playable_tiles:
             reason = "insufficient_playable_area"
         elif max_enemies is not None \
                 and sum(1 for row in scene for tile in row if tile in enemy_ids) > max_enemies:
