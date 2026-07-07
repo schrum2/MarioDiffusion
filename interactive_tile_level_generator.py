@@ -119,12 +119,21 @@ class CaptionBuilder(ParentBuilder):
 
         self.width_label = ttk.Label(self.caption_frame, text="Width (in tiles):", style="TLabel")
         self.width_label.pack()
-        self.width_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
+        self.width_entry = ttk.Combobox(self.caption_frame, font=GUI_FONT, state="normal")
         self.width_entry.pack()
         self.height_label = ttk.Label(self.caption_frame, text="Height (in tiles):")
         self.height_label.pack()
-        self.height_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
+        self.height_entry = ttk.Combobox(self.caption_frame, font=GUI_FONT, state="normal")
         self.height_entry.pack()
+
+        self.MM_WIDTH_OPTIONS = ["16", "32", "48", "64"]
+        self.MM_HEIGHT_OPTIONS = ["16", "32", "48", "64"]   # sent to the model as-is
+
+        self.null_rows_label = ttk.Label(self.caption_frame, text="", style="TLabel")
+        self.null_rows_label.pack()
+
+        self.height_entry.bind("<<ComboboxSelected>>", self._update_null_rows_label)
+
         if game_selected == "Lode Runner":
             self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.LR_HEIGHT}")
@@ -289,6 +298,18 @@ class CaptionBuilder(ParentBuilder):
             self.automatic_absence_caption_checkbox.config(state=tk.DISABLED)
             self.automatic_absence_caption.set(False)
 
+    def _update_dimension_controls(self, is_megaman):
+        if is_megaman:
+            self.width_entry.config(values=self.MM_WIDTH_OPTIONS, state="readonly")
+            self.height_entry.config(values=self.MM_HEIGHT_OPTIONS, state="readonly")
+            if self.width_entry.get() not in self.MM_WIDTH_OPTIONS:
+                self.width_entry.set(self.MM_WIDTH_OPTIONS[0])
+            if self.height_entry.get() not in self.MM_HEIGHT_OPTIONS:
+                self.height_entry.set(self.MM_HEIGHT_OPTIONS[0])
+        else:
+            self.width_entry.config(values=[], state="normal")
+            self.height_entry.config(values=[], state="normal")
+        self._update_null_rows_label()
 
     def _play_megaman_level(self, idx):
         import subprocess, os
@@ -659,7 +680,17 @@ class CaptionBuilder(ParentBuilder):
                 if "caption" in param_values: print(f"Caption: {param_values['caption']}")
                 else: print("No caption")
                 images = self.pipe(generator=generator, **param_values).images
-                self.current_levels.append(images[0].cpu().detach().numpy()) 
+
+                chop_rows = 0
+                if game_selected in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
+                    try:
+                        chop_rows = (int(self.height_entry.get()) // 16) * 2
+                    except ValueError:
+                        chop_rows = 0
+                if chop_rows > 0:
+                    images = images[:, :, chop_rows:, :]
+
+                self.current_levels.append(images[0].cpu().detach().numpy())
                 
                 sample_tensor = images[0].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample_tensor)
@@ -1430,7 +1461,20 @@ Average Segment Score: {avg_segment_score}"""
         is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)")
         self.mm_layout_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
         self.save_composed_button.config(state=tk.DISABLED if is_megaman else tk.NORMAL)
+        self._update_dimension_controls(is_megaman)
 
+    def _update_null_rows_label(self, event=None):
+        is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)")
+        if not is_megaman:
+            self.null_rows_label.config(text="")
+            return
+        try:
+            height = int(self.height_entry.get())
+        except ValueError:
+            self.null_rows_label.config(text="")
+            return
+        chop = (height // 16) * 2
+        self.null_rows_label.config(text=f"({chop} null row{'s' if chop != 1 else ''} chopped from top)")
 
     def open_megaman_layout_editor(self):
         global game_selected
