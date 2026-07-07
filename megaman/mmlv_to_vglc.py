@@ -114,9 +114,9 @@ ENEMY_E_TO_CHAR = {
     59: "n",   # Flying Shell/Mambu (flying)
     60: "o",   # Flying Shell/Mambu Spawner
     45: "p",   # Footholder (flying platform)
-    63: "b",   # Bunby Heli (flying)
-    18: "q",   # Kamadoma stand-in: the real Kamadoma isn't in Mega Man Maker, so the
-               # closest jumping enemy (id 18) is mapped to the 'q' tile in its place.
+    # Bunby Heli (e63) and Kamadoma (e18) are intentionally NOT mapped: neither is part
+    # of the MMLV tileset, so if one is ever encountered it falls back to the generic
+    # enemy 'a' rather than emitting a char the MMLV tileset doesn't define.
 }
 
 # d == 6 (level objects / gimmick blocks): the 'e' subtype id -> VGLC char.

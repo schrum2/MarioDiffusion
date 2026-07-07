@@ -250,22 +250,26 @@ def lr_tiles():
 
 def mm_tiles(game):
     """
-    Maps integers 0-11 or 0-38 to 16x16 pixel sprites from MM_mapsheet.png.
+    Maps tile ids to 16x16 pixel sprites cropped from a Mega Man sprite sheet.
+
+    MM-Simple/MM-Full read MM_mapsheet.png; MMLV reads its own MMLV_mapsheet.png (a
+    different sheet with a different layout -- e.g. spawn is blank at (0,0) and lives at
+    the (1,6) 'S' tile, plus MMLV-only gimmicks like the falling platform, teleporter,
+    and fan). The (row, col) tables below index into whichever sheet the game selects.
 
     Returns:
-        A list of 16x16 pixel tile images for Mega Man.
+        A list of 16x16 pixel tile images, one per tile id in tileset order.
     """
     global _sprite_sheet
     global _sprite_sheet_name
 
-    # Load the sprite sheet only once
-    if _sprite_sheet_name != "MM_mapsheet.png":
-        _sprite_sheet_name = "MM_mapsheet.png" #Done to ensure we can change the sprite sheet after code execution
-        _sprite_sheet = Image.open(_sprite_sheet_name)
+    # Pick the sheet for this game and (re)load it only when it changes.
+    sheet = "MMLV_mapsheet.png" if game == "MMLV" else "MM_mapsheet.png"
+    if _sprite_sheet_name != sheet:
+        _sprite_sheet_name = sheet #Done to ensure we can change the sprite sheet after code execution
+        _sprite_sheet = Image.open(sheet)
 
-    # Hardcoded coordinates for the first 10 tiles (row, col)
-    # MMLV uses the same sprite layout as MM-Full; its 2 extra tiles are the conveyor
-    # entries (ids 41/42) already listed at the end of this table.
+    # Hardcoded (row, col) coordinates into the selected sheet, one entry per tile id.
     if game == 'MM-Full':
         MM_tile_coordinates = [
             (0,0),    #0 = Player/Spawn point
@@ -316,58 +320,61 @@ def mm_tiles(game):
             
         ]
 
-    elif game == "MMLV": 
-        
+    elif game == "MMLV":
+        # One (row, col) into MMLV_mapsheet.png per tile id. This list is in the SAME order
+        # as datasets/MMLV.json (extract_tileset does not sort MM tilesets, so the JSON key
+        # order defines the tile ids), so index N here is the sprite for the Nth char in that
+        # tileset. Three enemies share a sprite with their variant/spawner (both ids point at
+        # the same cell): Mambu/spawner, Killer Bullet/spawner, and the vertical/horizontal
+        # Octopus Battery.
         MM_tile_coordinates = [
 
-            (0,0),    #0 = Air/empty tile
-            (0,1),    #1 = null
-            (0,2),    #44 = Falling Platform Tile
-            (0,3),    #3 = Water
-            (0,4),    #4 = ground/wall
-            (0,5),    #5 = Ladder
-            (0,6),    #6 = Breakable block
-            (0,7),    #7 = Fake blocks (look solid but aren't)
-            (0,8),    #8 = Appearing/disappearing block
-            (0,9),    #9 = Moving platform
-            (0,10),   #10 = Door
+            (0,0),    #0  '-' = Air/empty tile (blank cell)
+            (0,1),    #1  '@' = null / out of bounds
+            (0,2),    #2  'F' = Falling platform (drops when stood on)
+            (0,3),    #3  '~' = Water
+            (0,4),    #4  '#' = Ground / wall
+            (0,5),    #5  '|' = Ladder
+            (0,6),    #6  'B' = Breakable block
+            (0,7),    #7  't' = Fake block (looks solid but isn't)
+            (0,8),    #8  'A' = Appearing/disappearing block
+            (0,9),    #9  'M' = Moving platform
+            (0,10),   #10 'D' = Door
 
-            (1,0),    #11 = Large ammo pack
-            (1,1),    #12 = Small ammo pack
-            (1,2),    #13 = Large health pack
-            (1,3),    #14 = Small health pack
-            (1,4),    #15 = Extra life
-            (1,5),    #16 = Yashichi, a special item that completely fills health and ammo (only shows up in the final level)
+            (1,0),    #11 'W' = Large weapon energy
+            (1,1),    #12 'w' = Small weapon energy
+            (1,2),    #13 'L' = Large health
+            (1,3),    #14 'l' = Small health
+            (1,4),    #15 '+' = Extra life (1-UP)
+            (1,5),    #16 '*' = Yashichi (full health+ammo)
+            (1,6),    #17 'P' = Player spawn point (the 'S' tile)
+            (1,7),    #18 'Z' = Orb / level exit
+            (1,8),    #19 '>' = Right conveyor belt (pushes right)
+            (1,9),    #20 'E' = Left conveyor belt (pushes left)
+            (1,10),   #21 'T' = Teleporter
 
-            (1,7),    #18 = Orb collectable to get a new weapon
-            (1,8),    #41 = Right Conveyor Belt tile (pushes Mega Man to the right)
-            (1,9),    #42 = Left Conveyor Belt tile (pushes Mega Man to the left)
-            (1, 10),  #43 = Teleporter 
-             
-            (2,0),    #19 = Spikes
-            (2,1),    #20 = Fire Pillar
-            (2,2),    #45 = Fan 
-             
+            (2,0),    #22 'H' = Spikes
+            (2,1),    #23 'C' = Fire pillar / hazard emitter
+            (2,2),    #24 'x' = Fan (blows upward)
 
-            (3,0),    #21 = Foot holder enemy/platform
-            (3,1),    #22 = Sniper Joe enemy
+            (3,0),    #25 'p' = Foot holder enemy/platform
+            (3,1),    #26 'r' = Sniper Joe enemy
+            (3,3),    #27 'o' = Mambu (flying shell) spawner
+            (3,3),    #28 'n' = Mambu (flying shell)          -- shares (3,3) with the spawner
+            (3,5),    #29 'k' = Killer bullet spawner
+            (3,5),    #30 'j' = Killer bullet                 -- shares (3,5) with the spawner
+            (3,6),    #31 'g' = Spine enemy
+            (3,7),    #32 'c' = Beak enemy
+            (3,8),    #33 'e' = Screw bomber enemy
+            (3,9),    #34 'I' = Tackle fire enemy
+            (3,10),   #35 'i' = Watcher enemy
 
-            (3,3),    #24 = Flying shell enemy spawner
-
-            (3,5),    #26 = Killer bullet enemy
-            (3,6),    #27 = Spine enemy
-            (3,7),    #28 = Beak enemy
-            (3,8),    #29 = Screw bomber enemy
-            (3,9),    #30 = Tackle fire enemy
-            (3,10),   #31 = Watcher enemy
-
-
-            (4,1),    #33 = Octopus battery enemy
-            (4,2),    #34 = Big eye enemy
-
-            (4,4),    #36 = Met enemy
-            (4,5),    #37 = Picket man enemy
-            (4,6),    #38 = Crazy razy enemy
+            (4,1),    #36 '^' = Octopus battery (vertical)
+            (4,1),    #37 '<' = Octopus battery (horizontal)  -- shares (4,1) with the vertical one
+            (4,2),    #38 'f' = Big eye enemy
+            (4,4),    #39 'a' = Met enemy
+            (4,5),    #40 'd' = Picket man enemy
+            (4,6),    #41 'h' = Crazy razy enemy
 
     ]
 
