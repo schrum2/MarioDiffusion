@@ -225,13 +225,16 @@ class CaptionBuilder(ParentBuilder):
         self.save_composed_button.pack(side=tk.LEFT, padx=10)
         
         self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1), style="TButton")
-        self.move_left_button.pack(side=tk.LEFT, padx=60)
+        self.move_left_button.pack(side=tk.LEFT, padx=15)
 
         self.large_view_button = ttk.Button(row3, text="Large View", command=self.show_large_composed_view, style="TButton")
-        self.large_view_button.pack(side=tk.LEFT, padx=60)
+        self.large_view_button.pack(side=tk.LEFT, padx=15)
 
         self.move_right_button = ttk.Button(row3, text="Move Selected Image Right", command=lambda: self.move_selected_image(1), style="TButton")
-        self.move_right_button.pack(side=tk.LEFT, padx=60)
+        self.move_right_button.pack(side=tk.LEFT, padx=15)
+
+        self.edit_composed_button = ttk.Button(row3, text="Edit Selected Image", command=self.edit_selected_composed_image, style="TButton")
+        self.edit_composed_button.pack(side=tk.LEFT, padx=15)
 
         # Frame for thumbnails with horizontal scrolling
         self.bottom_canvas = tk.Canvas(self.caption_frame, height=70, borderwidth=0, highlightthickness=0)
@@ -962,6 +965,13 @@ Average Segment Score: {avg_segment_score}"""
         # Update selection
         self.select_composed_thumbnail(new_idx)
 
+    def edit_selected_composed_image(self):
+        idx = self.selected_composed_index
+        if idx is None or not (0 <= idx < len(self.composed_scenes)):
+            messagebox.showinfo("No selection", "Please select a thumbnail first.")
+            return
+        self.edit_composed_scene(idx)
+
     def clear_composed_level(self):
         self.composed_scenes.clear()
         self.composed_thumbnails.clear()
@@ -1108,6 +1118,42 @@ Average Segment Score: {avg_segment_score}"""
             self.tile_descriptors,
             self.game_var.get(),
             on_save=lambda updated_scene: self._replace_generated_scene(idx, updated_scene)
+        )
+
+    def edit_composed_scene(self, idx, extra_on_save=None):
+        """Open the LevelEditor for a scene stored in self.composed_scenes.
+
+        Updates the stored scene and its thumbnail in the bottom strip when saved.
+        extra_on_save, if given, is called with the updated scene afterward —
+        used by the Mega Man layout editor to refresh its own grid render."""
+        scene = self.composed_scenes[idx]
+        editor_window = tk.Toplevel(self.master)
+        editor_window.title("Level Editor")
+
+        def on_save(updated_scene):
+            self.composed_scenes[idx] = updated_scene
+
+            # Refresh the thumbnail shown in the composed-level strip
+            rendered = self._render_scene_image(updated_scene)
+            thumb = rendered.copy()
+            thumb.thumbnail((64, 64))
+            photo = ImageTk.PhotoImage(thumb)
+            self.composed_thumbnails[idx] = photo
+            if idx < len(self.composed_thumbnail_labels):
+                self.composed_thumbnail_labels[idx].config(image=photo)
+                self.composed_thumbnail_labels[idx].image = photo
+
+            if extra_on_save:
+                extra_on_save(updated_scene)
+
+        LevelEditor(
+            editor_window,
+            scene,
+            self.id_to_char,
+            self.char_to_id,
+            self.tile_descriptors,
+            self.game_var.get(),
+            on_save=on_save
         )
 
     def _replace_generated_scene(self, idx, updated_scene):
@@ -1370,6 +1416,8 @@ Average Segment Score: {avg_segment_score}"""
 
         is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)")
         self.mm_layout_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
+        self.save_composed_button.config(state=tk.DISABLED if is_megaman else tk.NORMAL)
+
 
     def open_megaman_layout_editor(self):
         global game_selected
@@ -1711,11 +1759,7 @@ class MegaManLayoutEditor:
 
         ttk.Label(
             right_frame,
-            text="Drag a scene onto the grid to place it. Drag a placed scene to move it. "
-                 "Right-click a placed scene to send it back to the palette. "
-                 "Drag Player Start / Exit Orb markers onto a tile of any placed scene "
-                 "(zoom in first for precise placement; markers snap to a single tile). "
-                 "Scroll to zoom on the cursor; middle-mouse drag to pan.",
+            text="Drag scenes onto the grid to place them. Right-click a scene to edit or remove it.",
             wraplength=820
         ).pack(side=tk.TOP, fill=tk.X, padx=5, pady=(5, 0))
 
@@ -1725,6 +1769,8 @@ class MegaManLayoutEditor:
         ttk.Button(toolbar, text="Save This Layout As...",  command=self.save_layout).pack(side=tk.LEFT, padx=5)
         ttk.Button(toolbar, text="Show A* Path",            command=self.show_astar_path).pack(side=tk.LEFT, padx=5)
         ttk.Button(toolbar, text="Clear Grid",              command=self.clear_grid).pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar, text="Open Save Folder",        command=self.open_save_folder).pack(side=tk.LEFT, padx=5)
+
 
         # Zoom controls
         ttk.Button(toolbar, text="Zoom -", width=6, command=lambda: self._zoom(1 / 1.25)).pack(side=tk.LEFT, padx=(20, 2))
@@ -1987,7 +2033,30 @@ class MegaManLayoutEditor:
         self.grid_canvas.tag_bind(img_id, "<ButtonPress-1>",
                                    lambda e, c=col, r=row: self._begin_drag_from_cell(e, c, r))
         self.grid_canvas.tag_bind(img_id, "<ButtonPress-3>",
-                                   lambda e, c=col, r=row: self._remove_from_cell(c, r))
+                                   lambda e, c=col, r=row: self._show_scene_context_menu(e, c, r))
+
+    def _show_scene_context_menu(self, event, col, row):
+        menu = tk.Menu(self.window, tearoff=0)
+        menu.add_command(label="Edit Scene", command=lambda: self._edit_scene_at(col, row))
+        menu.add_command(label="Remove from Grid", command=lambda: self._remove_from_cell(col, row))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _edit_scene_at(self, col, row):
+        scene_index = self.placements.get((col, row))
+        if scene_index is None:
+            return
+
+        def after_save(updated_scene):
+            # Invalidate cached renders for this scene and redraw it in place.
+            self._native_scene_cache.pop(scene_index, None)
+            self._scene_photos.pop(scene_index, None)
+            self._clear_cell_visual(col, row)
+            self._draw_scene(scene_index, col, row)
+
+        self.app.edit_composed_scene(scene_index, extra_on_save=after_save)
 
     def _clear_cell_visual(self, col, row):
         items = self.placed_items.pop((col, row), None)
@@ -2269,8 +2338,22 @@ class MegaManLayoutEditor:
 
             messagebox.showinfo(
                 "Saved",
-                f"Level saved as:\n{level_name}.txt\n{level_name}.mmlv"
+                f"Level saved to:\n{self.levels_dir}\n\n"
+                f"Files: {level_name}.txt, {level_name}.mmlv"
             )
+
+    def open_save_folder(self):
+        levels_dir = getattr(self, "levels_dir", None)
+        if levels_dir is None:
+            levels_dir = os.path.join(
+                os.path.expanduser("~"),
+                "AppData", "Local", "MegaMaker", "Levels"
+            )
+        os.makedirs(levels_dir, exist_ok=True)
+        try:
+            os.startfile(levels_dir)
+        except Exception as e:
+            messagebox.showerror("Couldn't open folder", f"{levels_dir}\n\n{e}")
 
     def save_level_files(self):
         rows = self.build_merged_ascii()
@@ -2282,6 +2365,7 @@ class MegaManLayoutEditor:
             "AppData", "Local", "MegaMaker", "Levels"
         )
         os.makedirs(levels_dir, exist_ok=True)
+        self.levels_dir = levels_dir  # remember for "Open Save Folder"
 
         level_name = self.level_name_var.get().strip() or "AI_Generated_Level"
         txt_path = os.path.join(levels_dir, level_name + ".txt")
