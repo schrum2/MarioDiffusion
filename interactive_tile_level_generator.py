@@ -1457,6 +1457,7 @@ class LevelEditor:
         self.tile_descriptors = tile_descriptors
         self.game = game
         self.on_save = on_save
+        
 
         self.selected_cells = set()
 
@@ -1686,6 +1687,8 @@ class MegaManLayoutEditor:
     MIN_CELL_PIXELS = 48
     MAX_CELL_PIXELS = 420
     GRID_RADIUS = 8
+    MAGNIFIER_SIZE = 260        # pixel size of the popup loupe (square)
+    MAGNIFIER_TILE_SPAN = 10     # how many tiles across are shown, centered on the cursor
 
     # Marker key -> (display label, swatch color, ASCII char stamped into the level).
     # 'P' (player spawn) and 'Z' (exit orb) are the chars the .mmlv converter understands;
@@ -1719,6 +1722,11 @@ class MegaManLayoutEditor:
 
         self._drag_data = None
         self._drag_window = None
+
+        self._drag_data = None
+        self._drag_window = None
+        self._magnifier_window = None
+        self._magnifier_canvas = None
 
         self.window = tk.Toplevel(master)
         self.window.title("Mega Man Level Layout")
@@ -1963,6 +1971,108 @@ class MegaManLayoutEditor:
     def _move_drag_window(self, event):
         if self._drag_window:
             self._drag_window.geometry(f"+{event.x_root - 32}+{event.y_root - 32}")
+        self._update_magnifier(event)
+
+    def _update_magnifier(self, event):
+        """While dragging a marker over a placed scene, show a zoomed loupe near the
+        cursor so the exact target tile is easy to see."""
+        if not self._drag_data or self._drag_data.get("kind") != "marker":
+            self._hide_magnifier()
+            return
+
+        cx1 = self.grid_canvas.winfo_rootx()
+        cy1 = self.grid_canvas.winfo_rooty()
+        cx2 = cx1 + self.grid_canvas.winfo_width()
+        cy2 = cy1 + self.grid_canvas.winfo_height()
+
+        if not (cx1 <= event.x_root <= cx2 and cy1 <= event.y_root <= cy2):
+            self._hide_magnifier()
+            return
+
+        x = self.grid_canvas.canvasx(event.x_root - cx1)
+        y = self.grid_canvas.canvasy(event.y_root - cy1)
+        col, row = self._pixel_to_cell(x, y)
+
+        if (col, row) not in self.placements:
+            self._hide_magnifier()
+            return
+
+        scene_index = self.placements[(col, row)]
+        scene = self.app.composed_scenes[scene_index]
+        scene_h, scene_w = len(scene), len(scene[0])
+        t_col, t_row = self._tile_under_pointer(col, row, x, y)
+
+        native = self._native_scene_cache.get(scene_index)
+        if native is None:
+            native = self.app._render_scene_image(scene)
+            self._native_scene_cache[scene_index] = native
+
+        tile_w_native = native.width / scene_w
+        tile_h_native = native.height / scene_h
+
+        span = self.MAGNIFIER_TILE_SPAN
+        half = span // 2
+
+        c0 = max(0, t_col - half)
+        r0 = max(0, t_row - half)
+        c1 = min(scene_w, c0 + span)
+        r1 = min(scene_h, r0 + span)
+        c0 = max(0, c1 - span)
+        r0 = max(0, r1 - span)
+
+        left = int(c0 * tile_w_native)
+        top = int(r0 * tile_h_native)
+        right = int(c1 * tile_w_native)
+        bottom = int(r1 * tile_h_native)
+
+        crop = native.crop((left, top, right, bottom))
+        zoomed = crop.resize((self.MAGNIFIER_SIZE, self.MAGNIFIER_SIZE), Image.NEAREST)
+        photo = ImageTk.PhotoImage(zoomed)
+
+        self._show_magnifier(event, photo)
+
+        # Crosshair over the exact tile the marker would snap to
+        tile_px_w = self.MAGNIFIER_SIZE / (c1 - c0)
+        tile_px_h = self.MAGNIFIER_SIZE / (r1 - r0)
+        hx0 = (t_col - c0) * tile_px_w
+        hy0 = (t_row - r0) * tile_px_h
+        _, marker_color, _ = self.MARKER_DEFS[self._drag_data["marker_key"]]
+        self._magnifier_canvas.delete("highlight")
+        self._magnifier_canvas.create_rectangle(
+            hx0, hy0, hx0 + tile_px_w, hy0 + tile_px_h,
+            outline=marker_color, width=3, tags="highlight"
+        )
+
+    def _show_magnifier(self, event, photo):
+        if self._magnifier_window is None:
+            self._magnifier_window = tk.Toplevel(self.window)
+            self._magnifier_window.overrideredirect(True)
+            try:
+                self._magnifier_window.attributes("-topmost", True)
+            except Exception:
+                pass
+            self._magnifier_canvas = tk.Canvas(
+                self._magnifier_window, width=self.MAGNIFIER_SIZE, height=self.MAGNIFIER_SIZE,
+                highlightthickness=2, highlightbackground="#ffffff"
+            )
+            self._magnifier_canvas.pack()
+
+        self._magnifier_canvas.delete("bg")
+        self._magnifier_canvas.create_image(0, 0, image=photo, anchor="nw", tags="bg")
+        self._magnifier_canvas.image = photo  # keep a ref so it isn't GC'd
+        self._magnifier_canvas.tag_lower("bg")  # crosshair stays on top
+
+        # Offset above-right of the cursor so the loupe doesn't sit under your hand
+        gx = event.x_root + 30
+        gy = event.y_root - self.MAGNIFIER_SIZE - 30
+        if gy < 0:
+            gy = event.y_root + 30
+        self._magnifier_window.geometry(f"+{gx}+{gy}")
+        self._magnifier_window.deiconify()
+
+    def _hide_magnifier(self):
+        if self._magnifier_window is not None:
+            self._magnifier_window.withdraw()
 
     def _begin_drag_from_cell(self, event, col, row):
         scene_index = self.placements.get((col, row))
@@ -1980,6 +2090,10 @@ class MegaManLayoutEditor:
         if self._drag_window:
             self._drag_window.destroy()
             self._drag_window = None
+        if self._magnifier_window:
+            self._magnifier_window.destroy()
+            self._magnifier_window = None
+            self._magnifier_canvas = None
 
         drag = self._drag_data
         self._drag_data = None
