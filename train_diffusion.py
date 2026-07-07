@@ -449,6 +449,7 @@ def main():
                                         block_embeddings=block_embeddings, batch_size=args.batch_size,
                                         persistent_workers=(not args.auto_augment),
                                         multiple_captions=args.multiple_captions,
+                                        require_captions=args.text_conditional,
                                         bucket_levels=args.complete_levels, num_buckets=args.num_buckets,
                                         pad_tile_id=pad_tile_id, unet_factor=unet_factor,
                                         num_workers=args.num_workers,

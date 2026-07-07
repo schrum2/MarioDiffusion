@@ -80,7 +80,7 @@ class BucketBatchSampler:
 
 def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles,
                        negative_prompt_training, block_embeddings, batch_size,
-                       persistent_workers=True, multiple_captions=False,
+                       persistent_workers=True, multiple_captions=False, require_captions=True,
                        bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1,
                        num_workers=4, pin_memory=False):
     """
@@ -100,7 +100,8 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
         multiple_captions (bool): If True, the training set selects one of each sample's stored
             captions ("caption", "caption1", ...) at random per access, in place of phrase-shuffle
             augmentation. Validation always uses the canonical "caption" deterministically.
-
+        require_captions (bool): True for text-conditional training (every item must have a
+            "caption"); False for unconditional training, where scenes carry no captions.
         bucket_levels (bool): If True, scenes are variable-size complete levels that get grouped
             into num_buckets size buckets and padded to each bucket's shared shape (see LevelDataset).
         num_buckets (int): Number of size buckets when bucket_levels is set.
@@ -124,6 +125,7 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
         negative_captions=negative_prompt_training,
         block_embeddings=block_embeddings,
         multiple_captions=multiple_captions,
+        require_captions=require_captions, 
         bucket_levels=bucket_levels,
         num_buckets=num_buckets,
         pad_tile_id=pad_tile_id,
@@ -140,6 +142,7 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
             num_tiles=num_tiles,
             negative_captions=negative_prompt_training,
             block_embeddings=block_embeddings,
+            require_captions=require_captions, 
             bucket_levels=bucket_levels,
             num_buckets=num_buckets,
             pad_tile_id=pad_tile_id,

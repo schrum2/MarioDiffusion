@@ -624,7 +624,7 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None, multiple_captions=False, bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1):
+    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None, multiple_captions=False, require_captions=True, bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -641,6 +641,11 @@ class LevelDataset(Dataset):
                 ("caption", "caption1", "caption2", ...) and one is chosen at random on every
                 access. This becomes the only augmentation: phrase shuffling (augment) and scene
                 flipping (random_flip) are disabled so the selected caption is used verbatim.
+            require_captions (bool): If True (the default, used for text-conditional training),
+                every item must carry a "caption" field and a missing one is a hard error. Set
+                False for unconditional training, where scenes carry no captions: items may omit
+                "caption" and __getitem__ returns an empty placeholder caption (ignored by the
+                unconditional model) instead of raising KeyError.
             bucket_levels (bool): If True (diff_text mode), the scenes are variable-size complete
                 levels. They are grouped into num_buckets size buckets and each scene is padded
                 (bottom/right, content anchored top-left) up to its bucket's shared shape with the
@@ -664,7 +669,7 @@ class LevelDataset(Dataset):
         self.random_flip = random_flip and not multiple_captions
         self.num_tiles = num_tiles
         self.negative_captions = negative_captions
-
+        self.require_captions = require_captions
         # Complete-level bucketing/padding (see _build_size_buckets, called below).
         self.bucket_levels = bucket_levels
         self.num_buckets = num_buckets
@@ -692,10 +697,27 @@ class LevelDataset(Dataset):
 
         print(f"Training samples: {len(self.data)}")
 
-        # Determine padding length (if not provided)
+        # Text-conditional training needs a caption on every item; fail loudly (rather than
+        # with a bare KeyError deep in the code) if one is missing. Unconditional training
+        # (require_captions=False) tolerates caption-less scenes.
+        if self.require_captions:
+            missing = sum(1 for item in self.data if "caption" not in item)
+            if missing:
+                raise ValueError(
+                    f"{missing}/{len(self.data)} dataset items have no 'caption' field, but "
+                    f"captions are required. Caption the dataset first, or pass "
+                    f"require_captions=False for unconditional training."
+                )
+
+        # Determine padding length (if not provided). Only the captioned items contribute; an
+        # unconditional dataset may have none, in which case the (unused) caption budget is 0.
         if self.max_length is None:
             # Add 5 just in case
-            self.max_length = max(len(caption.replace(".", " .").split()) for caption in (item["caption"] for item in self.data)) + 5
+            caption_word_counts = [
+                len(item["caption"].replace(".", " .").split())
+                for item in self.data if "caption" in item
+            ]
+            self.max_length = (max(caption_word_counts) + 5) if caption_word_counts else 0
 
         # Shuffle dataset
         if self.shuffle:
@@ -748,6 +770,9 @@ class LevelDataset(Dataset):
 
     def _augment_caption(self, caption):
         """Shuffles period-separated phrases in the caption."""
+        if not caption:
+            # Unconditional datasets have no caption; nothing to shuffle.
+            return caption
         if self.augment:
             phrases = caption[:-1].split(". ") # [:-1] removes the last period
             random.shuffle(phrases)  # Shuffle phrases
@@ -825,7 +850,8 @@ class LevelDataset(Dataset):
             # the chosen caption is used verbatim (no phrase shuffling).
             augmented_caption = self._select_caption(sample)
         else:
-            augmented_caption = self._augment_caption(sample["caption"])
+            # Unconditional datasets may omit "caption"; the placeholder is ignored downstream.
+            augmented_caption = self._augment_caption(sample.get("caption", ""))
 
         negative_caption = ""
         if self.negative_captions:
@@ -903,8 +929,8 @@ class LevelDataset(Dataset):
         return len(self.tokenizer.get_vocab())
 
     def get_sample_caption(self, idx):
-        """Returns the raw caption from the dataset for debugging."""
-        return self.data[idx]["caption"]
+        """Returns the raw caption from the dataset for debugging ("" if unconditional)."""
+        return self.data[idx].get("caption", "")
 
     def decode_scene(self, one_hot_scene):
         """
