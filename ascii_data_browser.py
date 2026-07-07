@@ -176,17 +176,21 @@ class TileViewer(tk.Tk):
         self.redraw()
 
     def _update_filter_reason_display(self, sample):
-        """Update the filter-reason line under the toggle. Shows the entry's reason when the
-        toggle is on and the field is present, notes its absence when on but missing, and
-        stays blank when the toggle is off."""
-        if not getattr(self, 'show_filter_reason', False):
+        """Show the filter-reason toggle button and line only for entries that actually
+        carry a 'filter_reason' field. Entries without it hide the button entirely; when
+        present, the line shows the reason while the toggle is on and stays blank otherwise."""
+        reason = sample.get('filter_reason') if isinstance(sample, dict) else None
+        if reason is None:
+            # No field on this entry: hide the button and clear the line.
+            self.toggle_filter_reason_button.pack_forget()
             self.filter_reason_label.config(text="")
             return
-        reason = sample.get('filter_reason') if isinstance(sample, dict) else None
-        if reason is not None:
+        if not self.toggle_filter_reason_button.winfo_ismapped():
+            self.toggle_filter_reason_button.pack(side=tk.LEFT, padx=5)
+        if getattr(self, 'show_filter_reason', False):
             self.filter_reason_label.config(text=f"Filter reason: {reason}")
         else:
-            self.filter_reason_label.config(text="Filter reason: (none for this entry)")
+            self.filter_reason_label.config(text="")
 
     def _astar_overlay_image(self, scene):
         """
@@ -258,10 +262,11 @@ class TileViewer(tk.Tk):
 
         # Toggle for revealing the 'filter_reason' field carried by entries in the
         # *-filtered datasets (created by create_megaman_json_data.py's apply_filters).
+        # Packed dynamically in _update_filter_reason_display: it only appears for entries
+        # that actually have a 'filter_reason' field.
         self.toggle_filter_reason_button = tk.Button(
             checkbox_frame, text="Show Filter Reason", command=self.toggle_filter_reason
         )
-        self.toggle_filter_reason_button.pack(side=tk.LEFT, padx=5)
 
         # Line showing the current entry's filter_reason, only while the toggle above is on.
         # Kept in its own always-packed label so toggling its text doesn't shift the layout.
