@@ -181,6 +181,16 @@ class CaptionBuilder(ParentBuilder):
         self.debug_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Debug Caption Match", variable=self.debug_caption, style="TCheckbutton")
         self.debug_caption_checkbox.pack()
 
+        self.show_astar_var = tk.BooleanVar(value=False)
+        self.show_astar_checkbox = ttk.Checkbutton(
+            self.caption_frame,
+            text="With Simple A*",
+            variable=self.show_astar_var,
+            style="TCheckbutton",
+            command=self.toggle_all_astar_overlays
+        )
+        self.show_astar_checkbox.pack()
+
         # Frame for composed level controls
         self.composed_frame = ttk.Frame(self.caption_frame)
         self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
@@ -216,6 +226,10 @@ class CaptionBuilder(ParentBuilder):
         
         self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1), style="TButton")
         self.move_left_button.pack(side=tk.LEFT, padx=60)
+
+        self.large_view_button = ttk.Button(row3, text="Large View", command=self.show_large_composed_view, style="TButton")
+        self.large_view_button.pack(side=tk.LEFT, padx=60)
+
         self.move_right_button = ttk.Button(row3, text="Move Selected Image Right", command=lambda: self.move_selected_image(1), style="TButton")
         self.move_right_button.pack(side=tk.LEFT, padx=60)
 
@@ -833,15 +847,6 @@ Average Segment Score: {avg_segment_score}"""
             )
             astar_button.pack(side=tk.LEFT, padx=5)
 
-            # Add Simple A* button: toggles the path overlay drawn on the image itself.
-            simple_astar_button = ttk.Button(
-                button_frame,
-                text="Simple A*",
-                command=lambda idx=i: self.simple_astar(idx),
-                style="TButton"
-            )
-            simple_astar_button.pack(side=tk.LEFT, padx=5)
-
             # Add "Add To Level" button
             add_button = ttk.Button(
                 button_frame,
@@ -858,6 +863,9 @@ Average Segment Score: {avg_segment_score}"""
                 style="TButton"
             )
             edit_button.pack(side=tk.LEFT, padx=5)
+
+            if self.show_astar_var.get():
+                self._show_astar_overlay_for_index(i)
 
             del images, sample_tensor, sample_indices, scene  # Delete unused tensors
             if torch.cuda.is_available():
@@ -1011,6 +1019,44 @@ Average Segment Score: {avg_segment_score}"""
             level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             console_output = level.run_astar()
             print(console_output)
+
+    def show_large_composed_view(self):
+        """Pop up a large rendering of the full composed level, optionally with the
+        Simple A* path overlaid if 'With Simple A*' is checked."""
+        scene = self.merge_selected_scenes()
+        if not scene:
+            messagebox.showinfo("No composed level", "Add at least one image to the composed level first.")
+            return
+
+        pil_img = None
+        if self.show_astar_var.get():
+            pil_img = self._astar_overlay_image(scene)  # None if A* fails/can't produce a path
+
+        if pil_img is None:
+            pil_img = self._render_scene_image(scene)
+
+        self._show_image_popup(pil_img, "Composed Level - Large View")
+
+    def _show_image_popup(self, pil_img, title):
+        """Show a (possibly large) PIL image in a scrollable popup window."""
+        win = tk.Toplevel(self.master)
+        win.title(title)
+        win.grid_rowconfigure(0, weight=1)
+        win.grid_columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(win, bg="#222222")
+        hbar = ttk.Scrollbar(win, orient=tk.HORIZONTAL, command=canvas.xview)
+        vbar = ttk.Scrollbar(win, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vbar.grid(row=0, column=1, sticky="ns")
+        hbar.grid(row=1, column=0, sticky="ew")
+
+        photo = ImageTk.PhotoImage(pil_img)
+        canvas._photo_ref = photo  # keep a ref so it isn't garbage-collected
+        canvas.create_image(0, 0, image=photo, anchor="nw")
+        canvas.configure(scrollregion=(0, 0, pil_img.width, pil_img.height))
+        win.geometry(f"{min(pil_img.width + 24, 1200)}x{min(pil_img.height + 24, 800)}")
 
     def get_sample_output(self, idx_or_scene, use_snes_graphics=False):
         if isinstance(idx_or_scene, int):
@@ -1181,12 +1227,9 @@ Average Segment Score: {avg_segment_score}"""
         refs["image_label"].config(image=tk_img)
         refs["image_label"].image = tk_img
 
-    def simple_astar(self, idx):
-        """Toggle the A* path overlay on a generated image (Simple A* button)."""
+    def _show_astar_overlay_for_index(self, idx):
+        """Display the Simple A* path overlay on a single generated image."""
         refs = self.generated_widget_refs[idx]
-        if refs.get("astar_overlay_shown"):
-            self._refresh_generated_image(idx)  # back to the plain render
-            return
         overlay = self._astar_overlay_image(self.generated_scenes[idx])
         if overlay is None:
             return
@@ -1194,6 +1237,24 @@ Average Segment Score: {avg_segment_score}"""
         tk_img = ImageTk.PhotoImage(overlay)
         refs["image_label"].config(image=tk_img)
         refs["image_label"].image = tk_img
+
+    def toggle_all_astar_overlays(self):
+        """Called when the 'With Simple A*' checkbox is toggled: show or hide the
+        A* path overlay on every currently generated image."""
+        show = self.show_astar_var.get()
+        for idx in range(len(self.generated_scenes)):
+            if show:
+                self._show_astar_overlay_for_index(idx)
+            else:
+                self._refresh_generated_image(idx)
+
+    def _replace_generated_scene(self, idx, updated_scene):
+        self.generated_scenes[idx] = updated_scene 
+        self.generated_images[idx] = self._render_scene_image(updated_scene) 
+        self._refresh_generated_image(idx)
+        if self.show_astar_var.get():
+            self._show_astar_overlay_for_index(idx)
+        self._refresh_generated_caption(idx)
 
     def _astar_path_for_scene(self, scene, spawn=None, orb=None):
         """Run A* on a single scene and return (pil_image_or_None, solved, stats).
@@ -1325,6 +1386,21 @@ Average Segment Score: {avg_segment_score}"""
     
 
 class LevelEditor:
+    """
+    Grid editor for a single scene.
+
+    Click a grid square to select it (red border). Shift-click to add/remove
+    additional squares from the selection. Then click a tile in the side palette
+    to apply that tile to every selected square at once.
+    Right-click a square: quick cycle-backward on just that square (no selection needed).
+    """
+
+    SELECTED_BORDER = "#ff3333"
+    UNSELECTED_BORDER = "#999999"
+    PALETTE_BORDER = "#cccccc"
+    PALETTE_ARMED_BORDER = "#3399ff"
+    PALETTE_COLUMNS = 4
+
     def __init__(self, master, scene, id_to_char, char_to_id, tile_descriptors, game, on_save=None):
         self.master = master
         self.scene = [list(row) for row in scene]
@@ -1334,43 +1410,198 @@ class LevelEditor:
         self.game = game
         self.on_save = on_save
 
+        self.selected_cells = set()
+
         self.master.title("Level Editor")
-        self.grid_frame = ttk.Frame(master)
-        self.grid_frame.pack(padx=10, pady=10)
+        self.master.geometry("700x500")
+        self.master.minsize(700, 500)
+
+        outer = ttk.Frame(master, padding=12)
+        outer.pack(fill=tk.BOTH, expand=True)
+
+        header = ttk.Label(outer, text="Click a square to select it. Shift-click to select more.",
+                            font=("Arial", 12))
+        header.pack(anchor="w", pady=(0, 10))
+
+        body = ttk.Frame(outer)
+        body.pack(fill=tk.BOTH, expand=True)
+
+        # --- Left: scene grid, in a scroll area so large levels still fit ---
+        grid_outer = ttk.Frame(body, borderwidth=1, relief="solid")
+        grid_outer.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.grid_canvas = tk.Canvas(grid_outer, highlightthickness=0)
+        grid_hbar = ttk.Scrollbar(grid_outer, orient=tk.HORIZONTAL, command=self.grid_canvas.xview)
+        grid_vbar = ttk.Scrollbar(grid_outer, orient=tk.VERTICAL, command=self.grid_canvas.yview)
+        self.grid_frame = ttk.Frame(self.grid_canvas)
+        self.grid_frame.bind("<Configure>", lambda e: self.grid_canvas.configure(scrollregion=self.grid_canvas.bbox("all")))
+        self.grid_canvas.create_window((0, 0), window=self.grid_frame, anchor="nw")
+        self.grid_canvas.configure(xscrollcommand=grid_hbar.set, yscrollcommand=grid_vbar.set)
+        self.grid_canvas.grid(row=0, column=0, sticky="nsew")
+        grid_vbar.grid(row=0, column=1, sticky="ns")
+        grid_hbar.grid(row=1, column=0, sticky="ew")
+        grid_outer.grid_rowconfigure(0, weight=1)
+        grid_outer.grid_columnconfigure(0, weight=1)
+
+        # --- Right: palette panel ---
+        palette_outer = ttk.Frame(body, width=340, borderwidth=1, relief="solid", padding=12)
+        palette_outer.pack(side=tk.LEFT, fill=tk.Y, padx=(12, 0))
+        palette_outer.pack_propagate(False)
+
+        ttk.Label(palette_outer, text="Tile Palette", font=("Arial", 13, "bold")).pack(anchor="w")
+        ttk.Label(palette_outer, text="Select square(s), then click a tile to apply it.",
+                  font=("Arial", 10), foreground="#555555", wraplength=300, justify="left").pack(anchor="w", pady=(2, 10))
+
+        status_row = ttk.Frame(palette_outer)
+        status_row.pack(fill=tk.X, pady=(0, 10))
+        self.selection_count_label = ttk.Label(status_row, text="0 squares selected", font=("Arial", 10, "italic"))
+        self.selection_count_label.pack(side=tk.LEFT)
+        ttk.Button(status_row, text="Clear Selection", command=self._clear_selection).pack(side=tk.RIGHT)
+
+        self.hover_info_label = ttk.Label(palette_outer, text=" ", font=("Arial", 10), foreground="#3366aa", wraplength=300)
+        self.hover_info_label.pack(anchor="w", pady=(0, 10))
+
+        ttk.Separator(palette_outer, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 10))
+
+        palette_scroll_outer = ttk.Frame(palette_outer)
+        palette_scroll_outer.pack(fill=tk.BOTH, expand=True)
+        palette_canvas = tk.Canvas(palette_scroll_outer, highlightthickness=0)
+        palette_scrollbar = ttk.Scrollbar(palette_scroll_outer, orient=tk.VERTICAL, command=palette_canvas.yview)
+        palette_inner = ttk.Frame(palette_canvas)
+        palette_inner.bind("<Configure>", lambda e: palette_canvas.configure(scrollregion=palette_canvas.bbox("all")))
+        palette_canvas.create_window((0, 0), window=palette_inner, anchor="nw")
+        palette_canvas.configure(yscrollcommand=palette_scrollbar.set)
+        palette_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        palette_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.tile_images = self._load_tile_images(game)
-        self.tile_buttons = []
         self.tile_photo_images = []
+        self.palette_photo_images = []
+
+        self.cell_frames = {}
+        self.cell_labels = {}
 
         for r, row in enumerate(self.scene):
-            button_row = []
             for c, tile_id in enumerate(row):
-                photo = ImageTk.PhotoImage(self.tile_images[tile_id])
-                btn = ttk.Button(
+                frame = tk.Frame(
                     self.grid_frame,
-                    image=photo,
-                    command=lambda r=r, c=c: self.cycle_tile(r, c)
+                    highlightthickness=2,
+                    highlightbackground=self.UNSELECTED_BORDER,
+                    highlightcolor=self.UNSELECTED_BORDER,
                 )
-                btn.image = photo
-                btn.grid(row=r, column=c, padx=1, pady=1)
+                frame.grid(row=r, column=c, padx=1, pady=1)
+
+                photo = ImageTk.PhotoImage(self.tile_images[tile_id])
                 self.tile_photo_images.append(photo)
-                button_row.append(btn)
-            self.tile_buttons.append(button_row)
+                label = tk.Label(frame, image=photo, borderwidth=0)
+                label.image = photo
+                label.pack()
 
-        controls = ttk.Frame(master)
-        controls.pack(pady=8)
-        ttk.Button(controls, text="Save", command=self.save).pack(side=tk.LEFT, padx=4)
-        ttk.Button(controls, text="Cancel", command=master.destroy).pack(side=tk.LEFT, padx=4)
+                label.bind("<Button-1>", lambda e, r=r, c=c: self._left_click_cell(r, c, shift=bool(e.state & 0x0001)))
+                label.bind("<Button-3>", lambda e, r=r, c=c: self._cycle_cell(r, c, -1))
 
-    def cycle_tile(self, row, col):
+                self.cell_frames[(r, c)] = frame
+                self.cell_labels[(r, c)] = label
+
+        # Palette tiles, arranged in a grid (side-by-side), in cycle order
+        self.palette_swatch_frames = {}
+        for tile_id in range(len(self.id_to_char)):
+            self._add_palette_entry(palette_inner, tile_id)
+
+        controls = ttk.Frame(outer)
+        controls.pack(pady=(12, 0))
+        ttk.Button(controls, text="Save", command=self.save, width=14).pack(side=tk.LEFT, padx=6)
+        ttk.Button(controls, text="Cancel", command=master.destroy, width=14).pack(side=tk.LEFT, padx=6)
+
+    # ------------------------------------------------------------------ selection
+
+    def _left_click_cell(self, row, col, shift):
+        cell = (row, col)
+        if shift:
+            if cell in self.selected_cells:
+                self.selected_cells.remove(cell)
+            else:
+                self.selected_cells.add(cell)
+        else:
+            self.selected_cells = {cell}
+        self._refresh_selection_visuals()
+
+    def _clear_selection(self):
+        self.selected_cells = set()
+        self._refresh_selection_visuals()
+
+    def _refresh_selection_visuals(self):
+        for cell, frame in self.cell_frames.items():
+            color = self.SELECTED_BORDER if cell in self.selected_cells else self.UNSELECTED_BORDER
+            frame.config(highlightbackground=color, highlightcolor=color)
+        n = len(self.selected_cells)
+        self.selection_count_label.config(text=f"{n} square{'s' if n != 1 else ''} selected")
+
+    def _cycle_cell(self, row, col, direction):
         current_id = self.scene[row][col]
-        next_id = (current_id + 1) % len(self.id_to_char)
-        self.scene[row][col] = next_id
-        photo = ImageTk.PhotoImage(self.tile_images[next_id])
-        btn = self.tile_buttons[row][col]
-        btn.config(image=photo)
-        btn.image = photo
+        next_id = (current_id + direction) % len(self.id_to_char)
+        self._paint_cell(row, col, next_id)
+
+    # ------------------------------------------------------------------ palette
+
+    def _tile_hover_text(self, tile_id):
+        char = self.id_to_char.get(tile_id, "?")
+        descriptor = None
+        if self.tile_descriptors:
+            descriptor = self.tile_descriptors.get(char)
+        if isinstance(descriptor, (list, tuple)) and descriptor:
+            return str(descriptor[0])
+        elif isinstance(descriptor, str) and descriptor:
+            return descriptor
+        return f"Tile {tile_id}"
+
+    def _add_palette_entry(self, parent, tile_id):
+        col = tile_id % self.PALETTE_COLUMNS
+        row = tile_id // self.PALETTE_COLUMNS
+        parent.grid_columnconfigure(col, weight=1)
+
+        frame = tk.Frame(
+            parent,
+            highlightthickness=2,
+            highlightbackground=self.PALETTE_BORDER,
+            highlightcolor=self.PALETTE_BORDER,
+            cursor="hand2",
+        )
+        frame.grid(row=row, column=col, padx=4, pady=4)
+
+        photo = ImageTk.PhotoImage(self.tile_images[tile_id])
+        self.palette_photo_images.append(photo)
+        img_label = tk.Label(frame, image=photo, borderwidth=0)
+        img_label.image = photo
+        img_label.pack(padx=6, pady=6)
+
+        hover_text = self._tile_hover_text(tile_id)
+        for widget in (frame, img_label):
+            widget.bind("<Button-1>", lambda e, t=tile_id: self._apply_tile_to_selection(t))
+            widget.bind("<Enter>", lambda e, text=hover_text: self.hover_info_label.config(text=text))
+            widget.bind("<Leave>", lambda e: self.hover_info_label.config(text=" "))
+
+        self.palette_swatch_frames[tile_id] = frame
+
+    def _apply_tile_to_selection(self, tile_id):
+        if not self.selected_cells:
+            messagebox.showinfo(
+                "No squares selected",
+                "Click one or more grid squares first (shift-click for multiple), then click a tile here."
+            )
+            return
+        for (row, col) in self.selected_cells:
+            self._paint_cell(row, col, tile_id)
+
+    def _paint_cell(self, row, col, tile_id):
+        self.scene[row][col] = tile_id
+        photo = ImageTk.PhotoImage(self.tile_images[tile_id])
         self.tile_photo_images.append(photo)
+        label = self.cell_labels[(row, col)]
+        label.config(image=photo)
+        label.image = photo
+
+    # ------------------------------------------------------------------ save/cancel
 
     def save(self):
         self.master.destroy()
