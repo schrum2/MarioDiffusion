@@ -454,6 +454,12 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
     # canonical mm2_tileset_we.json Mario Maker 2 data -- only "MM-Simple"/"MM-Full"
     # below are the unrelated Mega Man tilesets.
     if game in ('mm2', 'MM2'):
+        # render_mm2 lives in MM2_Files/, which isn't on the default import path,
+        # so add that folder before importing it.
+        import sys
+        mm2_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), "MM2_Files")
+        if mm2_files not in sys.path:
+            sys.path.insert(0, mm2_files)
         from render_mm2 import _render_mm2_samples
         image = _render_mm2_samples(sample_indices, output_dir, start_index, prompts)
         # Match visualize_samples' contract: with output_dir it saved the PNGs and
