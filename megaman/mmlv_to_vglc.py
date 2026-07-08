@@ -143,7 +143,9 @@ GIMMICK_E_TO_CHAR = {
     124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
     11: "F",   # falling platform: a solid block that drops when stood on. Verified d6/e11
     43: "x",   # fan: blows Mega Man upward.
-    266:"T",   # teleporter (paired warp gimmick). 
+    266:"T",   # teleporter (paired warp gimmick).
+    65: "T",   # teleporter, another variant (same m/n partner-link + f style fields as e266).
+    267:"#",   # 2-wide horizontal solid block (see TWO_WIDE_E_IDS: expands one tile left)
 }
 
 # d == 7 (pickups): the 'e' subtype id -> VGLC char.  Pickup ids are a small
@@ -201,12 +203,25 @@ LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
 # diagonally up-left with the same char.
 TWO_BY_TWO_E_IDS = {27, 45, 93, 205}
 
+# d == 6 gimmick ids that are 2-wide x 1-tall horizontal blocks. Like the 2x2 blocks these
+# are stored as a single object at the block's RIGHT tile, so on their own they decode to
+# just that one cell and the left tile reads as a gap. mmlv_to_grid expands each to the
+# full 2x1 by also filling the tile directly to the left with the same char.
+TWO_WIDE_E_IDS = {267}
+
 
 def is_2x2_block(cell: dict) -> bool:
     """True if the cell is a d6 gimmick that occupies a 2x2 tile footprint."""
     d = cell.get("d")
     e = cell.get("e")
     return d is not None and int(d) == 6 and e is not None and int(e) in TWO_BY_TWO_E_IDS
+
+
+def is_2x1_block(cell: dict) -> bool:
+    """True if the cell is a d6 gimmick that occupies a 2-wide x 1-tall footprint."""
+    d = cell.get("d")
+    e = cell.get("e")
+    return d is not None and int(d) == 6 and e is not None and int(e) in TWO_WIDE_E_IDS
 
 
 def classify(cell: dict) -> str:
@@ -329,6 +344,9 @@ def mmlv_to_grid(path: Path):
         if is_2x2_block(cell):
             for nx, ny in ((tx - 1, ty), (tx, ty - 1), (tx - 1, ty - 1)):
                 char_cells.setdefault((nx, ny), ch)
+        # A 2-wide horizontal block is stored at its right tile; fill the tile to its left.
+        elif is_2x1_block(cell):
+            char_cells.setdefault((tx - 1, ty), ch)
 
     if not char_cells:
         return []
