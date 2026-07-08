@@ -127,20 +127,28 @@ ENEMY_E_TO_CHAR = {
 # common unmapped id here is e=16, identity unknown).
 GIMMICK_E_TO_CHAR = {
     9:  "B",   # 1x1 breakable block
-    45: "B",   # 2x2 breakable block
+    45: "B",   # 2x2 breakable block (see TWO_BY_TWO_E_IDS: expands to a full 2x2)
+    93: "B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
+    205:"B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
+    27: "B",   # 2x2 weapon-specific breakable block. Every weapon variant shares this one
+               # e id; the required weapon is in the 'o' field (o=1..8 special weapons,
+               # o=9999 default, absent = unassigned), so a single mapping covers them all.
     31: "M",   # moving platform
+    262:"M",   # moving platform, another variant
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
-    4:  "C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward")
-    73: ">",   # conveyor belt (direction resolved in classify(): 'b'=-1 -> left 'E', else right '>')
+    163:"C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward").
+               # Verified d6/e163 against a game-authored test level (three emitters flanking two
+               # water pools + one atop the middle pillar). The earlier e4 id was a misidentification.
+    73: ">",   # conveyor belt (see CONVEYOR_E_IDS; direction resolved in classify(): 'b'=-1 -> 'E', else '>')
+    74: ">",   # conveyor belt, another variant (see CONVEYOR_E_IDS)
     124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
     11: "F",   # falling platform: a solid block that drops when stood on. Verified d6/e11
-               # from a labelled test level (a 6-tile stretch of them).
-    43: "x",   # fan: blows Mega Man upward. Verified d6/e43 from the same test level
-               # (three fans placed below the falling platforms).
-    266:"T",   # teleporter (paired warp gimmick). Verified d6/e266 from a test level of
-               # paired teleporters. Style (f=0..3), partner-destination link (m/n) and
-               # usage-limit (h) all vary per teleporter but collapse to the single T tile.
+    43: "x",   # fan: blows Mega Man upward.
+    266:"T",   # teleporter (paired warp gimmick).
+    65: "T",   # teleporter, another variant (same m/n partner-link + f style fields as e266).
+    267:"#",   # 2-wide horizontal solid block (see TWO_WIDE_E_IDS: expands one tile left)
+    261:"#",   # 2-wide horizontal solid platform, another variant (see TWO_WIDE_E_IDS)
 }
 
 # d == 7 (pickups): the 'e' subtype id -> VGLC char.  Pickup ids are a small
@@ -184,6 +192,45 @@ WATER_E_IDS = (
     | {1210, 1211, 1687}
 )
 
+# Lava: like water, lava is a liquid cell carrying only an 'e' id, but it is a damaging
+# hazard, so it maps to its own tile '!' (a solid/hazard, like spikes) rather than the
+# passable water '~'. Lava has one id per surface/body variant, captured contiguous
+# (1095-1102) from a labelled test level containing one of every lava tile type.
+LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
+
+
+# d == 6 gimmick ids that are 2x2 blocks. Mega Man Maker stores a 2x2 block as a single
+# object whose coordinate is the block's BOTTOM-RIGHT tile, so on its own it decodes to
+# just that one cell and the other three tiles read as gaps. mmlv_to_grid expands each of
+# these to the full 2x2 by also filling the tiles directly above, directly left, and
+# diagonally up-left with the same char.
+TWO_BY_TWO_E_IDS = {27, 45, 93, 205}
+
+# d == 6 gimmick ids that are 2-wide x 1-tall horizontal blocks. Like the 2x2 blocks these
+# are stored as a single object at the block's RIGHT tile, so on their own they decode to
+# just that one cell and the left tile reads as a gap. mmlv_to_grid expands each to the
+# full 2x1 by also filling the tile directly to the left with the same char.
+TWO_WIDE_E_IDS = {261, 267}
+
+# d == 6 gimmick ids that are conveyor belts. Every conveyor of a given type shares one e
+# id (only the belt-art fields f/p differ); classify() reads the 'b' field for the push
+# direction ('b'=-1 -> left 'E', else right '>'). Multiple conveyor types exist (e73, e74).
+CONVEYOR_E_IDS = {73, 74}
+
+
+def is_2x2_block(cell: dict) -> bool:
+    """True if the cell is a d6 gimmick that occupies a 2x2 tile footprint."""
+    d = cell.get("d")
+    e = cell.get("e")
+    return d is not None and int(d) == 6 and e is not None and int(e) in TWO_BY_TWO_E_IDS
+
+
+def is_2x1_block(cell: dict) -> bool:
+    """True if the cell is a d6 gimmick that occupies a 2-wide x 1-tall footprint."""
+    d = cell.get("d")
+    e = cell.get("e")
+    return d is not None and int(d) == 6 and e is not None and int(e) in TWO_WIDE_E_IDS
+
 
 def classify(cell: dict) -> str:
     """Map a cell's object-layer fields to a VGLC character (or None for air)."""
@@ -206,9 +253,10 @@ def classify(cell: dict) -> str:
                 return "^" if (g is not None and int(g) in (90, 270)) else "<"
             return ENEMY_E_TO_CHAR.get(ei, "a")     # unknown enemy -> generic
         if dc == 6:                                 # level object / gimmick block
-            if ei == 73:                            # conveyor belt: 'b'=-1 faces left, else right.
-                # Every conveyor variant shares d6/e73 (only the belt art fields f/p
-                # differ), so gate solely on the id and read 'b' for the push direction.
+            if ei in CONVEYOR_E_IDS:                # conveyor belt: 'b'=-1 faces left, else right.
+                # Within a conveyor family only the belt-art fields (f/p) differ, so gate on
+                # the id and read 'b' for the push direction. Multiple conveyor types exist
+                # (e73, e74, ...), all sharing this same left/right encoding.
                 b = cell.get("b")
                 return "E" if (b is not None and int(b) == -1) else ">"
             return GIMMICK_E_TO_CHAR.get(ei, "#")
@@ -222,11 +270,15 @@ def classify(cell: dict) -> str:
     if i is not None:
         return TILE_I_TO_CHAR.get(int(i))           # None for an unknown tile id
 
-    # Water: liquid cells carry only an 'e' id (no i/d). Every liquid family/variant id
-    # in WATER_E_IDS collapses to the single water tile '~'.
+    # Liquids: a liquid cell carries only an 'e' id (no i/d). Water collapses to the
+    # passable '~'; lava is a damaging hazard, so it collapses to the spike tile 'H'.
     e = cell.get("e")
-    if e is not None and int(e) in WATER_E_IDS:
-        return "~"
+    if e is not None:
+        ei = int(e)
+        if ei in LAVA_E_IDS:
+            return "!"
+        if ei in WATER_E_IDS:
+            return "~"
 
     # Cell exists but carries no recognised tile/object field.
     return None
@@ -291,9 +343,19 @@ def mmlv_to_grid(path: Path):
     char_cells: Dict[Tuple[int,int], str] = {}
     for (_layer, tx, ty), cell in sorted(cells.items(), key=lambda kv: _layer_rank(kv[0][0])):
         ch = classify(cell)
-        if ch is None or (tx, ty) in char_cells:
+        if ch is None:
             continue
-        char_cells[(tx, ty)] = ch
+        if (tx, ty) not in char_cells:
+            char_cells[(tx, ty)] = ch
+        # A 2x2 block is stored as one object at its bottom-right tile; fill the other
+        # three tiles (up, left, up-left) with the same char. setdefault keeps any
+        # higher-priority object already placed there (e.g. a foreground enemy).
+        if is_2x2_block(cell):
+            for nx, ny in ((tx - 1, ty), (tx, ty - 1), (tx - 1, ty - 1)):
+                char_cells.setdefault((nx, ny), ch)
+        # A 2-wide horizontal block is stored at its right tile; fill the tile to its left.
+        elif is_2x1_block(cell):
+            char_cells.setdefault((tx - 1, ty), ch)
 
     if not char_cells:
         return []
@@ -326,7 +388,42 @@ def mmlv_to_grid(path: Path):
         col = tx - min_x
         grid[row][col] = ch
 
+    flood_liquids_down(grid)
+
     return grid
+
+
+# Liquid tiles that fall to fill air beneath them (water '~' and lava '!').
+LIQUID_CHARS = ("~", "!")
+
+
+def flood_liquids_down(grid) -> None:
+    """Flood liquids downward: any air cell directly beneath a liquid becomes that liquid.
+
+    Mega Man Maker only stores the tiles the author painted, so a deep pool often keeps
+    just its surface row(s) of liquid with empty (air) cells underneath. In the VGLC grid
+    that reads as liquid floating over a hole. Here we let each column's liquid fall:
+    scanning top-to-bottom, once a liquid char is seen every contiguous air cell below it
+    ('-' walkable sky or '@' outside-screen) is filled with that same liquid, until a
+    solid/other tile stops the flow. A different liquid switches which liquid is falling
+    (e.g. water beneath lava keeps flooding, now as water), so water '~' and lava '!'
+    each pool correctly.
+    """
+    if not grid:
+        return
+    AIR = ("-", "@")
+    height = len(grid)
+    width = len(grid[0])
+    for col in range(width):
+        liquid = None
+        for row in range(height):
+            ch = grid[row][col]
+            if ch in LIQUID_CHARS:
+                liquid = ch
+            elif liquid is not None and ch in AIR:
+                grid[row][col] = liquid
+            else:
+                liquid = None
 
 def mmlv_to_vglc(path: Path) -> list[str]:
     """Convert one .mmlv to a list of VGLC ASCII row strings.

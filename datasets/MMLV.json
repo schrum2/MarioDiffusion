@@ -25,6 +25,7 @@
         "H": ["solid", "hazard"],
         "C": ["passable", "hazard"],
         "x": ["passable"],
+        "!": ["solid", "hazard"],
         "p": ["enemy", "damaging", "solid", "moving", "penetrable"],
         "r": ["enemy", "damaging", "ranged"],
         "o": ["enemy", "damaging", "spawner"],
