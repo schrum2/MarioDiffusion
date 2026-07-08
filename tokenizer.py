@@ -32,7 +32,7 @@ class Tokenizer:
     def build_vocab(self, dataset_path, min_freq=1):
         token_counter = Counter()
 
-        with open(dataset_path, 'r') as f:
+        with open(dataset_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             for entry in data:
                 caption = entry['caption']
