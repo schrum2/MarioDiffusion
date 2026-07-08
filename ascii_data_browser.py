@@ -19,6 +19,7 @@ from util.sampler import scene_to_ascii
 from util.sampler import SampleOutput
 from models.pipeline_loader import get_pipeline
 #from LodeRunner.loderunner.graphics import *
+import webbrowser
 
 
 class TileViewer(tk.Tk):
@@ -175,6 +176,31 @@ class TileViewer(tk.Tk):
         )
         self.redraw()
 
+    def _update_mmlv_button(self, sample):
+        """Show the 'Play in Mega Man Maker' button only when the current game is a
+        Mega Man variant and the current sample carries an 'mmlvID' field."""
+        is_mm_game = self.game.get() in ("MM-Simple", "MM-Full", "MMLV")
+        mmlv_id = sample.get('mmlvID') if isinstance(sample, dict) else None
+        if is_mm_game and mmlv_id is not None:
+            if not self.play_mmlv_button.winfo_ismapped():
+                self.play_mmlv_button.pack(side=tk.LEFT, padx=5)
+        else:
+            self.play_mmlv_button.pack_forget()
+
+    def open_mmlv_in_browser(self):
+        sample = self.dataset[self.current_sample_idx]
+        mmlv_id = sample.get('mmlvID') if isinstance(sample, dict) else None
+        if mmlv_id is None:
+            return
+
+        try:
+            os.startfile(f"megamaker://?level={mmlv_id}")
+        except Exception as e:
+            # Fall back to the browser version if the app/protocol isn't available
+            print(f"Could not launch Mega Man Maker directly ({e}); opening in browser instead.")
+            url = f"https://megamanmaker.com/?level={mmlv_id}"
+            webbrowser.open(url)
+
     def _update_filter_reason_display(self, sample):
         """Show the filter-reason toggle button and line only for entries that carry filter-reason info"""
         reasons = None
@@ -270,6 +296,10 @@ class TileViewer(tk.Tk):
         # that actually have a 'filter_reason' field.
         self.toggle_filter_reason_button = tk.Button(
             checkbox_frame, text="Show Filter Reason", command=self.toggle_filter_reason
+        )
+
+        self.play_mmlv_button = tk.Button(
+            checkbox_frame, text="Play in Mega Man Maker", command=self.open_mmlv_in_browser
         )
 
         # Line showing the current entry's filter_reason, only while the toggle above is on.
@@ -806,6 +836,7 @@ class TileViewer(tk.Tk):
 
         # Refresh the filter_reason line for this entry (shown only while the toggle is on).
         self._update_filter_reason_display(sample)
+        self._update_mmlv_button(sample)
 
         # Update the text box below the scene. It normally shows the scene's caption(s),
         # but can be toggled to show an optional 'prompt' field when one is present.
