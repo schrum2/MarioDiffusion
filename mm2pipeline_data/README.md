@@ -201,7 +201,7 @@ REM Set the author and displayed level name explicitly.
 python -m mm2pipeline_data swe --input level_overworld.json -o mylevel.swe --user Patrick --name "Test Level"
 ```
 
-## A few conventions
+## Misc Notes
 
 The tileset `mm2_tileset_we.json` is the shared glyph vocabulary — every
 drawable object has to fold onto one of its glyphs (`mm2pipeline_data.tiles` checks
@@ -215,11 +215,3 @@ A level's difficulty and tags aren't in the `.bcd`, so they ride along on the
 side: `extract` writes them to `level_metadata.json`, `toost` folds them into
 the JSONs, `json-to-ascii` copies them into `metadata.json`, and `dataset build`
 attaches them to each sample.
-
-## History
-
-These stages replaced the standalone scripts `extract_mm2_bcd.py`,
-`toost_stuff/batch_convert.py`, `mm2_json_to_ascii.py`,
-`build_dataset_with_ascii.py`, `split_mario_maker_data.py`,
-`mm2_ascii_to_json.py` and `json_to_swe.py` (removed July 2026; see git
-history for the originals).
