@@ -311,8 +311,10 @@ def _mm2_glyph_objids():
     NAME_TO_ID. Shared by mm2_tiles() and the block-stamping renderer so they
     never drift.
     """
-    tileset_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), common_settings.MM2_TILESET)
+    # MM2_TILESET is a repo-root-relative path, but render_mm2 lives in MM2_Files/,
+    # so resolve it against the repo root (one level up), not this script's dir.
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    tileset_path = os.path.join(repo_root, common_settings.MM2_TILESET)
     with open(tileset_path, "r", encoding="utf-8") as f:
         tiles = json.load(f)["tiles"]
     chars = sorted(tiles.keys())
