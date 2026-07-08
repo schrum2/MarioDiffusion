@@ -29,3 +29,5 @@ openai==2.43.0
 
 scikit-learn==1.7.2
 requests==2.34.2
+
+pycryptodome==3.21.0

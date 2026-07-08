@@ -191,3 +191,13 @@ AUGMENT_DATA
 *.offsets.npy
 *.shapes.npy
 *.meta.json
+
+# Mario Maker 2 Pipeline Artifacts
+*.bcd
+*.swe
+
+
+# Stuff I need to add that's currently being ignored
+!MM2_Data/mm2_tileset_we.json
+!MM2_Files/toost_stuff/img/spritesheet.png
+!MM2_Files/toost_stuff/img/tile/22349-0.png
