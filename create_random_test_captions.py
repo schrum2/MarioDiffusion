@@ -37,7 +37,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "Other"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2", "Other"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
     parser.add_argument(
@@ -46,7 +46,12 @@ def parse_args():
         default=False,
         help="Include entrance/exit direction phrases in generated Mega Man captions (off by default)"
     )
-    
+
+    # --game MM2 draws each caption from topics learned off the dataset:
+    parser.add_argument("--min_topics", type=int, default=1, help="Minimum topics per generated MM2 caption")
+    parser.add_argument("--max_topics", type=int, default=8, help="Maximum topics per generated MM2 caption")
+    parser.add_argument("--blob_prob", type=float, default=0.5, help="Chance of adding a 'blob of X' phrase to an MM2 entity that already has a count")
+
     return parser.parse_args()
 
 def main():
@@ -93,6 +98,12 @@ def main():
             describe_absence=args.describe_absence,
             include_entrance_exit=args.include_entrance_exit
         )
+    elif args.game == "MM2":
+        # MM2 topics are learned from the dataset (like "Other" below), so the
+        # generator is built after the dataset is loaded.
+        args.num_tiles = common_settings.MM2_TILE_COUNT
+        args.tileset = common_settings.MM2_TILESET
+        generator = None
     elif args.game == "Other":
         # The generic generator learns its topics from the training data, so it is
         # built after the dataset is loaded (below).
@@ -121,6 +132,23 @@ def main():
         )
         print(generator.describe_topics())
         validation_captions = generate_generic_captions(generator, args)
+        save_captions(validation_captions, args.save_file)
+        return
+
+    # MM2 likewise learns its topic vocabulary from the dataset's captions. The
+    # generator is imported here so other games don't pull in the MM2 tileset.
+    if args.game == "MM2":
+        from captions.MM2_caption_generator import MM2GrammarGenerator
+        generator = MM2GrammarGenerator(
+            captions=list(dataset),
+            tileset=args.tileset,
+            seed=args.seed,
+            min_topics=args.min_topics,
+            max_topics=args.max_topics,
+            blob_prob=args.blob_prob,
+        )
+        print(generator.describe_topics())
+        validation_captions = generate_mm2_captions(generator, args)
         save_captions(validation_captions, args.save_file)
         return
 
@@ -172,6 +200,35 @@ def generate_generic_captions(generator, args):
             print(f"Discarded duplicate: {new_caption}")
             continue
         seen_signatures.add(signature)
+        validation_captions.append(new_caption)
+
+        if len(validation_captions) % 10 == 0:
+            print(f"Valid captions so far {len(validation_captions)}")
+
+    if len(validation_captions) < args.validation_set_size:
+        print(f"Warning: only generated {len(validation_captions)} unique captions "
+              f"after {attempts} attempts (requested {args.validation_set_size}).")
+
+    return validation_captions
+
+def generate_mm2_captions(generator, args):
+    """Generate novel MM2 captions by drawing random topic combinations from the
+    vocabulary learned off the dataset.
+
+    Deduplicates by exact caption text and caps the number of attempts so a small
+    topic vocabulary can't spin forever.
+    """
+    validation_captions = []
+    seen = set()
+    max_attempts = max(10000, args.validation_set_size * 100)
+    attempts = 0
+
+    while len(validation_captions) < args.validation_set_size and attempts < max_attempts:
+        attempts += 1
+        new_caption = generator.generate_sentence()
+        if not new_caption or new_caption in seen:
+            continue
+        seen.add(new_caption)
         validation_captions.append(new_caption)
 
         if len(validation_captions) % 10 == 0:
