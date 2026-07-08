@@ -184,9 +184,9 @@ WATER_E_IDS = (
 
 # Lava: like water, lava is a liquid cell carrying only an 'e' id, but it is a damaging
 # hazard, so it maps to its own tile '!' (a solid/hazard, like spikes) rather than the
-# passable water '~'. Only e=1095 is verified (from a labelled test level); lava likely
-# has more surface/body variants, so extend this set as they are identified.
-LAVA_E_IDS = {1095}
+# passable water '~'. Lava has one id per surface/body variant, captured contiguous
+# (1095-1102) from a labelled test level containing one of every lava tile type.
+LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
 
 
 def classify(cell: dict) -> str:
@@ -334,20 +334,26 @@ def mmlv_to_grid(path: Path):
         col = tx - min_x
         grid[row][col] = ch
 
-    flood_water_down(grid)
+    flood_liquids_down(grid)
 
     return grid
 
 
-def flood_water_down(grid) -> None:
-    """Flood water downward: any air cell directly beneath water becomes water.
+# Liquid tiles that fall to fill air beneath them (water '~' and lava '!').
+LIQUID_CHARS = ("~", "!")
 
-    Mega Man Maker only stores the tiles the author painted, so a deep pool often
-    keeps just its surface row(s) of water with empty (air) cells underneath. In the
-    VGLC grid that reads as water floating over a hole. Here we let each column's water
-    fall: scanning top-to-bottom, once a '~' is seen every contiguous air cell below it
-    ('-' walkable sky or '@' outside-screen) is turned to '~', until a solid/other tile
-    stops the flow. A tile that is itself water keeps the flood going.
+
+def flood_liquids_down(grid) -> None:
+    """Flood liquids downward: any air cell directly beneath a liquid becomes that liquid.
+
+    Mega Man Maker only stores the tiles the author painted, so a deep pool often keeps
+    just its surface row(s) of liquid with empty (air) cells underneath. In the VGLC grid
+    that reads as liquid floating over a hole. Here we let each column's liquid fall:
+    scanning top-to-bottom, once a liquid char is seen every contiguous air cell below it
+    ('-' walkable sky or '@' outside-screen) is filled with that same liquid, until a
+    solid/other tile stops the flow. A different liquid switches which liquid is falling
+    (e.g. water beneath lava keeps flooding, now as water), so water '~' and lava '!'
+    each pool correctly.
     """
     if not grid:
         return
@@ -355,15 +361,15 @@ def flood_water_down(grid) -> None:
     height = len(grid)
     width = len(grid[0])
     for col in range(width):
-        flooding = False
+        liquid = None
         for row in range(height):
             ch = grid[row][col]
-            if ch == "~":
-                flooding = True
-            elif flooding and ch in AIR:
-                grid[row][col] = "~"
+            if ch in LIQUID_CHARS:
+                liquid = ch
+            elif liquid is not None and ch in AIR:
+                grid[row][col] = liquid
             else:
-                flooding = False
+                liquid = None
 
 def mmlv_to_vglc(path: Path) -> list[str]:
     """Convert one .mmlv to a list of VGLC ASCII row strings.
