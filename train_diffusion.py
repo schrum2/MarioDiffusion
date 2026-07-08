@@ -329,9 +329,9 @@ def main():
         # --num_tiles / --tileset so the smaller extended_tiles.json vocabulary
         # (18 ids) can reuse the MM game type without forcing 69 channels.
         if args.num_tiles is None:
-            args.num_tiles = common_settings.MM_EXTENDED_TILE_COUNT
+            args.num_tiles = common_settings.MM2_TILE_COUNT
         if args.tileset is None:
-            args.tileset = common_settings.MM_EXTENDED_TILESET
+            args.tileset = common_settings.MM2_TILESET
     else:
         raise ValueError(f"Unknown game: {args.game}")
 

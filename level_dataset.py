@@ -449,10 +449,10 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
 
     # MM2 reconstructs multi-tile objects from their glyph blocks, so it runs its
     # own per-scene render/save loop instead of the shared tile-paste path below.
-    # "MM" (the train_diffusion game name for the extended mm2_tileset_we.json) and
+    # "MM" (the train_diffusion game name for  mm2_tileset_we.json) and
     # "MM2" are the same Mario Maker 2 data -- only "MM-Simple"/"MM-Full" below are
     # the unrelated Mega Man tilesets.
-    if game in ('mm2', 'MM2', 'MM'):
+    if game in ('mm2', 'MM2'):
         from render_mm2 import _render_mm2_samples
         image = _render_mm2_samples(sample_indices, output_dir, start_index, prompts)
         # Match visualize_samples' contract: with output_dir it saved the PNGs and
