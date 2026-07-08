@@ -357,25 +357,26 @@ def mm_tiles(game):
             (2,0),    #22 'H' = Spikes
             (2,1),    #23 'C' = Fire pillar / hazard emitter
             (2,2),    #24 'x' = Fan (blows upward)
+            (2,3),    #25 '!' = Lava (instant death, like the spike)
 
-            (3,0),    #25 'p' = Foot holder enemy/platform
-            (3,1),    #26 'r' = Sniper Joe enemy
-            (3,3),    #27 'o' = Mambu (flying shell) spawner
-            (3,3),    #28 'n' = Mambu (flying shell)          -- shares (3,3) with the spawner
-            (3,5),    #29 'k' = Killer bullet spawner
-            (3,5),    #30 'j' = Killer bullet                 -- shares (3,5) with the spawner
-            (3,6),    #31 'g' = Spine enemy
-            (3,7),    #32 'c' = Beak enemy
-            (3,8),    #33 'e' = Screw bomber enemy
-            (3,9),    #34 'I' = Tackle fire enemy
-            (3,10),   #35 'i' = Watcher enemy
+            (3,0),    #26 'p' = Foot holder enemy/platform
+            (3,1),    #27 'r' = Sniper Joe enemy
+            (3,3),    #28 'o' = Mambu (flying shell) spawner
+            (3,3),    #29 'n' = Mambu (flying shell)          -- shares (3,3) with the spawner
+            (3,5),    #30 'k' = Killer bullet spawner
+            (3,5),    #31 'j' = Killer bullet                 -- shares (3,5) with the spawner
+            (3,6),    #32 'g' = Spine enemy
+            (3,7),    #33 'c' = Beak enemy
+            (3,8),    #34 'e' = Screw bomber enemy
+            (3,9),    #35 'I' = Tackle fire enemy
+            (3,10),   #36 'i' = Watcher enemy
 
-            (4,1),    #36 '^' = Octopus battery (vertical)
-            (4,1),    #37 '<' = Octopus battery (horizontal)  -- shares (4,1) with the vertical one
-            (4,2),    #38 'f' = Big eye enemy
-            (4,4),    #39 'a' = Met enemy
-            (4,5),    #40 'd' = Picket man enemy
-            (4,6),    #41 'h' = Crazy razy enemy
+            (4,1),    #37 '^' = Octopus battery (vertical)
+            (4,1),    #38 '<' = Octopus battery (horizontal)  -- shares (4,1) with the vertical one
+            (4,2),    #39 'f' = Big eye enemy
+            (4,4),    #40 'a' = Met enemy
+            (4,5),    #41 'd' = Picket man enemy
+            (4,6),    #42 'h' = Crazy razy enemy
 
     ]
 

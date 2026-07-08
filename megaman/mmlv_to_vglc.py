@@ -131,16 +131,14 @@ GIMMICK_E_TO_CHAR = {
     31: "M",   # moving platform
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
-    4:  "C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward")
+    163:"C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward").
+               # Verified d6/e163 against a game-authored test level (three emitters flanking two
+               # water pools + one atop the middle pillar). The earlier e4 id was a misidentification.
     73: ">",   # conveyor belt (direction resolved in classify(): 'b'=-1 -> left 'E', else right '>')
     124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
     11: "F",   # falling platform: a solid block that drops when stood on. Verified d6/e11
-               # from a labelled test level (a 6-tile stretch of them).
-    43: "x",   # fan: blows Mega Man upward. Verified d6/e43 from the same test level
-               # (three fans placed below the falling platforms).
-    266:"T",   # teleporter (paired warp gimmick). Verified d6/e266 from a test level of
-               # paired teleporters. Style (f=0..3), partner-destination link (m/n) and
-               # usage-limit (h) all vary per teleporter but collapse to the single T tile.
+    43: "x",   # fan: blows Mega Man upward.
+    266:"T",   # teleporter (paired warp gimmick). 
 }
 
 # d == 7 (pickups): the 'e' subtype id -> VGLC char.  Pickup ids are a small
@@ -184,6 +182,12 @@ WATER_E_IDS = (
     | {1210, 1211, 1687}
 )
 
+# Lava: like water, lava is a liquid cell carrying only an 'e' id, but it is a damaging
+# hazard, so it maps to its own tile '!' (a solid/hazard, like spikes) rather than the
+# passable water '~'. Only e=1095 is verified (from a labelled test level); lava likely
+# has more surface/body variants, so extend this set as they are identified.
+LAVA_E_IDS = {1095}
+
 
 def classify(cell: dict) -> str:
     """Map a cell's object-layer fields to a VGLC character (or None for air)."""
@@ -222,11 +226,15 @@ def classify(cell: dict) -> str:
     if i is not None:
         return TILE_I_TO_CHAR.get(int(i))           # None for an unknown tile id
 
-    # Water: liquid cells carry only an 'e' id (no i/d). Every liquid family/variant id
-    # in WATER_E_IDS collapses to the single water tile '~'.
+    # Liquids: a liquid cell carries only an 'e' id (no i/d). Water collapses to the
+    # passable '~'; lava is a damaging hazard, so it collapses to the spike tile 'H'.
     e = cell.get("e")
-    if e is not None and int(e) in WATER_E_IDS:
-        return "~"
+    if e is not None:
+        ei = int(e)
+        if ei in LAVA_E_IDS:
+            return "!"
+        if ei in WATER_E_IDS:
+            return "~"
 
     # Cell exists but carries no recognised tile/object field.
     return None
@@ -326,7 +334,36 @@ def mmlv_to_grid(path: Path):
         col = tx - min_x
         grid[row][col] = ch
 
+    flood_water_down(grid)
+
     return grid
+
+
+def flood_water_down(grid) -> None:
+    """Flood water downward: any air cell directly beneath water becomes water.
+
+    Mega Man Maker only stores the tiles the author painted, so a deep pool often
+    keeps just its surface row(s) of water with empty (air) cells underneath. In the
+    VGLC grid that reads as water floating over a hole. Here we let each column's water
+    fall: scanning top-to-bottom, once a '~' is seen every contiguous air cell below it
+    ('-' walkable sky or '@' outside-screen) is turned to '~', until a solid/other tile
+    stops the flow. A tile that is itself water keeps the flood going.
+    """
+    if not grid:
+        return
+    AIR = ("-", "@")
+    height = len(grid)
+    width = len(grid[0])
+    for col in range(width):
+        flooding = False
+        for row in range(height):
+            ch = grid[row][col]
+            if ch == "~":
+                flooding = True
+            elif flooding and ch in AIR:
+                grid[row][col] = "~"
+            else:
+                flooding = False
 
 def mmlv_to_vglc(path: Path) -> list[str]:
     """Convert one .mmlv to a list of VGLC ASCII row strings.

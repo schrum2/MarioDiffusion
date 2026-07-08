@@ -87,6 +87,15 @@ def water_tile(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def lava_tile(x: int, y: int) -> List[str]:
+    # Lava, liquid id 1095 (verified against a labelled level). Like water it is a
+    # liquid-only object (no 'd'), but it is a deadly hazard tile ('!').
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="1095.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def disappearing_block(x: int, y: int) -> List[str]:
     # Appearing/disappearing ("Yoku") block, gimmick id 5.
     return [
@@ -107,10 +116,11 @@ def fake_block(x: int, y: int) -> List[str]:
     ]
 
 def hazard_emitter(x: int, y: int) -> List[str]:
-    # Electric/hazard emitter (the passable 'C' hazard), gimmick id 4.
+    # Electric/hazard emitter (the passable 'C' hazard), gimmick id 163.
+    # Verified d6/e163 against a game-authored test level; the earlier e4 id was wrong.
     return [
         f'o{x},{y}="9999.000000"',
-        f'e{x},{y}="4.000000"',
+        f'e{x},{y}="163.000000"',
         f'd{x},{y}="6.000000"',
         f'a{x},{y}="1.000000"',
     ]
@@ -365,6 +375,7 @@ CHAR_MAP = {
     'x': fan,
     'T': teleporter,
     '~': water_tile,
+    '!': lava_tile,
     'Z': orb_tile,
     'P': player_tile,
     'C': hazard_emitter,
