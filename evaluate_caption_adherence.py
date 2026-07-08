@@ -86,6 +86,7 @@ GAME_SETTINGS = {
  }
 
 # Jacob: The fact that args.mm is used for Mega Man is confusing and should be fixed.
+# Jacob: This should be moved into a util file accessed by many other scripts
 def resolve_game(args):
     """Map the CLI args to (game, num_tiles, tileset, height, width, path_to_json).
 
@@ -109,6 +110,7 @@ def resolve_game(args):
     num_tiles, tileset, height, width = GAME_SETTINGS[game]
     # Lode Runner has always evaluated against its regular caption set, ignoring --json.
     path_to_json = "datasets/LR_LevelsAndCaptions-regular.json" if game == "LR" else args.json
+    # Jacob: Should also return the id_to_char and reverse mappings
     return game, num_tiles, tileset, height, width, path_to_json
 
 def resolve_eval_width_range(args):

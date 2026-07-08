@@ -8,7 +8,7 @@ import numpy as np
 from level_dataset import visualize_samples, samples_to_scenes
 import random
 from create_ascii_captions import save_level_data
-# from create_level_json_data import load_tileset, MM2_EXTRA_TILE | Used in Line 196 that is commented out. No need for it.
+from create_level_json_data import load_tileset # Jacob: added it back, but left out the rest: MM2_EXTRA_TILE  | Used in Line 196 that is commented out. No need for it.
 import util.common_settings as common_settings
 from util.size_utils import dataset_width_range, unet_width_factor, sample_random_width
 from models.pipeline_loader import get_pipeline
@@ -192,10 +192,11 @@ def generate_levels(args):
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Jacob: This was all from Mario Maker, but I removed it. I don't think it is needed.
-    #tile_to_id = load_tileset(args.tileset, extra_tile=MM2_EXTRA_TILE)
-    #id_to_char = {v: k for k, v in tile_to_id.items()}
-    #print(f"Tileset: {len(tile_to_id)} tile types from {args.tileset}")
+    # Jacob: This was all from Mario Maker, but I removed it. Then the code broke, so I added it back, but modified
+    #        It is needed by line 285 below
+    tile_to_id = load_tileset(args.tileset) # , extra_tile=MM2_EXTRA_TILE)
+    id_to_char = {v: k for k, v in tile_to_id.items()}
+    print(f"Tileset: {len(tile_to_id)} tile types from {args.tileset}")
     
     # Load the pipeline
     print(f"Loading model from {args.model_path}...")
