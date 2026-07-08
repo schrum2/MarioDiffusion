@@ -8,7 +8,6 @@ import numpy as np
 from level_dataset import visualize_samples, samples_to_scenes
 import random
 from create_ascii_captions import save_level_data
-from create_level_json_data import load_tileset, MM2_EXTRA_TILE
 import util.common_settings as common_settings
 from util.size_utils import dataset_width_range, unet_width_factor, sample_random_width
 from models.pipeline_loader import get_pipeline
