@@ -134,6 +134,7 @@ GIMMICK_E_TO_CHAR = {
                # e id; the required weapon is in the 'o' field (o=1..8 special weapons,
                # o=9999 default, absent = unassigned), so a single mapping covers them all.
     31: "M",   # moving platform
+    262:"M",   # moving platform, another variant
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
     163:"C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward").
