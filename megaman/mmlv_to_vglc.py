@@ -127,7 +127,9 @@ ENEMY_E_TO_CHAR = {
 # common unmapped id here is e=16, identity unknown).
 GIMMICK_E_TO_CHAR = {
     9:  "B",   # 1x1 breakable block
-    45: "B",   # 2x2 breakable block
+    45: "B",   # 2x2 breakable block (see TWO_BY_TWO_E_IDS: expands to a full 2x2)
+    93: "B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
+    205:"B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
     31: "M",   # moving platform
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
@@ -187,6 +189,21 @@ WATER_E_IDS = (
 # passable water '~'. Lava has one id per surface/body variant, captured contiguous
 # (1095-1102) from a labelled test level containing one of every lava tile type.
 LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
+
+
+# d == 6 gimmick ids that are 2x2 blocks. Mega Man Maker stores a 2x2 block as a single
+# object whose coordinate is the block's BOTTOM-RIGHT tile, so on its own it decodes to
+# just that one cell and the other three tiles read as gaps. mmlv_to_grid expands each of
+# these to the full 2x2 by also filling the tiles directly above, directly left, and
+# diagonally up-left with the same char.
+TWO_BY_TWO_E_IDS = {45, 93, 205}
+
+
+def is_2x2_block(cell: dict) -> bool:
+    """True if the cell is a d6 gimmick that occupies a 2x2 tile footprint."""
+    d = cell.get("d")
+    e = cell.get("e")
+    return d is not None and int(d) == 6 and e is not None and int(e) in TWO_BY_TWO_E_IDS
 
 
 def classify(cell: dict) -> str:
@@ -299,9 +316,16 @@ def mmlv_to_grid(path: Path):
     char_cells: Dict[Tuple[int,int], str] = {}
     for (_layer, tx, ty), cell in sorted(cells.items(), key=lambda kv: _layer_rank(kv[0][0])):
         ch = classify(cell)
-        if ch is None or (tx, ty) in char_cells:
+        if ch is None:
             continue
-        char_cells[(tx, ty)] = ch
+        if (tx, ty) not in char_cells:
+            char_cells[(tx, ty)] = ch
+        # A 2x2 block is stored as one object at its bottom-right tile; fill the other
+        # three tiles (up, left, up-left) with the same char. setdefault keeps any
+        # higher-priority object already placed there (e.g. a foreground enemy).
+        if is_2x2_block(cell):
+            for nx, ny in ((tx - 1, ty), (tx, ty - 1), (tx - 1, ty - 1)):
+                char_cells.setdefault((nx, ny), ch)
 
     if not char_cells:
         return []
