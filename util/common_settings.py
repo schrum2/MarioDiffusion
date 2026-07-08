@@ -13,7 +13,7 @@ MARIO_TILE_COUNT = 13
 
 # Mario Maker 2
 
-# Mario Maker uses the canonical MM2 tileset (mm2_tileset_we.json). The MM data is
+# Mario Maker uses the canonical MM2 tileset (mm2_tileset_we.json). The MM2 data is
 # encoded as sorted(tileset['tiles']) + the appended '_' padding tile, giving 68
 # tile ids (0-67): 67 real tiles plus '_'. The trained block2vec embeddings and the
 # scene data both use this 68-id range, so the tile count must match the tileset.

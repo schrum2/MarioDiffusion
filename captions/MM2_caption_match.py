@@ -1,7 +1,7 @@
-"""Caption comparison for the deterministic MM captions from
+"""Caption comparison for the deterministic MM2 captions from
 MarioMaker_create_ascii_captions.py.
 
-Unlike the fixed keyword list in caption_match.py, MM captions mention whatever
+Unlike the fixed keyword list in caption_match.py, MM2 captions mention whatever
 tiles are present ("Two goombas. A few coins. A blob of coins."), so topics are
 derived from the tileset: each entity name is a topic, and "a blob of X" is a
 separate topic grouped under the same entity (topic_entity). Metadata phrases

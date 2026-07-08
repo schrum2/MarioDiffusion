@@ -320,17 +320,9 @@ def main():
     elif args.game == "MMLV":
         args.num_tiles = common_settings.MMLV_TILE_COUNT
         args.tileset = common_settings.MMLV_TILESET
-    elif args.game == "MM":
-        # Jacob: The comment below came from MarioMakerPCG, but I'm not sure we want to keep supporting
-        # different Mario Maker tilesets. We probably want to settle on a single one with 68 tiles
-
-        # Default to the canonical 68-tile mm2 tileset, but honor an explicit
-        # --num_tiles / --tileset so the smaller extended_tiles.json vocabulary
-        # (18 ids) can reuse the MM game type without forcing 69 channels.
-        if args.num_tiles is None:
-            args.num_tiles = common_settings.MM2_TILE_COUNT
-        if args.tileset is None:
-            args.tileset = common_settings.MM2_TILESET
+    elif args.game == "MM2":
+        args.num_tiles = common_settings.MM2_TILE_COUNT
+        args.tileset = common_settings.MM2_TILESET
     else:
         raise ValueError(f"Unknown game: {args.game}")
 
@@ -904,9 +896,9 @@ def main():
                 # validation sets (e.g. 16 and 32 wide) are scored fairly instead of forcing every
                 # caption to the single fixed scene_width. per_width_scores collects each sample's
                 # score under the width it was generated at, for the per-width adherence plot below.
-                # MM validation needs the MM tools; the SMB defaults misread the
+                # MM2 validation needs the MM2 tools; the SMB defaults misread the
                 # MM2 tile vocabulary.
-                if args.game == "MM" and "mm2" in os.path.basename(args.tileset).lower():
+                if args.game == "MM2":
                     mm2_assign_fn, mm2_compare_fn = mm2_caption_tools(args.tileset)
                 else:
                     mm2_assign_fn = mm2_compare_fn = None
