@@ -433,7 +433,9 @@ def main_build(argv=None):
     parser = argparse.ArgumentParser(description="Build dataset from custom tagged text files.")
     parser.add_argument("--input", required=True, help="Path to a .txt file or a folder of .txt files.")
     parser.add_argument("--output_folder", required=True, help="Output JSON filename.")
-    parser.add_argument("--tileset", required=True, help="Path to tileset JSON.")
+    parser.add_argument("--tileset", default=str(paths.MM2_TILESET_PATH),
+                        help="Path to tileset JSON. Default: the bundled MM2 tileset "
+                             "(MM2_Data/mm2_tileset_we.json).")
     convert_group = parser.add_mutually_exclusive_group()
     convert_group.add_argument("--convert_to_vglc", action="store_true",
                                help="Convert layout to VGLC structure (ascii_to_vglc.py).")
