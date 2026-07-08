@@ -14,6 +14,7 @@ from captions.caption_match import TOPIC_KEYWORDS, BROKEN_TOPICS, KEYWORD_TO_NEG
 import numpy as np
 import util.common_settings as common_settings
 from util.size_utils import compute_size_buckets
+import json_to_npz
 import re
 
 # Global variable to store the loaded sprite sheet
@@ -645,7 +646,7 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None, multiple_captions=False, caption_source_keys=None, require_captions=True, bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1):
+    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None, multiple_captions=False, caption_source_keys=None, require_captions=True, bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1, cache_numpy=True, mmap=True, cache_dir=None):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -683,6 +684,15 @@ class LevelDataset(Dataset):
                 for Mega Man). Required when bucket_levels is set.
             unet_factor (int): Bucket pad dimensions are rounded up to a multiple of this so the
                 padded scenes are denoisable by the UNet (2 ** (num_downsamples)).
+            cache_numpy (bool): If True (default) and json_path is a .json, the converted numpy
+                bundle (see json_to_npz) is written next to the source on first load and reused
+                automatically on later runs, so a resumed/restarted run skips json parsing. A
+                fresh bundle sitting beside the .json is loaded directly even without this flag;
+                set False to avoid writing any cache files.
+            mmap (bool): If True (default), scenes loaded from a numpy bundle are memory-mapped
+                (shared across DataLoader workers, no RAM spike) instead of read fully into RAM.
+            cache_dir (str, optional): Directory for the numpy bundle. Defaults to alongside the
+                source .json.
         """
         assert mode in ["text", "diff_text"], "Mode must be 'text' or 'diff_text'."
 
@@ -714,14 +724,11 @@ class LevelDataset(Dataset):
         self.block_embeddings = block_embeddings # Store block embeddings
         if json_path is None and data_as_list:
             print(f"Data given as list")
-            self.data = data_as_list  
-        elif not os.path.exists(json_path):
-            raise ValueError(f"JSON file does not exist: {json_path}")
+            self.data = data_as_list
+        elif json_path is None or not os.path.exists(json_path):
+            raise ValueError(f"Dataset file does not exist: {json_path}")
         else:
-            # Load data
-            print(f"Loading data from {json_path}...")
-            with open(json_path, 'r') as f:
-                self.data = json.load(f)
+            self.data = self._load_scene_data(json_path, cache_numpy, mmap, cache_dir)
 
         if limit > -1:
             # Random selection of limited portion of data (if limit is less than actual size)
@@ -781,6 +788,66 @@ class LevelDataset(Dataset):
         # that __getitem__ indexes into.
         if self.bucket_levels and self.mode == "diff_text":
             self._build_size_buckets()
+
+    @staticmethod
+    def _compact_scenes_inplace(data):
+        """Convert any list/large-int scenes to compact uint8 (or int16) arrays in place.
+
+        Fallback for datasets we don't cache to a bundle (e.g. caption-only sets or when
+        cache_numpy is off): still removes the ~30x per-tile Python-int overhead in RAM.
+        """
+        for item in data:
+            scene = item.get("scene") if isinstance(item, dict) else None
+            if scene is None:
+                continue
+            arr = np.asarray(scene)
+            if arr.dtype != np.uint8:
+                arr = arr.astype(np.uint8 if arr.size and arr.max() <= 255 else np.int16)
+            item["scene"] = arr
+
+    def _load_scene_data(self, json_path, cache_numpy, mmap, cache_dir):
+        """Load dataset into a list-of-dicts, preferring/producing a compact numpy bundle.
+
+        Accepts a .json source or a prebuilt numpy input (.npy bundle / single-file .npz).
+        For a .json: reuses a fresh cached bundle if present (no json parse); otherwise parses
+        the json and, when cache_numpy is set and every item has a scene, writes a bundle and
+        loads it back (memory-mapped). Scenes always end up as numpy arrays.
+        """
+        lower = json_path.lower()
+        # Prebuilt numpy inputs -- load directly (memmapped for .npy bundles).
+        if lower.endswith((".npy", ".npz")):
+            print(f"Loading numpy dataset from {json_path}...")
+            return json_to_npz.load_any(json_path, mmap=mmap)
+        if not lower.endswith(".json"):
+            raise ValueError(f"Unsupported dataset extension: {json_path}")
+
+        base = json_to_npz.bundle_base(json_path)
+        if cache_dir is not None:
+            base = os.path.join(cache_dir, os.path.basename(base))
+
+        # Fast path: a cached bundle built from the current source. Reused even if
+        # cache_numpy is off (it's already on disk); staleness is checked via source mtime/size.
+        if json_to_npz.bundle_fresh(base, json_path):
+            print(f"Loading cached numpy bundle {base}.scenes.npy (source: {json_path})...")
+            return json_to_npz.load_bundle(base, mmap=mmap)
+
+        print(f"Loading data from {json_path}...")
+        with open(json_path, "r") as f:
+            data = json.load(f)
+
+        # Build + reuse a bundle when caching is on and the dataset is fully scene-bearing.
+        all_scenes = all(isinstance(it, dict) and it.get("scene") is not None for it in data)
+        if cache_numpy and all_scenes:
+            try:
+                print(f"Building numpy bundle at {base}.* ...")
+                json_to_npz.save_bundle(base, data, source_path=json_path)
+                return json_to_npz.load_bundle(base, mmap=mmap)
+            except Exception as e:
+                print(f"[cache_numpy] Could not build bundle ({e}); using in-memory conversion.")
+
+        # No bundle (caching off, caption-only dataset, or save failed): compact in place.
+        self._compact_scenes_inplace(data)
+        return data
 
     def _build_size_buckets(self):
         """Assign each variable-size complete level a shared per-bucket pad shape.
