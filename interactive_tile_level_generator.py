@@ -2370,18 +2370,29 @@ class MegaManLayoutEditor:
             messagebox.showinfo("Empty layout", "Drag at least one scene onto the grid first.")
             return None
 
-        scenes = self.app.composed_scenes
-        dims   = {(len(scenes[i]), len(scenes[i][0])) for i in self.placements.values()}
+        blank_tid = self.app.char_to_id.get("@", 0)
+
+        def strip_leading_blank_rows(scene):
+            """Remove fully-blank rows from the top of a scene so every scene
+            contributes a clean, consistent height when stacked."""
+            start = 0
+            while start < len(scene) and all(tile == blank_tid for tile in scene[start]):
+                start += 1
+            return scene[start:]
+
+        scenes_raw = self.app.composed_scenes
+        # Build a cleaned copy: same scene indices, but with leading blank rows stripped.
+        cleaned_scenes = {i: strip_leading_blank_rows(scenes_raw[i]) for i in self.placements.values()}
+
+        dims = {(len(cleaned_scenes[i]), len(cleaned_scenes[i][0])) for i in self.placements.values()}
         if len(dims) > 1:
             messagebox.showerror(
                 "Mismatched scene sizes",
-                "All scenes must share the same width and height.\n"
+                "All scenes must share the same width and height after removing blank rows.\n"
                 "Found sizes (h×w): " + ", ".join(f"{h}×{w}" for h, w in dims)
             )
             return None
         scene_h, scene_w = next(iter(dims))
-
-        blank_tid = self.app.char_to_id.get("@", 0)
 
         cols    = [c for c, r in self.placements]
         rows    = [r for c, r in self.placements]
@@ -2393,7 +2404,7 @@ class MegaManLayoutEditor:
         merged = [[blank_tid for _ in range(out_w)] for _ in range(out_h)]
 
         for (col, row), scene_index in self.placements.items():
-            scene = scenes[scene_index]
+            scene = cleaned_scenes[scene_index]
             x_off = (col - min_col) * scene_w
             y_off = (row - min_row) * scene_h
             for y, tile_row in enumerate(scene):
