@@ -31,8 +31,7 @@ def parse_args():
     # Dataset args
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
-    # Jacob: In the long term, using MM for Mario Maker is confusing
-    parser.add_argument("--game", type=str, default=None, choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM"], help="Game to evaluate: selects the tileset, scene shape, tile count, and the tiles used for rendering. This is the main way to pick a game, and how Mega Man should be resolved. When omitted, the game is derived from --num_tiles (+ --mm) for backward compatibility.")
+    parser.add_argument("--game", type=str, default=None, choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"], help="Game to evaluate: selects the tileset, scene shape, tile count, and the tiles used for rendering. This is the main way to pick a game, and how Mega Man should be resolved. When omitted, the game is derived from --num_tiles (+ --mm) for backward compatibility.")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     # Jacob: This is confusing to use --mm as Mega Man, because Mario Maker is being added now
     parser.add_argument("--mm", action="store_true", help="Backward-compatible shorthand for Mega Man when --game is not given: routes the 13-tile case to MM-Simple instead of Mario (they share a tile count). Prefer --game MM-Simple / --game MM-Full.")
@@ -83,8 +82,7 @@ GAME_SETTINGS = {
     "MM-Simple": (common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_SIMPLE_TILESET, common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
     "MM-Full":   (common_settings.MM_FULL_TILE_COUNT,   common_settings.MM_FULL_TILESET,   common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
     "MMLV":      (common_settings.MMLV_TILE_COUNT,      common_settings.MMLV_TILESET,      common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
-    # Jacob: I added MM below. I believe the code above was from Fletcher, but obviously did not have a Mario Maker case.
-    "MM":        (common_settings.MM2_TILE_COUNT,common_settings.MM2_TILESET,common_settings.MM2_HEIGHT, common_settings.MM2_WIDTH),
+    "MM2":       (common_settings.MM2_TILE_COUNT,       common_settings.MM2_TILESET,       common_settings.MM2_HEIGHT,     common_settings.MM2_WIDTH),
  }
 
 # Jacob: The fact that args.mm is used for Mega Man is confusing and should be fixed.
@@ -318,13 +316,13 @@ def main():
                     paired.append({"prompt": prompt, "caption": caption, "scene": scene})
                 with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
                     json.dump(paired, f, indent=4)
-            # Jacob: I'm not certain that the same function call here will work for both Mario and MM (Mario Maker)
-            elif game == "Mario" or game == "MM":
+            # Jacob: I'm not certain that the same function call here will work for both Mario and MM2 (Mario Maker)
+            elif game == "Mario" or game == "MM2":
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
             elif game in ("MM-Simple", "MM-Full", "MMLV"):
-                # Same output shape as the no_caption_score MM path: keep the input prompt and a
+                # Same output shape as the no_caption_score MM2 path: keep the input prompt and a
                 # deterministic caption derived from the generated scene so the json opens in
-                # ascii_data_browser.py. Without this branch MM writes nothing when scoring is on.
+                # ascii_data_browser.py. Without this branch MM2 writes nothing when scoring is on.
                 paired = []
                 for prompt, scene in zip(all_prompts, scenes):
                     caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
@@ -366,7 +364,7 @@ def expand_mm2_caption_items(data, all_captions):
 
 
 def mm2_caption_adherence(args, device, pipe, items, tileset):
-    """Generate one scene per item and score it with the MM captioner. Batches
+    """Generate one scene per item and score it with the MM2 captioner. Batches
     are bucketed by scene size (an item's source scene shape, else
     args.height x args.width) since a batch must share one shape. Returns
     (average score, results); each result carries the prompt, scene, its
@@ -406,7 +404,7 @@ def mm2_caption_adherence(args, device, pipe, items, tileset):
 
             if args.save_image_samples:
                 visualize_samples(samples, args.output_dir, start_index=len(results),
-                                  prompts=captions, game="MM")
+                                  prompts=captions, game="MM2")
 
             scenes = samples_to_scenes(samples)
             for item, scene in zip(batch, scenes):
