@@ -7,6 +7,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--target", type=int, default=100, help="Number of valid levels to download")
+parser.add_argument("--start_id", type=int, default=200000, help="The level ID of the starting point of the bulk download (higher = more recent)")
 args = parser.parse_args()
 
 TARGET_DOWNLOADS = args.target
@@ -28,7 +29,7 @@ if not os.path.exists(LOG_FILE):
 
 downloaded = 0
 failed = 0
-level_id = 200000
+level_id = args.start_id
 
 
 while downloaded < TARGET_DOWNLOADS:

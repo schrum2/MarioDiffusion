@@ -55,7 +55,7 @@ MM_TILESET_DICT = {
         "e": "Stationary, ranged Screw Driver enemy",
         "m": "Jumping exploding Bombombomb enemy",
         "i": "Floating, ranged Watcher enemy",
-        "b": "Flying Bunby Heli enemy",
+        "b": "Flying Bunby Heli enemy (green)",
         "a": "Stationary, ranged Met enemy",
         "d": "Ranged Pickelman enemy",
         "h": "Crazy Razy enemy",

@@ -80,7 +80,8 @@ def lr_tile(descs):
 def mm_tile(descs):
     """Descriptors -> MegaManState tile ids. Static hazards (spikes, fire pillars)
     stay deadly, but enemies are treated as passable empty (the agent is assumed to
-    deal with them). 'penetrable' solids (e.g. appearing blocks) are also passable"""
+    deal with them). Appearing/disappearing blocks ("A") are solid ground, so the agent
+    can stand on them instead of falling through their "passable" descriptor."""
     if "null" in descs:
         return mm.MEGA_MAN_TILE_NULL          # 9: out-of-bounds padding
     if "climbable" in descs:
@@ -95,9 +96,14 @@ def mm_tile(descs):
         return mm.MEGA_MAN_TILE_HAZARD         # 3: spikes / fire pillars stay deadly
     if "moving" in descs:
         return mm.MEGA_MAN_TILE_MOVING_PLATFORM  # 5
-    if "solid" in descs and "penetrable" not in descs:
+    # Any remaining solid is ground -- crucially including "penetrable" solids like the
+    # appearing/disappearing block ("A"), which carries both "solid" and "passable". The
+    # other penetrable solids (breakable "B", moving "M", solid enemies) are already
+    # classified above, so only the appearing/disappearing block reaches here; treating
+    # it as ground lets the agent stand on those blocks rather than fall through them.
+    if "solid" in descs:
         return mm.MEGA_MAN_TILE_GROUND         # 1
-    return mm.MEGA_MAN_TILE_EMPTY              # 0 (empty, passable, penetrable solids, items)
+    return mm.MEGA_MAN_TILE_EMPTY              # 0 (empty, passable, items)
 
 
 def translate_scene(scene, id_to_char, tile_descriptors, tile_fn):

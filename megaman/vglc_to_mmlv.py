@@ -115,6 +115,37 @@ def hazard_emitter(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def falling_platform(x: int, y: int) -> List[str]:
+    # Falling platform, gimmick id 11: a solid block that drops when stood on.
+    # Verified d6/e11 against a labelled test level.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="11.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def fan(x: int, y: int) -> List[str]:
+    # Fan, gimmick id 43: blows Mega Man upward. Verified d6/e43 against a labelled test level.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="43.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def teleporter(x: int, y: int) -> List[str]:
+    # Teleporter, gimmick id 266. Verified d6/e266 against a labelled test level. Every
+    # teleporter style maps to this one tile. NOTE: real teleporters come in linked pairs
+    # (the m/n fields point at a partner's coords); this emitter places a bare, unlinked
+    # teleporter, so a generated one loads but won't warp anywhere until pairing logic exists.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="266.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def weapon_energy(x: int, y: int) -> List[str]:
     # The Magnet Beam ('U') has no Mega Man Maker equivalent, so it is emitted as a
     # small weapon-energy pickup (pickup id 3) per the project decision to fold it in.
@@ -330,6 +361,9 @@ CHAR_MAP = {
     'M': moving_platform,
     '>': conveyor_right,
     'E': conveyor_left,
+    'F': falling_platform,
+    'x': fan,
+    'T': teleporter,
     '~': water_tile,
     'Z': orb_tile,
     'P': player_tile,

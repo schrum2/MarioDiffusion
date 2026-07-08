@@ -19,7 +19,7 @@ set TIMING_LOG=timing_logs\%MODEL_DIR%.jsonl
 if exist "%TIMING_LOG%" del "%TIMING_LOG%"
 python log_timestamp.py --log_file %TIMING_LOG% --status start --event "MM_conditional-filtered pipeline start"
 
-python create_megaman_json_data.py --output datasets\MM_Levels-simple%WIDTH%-filtered.json --group_encodings --traversable_only --target_width %WIDTH% --target_height %HEIGHT%
+python create_megaman_json_data.py --output datasets\MM_Levels-simple%WIDTH%-filtered.json --group_encodings --target_width %WIDTH% --target_height %HEIGHT%
 python log_timestamp.py --log_file %TIMING_LOG% --event "scene sampling to JSON"
 
 python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple%WIDTH%-filtered.json --tileset datasets\MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple%WIDTH%-filtered-regular.json
