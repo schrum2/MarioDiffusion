@@ -79,8 +79,7 @@ python -m mm2pipeline_data dataset build --input out\ascii --output_folder datas
 
 REM    Useful options: --strip_goal (train without flagpoles), --window_h/--window_w,
 REM    --min_tiles_pct (drop mostly-air windows; rejects go to *_dropped.json),
-REM    --with_images (crop the matching PNG slice per sample),
-REM    --convert_to_extended / --convert_to_vglc (alternate tile vocabularies).
+REM    --with_images (crop the matching PNG slice per sample).
 
 REM 5. Split into train/validate/test (writes dataset-train.json etc.).
 python -m mm2pipeline_data dataset split --input dataset.json --seed 0
@@ -160,9 +159,6 @@ python -m mm2pipeline_data dataset build --input out\ascii --output_folder datas
 
 REM Train without flagpoles, and crop the matching PNG slice per sample.
 python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --tileset mm2_tileset_we.json --sliding_window --strip_goal --with_images
-
-REM Extended tile vocabulary instead of the base one.
-python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --tileset extended_tiles.json --convert_to_extended --sliding_window --stride 20
 ```
 
 ### dataset split

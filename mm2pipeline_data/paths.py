@@ -18,8 +18,6 @@ def repo_path(*parts) -> Path:
 # MM2 assets live under MM2_Data/ and MM2_Files/ in this repo (not the repo root).
 # Canonical training tileset — the source of truth for the ASCII vocabulary.
 MM2_TILESET_PATH = repo_path("MM2_Data", "mm2_tileset_we.json")
-EXTENDED_TILESET_PATH = repo_path("extended_tiles.json")
-SMB_TILESET_PATH = repo_path("smb.json")
 
 # Bundled toost.exe + its sprite/font assets.
 TOOST_DIR = repo_path("MM2_Files", "toost_stuff")

@@ -288,8 +288,7 @@ def detect_goal_chars(tileset_path):
 
 
 def load_converter(filename, module_name):
-    """Load one of the repo-root ASCII converter scripts (mm2view_to_extended.py,
-    ascii_to_vglc.py) by path."""
+    """Load one of the repo-root ASCII converter scripts (ascii_to_vglc.py) by path."""
     import importlib.util
     path = str(paths.repo_path(filename))
     if not os.path.isfile(path):
@@ -436,8 +435,6 @@ def main_build(argv=None):
     convert_group = parser.add_mutually_exclusive_group()
     convert_group.add_argument("--convert_to_vglc", action="store_true",
                                help="Convert layout to VGLC structure (ascii_to_vglc.py).")
-    convert_group.add_argument("--convert_to_extended", action="store_true",
-                               help="Convert layout to extended tile format (mm2view_to_extended.py).")
     parser.add_argument("--window_h", type=int, default=WINDOW_H,
                         help=f"Window height in tiles. Default: {WINDOW_H}.")
     parser.add_argument("--window_w", type=int, default=WINDOW_W,
@@ -496,16 +493,12 @@ def main_build(argv=None):
     # Convert the percentage threshold into a tile count against the actual window size.
     min_tiles = math.ceil((args.min_tiles_pct / 100.0) * WINDOW_H * WINDOW_W)
 
-    if args.with_images and (args.convert_to_vglc or args.convert_to_extended):
-        parser.error("--with_images cannot be combined with --convert_to_vglc / "
-                     "--convert_to_extended: the rendered PNGs match the native "
-                     "MM2 grid, not the converted tile layout.")
+    if args.with_images and args.convert_to_vglc:
+        parser.error("--with_images cannot be combined with --convert_to_vglc: "
+                     "the rendered PNGs match the native MM2 grid, not the "
+                     "converted tile layout.")
 
-    # --convert_to_extended needs the extended glyphs; if the caller left the
-    # base smb tileset in place, quietly point it at extended_tiles.json.
     tileset_path = args.tileset
-    if args.convert_to_extended and Path(tileset_path).resolve() == paths.SMB_TILESET_PATH.resolve():
-        tileset_path = str(paths.EXTENDED_TILESET_PATH)
     tile_to_id, extra_tile = load_tileset(tileset_path)
 
     default_empty_char = detect_empty_char(tileset_path)
@@ -514,12 +507,6 @@ def main_build(argv=None):
     converter_mod = None
     if args.convert_to_vglc:
         converter_mod = load_converter("ascii_to_vglc.py", "ascii_to_vglc")
-    elif args.convert_to_extended:
-        converter_mod = load_converter("mm2view_to_extended.py", "mm2view_to_extended")
-        # Reduce onto the same tileset we encode against, so the converter's surviving
-        # glyphs are exactly this tileset's ids (e.g. extended_tiles_30.json), not the
-        # converter's default extended_tiles.json.
-        converter_mod.set_target(tileset_path)
 
     keep_dropped = not args.no_dropped
 
