@@ -79,7 +79,8 @@ python -m mm2pipeline_data dataset build --input out\ascii --output_folder datas
 
 REM    Useful options: --strip_goal (train without flagpoles), --window_h/--window_w,
 REM    --min_tiles_pct (drop mostly-air windows; rejects go to *_dropped.json),
-REM    --with_images (crop the matching PNG slice per sample).
+REM    --with_images (crop the matching PNG slice per sample),
+REM    --captions (fold in deterministic captions; add --build_tokenizer for the .pkl).
 
 REM 5. Split into train/validate/test (writes dataset-train.json etc.).
 python -m mm2pipeline_data dataset split --input dataset.json --seed 0

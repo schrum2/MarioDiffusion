@@ -287,12 +287,14 @@ def detect_goal_chars(tileset_path):
     return goal or {"G"}
 
 
-def load_converter(filename, module_name):
-    """Load one of the repo-root ASCII converter scripts (ascii_to_vglc.py) by path."""
+def load_repo_module(filename, module_name):
+    """Import a repo-root helper script by path. The ASCII converter, the
+    deterministic captioner and the tokenizer live at the repo root rather than in
+    this package, so the build reaches them here instead of as package imports."""
     import importlib.util
     path = str(paths.repo_path(filename))
     if not os.path.isfile(path):
-        sys.exit(f"ERROR: Converter module missing from {path}")
+        sys.exit(f"ERROR: Required module missing from {path}")
     spec = importlib.util.spec_from_file_location(module_name, path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -483,6 +485,17 @@ def main_build(argv=None):
                              "metadata. If omitted, a 'metadata.json' sitting in "
                              "the input folder (or next to a single input file) is "
                              "picked up automatically.")
+    parser.add_argument("--captions", action="store_true",
+                        help="Assign a deterministic, rule-based caption to every "
+                             "sample -- a ground/floor summary plus per-tile counts "
+                             "and blob callouts, read from the tileset tags and the "
+                             "level metadata -- and store it in the 'caption' field.")
+    parser.add_argument("--build_tokenizer", action="store_true",
+                        help="After captioning, build the caption tokenizer vocabulary "
+                             "from the dataset and save it as a .pkl. Requires --captions.")
+    parser.add_argument("--tokenizer_output", default=None,
+                        help="Where to write the tokenizer .pkl when --build_tokenizer "
+                             "is set. Default: '<output>_tokenizer.pkl'.")
     args = parser.parse_args(argv)
 
     # Push the requested sizes into the module globals before any extraction.
@@ -498,6 +511,13 @@ def main_build(argv=None):
                      "the rendered PNGs match the native MM2 grid, not the "
                      "converted tile layout.")
 
+    if args.captions and args.convert_to_vglc:
+        parser.error("--captions cannot be combined with --convert_to_vglc: captions "
+                     "are read against the native MM2 tile ids, not the VGLC layout.")
+    if args.build_tokenizer and not args.captions:
+        parser.error("--build_tokenizer needs --captions: the tokenizer vocabulary is "
+                     "built from the captions this step writes.")
+
     tileset_path = args.tileset
     tile_to_id, extra_tile = load_tileset(tileset_path)
 
@@ -506,7 +526,7 @@ def main_build(argv=None):
 
     converter_mod = None
     if args.convert_to_vglc:
-        converter_mod = load_converter("ascii_to_vglc.py", "ascii_to_vglc")
+        converter_mod = load_repo_module("ascii_to_vglc.py", "ascii_to_vglc")
 
     keep_dropped = not args.no_dropped
 
@@ -676,6 +696,15 @@ def main_build(argv=None):
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(dataset, f, indent=2)
 
+    # Deterministic captions are cheap, so fold them straight into the dataset we
+    # just wrote instead of leaving it for a second pass: the standalone captioner
+    # rewrites output_file in place, adding a "caption" to every sample. The dropped
+    # dataset is left alone -- it exists only for inspection.
+    if args.captions:
+        captioner = load_repo_module("MarioMaker_create_ascii_captions.py",
+                                     "MarioMaker_create_ascii_captions")
+        captioner.generate_captions(str(output_file), tileset_path, str(output_file))
+
     # Save the companion "dropped" dataset of below-min_tiles_pct samples.
     dropped_file = None
     if keep_dropped:
@@ -698,6 +727,16 @@ def main_build(argv=None):
               f"({images_missing} level(s) had no image on this machine).")
         if keep_dropped:
             print(f"Dropped image crops: {dropped_images_saved} saved to {dropped_image_out_dir}.")
+
+    # Build the caption tokenizer from what we just captioned, so a captioned
+    # dataset and its vocabulary come out of a single build.
+    if args.build_tokenizer:
+        tokenizer_path = (Path(args.tokenizer_output) if args.tokenizer_output
+                          else output_file.with_name(f"{output_file.stem}_tokenizer.pkl"))
+        tokenizer = load_repo_module("tokenizer.py", "tokenizer").Tokenizer()
+        tokenizer.build_vocab(str(output_file))
+        tokenizer.save(str(tokenizer_path))
+        print(f"Saved caption tokenizer -> {tokenizer_path}")
 
 # num_tiles = 138 for mm2_tileset_full
 # num_tiles = 68 for mm2_tileset_we
