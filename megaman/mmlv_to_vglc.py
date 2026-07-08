@@ -130,6 +130,9 @@ GIMMICK_E_TO_CHAR = {
     45: "B",   # 2x2 breakable block (see TWO_BY_TWO_E_IDS: expands to a full 2x2)
     93: "B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
     205:"B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
+    27: "B",   # 2x2 weapon-specific breakable block. Every weapon variant shares this one
+               # e id; the required weapon is in the 'o' field (o=1..8 special weapons,
+               # o=9999 default, absent = unassigned), so a single mapping covers them all.
     31: "M",   # moving platform
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
@@ -196,7 +199,7 @@ LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
 # just that one cell and the other three tiles read as gaps. mmlv_to_grid expands each of
 # these to the full 2x2 by also filling the tiles directly above, directly left, and
 # diagonally up-left with the same char.
-TWO_BY_TWO_E_IDS = {45, 93, 205}
+TWO_BY_TWO_E_IDS = {27, 45, 93, 205}
 
 
 def is_2x2_block(cell: dict) -> bool:
