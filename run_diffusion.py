@@ -89,7 +89,7 @@ def parse_args():
         type=str,
         default="Mario",
         # Jacob: Still confusing that MM means Mario Maker and not Mega Man
-        choices=["Mario", "MM", "LR", "MM-Simple", "MM-Full", "MMLV"],
+        choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full", "MMLV"],
         help="Which game to create a model for (affects sample style and tile count)"
     )    
 
@@ -318,7 +318,7 @@ def generate_levels(args):
             lr_save_level_data(scenes, tileset, out_path, False, args.describe_absence)
         elif args.game in ("MM-Simple", "MM-Full", "MMLV"):
             mm_save_level_data(scenes, args.tileset, out_path, False, args.describe_absence)
-        if args.game == "MM": # Jacob: Added for Mario Maker
+        if args.game == "MM2": # Jacob: Added for Mario Maker
             # Jacob: This is the code that was in MarioMakerPCG, but I think it just assigned old style Mario captions to the MM levels.
             #        This should be assigning Mario Maker deterministic captions instead.
             save_level_data(scenes, args.tileset, out_path, False, args.describe_absence, exclude_broken=False)
@@ -347,7 +347,7 @@ if __name__ == "__main__":
         args.num_tiles = common_settings.MMLV_TILE_COUNT
         args.tileset = common_settings.MMLV_TILESET
     # Jacob: but in the meantime, Mario Maker deserves its own case
-    elif args.game == "MM":
+    elif args.game == "MM2":
         args.num_tiles = common_settings.MM2_TILE_COUNT
         args.tileset = common_settings.MM2_TILESET
     else:
