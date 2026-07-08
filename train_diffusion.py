@@ -175,8 +175,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        # Jacob: MM vs MM-Full, etc. is confusing. We need better abbreviations
-        choices=["Mario", "MM", "LR", "MM-Simple", "MM-Full", "MMLV"],
+        choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full", "MMLV"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
 

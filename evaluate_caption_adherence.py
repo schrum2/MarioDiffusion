@@ -438,7 +438,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     game, num_tiles, tileset, height, width, path_to_json = resolve_game(args)
     
-    # MM checkpoints need the MM tools, not the SMB defaults (as in main()).
+    # MM2 checkpoints need the MM2 tools, not the SMB defaults (as in main()).
     assign_caption_fn = compare_captions_fn = None
     if "mm2" in os.path.basename(tileset).lower():
         assign_caption_fn, compare_captions_fn = mm2_caption_tools(tileset)
@@ -661,7 +661,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 elif game in ("MM-Simple", "MM-Full", "MMLV"):
                     actual_caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-                elif game in ("MM", "Mario"): # Jacob: This is new: I think Mario and Mario Maker can call the same function.
+                elif game in ("MM2", "Mario"): # Jacob: This is new: I think Mario and Mario Maker can call the same function.
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 else: # Jacob: Added this failure case
                     raise ValueError(f"Unknown game type: {game}")
@@ -674,7 +674,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     compare_score = lr_compare_captions(caption, actual_caption)
                 elif game in ("MM-Simple", "MM-Full", "MMLV"):
                     compare_score = mm_compare_captions(caption, actual_caption)
-                elif game in ("MM", "Mario"): # Jacob: This is new: I think Mario and Mario Maker can call the same function.
+                elif game in ("MM2", "Mario"): # Jacob: This is new: I think Mario and Mario Maker can call the same function.
                     compare_score = compare_captions(caption, actual_caption)
                 else: # Jacob: Added this failure case
                     raise ValueError(f"Unknown game type: {game}")
