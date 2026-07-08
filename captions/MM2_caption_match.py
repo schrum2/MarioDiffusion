@@ -16,7 +16,10 @@ import sys
 # shadows the root util package. Swap it for the repo root.
 _here = os.path.dirname(os.path.abspath(__file__))
 sys.path[:] = [p for p in sys.path if os.path.abspath(p or os.getcwd()) != _here]
-sys.path.insert(0, os.path.dirname(_here))
+_repo_root = os.path.dirname(_here)
+sys.path.insert(0, _repo_root)
+# MarioMaker_create_ascii_captions.py lives in MM2_Files/, so make that importable too.
+sys.path.insert(0, os.path.join(_repo_root, "MM2_Files"))
 
 import util.common_settings as common_settings
 from MarioMaker_create_ascii_captions import (
