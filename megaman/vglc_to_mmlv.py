@@ -479,7 +479,6 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
                 if is_void_enclosed(rows, row_idx, col_idx,
                                     playable_row_range, col_ranges_per_row):
                     # Treat as air — emit 2a only
-                    out.append(f'2a{x},{y}="1.000000"')
                     screen_y = (y // 224) * 224
                     active_screen_rows.add(screen_y)
                 # else: true outer void — emit nothing
@@ -488,30 +487,32 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
             emitter = CHAR_MAP.get(ch)
             if emitter is None:
                 # Unknown char — treat as air
-                out.append(f'2a{x},{y}="1.000000"')
+                pass
             else:
                 if callable(emitter):
                     out.extend(emitter(x, y))
-                out.append(f'2a{x},{y}="1.000000"')
 
             screen_y = (y // 224) * 224
             active_screen_rows.add(screen_y)
 
-    # 2b screen boundary markers
-    # 2b screen boundary markers — one per screen-sized block that has content
-    screen_rows = set()
+    # 2b screen boundary markers — one per screen-sized block (256x224) that
+    # has content, for EVERY screen column the level spans, not just column 0.
+    screen_blocks: set[tuple[int, int]] = set()
     for row_idx, row in enumerate(rows):
         y = row_idx * TILE_PX
         screen_y = (y // 224) * 224
         for col_idx, ch in enumerate(row):
             if ch != VOID_CHAR:
-                screen_rows.add(screen_y)
+                x = col_idx * TILE_PX
+                screen_x = (x // 256) * 256
+                screen_blocks.add((screen_x, screen_y))
 
     print(f"DEBUG rows height: {len(rows)}")
-    print(f"DEBUG screen_rows: {sorted(screen_rows)}")
+    print(f"DEBUG screen_blocks: {sorted(screen_blocks)}")
 
-    for sy in sorted(screen_rows):
-        out.append(f'2b0,{sy}="0.000000"')
+    for sx, sy in sorted(screen_blocks):
+        out.append(f'2b{sx},{sy}="0.000000"')
+        out.append(f'2a{sx},{sy}="1.000000"')
 
     out += [
         '1t="0.000000"',
