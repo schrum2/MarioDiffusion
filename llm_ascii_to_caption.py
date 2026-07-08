@@ -1,4 +1,7 @@
 """
+
+NEEDS TO BE MERGED WITH MM2_Files/MarioMaker_llm_captions
+
 This script loads Mega Man levels in VGLC-ASCII format and captions them with an LLM
 
 A loop runs over every scene in the dataset, prompting the LLM with the tileset
