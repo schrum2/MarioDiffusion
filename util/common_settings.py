@@ -27,12 +27,12 @@ MARIO_TILE_COUNT = 13
 # Kept as aliases of the canonical MM2 tileset/count above so older "MM_EXTENDED"
 # callers stay in sync.
 MM_EXTENDED_TILE_COUNT = 68
-MM_EXTENDED_TILESET = 'mm2_tileset_we.json'
+MM_EXTENDED_TILESET = 'datasets/mm2_tileset_we.json'
 
 # Mario Maker 2 (the canonical training tileset; see memory/canonical-mm-tileset).
 # Tiles are rendered from img/spritesheet.png using the per-object {x,y,w,h}
 # rectangles in toost's LevelData.hpp ObjectLocation map (see mm2_tiles()).
-MM2_TILESET = 'mm2_tileset_we.json'
+MM2_TILESET = 'datasets/mm2_tileset_we.json'
 MM2_TILE_PIXEL_DIM = 16
 # Jacob: Is 20x20 correct? I thought we switched to 32x32. I guess this is overridden? However, 
 #        I'm using these in evaluate_caption_adherence.py now

@@ -18,7 +18,6 @@ from evaluate_caption_adherence import calculate_caption_score_and_samples
 from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
 from captions.util import extract_tileset
-from transformers import AutoTokenizer, AutoModel
 import util.common_settings as common_settings
 from util.plotter import plot_scores_by_width
 from torch.distributions import Categorical
