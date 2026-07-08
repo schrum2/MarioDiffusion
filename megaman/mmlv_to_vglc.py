@@ -139,13 +139,15 @@ GIMMICK_E_TO_CHAR = {
     163:"C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward").
                # Verified d6/e163 against a game-authored test level (three emitters flanking two
                # water pools + one atop the middle pillar). The earlier e4 id was a misidentification.
-    73: ">",   # conveyor belt (direction resolved in classify(): 'b'=-1 -> left 'E', else right '>')
+    73: ">",   # conveyor belt (see CONVEYOR_E_IDS; direction resolved in classify(): 'b'=-1 -> 'E', else '>')
+    74: ">",   # conveyor belt, another variant (see CONVEYOR_E_IDS)
     124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
     11: "F",   # falling platform: a solid block that drops when stood on. Verified d6/e11
     43: "x",   # fan: blows Mega Man upward.
     266:"T",   # teleporter (paired warp gimmick).
     65: "T",   # teleporter, another variant (same m/n partner-link + f style fields as e266).
     267:"#",   # 2-wide horizontal solid block (see TWO_WIDE_E_IDS: expands one tile left)
+    261:"#",   # 2-wide horizontal solid platform, another variant (see TWO_WIDE_E_IDS)
 }
 
 # d == 7 (pickups): the 'e' subtype id -> VGLC char.  Pickup ids are a small
@@ -207,7 +209,12 @@ TWO_BY_TWO_E_IDS = {27, 45, 93, 205}
 # are stored as a single object at the block's RIGHT tile, so on their own they decode to
 # just that one cell and the left tile reads as a gap. mmlv_to_grid expands each to the
 # full 2x1 by also filling the tile directly to the left with the same char.
-TWO_WIDE_E_IDS = {267}
+TWO_WIDE_E_IDS = {261, 267}
+
+# d == 6 gimmick ids that are conveyor belts. Every conveyor of a given type shares one e
+# id (only the belt-art fields f/p differ); classify() reads the 'b' field for the push
+# direction ('b'=-1 -> left 'E', else right '>'). Multiple conveyor types exist (e73, e74).
+CONVEYOR_E_IDS = {73, 74}
 
 
 def is_2x2_block(cell: dict) -> bool:
@@ -245,9 +252,10 @@ def classify(cell: dict) -> str:
                 return "^" if (g is not None and int(g) in (90, 270)) else "<"
             return ENEMY_E_TO_CHAR.get(ei, "a")     # unknown enemy -> generic
         if dc == 6:                                 # level object / gimmick block
-            if ei == 73:                            # conveyor belt: 'b'=-1 faces left, else right.
-                # Every conveyor variant shares d6/e73 (only the belt art fields f/p
-                # differ), so gate solely on the id and read 'b' for the push direction.
+            if ei in CONVEYOR_E_IDS:                # conveyor belt: 'b'=-1 faces left, else right.
+                # Within a conveyor family only the belt-art fields (f/p) differ, so gate on
+                # the id and read 'b' for the push direction. Multiple conveyor types exist
+                # (e73, e74, ...), all sharing this same left/right encoding.
                 b = cell.get("b")
                 return "E" if (b is not None and int(b) == -1) else ">"
             return GIMMICK_E_TO_CHAR.get(ei, "#")
