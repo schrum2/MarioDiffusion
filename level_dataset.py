@@ -838,7 +838,7 @@ class LevelDataset(Dataset):
             return json_to_npz.load_bundle(base, mmap=mmap)
 
         print(f"Loading data from {json_path}...")
-        with open(json_path, "r") as f:
+        with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         # Build + reuse a bundle when caching is on and the dataset is fully scene-bearing.
