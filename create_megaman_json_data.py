@@ -10,6 +10,7 @@ import os
 import sys
 import random
 import time
+import re
 
 
 #Snap mode: number of null padding rows added on top of each wide (horizontal) scene,
@@ -367,6 +368,14 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
           f"({', '.join(f'{r}={reason_counts[r]}' for r in FILTER_REASONS)}).")
     return kept, filtered
 
+def extract_mmlv_id(filename):
+    """Pull the Mega Man Maker level ID out of an MMLV-derived ASCII filename.
+    Assumes the numeric level ID appears as a standalone run of digits somewhere in
+    the filename (e.g. '427439_LevelName.txt' or 'LevelName_427439.txt'). Returns the
+    ID as an int, or None if no digits are found (e.g. non-MMLV source levels)."""
+    match = re.search(r'\d+', filename)
+    return int(match.group()) if match else None
+
 
 def main():
 
@@ -403,6 +412,7 @@ def main():
         #can be traced back to exactly where it came from. Falls back to the index if
         #level_files is ever shorter than levels for some reason.
         source_level_name = level_files[i].name if i < len(level_files) else f"level_{i}"
+        mmlv_id = extract_mmlv_id(source_level_name)
 
         try:
             if args.scan_mode == 'snap':
@@ -547,7 +557,8 @@ def main():
                 "source_level": source_level_name,
                 "source_x": src_x,
                 "source_y": src_y,
-                "scan_mode": mode_tag
+                "scan_mode": mode_tag,
+                "mmlvID": mmlv_id
             })
 
     print(f"Removed {duplicates_removed} duplicate samples")
