@@ -918,6 +918,7 @@ def main():
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width,
                     match_scene_width=True, per_width_scores=per_width_scores,
+                    game=args.game,
                     assign_caption_fn=mm2_assign_fn, compare_captions_fn=mm2_compare_fn # Jacob: I'm not sure this is really needed here
                 )
                 # Collapse the per-width score lists into a mean score per width for this epoch.
