@@ -84,7 +84,7 @@ GAME_SETTINGS = {
     "MM-Full":   (common_settings.MM_FULL_TILE_COUNT,   common_settings.MM_FULL_TILESET,   common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
     "MMLV":      (common_settings.MMLV_TILE_COUNT,      common_settings.MMLV_TILESET,      common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
     # Jacob: I added MM below. I believe the code above was from Fletcher, but obviously did not have a Mario Maker case.
-    "MM":        (common_settings.MM_EXTENDED_TILE_COUNT,common_settings.MM_EXTENDED_TILESET,common_settings.MM2_HEIGHT, common_settings.MM2_WIDTH),
+    "MM":        (common_settings.MM2_TILE_COUNT,common_settings.MM2_TILESET,common_settings.MM2_HEIGHT, common_settings.MM2_WIDTH),
  }
 
 # Jacob: The fact that args.mm is used for Mega Man is confusing and should be fixed.
