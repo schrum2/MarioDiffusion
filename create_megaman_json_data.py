@@ -183,8 +183,11 @@ def parse_args():
     parser.add_argument('--min_content_pct', type=float, default=7, help='Filter out scenes where less than this percent of tiles are real content (not empty/passable/null). E.g. 15 requires at least 15%% non-empty tiles.')
     parser.add_argument('--min_playable_tiles', type=int, default=10, help='Filter out scenes where a flood fill starting from the border reaches fewer than this many open (non-wall, non-null) tiles -- i.e. scenes with almost no playable area connected to their edges. Default 10 (out of 224 in a 16x14 scene); set to 0 to disable.')
     parser.add_argument('--min_content_path_len', type=int, default=14, help='Low-content rescue: a scene flagged as low-content is kept anyway if the A* agent can traverse it along a path at least this many steps long (default 14, a little under the scene width). This spares genuinely sparse-but-playable scenes (e.g. spread-out parkour rooms). Set to 0 to disable the rescue.')
+    parser.add_argument('--limit', type=int, default=None, help='Cap the number of kept samples saved to --output. Applied after filtering; the first N kept samples are written. Omit for no cap.')
 
     args = parser.parse_args()
+    if args.limit is not None and args.limit < 0:
+        parser.error("--limit must be >= 0")
     if args.stride_x < 1 or args.stride_y < 1:
         parser.error("--stride_x and --stride_y must be >= 1")
     return args
@@ -584,6 +587,12 @@ def main():
             min_content_pct=args.min_content_pct, min_playable_tiles=args.min_playable_tiles,
             min_content_path_len=args.min_content_path_len,
         )
+
+    #Cap the number of saved samples if requested. Applied after filtering so the limit
+    #counts only kept (quality-passing) samples; the first N are written.
+    if args.limit is not None and len(all_samples) > args.limit:
+        print(f"--limit: capping saved samples at {args.limit} (from {len(all_samples)})")
+        all_samples = all_samples[:args.limit]
 
     output = args.output
     with open(output, 'w') as f:
