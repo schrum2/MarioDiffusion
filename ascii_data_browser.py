@@ -729,6 +729,10 @@ class TileViewer(tk.Tk):
     def save_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
+            # Mario Maker saves a .swe into SMM:WE's level folder instead of a .txt
+            if self.game.get() == "MM2":
+                self._save_composed_swe()
+                return
             # Always open in the current working directory or a subfolder
             initial_dir = os.path.join(os.getcwd(), "Composed Levels")
             os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
@@ -1477,6 +1481,10 @@ class TileViewer(tk.Tk):
     def play_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
+            # Mario Maker exports a .swe into SMM:WE's level folder and launches the game
+            if self.game.get() == "MM2":
+                self._play_composed_swe()
+                return
             level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             if self.game.get() =="LR" and not self.validate_lode_runner_level(scene):
                 print("Invalid Lode Runner level. Cannot play.")
@@ -1550,6 +1558,103 @@ class TileViewer(tk.Tk):
             # MM2 has no Java sim (it uses the Python A* path)
             raise ValueError(f"get_sample_output: no simulator for game {self.game.get()!r}")
         return level
+
+    def _smmwe_niveles_dir(self):
+        """SMM:WE's level folder, %LOCALAPPDATA%\\SMM_WE\\Niveles. Falls back to a
+        local folder when LOCALAPPDATA isn't set (non-Windows)."""
+        base = os.environ.get("LOCALAPPDATA")
+        if base:
+            return os.path.join(base, "SMM_WE", "Niveles")
+        return os.path.join(os.getcwd(), "Niveles")
+
+    def _smmwe_exe_path(self):
+        """Path to SMM_WE.exe (installs to Program Files\\SMMWE), or None."""
+        for env in ("ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"):
+            base = os.environ.get(env)
+            if base:
+                exe = os.path.join(base, "SMMWE", "SMM_WE.exe")
+                if os.path.isfile(exe):
+                    return exe
+        return None
+
+    def _compose_swe_bytes(self, name):
+        """Convert the merged composed scene to a .swe (ascii -> json -> swe).
+        Returns (swe_bytes, dropped_counts)."""
+        from mm2pipeline_data.ascii import ascii_to_level
+        from mm2pipeline_data.swe import build_world, encode_swe, detect_smmwe_user
+        from datetime import datetime
+
+        # Keep the full scene (no 15-row A* trim). '_' is padding, not a real tile,
+        # but the converter reads it as Goal Ground, so treat it as empty space.
+        char_grid = scene_to_ascii(self.merge_selected_scenes(), self.id_to_char, shorten=False)
+        ascii_text = "\n".join(row.replace("_", " ") for row in char_grid)
+
+        level_json = ascii_to_level(ascii_text, source_file=name)
+
+        now = datetime.now()
+        s0, dropped = build_world(
+            level_json,
+            user=detect_smmwe_user(),
+            name=name,
+            desc=None,
+            date_str=now.strftime("%d/%m/%Y"),
+            time_str=now.strftime("%H:%M"),
+        )
+        return encode_swe({"S0": s0, "SB1": {"S1": []}}), dropped
+
+    @staticmethod
+    def _report_dropped(dropped):
+        if dropped:
+            total = sum(dropped.values())
+            summary = ", ".join(f"{n}x {nm}" for nm, n in
+                                sorted(dropped.items(), key=lambda kv: -kv[1]))
+            print(f"  dropped {total} object(s) with no SMM:WE equivalent: {summary}")
+
+    def _save_composed_swe(self):
+        """Save the composed scene as a .swe, prompting for a name in Niveles."""
+        niveles_dir = self._smmwe_niveles_dir()
+        os.makedirs(niveles_dir, exist_ok=True)
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".swe",
+            filetypes=[("SMM:WE level", "*.swe")],
+            title="Save Composed Level to SMM:WE",
+            initialdir=niveles_dir,
+            initialfile="composed_level.swe",
+        )
+        if not file_path:
+            print("Save operation cancelled.")
+            return
+
+        name = os.path.splitext(os.path.basename(file_path))[0]
+        swe_bytes, dropped = self._compose_swe_bytes(name)
+        with open(file_path, "wb") as f:
+            f.write(swe_bytes)
+        print(f"Composed level exported to {file_path} ({len(swe_bytes)} bytes)")
+        self._report_dropped(dropped)
+
+    def _play_composed_swe(self):
+        """Save the composed level to Niveles and launch SMM:WE. There's no way
+        to boot straight into a level, so you pick 'composed_level' in-game."""
+        import subprocess
+
+        name = "composed_level"
+        niveles_dir = self._smmwe_niveles_dir()
+        os.makedirs(niveles_dir, exist_ok=True)
+        swe_bytes, dropped = self._compose_swe_bytes(name)
+        out_path = os.path.join(niveles_dir, name + ".swe")
+        with open(out_path, "wb") as f:
+            f.write(swe_bytes)
+        print(f"Composed level exported to {out_path} ({len(swe_bytes)} bytes)")
+        self._report_dropped(dropped)
+
+        exe = self._smmwe_exe_path()
+        if exe is None:
+            print("SMM:WE executable not found (looked in Program Files\\SMMWE). "
+                  f"Open SMM:WE manually and pick '{name}' from the level browser.")
+            return
+        # run from the install dir so the game finds data.win
+        subprocess.Popen([exe], cwd=os.path.dirname(exe))
+        print(f"Launched SMM:WE -- open the level browser and play '{name}'.")
 
     def show_caption_context_menu(self, event):
         try:
