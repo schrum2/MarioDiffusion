@@ -1571,7 +1571,7 @@ def parse_args():
         help="Which game to create a model for (affects sample style and tile count)"
     )
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
-    parser.add_argument("--load_data", type=str, default="datasets/MM_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
+    parser.add_argument("--load_data", type=str, default="datasets/Mar1and2_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
     parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     return parser.parse_args()
 
