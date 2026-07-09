@@ -519,7 +519,7 @@ class TileViewer(tk.Tk):
         # Add buttons to test play the composed level
         self.play_composed_button = tk.Button(self.composed_frame, text="Play Composed Level", command=self.play_composed_level)
         self.play_composed_button.pack(side=tk.LEFT, padx=2)
-        self.astar_composed_button = tk.Button(self.composed_frame, text="Use A* on Composed Level", command=self.astar_composed_level)
+        self.astar_composed_button = tk.Button(self.composed_frame, text="Use A* on Composed Level", command=self.astar_composed_level, state=tk.DISABLED)
         self.astar_composed_button.pack(side=tk.LEFT, padx=2)
 
         # Checkbox for switching between original and SNES graphics
@@ -527,7 +527,8 @@ class TileViewer(tk.Tk):
         self.graphics_checkbox = ttk.Checkbutton(
             self.composed_frame,
             text="Use SNES Graphics",
-            variable=self.use_snes_graphics
+            variable=self.use_snes_graphics,
+            state=tk.DISABLED
         )
         self.graphics_checkbox.pack(side=tk.LEFT, padx=2)
 
@@ -594,10 +595,7 @@ class TileViewer(tk.Tk):
             if tileset_changed:
                 self.tileset_path = new_tileset_path
 
-            self._update_real_image_button_state()
-            if self.game.get() != "MM2":
-                self.show_real_var.set(False)
-                self._exit_real_image_mode()
+            self._update_game_specific_controls()
 
             if tileset_changed and self.dataset_path and self.tileset_path:
                 self.load_files_from_paths(self.dataset_path, self.tileset_path)
@@ -610,7 +608,7 @@ class TileViewer(tk.Tk):
         self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker 2"], state="readonly")
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", on_game_select)
-        self._update_real_image_button_state()
+        self._update_game_specific_controls()
 
 
     # method to enter txt file name and save composed level
@@ -1148,12 +1146,21 @@ class TileViewer(tk.Tk):
             self.caption_cycle_button.pack_forget()
             self.caption_cycle_label.pack_forget()
 
-    def _update_real_image_button_state(self):
-        """Enable the real-image checkbox only for Mario Maker 2 and disable it otherwise."""
-        if self.game.get() == "MM2":
-            self.show_real_image_button.config(state=tk.NORMAL)
-        else:
-            self.show_real_image_button.config(state=tk.DISABLED)
+    def _update_game_specific_controls(self):
+        """Enable game-specific UI controls based on the selected game."""
+        is_mm2 = self.game.get() == "MM2"
+        is_mario = self.game.get() == "Mario"
+
+        self.show_real_image_button.config(state=tk.NORMAL if is_mm2 else tk.DISABLED)
+        if not is_mm2:
+            self.show_real_var.set(False)
+            self._exit_real_image_mode()
+
+        self.graphics_checkbox.config(state=tk.NORMAL if is_mario else tk.DISABLED)
+        if not is_mario:
+            self.use_snes_graphics.set(False)
+
+        self.astar_composed_button.config(state=tk.NORMAL if is_mario else tk.DISABLED)
 
     def _update_prompt_toggle_control(self, has_prompt):
         """Show the prompt toggle button only when the current scene has a 'prompt' field;
