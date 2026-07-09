@@ -64,8 +64,6 @@ MM_TILESET_DICT = {
         "h": "Crazy Razy enemy",
         "n": "Flying PePe penguin enemy",
         "I": "Tackle Fire Enemies",
-        ">": "Conveyor belt tile that pushes Mega Man to the right",
-        "E": "Conveyor belt tile that pushes Mega Man to the left"
     }
 }
 
