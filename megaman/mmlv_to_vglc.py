@@ -127,11 +127,15 @@ ENEMY_E_TO_CHAR = {
 # common unmapped id here is e=16, identity unknown).
 GIMMICK_E_TO_CHAR = {
     9:  "B",   # 1x1 breakable block
+    83: "B",   # on/off switch block (state A) - treated as breakable
+    84: "B",   # on/off switch block (state B) - treated as breakable
     45: "B",   # 2x2 breakable block (see TWO_BY_TWO_E_IDS: expands to a full 2x2)
     93: "B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
     205:"B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
     206:"B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
     186:"#",   # 2x2 UNbreakable solid block (see TWO_BY_TWO_E_IDS: expands to a full 2x2 of '#')
+    256:"#",   # 2x2 solid pipe block (see TWO_BY_TWO_E_IDS; the 'l' field is just the pipe-art
+               # variant, 'r'=16 is constant -- neither affects the decode)
     208:"B",   # 1-wide x 2-tall vertical breakable wall (see TWO_TALL_E_IDS: expands one tile up)
     27: "B",   # 2x2 weapon-specific breakable block. Every weapon variant shares this one
                # e id; the required weapon is in the 'o' field (o=1..8 special weapons,
@@ -217,7 +221,7 @@ LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
 # just that one cell and the other three tiles read as gaps. mmlv_to_grid expands each of
 # these to the full 2x2 by also filling the tiles directly above, directly left, and
 # diagonally up-left with the same char.
-TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186}
+TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186, 256}
 
 # d == 6 gimmick ids that are 2-wide x 1-tall horizontal blocks. Like the 2x2 blocks these
 # are stored as a single object at the block's RIGHT tile, so on their own they decode to
