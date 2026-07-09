@@ -130,11 +130,15 @@ GIMMICK_E_TO_CHAR = {
     45: "B",   # 2x2 breakable block (see TWO_BY_TWO_E_IDS: expands to a full 2x2)
     93: "B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
     205:"B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
+    206:"B",   # 2x2 breakable block, another variant (see TWO_BY_TWO_E_IDS)
+    186:"#",   # 2x2 UNbreakable solid block (see TWO_BY_TWO_E_IDS: expands to a full 2x2 of '#')
+    208:"B",   # 1-wide x 2-tall vertical breakable wall (see TWO_TALL_E_IDS: expands one tile up)
     27: "B",   # 2x2 weapon-specific breakable block. Every weapon variant shares this one
                # e id; the required weapon is in the 'o' field (o=1..8 special weapons,
                # o=9999 default, absent = unassigned), so a single mapping covers them all.
-    31: "M",   # moving platform
-    262:"M",   # moving platform, another variant
+    31: "M",   # moving platform (see MOVING_PLATFORM_E_IDS: only the path node hosting the
+               # physical platform decodes to 'M'; the bare path/track nodes decode to air)
+    262:"M",   # moving platform, another variant (see MOVING_PLATFORM_E_IDS)
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
     163:"C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward").
@@ -177,6 +181,8 @@ BOSS_E_TO_CHAR = {
     15: "Z",   # Energy Element / MM1 Exit Orb  -> the level exit
     0:  "D",   # Vertical Boss Door (also the no-'e' default)
     1:  "D",   # Horizontal Boss Door
+    33: "D",   # Boss Door: a 2-wide x 4-tall door block (see BOSS_DOOR_E_IDS: expands its
+               # bottom-right anchor left + 3 up into the full 2x4 footprint)
     16: "M",   # Party Balloon (rideable transport)
 }
 
@@ -204,7 +210,7 @@ LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
 # just that one cell and the other three tiles read as gaps. mmlv_to_grid expands each of
 # these to the full 2x2 by also filling the tiles directly above, directly left, and
 # diagonally up-left with the same char.
-TWO_BY_TWO_E_IDS = {27, 45, 93, 205}
+TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186}
 
 # d == 6 gimmick ids that are 2-wide x 1-tall horizontal blocks. Like the 2x2 blocks these
 # are stored as a single object at the block's RIGHT tile, so on their own they decode to
@@ -212,10 +218,34 @@ TWO_BY_TWO_E_IDS = {27, 45, 93, 205}
 # full 2x1 by also filling the tile directly to the left with the same char.
 TWO_WIDE_E_IDS = {261, 267}
 
+# d == 6 gimmick ids that are 1-wide x 2-tall vertical blocks. Like the other multi-tile
+# blocks these are stored as a single object, here at the block's BOTTOM tile, so on their
+# own they decode to just that one cell and the tile above reads as a gap. mmlv_to_grid
+# expands each to the full 1x2 by also filling the tile directly ABOVE with the same char.
+TWO_TALL_E_IDS = {208}
+
 # d == 6 gimmick ids that are conveyor belts. Every conveyor of a given type shares one e
 # id (only the belt-art fields f/p differ); classify() reads the 'b' field for the push
 # direction ('b'=-1 -> left 'E', else right '>'). Multiple conveyor types exist (e73, e74).
 CONVEYOR_E_IDS = {73, 74}
+
+# d == 8 (boss category) ids that are 2-wide x 4-tall boss-door blocks. Like the multi-tile
+# gimmick blocks these are stored as a single object, here at the door's BOTTOM-RIGHT tile, so
+# on their own they decode to just that one cell and the other seven tiles read as gaps.
+# mmlv_to_grid expands each to the full 2x4 by filling the tile to the left and the three tiles
+# above (and their left neighbours) with the same char. Note this is the d8 boss class, NOT the
+# d6 block class the other footprint sets use.
+BOSS_DOOR_E_IDS = {33}
+
+# d == 6 gimmick ids that are moving platforms. A moving platform is placed as a chain of
+# invisible PATH/track nodes that all share the same e id; exactly one node (the platform's
+# origin) additionally carries the 'h' field and is where the physical, ridable platform
+# actually sits. classify() therefore decodes only the 'h'-bearing node to the solid moving
+# tile 'M' and the bare path/track nodes to the passable path tile '=', so a long path reads as
+# a run of '=' with a single 'M' rather than a solid row of platforms. (Verified for e31 from
+# Claude.mmlv: a 9-tile path with the platform on the single node carrying h=2; e262 is the
+# other platform variant, assumed to use the same field.)
+MOVING_PLATFORM_E_IDS = {31, 262}
 
 
 def is_2x2_block(cell: dict) -> bool:
@@ -230,6 +260,20 @@ def is_2x1_block(cell: dict) -> bool:
     d = cell.get("d")
     e = cell.get("e")
     return d is not None and int(d) == 6 and e is not None and int(e) in TWO_WIDE_E_IDS
+
+
+def is_1x2_block(cell: dict) -> bool:
+    """True if the cell is a d6 gimmick that occupies a 1-wide x 2-tall footprint."""
+    d = cell.get("d")
+    e = cell.get("e")
+    return d is not None and int(d) == 6 and e is not None and int(e) in TWO_TALL_E_IDS
+
+
+def is_boss_door(cell: dict) -> bool:
+    """True if the cell is a d8 boss door that occupies a 2-wide x 4-tall footprint."""
+    d = cell.get("d")
+    e = cell.get("e")
+    return d is not None and int(d) == 8 and e is not None and int(e) in BOSS_DOOR_E_IDS
 
 
 def classify(cell: dict) -> str:
@@ -253,6 +297,10 @@ def classify(cell: dict) -> str:
                 return "^" if (g is not None and int(g) in (90, 270)) else "<"
             return ENEMY_E_TO_CHAR.get(ei, "a")     # unknown enemy -> generic
         if dc == 6:                                 # level object / gimmick block
+            if ei in MOVING_PLATFORM_E_IDS:         # moving platform path: only the node with
+                # the physical platform carries the 'h' field; it decodes to the solid moving
+                # tile 'M', while the bare path/track nodes (no 'h') decode to the path tile '='.
+                return "M" if ("h" in cell) else "="
             if ei in CONVEYOR_E_IDS:                # conveyor belt: 'b'=-1 faces left, else right.
                 # Within a conveyor family only the belt-art fields (f/p) differ, so gate on
                 # the id and read 'b' for the push direction. Multiple conveyor types exist
@@ -356,6 +404,17 @@ def mmlv_to_grid(path: Path):
         # A 2-wide horizontal block is stored at its right tile; fill the tile to its left.
         elif is_2x1_block(cell):
             char_cells.setdefault((tx - 1, ty), ch)
+        # A 1-wide x 2-tall block is stored at its bottom tile; fill the tile directly above.
+        elif is_1x2_block(cell):
+            char_cells.setdefault((tx, ty - 1), ch)
+        # A boss door is a 2-wide x 4-tall block stored at its bottom-right tile; fill the other
+        # seven tiles of the 2x4 footprint (one column left, three rows up).
+        elif is_boss_door(cell):
+            for dx in (0, -1):
+                for dy in (0, -1, -2, -3):
+                    if dx == 0 and dy == 0:
+                        continue
+                    char_cells.setdefault((tx + dx, ty + dy), ch)
 
     if not char_cells:
         return []
