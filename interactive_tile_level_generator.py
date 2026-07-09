@@ -270,11 +270,11 @@ class CaptionBuilder(ParentBuilder):
 
         # Game selection
         # Game selection
-        self.game_var = tk.StringVar(value=game_selected if game_selected else "Mario Maker (MM)")
+        self.game_var = tk.StringVar(value=game_selected if game_selected else "Mario Maker 2")
         
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker (MM)"], state="readonly", font=GUI_FONT)
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker 2"], state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", lambda e: self.update_mario_only_buttons()) 
         self.update_mario_only_buttons() 
@@ -577,7 +577,7 @@ class CaptionBuilder(ParentBuilder):
 
             try:
                 phrases_set = set()
-                with open(filepath, 'r') as f:
+                with open(filepath, 'r', encoding='utf-8') as f:
                     dataset = json.load(f)
                     for item in dataset:
                         phrases = item['caption'].split('.')
@@ -904,9 +904,7 @@ Average Segment Score: {avg_segment_score}"""
             button_frame.pack(pady=5)
     
             is_mario = game_selected == "Mario"
-            # Jacob: I removed this. We don't support A* Agent for Mario Maker.
-            # is_mario = game_selected == "Mario Maker (MM)"
-
+            
             # Add Play button
             play_button = ttk.Button(
                 button_frame, 
@@ -1082,12 +1080,20 @@ Average Segment Score: {avg_segment_score}"""
     def play_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
+            # Mario Maker exports a .swe into SMM:WE's level folder and launches the game
+            if self.game_var.get() == "Mario Maker 2":
+                self._play_composed_swe()
+                return
             level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
 
     def save_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
+            # Mario Maker saves a .swe into SMM:WE's level folder instead of a .txt
+            if self.game_var.get() == "Mario Maker 2":
+                self._save_composed_swe()
+                return
             # Always open in the current working directory or a subfolder
             initial_dir = os.path.join(os.getcwd(), "Composed Levels")
             os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
@@ -1106,6 +1112,103 @@ Average Segment Score: {avg_segment_score}"""
                 print("Save operation cancelled.")
         else:
             print("No composed scene to save.")
+
+    def _smmwe_niveles_dir(self):
+        """SMM:WE's level folder, %LOCALAPPDATA%\\SMM_WE\\Niveles. Falls back to a
+        local folder when LOCALAPPDATA isn't set (non-Windows)."""
+        base = os.environ.get("LOCALAPPDATA")
+        if base:
+            return os.path.join(base, "SMM_WE", "Niveles")
+        return os.path.join(os.getcwd(), "Niveles")
+
+    def _smmwe_exe_path(self):
+        """Path to SMM_WE.exe (installs to Program Files\\SMMWE), or None."""
+        for env in ("ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"):
+            base = os.environ.get(env)
+            if base:
+                exe = os.path.join(base, "SMMWE", "SMM_WE.exe")
+                if os.path.isfile(exe):
+                    return exe
+        return None
+
+    def _compose_swe_bytes(self, name):
+        """Convert the merged composed scene to a .swe (ascii -> json -> swe).
+        Returns (swe_bytes, dropped_counts)."""
+        from mm2pipeline_data.ascii import ascii_to_level
+        from mm2pipeline_data.swe import build_world, encode_swe, detect_smmwe_user
+        from datetime import datetime
+
+        sample = self.get_sample_output(self.merge_selected_scenes())
+        # '_' is padding, not a real tile, but the converter reads it as Goal
+        # Ground. Treat it as empty space so it doesn't litter the level.
+        ascii_text = "\n".join(row.replace("_", " ") for row in sample.level)
+
+        level_json = ascii_to_level(ascii_text, source_file=name)
+
+        now = datetime.now()
+        s0, dropped = build_world(
+            level_json,
+            user=detect_smmwe_user(),
+            name=name,
+            desc=None,
+            date_str=now.strftime("%d/%m/%Y"),
+            time_str=now.strftime("%H:%M"),
+        )
+        return encode_swe({"S0": s0, "SB1": {"S1": []}}), dropped
+
+    @staticmethod
+    def _report_dropped(dropped):
+        if dropped:
+            total = sum(dropped.values())
+            summary = ", ".join(f"{n}x {nm}" for nm, n in
+                                sorted(dropped.items(), key=lambda kv: -kv[1]))
+            print(f"  dropped {total} object(s) with no SMM:WE equivalent: {summary}")
+
+    def _save_composed_swe(self):
+        """Save the composed scene as a .swe, prompting for a name in Niveles."""
+        niveles_dir = self._smmwe_niveles_dir()
+        os.makedirs(niveles_dir, exist_ok=True)
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".swe",
+            filetypes=[("SMM:WE level", "*.swe")],
+            title="Save Composed Level to SMM:WE",
+            initialdir=niveles_dir,
+            initialfile="composed_level.swe",
+        )
+        if not file_path:
+            print("Save operation cancelled.")
+            return
+
+        name = os.path.splitext(os.path.basename(file_path))[0]
+        swe_bytes, dropped = self._compose_swe_bytes(name)
+        with open(file_path, "wb") as f:
+            f.write(swe_bytes)
+        print(f"Composed level exported to {file_path} ({len(swe_bytes)} bytes)")
+        self._report_dropped(dropped)
+
+    def _play_composed_swe(self):
+        """Save the composed level to Niveles and launch SMM:WE. There's no way
+        to boot straight into a level, so you pick 'composed_level' in-game."""
+        import subprocess
+
+        name = "composed_level"
+        niveles_dir = self._smmwe_niveles_dir()
+        os.makedirs(niveles_dir, exist_ok=True)
+        swe_bytes, dropped = self._compose_swe_bytes(name)
+        out_path = os.path.join(niveles_dir, name + ".swe")
+        with open(out_path, "wb") as f:
+            f.write(swe_bytes)
+        print(f"Composed level exported to {out_path} ({len(swe_bytes)} bytes)")
+        self._report_dropped(dropped)
+
+        exe = self._smmwe_exe_path()
+        if exe is None:
+            print("SMM:WE executable not found (looked in Program Files\\SMMWE). "
+                  f"Open SMM:WE manually and pick '{name}' from the level browser.")
+            return
+        # run from the install dir so the game finds data.win
+        subprocess.Popen([exe], cwd=os.path.dirname(exe))
+        print(f"Launched SMM:WE -- open the level browser and play '{name}'.")
 
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
@@ -1580,7 +1683,7 @@ if __name__ == "__main__":
         game_selected = "Mega Man (Maker)"
         tileset_path = common_settings.MMLV_TILESET
     elif args.game == "MM2":
-        game_selected = "Mario Maker (MM)"
+        game_selected = "Mario Maker 2"
         tileset_path = common_settings.MM2_TILESET
 
     root = tk.Tk()
