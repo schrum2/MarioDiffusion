@@ -5,6 +5,8 @@ package, so everything resolves from there via repo_path().
 """
 from pathlib import Path
 
+import util.common_settings as common_settings
+
 # mm2pipeline_data/paths.py -> mm2pipeline_data/ -> repo root
 PACKAGE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_DIR.parent
@@ -15,9 +17,9 @@ def repo_path(*parts) -> Path:
     return REPO_ROOT.joinpath(*parts)
 
 
-# MM2 assets live under MM2_Data/ and MM2_Files/ in this repo (not the repo root).
 # Canonical training tileset — the source of truth for the ASCII vocabulary.
-MM2_TILESET_PATH = repo_path("MM2_Data", "mm2_tileset_we.json")
+# The location is defined once in util.common_settings 
+MM2_TILESET_PATH = repo_path(*common_settings.MM2_TILESET.split("/"))
 
 # Bundled toost.exe + its sprite/font assets.
 TOOST_DIR = repo_path("MM2_Files", "toost_stuff")

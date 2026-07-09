@@ -28,6 +28,7 @@ from captions.util import extract_tileset
 import util.common_settings as common_settings
 from AStarSearch import AStarSearch
 from MarioState import MarioState, BUFFER_WIDTH
+from MM2State import MM2State, HAZARD
 import LodeRunnerState as lr
 from LodeRunnerState import LodeRunnerState
 import MegaManState as mm
@@ -37,6 +38,7 @@ MegaManState = mm.MegaManState
 # Default tileset per game (the one each dataset is normally created with).
 DEFAULT_TILESETS = {
     "Mario": common_settings.MARIO_TILESET,
+    "MM2": common_settings.MM2_TILESET,
     "LR": common_settings.LR_TILESET,
     "MM": common_settings.MM_SIMPLE_TILESET,
 }
@@ -54,6 +56,17 @@ def mario_tile(descs):
     behave correctly. Enemies are treated as passable (the agent is assumed to deal
     with them) rather than as solid obstacles."""
     return 2 if ("passable" in descs or "enemy" in descs) else 0
+
+
+def mm2_tile(descs):
+    """Descriptors -> MM2State tile ids. Walkable-through (empty, coins, items) and
+    enemies -> passable(2); static hazards (spikes, saws) -> HAZARD; everything else
+    (ground, blocks, pipes) -> solid(0)."""
+    if "passable" in descs or "enemy" in descs:
+        return 2
+    if "hazard" in descs or "damaging" in descs:
+        return HAZARD
+    return 0
 
 
 def lr_tile(descs):
@@ -153,6 +166,48 @@ def mario_traversable(scene, id_to_char, descs, budget, visualize=False):
         starts = [MarioState.from_level(grid)]   # default Mario spawn: bottom-left
 
     search = AStarSearch(MarioState.moveRight)
+    reached = over_budget = False
+    solution = None
+    winning_start = starts[0]
+    for i, start in enumerate(starts):
+        try:
+            sol = search.search(start, reset=(i == 0), budget=budget)
+        except RuntimeError:
+            over_budget = True
+            break
+        if sol is not None:
+            reached, solution, winning_start = True, sol, start
+            break
+
+    stats = {"reached_goal": reached,
+             "path_length": None if solution is None else len(solution),
+             "expanded": len(search.get_visited() or [])}
+    if over_budget:
+        stats["over_budget"] = True
+    info = _path_info(winning_start, solution if reached else None, search) if visualize else None
+    return reached, stats, info
+
+
+def mm2_traversable(scene, id_to_char, descs, budget, visualize=False):
+    """Mario Maker 2 traversability: reach the right edge via MM2State, where static
+    hazards are deadly (can't be passed through or stood on)."""
+    grid = translate_scene(scene, id_to_char, descs, mm2_tile)
+    grid = MM2State.preProcessLevel(grid)
+    width = len(scene[0])
+    grid = [row[BUFFER_WIDTH:BUFFER_WIDTH + width] for row in grid]
+    height = len(grid)
+
+    scanner = MM2State(grid, 0, 0, 0)
+    def standable(y):
+        return (scanner.passable(0, y)
+                and scanner.inBounds(0, y + 1)
+                and not scanner.passable(0, y + 1)
+                and not scanner.is_hazard(0, y + 1))
+    starts = [MM2State(grid, 0, 0, y) for y in reversed(range(height)) if standable(y)]
+    if not starts:
+        starts = [MM2State.from_level(grid)]
+
+    search = AStarSearch(MM2State.moveRight)
     reached = over_budget = False
     solution = None
     winning_start = starts[0]
@@ -302,6 +357,8 @@ def evaluate(game, scene, id_to_char, descs, budget, allow_weird, visualize=Fals
     ignored for Mario and LR."""
     if game == "Mario":
         return mario_traversable(scene, id_to_char, descs, budget, visualize=visualize)
+    if game == "MM2":
+        return mm2_traversable(scene, id_to_char, descs, budget, visualize=visualize)
     if game == "LR":
         return lr_traversable(scene, id_to_char, descs, budget,
                               allow_weird=allow_weird, visualize=visualize)
@@ -340,7 +397,7 @@ def _render_target(game, tileset_path):
 
 # Render-style game names (as used by run_diffusion and the GUIs) -> the game names
 # evaluate() understands. The render name itself doubles as visualize_path's target.
-RENDER_GAME_TO_TRAV = {"Mario": "Mario", "LR": "LR",
+RENDER_GAME_TO_TRAV = {"Mario": "Mario", "MM2": "MM2", "LR": "LR",
                        "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MM"}
 
 
@@ -367,11 +424,30 @@ def astar_path_image(scene, game, id_to_char, tile_descriptors, budget=100000,
     return img, ok, stats
 
 
+def astar_console_report(scene, game="MM2", id_to_char=None, tile_descriptors=None,
+                         tileset_path=None, budget=100000, show_image=True):
+    """Run A* on one scene and return a printable verdict (and, with show_image, pop the
+    path overlay). For Mario Maker, which has no Java simulator. id_to_char/descriptors
+    are loaded from tileset_path when not supplied."""
+    if id_to_char is None or tile_descriptors is None:
+        path = tileset_path or DEFAULT_TILESETS[RENDER_GAME_TO_TRAV[game]]
+        if not os.path.isabs(path) and not os.path.exists(path):
+            path = os.path.join(_REPO_ROOT, path)
+        _, id_to_char, _, tile_descriptors = extract_tileset(path)
+    img, traversable, stats = astar_path_image(scene, game, id_to_char, tile_descriptors,
+                                               budget=budget)
+    if show_image and img is not None:
+        img.show()
+    verdict = "TRAVERSABLE" if traversable else "NOT traversable"
+    detail = ", ".join(f"{k}={v}" for k, v in stats.items())
+    return f"{verdict}  ({detail})"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Determine Level Traversability")
     parser.add_argument('--level_json', type=str, required=True,
                         help="Path to the JSON file containing the level(s) to evaluate")
-    parser.add_argument('--game', type=str, required=True, choices=["Mario", "LR", "MM"],
+    parser.add_argument('--game', type=str, required=True, choices=["Mario", "MM2", "LR", "MM"],
                         help="The game the level belongs to; determines how traversability is measured")
     parser.add_argument('--tileset', type=str, default=None,
                         help="Tileset JSON used to encode the scenes (defaults to the game's standard tileset)")
