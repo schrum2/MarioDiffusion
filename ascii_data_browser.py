@@ -18,6 +18,7 @@ import colorsys
 from util.sampler import scene_to_ascii
 from util.sampler import SampleOutput
 from models.pipeline_loader import get_pipeline
+from MegaManLayoutEditor import LevelEditor, MegaManLayoutEditor
 #from LodeRunner.loderunner.graphics import *
 import webbrowser
 
@@ -265,6 +266,95 @@ class TileViewer(tk.Tk):
         print(f"A* path: {'traversable' if ok else 'NOT traversable'}  ({stats})")
         # game doubles as the render-target name render_info expects.
         return render_info(scene, game, info)
+
+    @property
+    def composed_scenes(self):
+        """Read-only view of the scenes currently added to the composed level, in
+        the same order as composed_thumbnails. Lets MegaManLayoutEditor treat this
+        browser the same way it treats CaptionBuilder's composed_scenes list."""
+        return [self.dataset[i]['scene'] for i in self.added_sample_indexes]
+
+    def _render_scene_image(self, scene):
+        """Render a tile-ID scene to a PIL image for the currently selected game."""
+        from level_dataset import visualize_samples
+        game = self.game.get()
+        game_to_num_classes = {
+            "LR": common_settings.LR_TILE_COUNT,
+            "MM-Simple": common_settings.MM_SIMPLE_TILE_COUNT,
+            "MM-Full": common_settings.MM_FULL_TILE_COUNT,
+            "MMLV": common_settings.MMLV_TILE_COUNT,
+            "MM2": common_settings.MM2_TILE_COUNT,
+            "Mario": common_settings.MARIO_TILE_COUNT,
+        }
+        num_classes = game_to_num_classes.get(game, len(self.id_to_char))
+        one_hot = torch.nn.functional.one_hot(
+            torch.tensor(scene, dtype=torch.long),
+            num_classes=num_classes
+        ).float().permute(2, 0, 1).unsqueeze(0)
+        pil_img = visualize_samples(one_hot, game=game)
+        return pil_img[0] if isinstance(pil_img, list) else pil_img
+
+    def edit_composed_scene(self, idx, extra_on_save=None):
+        """Open the LevelEditor for a scene in the composed level strip.
+
+        Writes the edit back into self.dataset (this browser stores composed scenes
+        as indexes into the dataset rather than a separate list) and refreshes that
+        thumbnail. extra_on_save, if given, is called with the updated scene afterward
+        - used by MegaManLayoutEditor to refresh its own grid render."""
+        dataset_idx = self.added_sample_indexes[idx]
+        scene = self.dataset[dataset_idx]['scene']
+        editor_window = tk.Toplevel(self)
+        editor_window.title("Level Editor")
+
+        def on_save(updated_scene):
+            self.dataset[dataset_idx]['scene'] = updated_scene
+
+            rendered = self._render_scene_image(updated_scene)
+            thumb = rendered.copy()
+            thumb.thumbnail((64, 64), Image.Resampling.NEAREST)
+            photo = PIL.ImageTk.PhotoImage(thumb)
+            self.composed_thumbnails[idx] = photo
+            self.redraw_composed_thumbnails()
+
+            if extra_on_save:
+                extra_on_save(updated_scene)
+
+        LevelEditor(
+            editor_window,
+            scene,
+            self.id_to_char,
+            self.char_to_id,
+            self.tile_descriptors,
+            self.game.get(),
+            on_save=on_save
+        )
+
+    def _astar_path_for_scene(self, scene, spawn=None, orb=None):
+        """Run A* on a single scene and return (pil_image_or_None, solved, stats).
+        Shared by MegaManLayoutEditor's 'Show A* Path' button. spawn/orb are MM-only
+        optional (x, y) cells (the user's placed spawn/exit markers)."""
+        astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+        if astar_dir not in sys.path:
+            sys.path.insert(0, astar_dir)
+        from astar_traversability_check import astar_path_image
+
+        game_name = self.game.get()
+        if game_name not in ("Mario", "LR", "MM-Simple", "MM-Full", "MMLV"):
+            return None, False, {}
+        return astar_path_image(scene, game_name, self.id_to_char, self.tile_descriptors,
+                                spawn=spawn, orb=orb)
+
+    def open_megaman_layout_editor(self):
+        if self.game.get() not in ("MM-Simple", "MM-Full", "MMLV"):
+            messagebox.showinfo("Mega Man only", "Switch the game dropdown to a Mega Man mode to use this tool.")
+            return
+        if not self.added_sample_indexes:
+            messagebox.showinfo(
+                "No scenes yet",
+                "Use 'Add To Level' on one or more scenes first, then open this tool to arrange them."
+            )
+            return
+        MegaManLayoutEditor(self, self)
     
     # Jacob: Next few methods are from MarioMakerPCG. Were they needed?
     def _resolve_image_path(self, image_path):
@@ -554,10 +644,25 @@ class TileViewer(tk.Tk):
         tk.Button(self.composed_frame, text="Delete", command=self.delete_selected_thumbnail).pack(side=tk.LEFT, padx=2)
         self.clear_composed_button = tk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
         self.clear_composed_button.pack(side=tk.LEFT, padx=2)
+        self.build_mm_level_button = tk.Button(
+            self.composed_frame,
+            text="Build Mega Man Level",
+            command=self.open_megaman_layout_editor,
+            state=tk.DISABLED
+        )
+        self.build_mm_level_button.pack(side=tk.LEFT, padx=2)
+
+        self.large_view_button = tk.Button(
+            self.composed_frame,
+            text="Large View",
+            command=self.show_large_composed_view
+        )
+        self.large_view_button.pack(side=tk.LEFT, padx=2)
 
         # Thumbnails for composed level
         self.composed_thumb_frame = tk.Frame(self)
         self.composed_thumb_frame.pack(fill=tk.X)
+
 
         
         # Game selection
@@ -1150,6 +1255,7 @@ class TileViewer(tk.Tk):
         """Enable game-specific UI controls based on the selected game."""
         is_mm2 = self.game.get() == "MM2"
         is_mario = self.game.get() == "Mario"
+        is_megaman = self.game.get() in ("MM-Simple", "MM-Full", "MMLV")
 
         self.show_real_image_button.config(state=tk.NORMAL if is_mm2 else tk.DISABLED)
         if not is_mm2:
@@ -1161,6 +1267,8 @@ class TileViewer(tk.Tk):
             self.use_snes_graphics.set(False)
 
         self.astar_composed_button.config(state=tk.NORMAL if is_mario else tk.DISABLED)
+
+        self.build_mm_level_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
 
     def _update_prompt_toggle_control(self, has_prompt):
         """Show the prompt toggle button only when the current scene has a 'prompt' field;
@@ -1349,6 +1457,44 @@ class TileViewer(tk.Tk):
                 new_row.extend(scene[row_index])
             concatenated_scene.append(new_row)
         return concatenated_scene
+
+    def show_large_composed_view(self):
+        """Pop up a large rendering of the full composed level, optionally with the
+        A* path overlaid if 'Toggle A* Path' is currently on."""
+        scene = self.merge_selected_scenes()
+        if not scene:
+            messagebox.showinfo("No composed level", "Add at least one image to the composed level first.")
+            return
+
+        pil_img = None
+        if getattr(self, 'show_astar_path', False):
+            pil_img = self._astar_overlay_image(scene)  # None if A* fails/can't produce a path
+
+        if pil_img is None:
+            pil_img = self._render_scene_image(scene)
+
+        self._show_image_popup(pil_img, "Composed Level - Large View")
+
+    def _show_image_popup(self, pil_img, title):
+        """Show a (possibly large) PIL image in a scrollable popup window."""
+        win = tk.Toplevel(self)
+        win.title(title)
+        win.grid_rowconfigure(0, weight=1)
+        win.grid_columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(win, bg="#222222")
+        hbar = ttk.Scrollbar(win, orient=tk.HORIZONTAL, command=canvas.xview)
+        vbar = ttk.Scrollbar(win, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vbar.grid(row=0, column=1, sticky="ns")
+        hbar.grid(row=1, column=0, sticky="ew")
+
+        photo = PIL.ImageTk.PhotoImage(pil_img)
+        canvas._photo_ref = photo  # keep a ref so it isn't garbage-collected
+        canvas.create_image(0, 0, image=photo, anchor="nw")
+        canvas.configure(scrollregion=(0, 0, pil_img.width, pil_img.height))
+        win.geometry(f"{min(pil_img.width + 24, 1200)}x{min(pil_img.height + 24, 800)}")
 
     def play_composed_level(self):
         scene = self.merge_selected_scenes()
