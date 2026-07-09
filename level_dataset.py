@@ -340,7 +340,7 @@ def mm_tiles(game):
             (0,6),    #6  'B' = Breakable block
             (0,7),    #7  't' = Fake block (looks solid but isn't)
             (0,8),    #8  'A' = Appearing/disappearing block
-            (0,9),    #9  'M' = Moving platform
+            (2,10),   #9  'M' = Moving platform (the physical, ridable platform)
             (0,10),   #10 'D' = Door
 
             (1,0),    #11 'W' = Large weapon energy
@@ -379,6 +379,8 @@ def mm_tiles(game):
             (4,5),    #41 'd' = Picket man enemy
             (4,6),    #42 'h' = Crazy razy enemy
 
+            (0,9),    #43 '=' = Moving-platform path/track (the rail the platform rides;
+                      #        decoupled from the platform 'M', which moved to (2,10))
     ]
 
            
