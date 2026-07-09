@@ -83,9 +83,7 @@ def parse_args():
     parser.add_argument("--num_tiles", type=int, default=None, help="Number of tile types. If omitted, defaults to the per-game value below.")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
-    parser.add_argument("--multiple_captions", action="store_true", help="Each sample stores several captions ('caption', 'caption1', ...); select one at random per access instead of phrase-shuffle augmentation. This becomes the only augmentation (phrase shuffling and scene flipping are disabled).")
-    # Jacob: Kept the --multiple_captions approach from MarioDiffusion instead, but might change later
-    #parser.add_argument("--no_multiple_captions", dest="multiple_captions", action="store_false", default=True, help="Disable multiple-caption selection. By default, when a sample stores several captions ('caption', 'caption1', ...) one is chosen at random per access, and that selection is the only augmentation (phrase shuffling and scene flipping are disabled). Pass this flag to instead use only the canonical 'caption' field with phrase-shuffle augmentation. Multiple-caption selection is automatically disabled for unconditional or negative-prompt training regardless of this flag.")
+    parser.add_argument("--multiple_captions", action="store_true", help="Each sample stores several captions (legacy 'caption'/'caption1'/... fields or a '<model>_captions' list); select one at random per access instead of phrase-shuffle augmentation. This becomes the only augmentation (phrase shuffling and scene flipping are disabled). Off by default; unconditional and negative-prompt training never select.")
     parser.add_argument("--caption_source_keys", nargs="+", type=str, default=None, help="Each argument names a dataset key holding a LIST of captions, e.g. '--caption_source_keys gemma4:26b_captions qwen3:32b_captions deterministic_captions'. During training, one caption is drawn at random from the pooled captions of all the listed sources; validation picks the first available caption deterministically. Samples with no caption under any listed source are dropped. Omit this to train on the single 'caption' field instead.")
     parser.add_argument("--complete_levels", action="store_true", help="Treat scenes as variable-size complete levels: group them into --num_buckets size buckets and pad each up to its bucket's shared shape with the null/void tile (--pad_tile_id). Use with datasets built via 'create_megaman_json_data.py --scan_mode whole'.")
     parser.add_argument("--num_buckets", type=int, default=5, help="Number of size buckets when --complete_levels is set.")
@@ -362,12 +360,9 @@ def main():
             print("Note: --caption_source_keys is ignored for unconditional training (scenes carry no captions).")
             args.caption_source_keys = None
 
-    # Jacob: This comment is now incorrect because multiple captions is no longer on by default,
-    #        but I may change this in the near future.
-
-    # Multiple-caption selection is on by default, but only applies to text-conditional,
-    # non-negative training. Auto-disable it (rather than erroring) for the incompatible
-    # modes so unconditional and negative-prompt runs keep working with the default.
+    # --multiple_captions only makes sense for text-conditional, non-negative training; clear
+    # the flag (rather than erroring) for the incompatible modes so unconditional and
+    # negative-prompt runs still work when it is passed.
     if args.multiple_captions and not args.caption_source_keys:  # caption_source_keys handles its own selection
         if not args.text_conditional:
             # Unconditional scenes carry no captions, so there is nothing to select among.
@@ -379,8 +374,8 @@ def main():
             args.multiple_captions = False
         elif args.augment:
             # Selecting among the stored captions is meant to be the only augmentation.
-            print("Note: --augment is ignored while multiple-caption selection is active (the default); caption selection is the only augmentation. Pass --no_multiple_captions to use phrase-shuffle augmentation instead.")
-            args.augment = False # Jacob: I just added this, but am not sure we want to keep this setting
+            print("Note: --augment is ignored while multiple-caption selection is active; caption selection is the only augmentation.")
+            args.augment = False
 
     """
     If sprite temperature scaling is enabled and the model is unconditional, 
