@@ -42,6 +42,8 @@
         "f": ["enemy", "damaging", "jumping"],
         "a": ["enemy", "damaging", "ranged"],
         "d": ["enemy", "damaging", "ranged"],
-        "h": ["enemy", "damaging", "ranged"]
+        "h": ["enemy", "damaging", "ranged"],
+        "=": ["passable", "path"],
+        "s": ["passable", "spring"]
     }
 }

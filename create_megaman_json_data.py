@@ -10,7 +10,6 @@ import os
 import sys
 import random
 import time
-import re
 
 
 #Snap mode: number of null padding rows added on top of each wide (horizontal) scene,
@@ -373,11 +372,10 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
 
 def extract_mmlv_id(filename):
     """Pull the Mega Man Maker level ID out of an MMLV-derived ASCII filename.
-    Assumes the numeric level ID appears as a standalone run of digits somewhere in
-    the filename (e.g. '427439_LevelName.txt' or 'LevelName_427439.txt'). Returns the
-    ID as an int, or None if no digits are found (e.g. non-MMLV source levels)."""
-    match = re.search(r'\d+', filename)
-    return int(match.group()) if match else None
+    If the filename stem is entirely digits it is an MMLV level and we return the ID 
+    as an int; otherwise it is not MMLV-derived and we return None so no mmlvID is logged."""
+    stem = Path(filename).stem
+    return int(stem) if stem.isdigit() else None
 
 
 def main():

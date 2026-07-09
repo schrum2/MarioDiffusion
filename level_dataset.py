@@ -381,6 +381,7 @@ def mm_tiles(game):
 
             (0,9),    #43 '=' = Moving-platform path/track (the rail the platform rides;
                       #        decoupled from the platform 'M', which moved to (2,10))
+            (2,4),    #44 's' = Spring (bounces Mega Man upward when touched)
     ]
 
            
