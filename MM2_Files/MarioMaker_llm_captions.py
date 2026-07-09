@@ -1637,7 +1637,7 @@ def main():
     parser.add_argument(
         "--caption-mode",
         choices=["legacy", "keyed"],
-        default="legacy",
+        default="keyed",
         help=(
             "Output schema. 'legacy' (default) writes 'caption'/'caption1'/... fields. "
             "'keyed' writes the captions as a list under --caption-key (default "
