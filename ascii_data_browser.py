@@ -41,10 +41,11 @@ class TileViewer(tk.Tk):
         self.dataset = []
         self.id_to_char = {}
         self.current_sample_idx = 0
-        self.caption_cycle_idx = 0  # which caption field is shown when a scene has several
+        # Jacob: I think MariobMakerPCG renamed caption_cycle_idx to current_caption_idx
+        self.current_caption_idx = 0
+        #self.caption_cycle_idx = 0  # which caption field is shown when a scene has several
         self.show_prompt = False  # text box shows the scene's 'prompt' field instead of caption
         self.show_ids = tk.BooleanVar(value=False)
-        #self.describe_locations = tk.BooleanVar(value=False)
         self.describe_absence = tk.BooleanVar(value=False)
         self.show_images = False        # image view vs numeric/character grid
         self.show_astar_path = False    # overlay the A* path on the image view
@@ -137,7 +138,7 @@ class TileViewer(tk.Tk):
                 return_details=True
             )
         # If not Lode Runner or Mega Man than Mario
-        else:
+        elif self.game.get()=="Mario":
             caption, details = assign_caption(
                 sample['scene'],
                 self.id_to_char,
@@ -148,14 +149,24 @@ class TileViewer(tk.Tk):
                 debug=True,
                 return_details=True
             )
+        elif self.game.get()=="MM2" or self.game.get()=="MM":
+            caption, details = None, None
+            # Jacob: There didn't seem to be a way of assigning deterministic Mario Maker captions
+
         sample['caption'] = caption
+        sample['captions'] = [caption]
         sample['details'] = details
+        # Jacob: favor current_caption_idx instead of caption_cycle_idx
+        self.current_caption_idx = 0
+        # self.caption_cycle_idx = 0 
         print(f"New caption: {caption}")
         print(details)
         self.redraw()
 
     def toggle_view_mode(self):
         """Toggle between numeric/character grid and image view modes."""
+        self.show_real = False  # leaving real-image mode
+        self.show_real_var.set(False)
         self.show_images = not getattr(self, 'show_images', False)
         self.redraw()
 
@@ -254,6 +265,102 @@ class TileViewer(tk.Tk):
         print(f"A* path: {'traversable' if ok else 'NOT traversable'}  ({stats})")
         # game doubles as the render-target name render_info expects.
         return render_info(scene, game, info)
+    
+    # Jacob: Next few methods are from MarioMakerPCG. Were they needed?
+    def _resolve_image_path(self, image_path):
+        """Resolve the (usually relative) 'image' path from a sample to an
+        existing file on disk, or return None if it can't be found.
+
+        The path stored in the JSON (e.g. "ds_images\\source_0_0.png") is
+        normally relative to the dataset file's directory, but we also try the
+        path as-is and relative to the current working directory.
+        """
+        if not image_path:
+            return None
+        # Normalize separators so Windows-style backslashes work everywhere.
+        image_path = os.path.normpath(image_path)
+        candidates = []
+        if os.path.isabs(image_path):
+            candidates.append(image_path)
+        else:
+            dataset_path = getattr(self, 'dataset_path', None)
+            if dataset_path:
+                candidates.append(os.path.join(os.path.dirname(os.path.abspath(dataset_path)), image_path))
+            candidates.append(os.path.abspath(image_path))
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                return candidate
+        return None
+
+    def show_real_image(self):
+        """Toggle showing the real source image on the main canvas, in place of
+        the ASCII grid. When checked, the image is looked up via the 'image'
+        path stored in the dataset (a popup is shown ONLY when it can't be
+        loaded). When unchecked, restore whatever view was active before.
+        """
+        if self.show_real_var.get():
+            if not self.dataset:
+                self.show_real_var.set(False)
+                return
+            # Remember the view we're leaving so we can return to it.
+            self._prev_show_images = getattr(self, 'show_images', False)
+            self.show_real = True
+            self.show_images = False
+        else:
+            # Restore the view that was active before showing the real image.
+            self._exit_real_image_mode()
+        self.redraw()
+
+    def _exit_real_image_mode(self):
+        """Leave real-image mode and restore whatever view (grid or generated
+        image) was active before it was turned on, keeping the checkbox in sync."""
+        self.show_real = False
+        self.show_real_var.set(False)
+        self.show_images = getattr(self, '_prev_show_images', False)
+
+    def _render_real_image(self):
+        """Draw the current sample's real source image onto the main canvas, in
+        place of the ASCII grid. Returns True on success. On failure, shows an
+        error popup, leaves real-image mode, and returns False so the caller can
+        fall back to the normal grid/image rendering."""
+        sample = self.dataset[self.current_sample_idx]
+        image_path = sample.get('image') if isinstance(sample, dict) else None
+        resolved = self._resolve_image_path(image_path)
+
+        if resolved is None:
+            self._exit_real_image_mode()
+            messagebox.showerror(
+                "Image not available",
+                "Could not find the real image for this sample.\n\n"
+                f"Path: {image_path}"
+            )
+            return False
+
+        try:
+            image = Image.open(resolved)
+        except Exception as e:
+            self._exit_real_image_mode()
+            messagebox.showerror(
+                "Image not available",
+                f"Failed to open the real image:\n{resolved}\n\n{e}"
+            )
+            return False
+
+        self.current_pil_image = image  # Store for "Save Image As".
+        canvas_width = int(self.canvas['width'])
+        canvas_height = int(self.canvas['height'])
+        img_width, img_height = image.size
+        scale = min(canvas_width / img_width, canvas_height / img_height, 1.0)
+        display_image = image
+        if scale < 1.0:
+            new_size = (int(img_width * scale), int(img_height * scale))
+            display_image = image.resize(new_size, Image.Resampling.NEAREST)
+        photo_image = PIL.ImageTk.PhotoImage(display_image)
+        self.canvas.create_image(
+            canvas_width // 2, canvas_height // 2, image=photo_image, anchor="center"
+        )
+        self.photo_image = photo_image  # Keep a reference to avoid GC.
+        return True
 
     def create_widgets(self):
         frame = tk.Frame(self)
@@ -278,7 +385,6 @@ class TileViewer(tk.Tk):
         
         # Add checkboxes for caption generation options
         tk.Checkbutton(caption_options_frame, text="Show numeric IDs", variable=self.show_ids, command=self.redraw).pack(anchor=tk.W)
-        #tk.Checkbutton(caption_options_frame, text="Describe Locations", variable=self.describe_locations, state=tk.DISABLED).pack(anchor=tk.W)
         tk.Checkbutton(caption_options_frame, text="Describe Absence", variable=self.describe_absence).pack(anchor=tk.W)
         
         regenerate_button = tk.Button(checkbox_frame, text="Regenerate Caption", command=self.regenerate_caption)
@@ -307,8 +413,24 @@ class TileViewer(tk.Tk):
         self.filter_reason_label = tk.Label(self, text="", fg="red")
         self.filter_reason_label.pack(pady=(0, 2))
 
+        self.show_real_var = tk.BooleanVar(value=False)
+        show_real_image_button = tk.Checkbutton(
+            checkbox_frame,
+            text="Show Real Image",
+            variable=self.show_real_var,
+            command=self.show_real_image
+        )
+        show_real_image_button.pack(side=tk.LEFT, padx=5)
+
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
+
+        caption_nav_frame = tk.Frame(self)
+        caption_nav_frame.pack(pady=2)
+        tk.Button(caption_nav_frame, text="< Caption", command=self.prev_caption).pack(side=tk.LEFT, padx=2)
+        self.caption_index_label = tk.Label(caption_nav_frame, text="Caption 1 / 1")
+        self.caption_index_label.pack(side=tk.LEFT, padx=5)
+        tk.Button(caption_nav_frame, text="Caption >", command=self.next_caption).pack(side=tk.LEFT, padx=2)
 
         # Add Text widget for captions. insertontime=0 hides the blinking insert caret so
         # clicking the caption looks like selecting text, not entering an edit field;
@@ -319,7 +441,7 @@ class TileViewer(tk.Tk):
         )
         self.caption_text.pack(pady=2)
         self.caption_text.tag_configure("center", justify="center")
-        # Make it read-only but selectable/copyable
+        # Read-only but still selectable/copyable, so block edits but not selection/copy.
         self.caption_text.bind("<Key>", lambda e: "break")
         # Arrow keys must still move between samples even when the caption has focus; the
         # more-specific Left/Right bindings take precedence over the <Key> handler above.
@@ -427,7 +549,7 @@ class TileViewer(tk.Tk):
         tk.Button(self.composed_frame, text="Delete", command=self.delete_selected_thumbnail).pack(side=tk.LEFT, padx=2)
         self.clear_composed_button = tk.Button(self.composed_frame, text="Clear Composed Level", command=self.clear_composed_level)
         self.clear_composed_button.pack(side=tk.LEFT, padx=2)
-        
+
         # Thumbnails for composed level
         self.composed_thumb_frame = tk.Frame(self)
         self.composed_thumb_frame.pack(fill=tk.X)
@@ -440,10 +562,11 @@ class TileViewer(tk.Tk):
             "Lode Runner": "LR",
             "Mega Man (Simple)": "MM-Simple",
             "Mega Man (Full)": "MM-Full",
-            "Mega Man (Maker)": "MMLV"
+            "Mega Man (Maker)": "MMLV",
+            "Mario Maker 2": "MM2"
         }
-        
-       #Method called every time the dropdown is updated to use the mapping, and putting it in self.game
+
+        #Method called every time the dropdown is updated to use the mapping, and putting it in self.game
         def on_game_select(Event=None):
             game_display_var = self.game_display_var.get()
             self.game.set(self.game_display_to_real_mapping.get(game_display_var, game_display_var))
@@ -456,26 +579,16 @@ class TileViewer(tk.Tk):
                 "MM-Simple": common_settings.MM_SIMPLE_TILESET,
                 "MM-Full": common_settings.MM_FULL_TILESET,
                 "MMLV": common_settings.MMLV_TILESET,
+                "MM2": common_settings.MM2_TILESET
             }
-            #game_to_dataset = {
-                #"Mario": "datasets/SMB1_LevelsAndCaptions-regular.json",
-                #"LR": "datasets/Mar1and2_LevelsAndCaptions-regular.json",
-                #"MM-Simple": "datasets/MM-simple_LevelsAndCaptions-regular.json",
-                #"MM-Full": "datasets/MM-full_LevelsAndCaptions-regular.json",
-            #}
 
             new_tileset_path = game_to_tileset.get(self.game.get())
-            #new_dataset_path = game_to_dataset.get(self.game.get())
 
             tileset_changed = (new_tileset_path and os.path.isfile(new_tileset_path)
                                 and new_tileset_path != self.tileset_path)
-            #dataset_changed = (new_dataset_path and os.path.isfile(new_dataset_path)
-                                #and new_dataset_path != self.dataset_path)
 
             if tileset_changed:
                 self.tileset_path = new_tileset_path
-            #if dataset_changed:
-                #self.dataset_path = new_dataset_path
 
             if tileset_changed and self.dataset_path and self.tileset_path:
                 self.load_files_from_paths(self.dataset_path, self.tileset_path)
@@ -485,7 +598,7 @@ class TileViewer(tk.Tk):
         self.game = tk.StringVar(value=self.game_display_to_real_mapping[self.game_display_var.get()])
         self.game_label = ttk.Label(self.composed_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"], state="readonly")
+        self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker 2"], state="readonly")
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", on_game_select)
 
@@ -523,6 +636,8 @@ class TileViewer(tk.Tk):
     def bind_keys(self):
         self.bind("<Right>", lambda e: self.next_sample())
         self.bind("<Left>", lambda e: self.prev_sample())
+        self.bind("<Up>", lambda e: self.prev_caption())
+        self.bind("<Down>", lambda e: self.next_caption())
 
     def load_files(self):
         dataset_path = filedialog.askopenfilename(title="Select dataset JSON")
@@ -555,21 +670,88 @@ class TileViewer(tk.Tk):
 
         self.dataset_path = dataset_path
         try:
-            with open(dataset_path, 'r') as f:
+            with open(dataset_path, 'r', encoding='utf-8') as f:
                 self.dataset = json.load(f)
 
+            # Jacob: There is code from MarioDiffusion and MarioMakerPCG below,
+            #        but I don't think that either approach is up to date.
+
+            # Jacob: This code is from MarioDiffusion
             # Is designed to typically expect both scenes and captions, but if there are only level scenes,
             # convert the data format
             if isinstance(self.dataset, list) and all(isinstance(item, list) for item in self.dataset):
                 # Convert to dict format with empty caption
                 self.dataset = [{'scene': item, 'caption': ''} for item in self.dataset]
 
+            # Jacob: This commented out code came from MarioMakerPCG
+            # Normalize every sample to a dict with 'scene' and 'captions' keys.
+            # Some datasets are raw scene grids (list of lists); others are
+            # dicts missing 'caption'/'captions' (e.g. mm2pipeline_data.dataset's
+            # {'name', 'scene'} output).
+            #normalized_dataset = []
+            #for item in self.dataset:
+            #    if isinstance(item, list):
+            #        normalized_dataset.append({'scene': item, 'captions': ['']})
+            #    else:
+            #        # MarioMaker_llm_captions.py stores multiple captions as
+            #        # 'caption', 'caption1', 'caption2', ... ; collect them all
+            #        # into an in-memory 'captions' list for display/navigation.
+            #        captions = [item['caption']] if item.get('caption') else []
+            #        idx = 1
+            #        while f'caption{idx}' in item:
+            #            captions.append(item[f'caption{idx}'])
+            #            idx += 1
+            #        if not captions:
+            #            captions = ['']
+            #        item['captions'] = captions
+            #        item.setdefault('caption', captions[0])
+            #        normalized_dataset.append(item)
+            #self.dataset = normalized_dataset
+
+            # Jacob: Neither of the two options above seem to be aware of the 
+            #        new multi-caption approach
+
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+            self.color_map = self._build_color_map()
             self.current_sample_idx = 0
+            # Jacob: favor current_caption_idx instead of caption_cycle_idx
+            self.current_caption_idx = 0
+            # self.caption_cycle_idx = 0 
             self.redraw()
         except Exception as e:
             print(f"Error loading files: {e}")
             raise e
+
+    # Jacob: Not sure this is necesary, or compatible with the other games.
+    def _build_color_map(self):
+        TAG_COLORS = [
+            ("empty",       (0.20, 0.30, 0.70)),
+            ("air",         (0.20, 0.30, 0.70)),
+            ("pipe",        (0.00, 0.55, 0.10)),
+            ("warp",        (0.10, 0.70, 0.20)),
+            ("door",        (0.10, 0.70, 0.20)),
+            ("goal",        (0.00, 0.90, 0.30)),
+            ("spawn",       (0.00, 0.00, 0.90)),
+            ("enemy",       (0.90, 0.10, 0.10)),
+            ("damaging",    (0.90, 0.10, 0.10)),
+            ("hazard",      (1.00, 0.50, 0.00)),
+            ("collectable", (1.00, 0.85, 0.00)),
+            ("item",        (1.00, 0.85, 0.00)),
+            ("platform",    (0.30, 0.50, 0.90)),
+            ("passable",    (0.70, 0.85, 1.00)),
+            ("solid",       (0.50, 0.35, 0.10)),
+            ("decoration",  (0.60, 0.60, 0.60)),
+        ]
+        color_map = {}
+        for tile_id, char in self.id_to_char.items():
+            descriptors = self.tile_descriptors.get(char, set())
+            color = (0.80, 0.80, 0.80)
+            for tag, col in TAG_COLORS:
+                if tag in descriptors:
+                    color = col
+                    break
+            color_map[tile_id] = color
+        return color_map
 
     def load_model(self):
         """Load a trained diffusion model."""
@@ -586,6 +768,7 @@ class TileViewer(tk.Tk):
                 self.generate_button.config(state=tk.DISABLED)
                 self.steps_entry.config(state=tk.DISABLED)
 
+    # Jacob: I'm pretty sure this has never worked right and should be removed
     def generate_from_scene(self):
         """Generate a new level from the current scene using the loaded model."""
         if not hasattr(self, 'pipeline') or not self.pipeline:
@@ -683,15 +866,26 @@ class TileViewer(tk.Tk):
         sample = self.dataset[self.current_sample_idx]
 
         if isinstance(sample, list):
+            # Jacob: Not sure whether "caption" or "captions" is the right key to use here, but this is a fallback for datasets that don't have captions.
             sample = {"scene": sample, "caption": "No caption available."}
+            # sample = {"scene": sample, "captions": ["No caption available."]}
+
+        # Clamp caption index to the current sample's caption list
+        captions = sample.get('captions') or [sample.get('caption', '')]
+        self.current_caption_idx = max(0, min(self.current_caption_idx, len(captions) - 1))
+        self.caption_index_label.config(
+            text=f"Caption {self.current_caption_idx + 1} / {len(captions)}"
+        )
 
         # Dynamically update tile and canvas size for this scene
         self.update_tile_and_canvas_size(sample['scene'])
 
         # Generate unique colors for caption phrases based on TOPIC_KEYWORDS
-        from captions.caption_match import TOPIC_KEYWORDS
+        from captions.caption_match import TOPIC_KEYWORDS # Mario
         from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
         from captions.MM_caption_match import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
+        # Jacob: TODO: Add Mario Maker
+
         # Generate a palette of distinct colors algorithmically
         # See if running Lode Runner
         if self.game.get()=="LR":
@@ -699,8 +893,10 @@ class TileViewer(tk.Tk):
         elif self.game.get()=="MM-Simple" or self.game.get()=="MM-Full" or self.game.get()=="MMLV":
             TOPIC_KEYWORDS = MM_TOPIC_KEYWORDS
         # If not Lode Runner or Mega Man, use the default topic keywords of Mario
-        else:
-            TOPIC_KEYWORDS = TOPIC_KEYWORDS
+        
+        # Jacob: Why was this next assignment statement ever here?
+        #else:
+        #    TOPIC_KEYWORDS = TOPIC_KEYWORDS
         num_topics = len(TOPIC_KEYWORDS)
         topic_colors = {}
 
@@ -728,7 +924,10 @@ class TileViewer(tk.Tk):
 
         
 
-        if getattr(self, 'show_images', False):
+        if getattr(self, 'show_real', False) and self._render_real_image():
+            # Real source image drawn onto the canvas; nothing else to draw.
+            pass
+        elif getattr(self, 'show_images', False):
             # Display as image using visualize_samples
             from level_dataset import visualize_samples
             import PIL.ImageTk
@@ -750,8 +949,14 @@ class TileViewer(tk.Tk):
                     num_classes = common_settings.MM_SIMPLE_TILE_COUNT
                 elif self.game.get()=="MMLV":
                     num_classes = common_settings.MMLV_TILE_COUNT
-                else: #Goes to MM-Full if all other cases fail
+                elif self.game.get()=="MM-Full":
                     num_classes = common_settings.MM_FULL_TILE_COUNT
+                elif self.game.get()=="MM2":
+                    num_classes = common_settings.MM2_TILE_COUNT
+                else: # Jacob: MarioMakerPCG used this case, 
+                      #        but I wonder if this should be an exception instead.
+                    #Get the right size for the one-hot encoding
+                    num_classes = len(self.id_to_char)
 
 
                 one_hot_scene = torch.nn.functional.one_hot(
@@ -760,6 +965,7 @@ class TileViewer(tk.Tk):
                 ).float().permute(2, 0, 1).unsqueeze(0)  # Add batch dimension
 
                 image = visualize_samples(one_hot_scene, game=self.game.get())
+
             if isinstance(image, list):
                 image = image[0]  # Handle list case by taking the first element
             # Convert to PIL Image if needed
@@ -784,7 +990,14 @@ class TileViewer(tk.Tk):
             self.current_pil_image = None  # No image to save in non-image mode
             # Display as numeric/character grid
             font = ("Courier", self.font_size)
+            # Jacob: General colors used by MarioDiffusion originally.
+            #        There may not be enough colors to accommodate MarioMaker,
+            #        and the colors are not tailored to that game
             colors = level_dataset.colors()
+            # Jacob: This is the more specific option from MarioMakerPCG,
+            #        but I would prefer to remove it for a general solution.
+            color_map = getattr(self, 'color_map', None) or {}
+            base_colors = level_dataset.colors()
 
             HEIGHT = len(sample['scene'])
             WIDTH = len(sample['scene'][0])
@@ -792,8 +1005,16 @@ class TileViewer(tk.Tk):
                 for x in range(WIDTH):
                     tile_id = sample['scene'][y][x]
                     text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
-                    # Convert (r, g, b) float tuple to hex color string
-                    r, g, b = colors[tile_id % len(colors)]
+                    if self.game.get() == "MM2": # Jacob: From MarioMakerPCG
+                        if tile_id in color_map:
+                            r, g, b = color_map[tile_id]
+                        elif tile_id < len(base_colors):
+                            r, g, b = base_colors[tile_id]
+                        else:
+                            r, g, b = (0.80, 0.80, 0.80)
+                    else: # Jacob: Default MarioDiffusion behavior
+                        # Convert (r, g, b) float tuple to hex color string
+                        r, g, b = colors[tile_id % len(colors)]
                     color_hex = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
                     # Find all matching phrases for this coordinate
@@ -843,6 +1064,7 @@ class TileViewer(tk.Tk):
         has_prompt = isinstance(sample, dict) and 'prompt' in sample
         self._update_prompt_toggle_control(has_prompt)
 
+        # Jacob: This first if-case is all from MarioDiffusion
         if self.show_prompt and has_prompt:
             # Showing the raw prompt: hide the caption-cycle controls and render it as
             # plain (uncolored) text, since prompts don't carry per-phrase detail coords.
@@ -852,6 +1074,8 @@ class TileViewer(tk.Tk):
             self.caption_text.tag_configure("black", foreground="black")
             self.caption_text.insert(tk.END, str(sample.get('prompt', '')), ("black", "center"))
         else:
+            # Jacob: The start of this section is from MarioDiffusion
+
             # A scene may carry several caption fields (e.g. caption, caption1, ... from
             # llm_ascii_to_caption); pick the one the cycle button currently points at and
             # show/hide the cycle control accordingly.
@@ -865,6 +1089,10 @@ class TileViewer(tk.Tk):
             self.caption_text.configure(state="normal")
             self.caption_text.delete("1.0", tk.END)
             current_caption_key = caption_keys[self.caption_cycle_idx] if caption_keys else 'caption'
+
+            # Jacob: But this line is from MarioMakerPCG
+            caption_text = captions[self.current_caption_idx]
+            # Jacob: vs this version from MarioDiffusion
             caption_text = sample.get(current_caption_key, '')
             caption_parts = caption_text.split('.')
             for part in caption_parts:
@@ -965,13 +1193,15 @@ class TileViewer(tk.Tk):
     def prev_sample(self):
         if self.current_sample_idx > 0:
             self.current_sample_idx -= 1
-            self.caption_cycle_idx = 0
+            self.current_caption_idx = 0
+            #self.caption_cycle_idx = 0
             self.redraw()
 
     def next_sample(self):
         if self.current_sample_idx < len(self.dataset) - 1:
             self.current_sample_idx += 1
-            self.caption_cycle_idx = 0
+            self.current_caption_idx = 0
+            #self.caption_cycle_idx = 0
             self.redraw()
 
     def jump_to_sample(self, event=None):
@@ -979,12 +1209,29 @@ class TileViewer(tk.Tk):
             idx = int(self.jump_entry.get()) - 1
             if 0 <= idx < len(self.dataset):
                 self.current_sample_idx = idx
-                self.caption_cycle_idx = 0
+                self.current_caption_idx = 0
+                #self.caption_cycle_idx = 0
                 self.redraw()
             else:
                 print("Index out of range.")
         except ValueError:
             print("Invalid index entered.")
+
+    def prev_caption(self):
+        if not self.dataset:
+            return
+        captions = self.dataset[self.current_sample_idx].get('captions') or ['']
+        if self.current_caption_idx > 0:
+            self.current_caption_idx -= 1
+            self.redraw()
+
+    def next_caption(self):
+        if not self.dataset:
+            return
+        captions = self.dataset[self.current_sample_idx].get('captions') or ['']
+        if self.current_caption_idx < len(captions) - 1:
+            self.current_caption_idx += 1
+            self.redraw()
 
     def add_to_composed_level(self):
         idx = self.current_sample_idx
@@ -1091,6 +1338,13 @@ class TileViewer(tk.Tk):
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
+            # Jacob: Seems odd that there is a special case for MM2 here.
+            if self.game.get() == "MM2":
+                # No Java sim for MM2, use the Python astar/ check instead
+                from astar.astar_traversability_check import astar_console_report
+                print(astar_console_report(scene, id_to_char=self.id_to_char,
+                                           tile_descriptors=self.tile_descriptors))
+                return
             level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             console_output = level.run_astar()
             print(console_output)
@@ -1140,6 +1394,9 @@ class TileViewer(tk.Tk):
                 use_snes_graphics = self.use_snes_graphics.get()
             char_grid = scene_to_ascii(scene, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+        else: # Jacob: Mega Man also fails here I think
+            # MM2 has no Java sim (it uses the Python A* path)
+            raise ValueError(f"get_sample_output: no simulator for game {self.game.get()!r}")
         return level
 
     def show_caption_context_menu(self, event):
