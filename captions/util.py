@@ -175,19 +175,32 @@ def extract_tileset(tileset_path):
     with open(tileset_path, "r") as f:
         tileset = json.load(f)
         #print(f"tileset: {tileset}")
-        if "MM" in os.path.basename(tileset_path): #Clunky test that I'll likly change later to prevent sorting on the MegaMan data, because it doesn't expect it.
-            tile_chars = tileset['tiles'].keys()
-        else: #Applies to lode runner/mario
-            tile_chars = sorted(tileset['tiles'].keys())
-        # Wiggle room for the tileset to be a bit more flexible.
-        # However, this requires me to add some bogus tiles to the list.
-        # tile_chars.append('!') 
-        # tile_chars.append('*') 
-        #print(f"tile_chars: {tile_chars}")
-        id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
-        #print(f"id_to_char: {id_to_char}")
-        char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
-        #print(f"char_to_id: {char_to_id}")
+
+        #If the tileset file carries an explicit tile_to_id mapping (written by
+        #create_tile_to_id for grouped/simplified tilesets like MM-simple-tileset.json),
+        #use it directly. Those ids come from a custom grouping+append order that does NOT
+        #match alphabetical/insertion order of the "tiles" keys, so re-deriving ids by
+        #enumerating tile_chars would silently produce a different (wrong) mapping than the
+        #one actually used to encode the scene data.
+        if "tile_to_id" in tileset:
+            char_to_id = {char: int(idx) for char, idx in tileset["tile_to_id"].items()}
+            id_to_char = {idx: char for char, idx in char_to_id.items()}
+            tile_chars = list(char_to_id.keys())
+        else:
+            if "MM" in os.path.basename(tileset_path): #Clunky test that I'll likly change later to prevent sorting on the MegaMan data, because it doesn't expect it.
+                tile_chars = tileset['tiles'].keys()
+            else: #Applies to lode runner/mario
+                tile_chars = sorted(tileset['tiles'].keys())
+            # Wiggle room for the tileset to be a bit more flexible.
+            # However, this requires me to add some bogus tiles to the list.
+            # tile_chars.append('!') 
+            # tile_chars.append('*') 
+            #print(f"tile_chars: {tile_chars}")
+            id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+            #print(f"id_to_char: {id_to_char}")
+            char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+            #print(f"char_to_id: {char_to_id}")
+
         tile_descriptors = get_tile_descriptors(tileset)
         #print(f"tile_descriptors: {tile_descriptors}")
 
