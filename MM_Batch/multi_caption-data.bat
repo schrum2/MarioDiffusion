@@ -9,13 +9,13 @@ cd ..
 :: so sources accumulate down the chain (deterministic_captions, then one <model>_captions per LLM).
 
 :: Extract scenes from the VGLC Mega Man levels via path-following
-python create_megaman_json_data.py --output datasets\\MM_Levels.json --scan_mode path 
+python create_megaman_json_data.py --output datasets\\MM_Levels.json --scan_mode path --limit 800
 
 REM deterministic_captions
 python MM_create_ascii_captions.py --dataset datasets\\MM_Levels.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-multi.json --caption-mode keyed --caption-key deterministic_captions
 
 REM local inference
-python llm_ascii_to_caption.py --levels datasets\\MM_LevelsAndCaptions-multi.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-multi.json --llm ollama --model qwen3.5:27b
+python llm_ascii_to_caption.py --levels datasets\\MM_LevelsAndCaptions-multi.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-multi.json --llm ollama --model qwen3.5:9b
 python llm_ascii_to_caption.py --levels datasets\\MM_LevelsAndCaptions-multi.json --tileset datasets\\MM.json --output datasets\\MM_LevelsAndCaptions-multi.json --llm ollama --model gemma4:26b
 
 REM cloud inference
