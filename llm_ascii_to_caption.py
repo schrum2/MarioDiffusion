@@ -549,6 +549,12 @@ def parse_args():
                            help="Optional path to write the captioned [{scene, caption}] list as JSON")
     argparser.add_argument("--limit", type=int, default=None,
                            help="Max number of scenes to caption. Defaults to the entire dataset")
+    argparser.add_argument("--caption-mode", default="keyed", choices=["legacy", "keyed"],
+                           help="Output schema. 'legacy' (default) writes 'caption'/'caption1'/... fields. 'keyed' writes the captions as a list under --caption-key (default "
+                                "'<model>_captions'), so a scene can carry captions from several models at once. In both modes every other input attribute (metadata and captions from other "
+                                "sources) is copied to the output, so passing a previously-captioned dataset back in accumulates sources rather than replacing them."),
+    
+    
     return argparser.parse_args()
 
 
@@ -620,7 +626,11 @@ def main() -> list[list[str]]:
         caption_lists.append(caption_set)
         # ugly but necessary; want single json object with flat fields scene, cap, cap1, ..., cap4.
         # "scene" holds the original integer tile-id grid
-        captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4], "model": llmstr})
+        
+        if args.caption_mode == "legacy":
+            captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4], "model": llmstr})            
+        else:
+            captioned_dataset.append({"scene": scene, f"{model}_captions": caption_set})
 
     # Mark the end of the full captioning process and report total elapsed time.
     end_time = time.time()
