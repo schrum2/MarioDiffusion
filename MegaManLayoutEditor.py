@@ -331,6 +331,13 @@ class MegaManLayoutEditor:
     # Chars that represent a spawn or exit in any Mega Man ASCII level; stripped on export.
     SPAWN_EXIT_CHARS = ("P", "Z")
 
+    SEAM_THICKNESS = 10
+    SEAM_SMOOTH_COLOR = "#33cc55"
+    SEAM_LOCKED_COLOR = "#dd3333"
+    SEAM_TILE_PX = 16
+    SEAM_SCREEN_W_TILES = 16
+    SEAM_SCREEN_H_TILES = 14
+
     def __init__(self, master, app):
         self.master = master
         self.app = app
@@ -343,6 +350,12 @@ class MegaManLayoutEditor:
         # t_col/t_row are *tile* indices within the scene at that cell (snapped, exact).
         self.marker_placements = {}       # "start" / "exit" -> (col, row, t_col, t_row)
         self.marker_canvas_ids = {}       # "start" / "exit" -> (oval_id, text_id)
+
+        # seam_locked: set of frozenset({(col1,row1), (col2,row2)}) for adjacent placed
+        # cells the user wants a hard screen-lock at. Anything NOT in here is smooth —
+        # that's the default.
+        self.seam_locked = set()
+        self.seam_canvas_ids = {}   # seam key -> canvas rect id
 
         # Zoom state and render caches.
         self.cell_pixels = self.DEFAULT_CELL_PIXELS
@@ -447,6 +460,28 @@ class MegaManLayoutEditor:
         self._draw_grid(self.grid_span, self.canvas_size)
         self._center_view()
 
+        # Floating legend explaining the seam-color strips, pinned to the bottom-left
+        # corner of the grid view. Uses place() over canvas_frame so it stays fixed on
+        # screen regardless of scrolling/zoom, instead of living on the scrollable canvas.
+        legend = tk.Frame(canvas_frame, bg="#111111", bd=1, relief="solid")
+        legend.place(in_=canvas_frame, relx=0.0, rely=1.0, x=10, y=-28, anchor="sw")
+
+        smooth_row = tk.Frame(legend, bg="#111111")
+        smooth_row.pack(anchor="w", padx=8, pady=(6, 2))
+        smooth_swatch = tk.Frame(smooth_row, bg=self.SEAM_SMOOTH_COLOR, width=16, height=14)
+        smooth_swatch.pack_propagate(False)
+        smooth_swatch.pack(side=tk.LEFT, padx=(0, 6))
+        tk.Label(smooth_row, text="Smooth scroll", bg="#111111", fg="white",
+                 font=("Arial", 9)).pack(side=tk.LEFT)
+
+        locked_row = tk.Frame(legend, bg="#111111")
+        locked_row.pack(anchor="w", padx=8, pady=(0, 6))
+        locked_swatch = tk.Frame(locked_row, bg=self.SEAM_LOCKED_COLOR, width=16, height=14)
+        locked_swatch.pack_propagate(False)
+        locked_swatch.pack(side=tk.LEFT, padx=(0, 6))
+        tk.Label(locked_row, text="Screen lock", bg="#111111", fg="white",
+                 font=("Arial", 9)).pack(side=tk.LEFT)
+
         # Scroll wheel zooms (centered on the cursor); middle-drag pans.
         self.grid_canvas.bind("<MouseWheel>", self._on_grid_mousewheel)
         self.grid_canvas.bind("<ButtonPress-2>", lambda e: self.grid_canvas.scan_mark(e.x, e.y))
@@ -541,6 +576,10 @@ class MegaManLayoutEditor:
         self.marker_canvas_ids.clear()
         for key, (col, row, t_col, t_row) in self.marker_placements.items():
             self._draw_marker(key, col, row, t_col, t_row)
+
+        self.seam_canvas_ids.clear()
+        for cell in list(self.placements.keys()):
+            self._draw_seams_for_cell(*cell)
 
     def _scene_photo(self, scene_index):
         """A PhotoImage of a composed scene rendered to fill the current cell size.
@@ -708,6 +747,7 @@ class MegaManLayoutEditor:
         if scene_index is None:
             return
         self._remove_markers_on_cell(col, row)  # markers don't follow a moving scene
+        self._remove_seams_on_cell(col, row)
         self._clear_cell_visual(col, row)
         del self.placements[(col, row)]
         self.placed_scene_indices.discard(scene_index)
@@ -764,6 +804,7 @@ class MegaManLayoutEditor:
         self.placements[(col, row)] = scene_index
         self.placed_scene_indices.add(scene_index)
         self._draw_scene(scene_index, col, row)
+        self._draw_seams_for_cell(col, row)
 
     def _draw_scene(self, scene_index, col, row):
         """Draw the scene image + index label for a cell and wire its mouse bindings."""
@@ -815,6 +856,7 @@ class MegaManLayoutEditor:
 
     def _remove_from_cell(self, col, row):
         self._remove_markers_on_cell(col, row)
+        self._remove_seams_on_cell(col, row)
         scene_index = self.placements.pop((col, row), None)
         self._clear_cell_visual(col, row)
         if scene_index is not None:
@@ -822,11 +864,10 @@ class MegaManLayoutEditor:
         self._populate_palette()
 
     def clear_grid(self):
-        # Clearing the data model and rebuilding the canvas guarantees no spawn/exit
-        # (or any other) visual survives - including orphans from earlier re-placements.
         self.placements.clear()
         self.placed_scene_indices.clear()
         self.marker_placements.clear()
+        self.seam_locked.clear()
         self._redraw_all()
         self._populate_palette()
 
@@ -912,6 +953,90 @@ class MegaManLayoutEditor:
             for cid in ids:
                 self.grid_canvas.delete(cid)
         self.marker_placements.pop(marker_key, None)
+
+    # ------------------------------------------------------------------ seams
+
+    def _seam_rect_coords(self, cellA, cellB):
+        (c1, r1), (c2, r2) = sorted([cellA, cellB])
+        x1, y1 = self._cell_to_pixel(c1, r1)
+        t = self.SEAM_THICKNESS / 2
+        if c1 == c2:  # stacked vertically — seam is a horizontal strip between them
+            seam_y = y1 + self.cell_pixels
+            return (x1, seam_y - t, x1 + self.cell_pixels, seam_y + t)
+        else:  # side by side — seam is a vertical strip between them
+            seam_x = x1 + self.cell_pixels
+            return (seam_x - t, y1, seam_x + t, y1 + self.cell_pixels)
+
+    def _draw_seam(self, cellA, cellB):
+        key = frozenset((cellA, cellB))
+        old = self.seam_canvas_ids.pop(key, None)
+        if old is not None:
+            self.grid_canvas.delete(old)
+        x0, y0, x1, y1 = self._seam_rect_coords(cellA, cellB)
+        color = self.SEAM_LOCKED_COLOR if key in self.seam_locked else self.SEAM_SMOOTH_COLOR
+        rect_id = self.grid_canvas.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
+        self.grid_canvas.tag_bind(rect_id, "<Button-1>", lambda e, k=key: self._toggle_seam(k))
+        self.grid_canvas.tag_raise(rect_id)
+        self.seam_canvas_ids[key] = rect_id
+
+    def _toggle_seam(self, key):
+        if key in self.seam_locked:
+            self.seam_locked.discard(key)
+        else:
+            self.seam_locked.add(key)
+        cellA, cellB = tuple(key)
+        self._draw_seam(cellA, cellB)
+
+    def _draw_seams_for_cell(self, col, row):
+        for ncell in ((col + 1, row), (col - 1, row), (col, row + 1), (col, row - 1)):
+            if ncell in self.placements:
+                self._draw_seam((col, row), ncell)
+
+    def _remove_seams_on_cell(self, col, row):
+        for key in list(self.seam_canvas_ids.keys()):
+            if (col, row) in key:
+                self.grid_canvas.delete(self.seam_canvas_ids.pop(key))
+                self.seam_locked.discard(key)
+
+    def _seam_screen_pairs(self):
+        """Expand self.seam_locked (layout-cell seams) into the set of adjacent
+        screen-block coordinate pairs that vglc_to_mmlv.convert() should treat
+        as hard-locked instead of smooth."""
+        if not self.seam_locked:
+            return set()
+        cleaned_scenes, result = self._get_cleaned_scenes()
+        if cleaned_scenes is None:
+            return set()
+        scene_h, scene_w = result
+        min_col = min(c for c, r in self.placements)
+        min_row = min(r for c, r in self.placements)
+
+        SW, SH, PX = self.SEAM_SCREEN_W_TILES, self.SEAM_SCREEN_H_TILES, self.SEAM_TILE_PX
+
+        pairs = set()
+        for key in self.seam_locked:
+            (colA, rowA), (colB, rowB) = tuple(key)
+            if (colA, rowA) not in self.placements or (colB, rowB) not in self.placements:
+                continue
+            if rowA == rowB:
+                left_col, right_col = sorted((colA, colB))
+                boundary_tile_x = (right_col - min_col) * scene_w
+                sx_left = ((boundary_tile_x - 1) // SW) * SW * PX
+                sx_right = (boundary_tile_x // SW) * SW * PX
+                row_tile_start = (rowA - min_row) * scene_h
+                for local_row in range(0, scene_h, SH):
+                    sy = ((row_tile_start + local_row) // SH) * SH * PX
+                    pairs.add(((sx_left, sy), (sx_right, sy)))
+            else:
+                top_row, bottom_row = sorted((rowA, rowB))
+                boundary_tile_y = (bottom_row - min_row) * scene_h
+                sy_top = ((boundary_tile_y - 1) // SH) * SH * PX
+                sy_bottom = (boundary_tile_y // SH) * SH * PX
+                col_tile_start = (colA - min_col) * scene_w
+                for local_col in range(0, scene_w, SW):
+                    sx = ((col_tile_start + local_col) // SW) * SW * PX
+                    pairs.add(((sx, sy_top), (sx, sy_bottom)))
+        return pairs
 
     # ------------------------------------------------------------------ build merged scene
 
@@ -1146,7 +1271,8 @@ class MegaManLayoutEditor:
             from megaman.vglc_to_mmlv import convert
 
             lines = open(txt_path).readlines()
-            result = convert(lines, level_name=level_name, author="AI")
+            locked_seams = self._seam_screen_pairs()
+            result = convert(lines, level_name=level_name, author="AI", locked_seams=locked_seams)
 
             with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(result)

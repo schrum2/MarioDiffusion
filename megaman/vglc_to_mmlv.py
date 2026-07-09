@@ -478,7 +478,14 @@ def is_void_enclosed(rows: List[str], row_idx: int, col_idx: int,
 
     return False
 
-def convert(lines: List[str], level_name: str = "Generated", author: str = "converter") -> str:
+def convert(lines: List[str], level_name: str = "Generated", author: str = "converter",
+            locked_seams: set[tuple[tuple[int, int], tuple[int, int]]] | None = None) -> str:
+    if locked_seams is None:
+        locked_seams = set()
+
+    def seam_is_locked(a, b):
+        return (a, b) in locked_seams or (b, a) in locked_seams
+
     rows = [r.rstrip('\n') for r in lines]
     if not rows:
         raise ValueError("Empty level file.")
@@ -555,9 +562,29 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
     print(f"DEBUG rows height: {len(rows)}")
     print(f"DEBUG screen_blocks: {sorted(screen_blocks)}")
 
-    for sx, sy in sorted(screen_blocks):
-        out.append(f'2b{sx},{sy}="0.000000"')
-        out.append(f'2a{sx},{sy}="1.000000"')
+    from collections import defaultdict
+    rows_by_y: dict[int, list[int]] = defaultdict(list)
+    for sx, sy in screen_blocks:
+        rows_by_y[sy].append(sx)
+
+    def _emit_chain(chain: List[int], sy: int) -> None:
+        left, right = chain[0], chain[-1]
+        out.append(f'2b{left},{sy}="0.000000"')
+        if right != left:
+            out.append(f'2c{right},{sy}="1.000000"')
+        for x in chain:
+            out.append(f'2a{x},{sy}="1.000000"')
+
+    for sy in sorted(rows_by_y):
+        xs = sorted(rows_by_y[sy])
+        chain = [xs[0]]
+        for prev_x, x in zip(xs, xs[1:]):
+            if x == prev_x + 256 and not seam_is_locked((prev_x, sy), (x, sy)):
+                chain.append(x)
+            else:
+                _emit_chain(chain, sy)
+                chain = [x]
+        _emit_chain(chain, sy)
 
     out += [
         '1t="0.000000"',
