@@ -6,6 +6,7 @@ import torch
 from evolution.genome import LatentGenome
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
+from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 import util.common_settings as common_settings
 from models.pipeline_loader import get_pipeline
 
@@ -21,12 +22,20 @@ class DiffusionEvolver(Evolver):
 
         #self.pipe.print_unet_architecture()
         _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-        
+
+        # MM2 captions read tile names from the tileset, not the Mario tag table
+        if args is not None and args.game == 'MM2':
+            self.mm_assign_caption, _ = mm2_caption_tools(tileset_path)
+
     def random_latent(self, seed=1):
         if args.game == "Mario":
             height = common_settings.MARIO_HEIGHT
             width = common_settings.MARIO_WIDTH
             num_channels_latents = common_settings.MARIO_TILE_COUNT
+        elif args.game == 'MM2':
+            height = common_settings.MM2_HEIGHT
+            width = common_settings.MM2_WIDTH
+            num_channels_latents = common_settings.MM2_TILE_COUNT
         elif args.game == 'LR':
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
@@ -82,6 +91,8 @@ class DiffusionEvolver(Evolver):
         g.scene = scene 
         if args.game == 'Mario':
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        elif args.game == 'MM2':
+            actual_caption = self.mm_assign_caption(scene)
         elif args.game == 'LR':
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
         g.caption = actual_caption
@@ -92,6 +103,9 @@ class DiffusionEvolver(Evolver):
 
         if args.game == 'Mario':
             samples = visualize_samples(images)
+        elif args.game == 'MM2':
+            # game='MM2' renders the real MM2 sprites instead of flat Mario tiles
+            samples = visualize_samples(images, game='MM2')
         elif args.game == 'LR':
             samples = visualize_samples(images, game='LR')
         return samples
@@ -109,8 +123,8 @@ def parse_args():
     parser.add_argument(
         "--game",
         type=str,
-        default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        default="MM2",
+        choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
@@ -121,6 +135,10 @@ if __name__ == "__main__":
 
     if args.game == "Mario":
         args.tileset_path = common_settings.MARIO_TILESET
+    elif args.game == 'MM2':
+        # Mario Maker 2: mm2_tileset_we.json, 20x20 scenes
+        args.tileset_path = common_settings.MM2_TILESET
+        args.width = common_settings.MM2_WIDTH
     elif args.game == 'LR':
         args.tileset_path = common_settings.LR_TILESET
         args.width = common_settings.LR_WIDTH

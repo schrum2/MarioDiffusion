@@ -44,8 +44,11 @@ class LatentGenome:
         self.prompt = prompt
         self.negative_prompt = negative_prompt
         self.caption = caption
-        
-        if randomize: 
+        # Caption adherence score (prompt vs the generated scene's caption), set
+        # in generate_image. None when there is no prompt to score against.
+        self.score = None
+
+        if randomize:
             # Randomize all aspects of picture. Seed will drastically change it
             self.set_seed(random.getrandbits(64))
             self.change_inference_steps(random.randint(-MUTATE_MAX_STEP_DELTA, MUTATE_MAX_STEP_DELTA))
@@ -84,6 +87,7 @@ class LatentGenome:
             f"scene={self.scene},\n"
             f"latents={display_embeddings(self.latents)},\n"
             f"caption={self.caption},\n"
+            f"score={self.score},\n"
             f"prompt={self.prompt},\n"
             f"negative_prompt={self.negative_prompt},\n"
             f"width={self.width},\n"
@@ -104,6 +108,7 @@ class LatentGenome:
             "prompt" : self.prompt,
             "negative_prompt" : self.negative_prompt,
             "caption" : self.caption,
+            "score" : self.score,
             "num_segments" : self.num_segments
         }
 
