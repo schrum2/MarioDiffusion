@@ -137,6 +137,7 @@ GIMMICK_E_TO_CHAR = {
     256:"#",   # 2x2 solid pipe block (see TWO_BY_TWO_E_IDS; the 'l' field is just the pipe-art
                # variant, 'r'=16 is constant -- neither affects the decode)
     208:"B",   # 1-wide x 2-tall vertical breakable wall (see TWO_TALL_E_IDS: expands one tile up)
+    120:"B",   # 1-wide x 2-tall breakable ICE wall (see TWO_TALL_E_IDS: expands one tile up)
     27: "B",   # 2x2 weapon-specific breakable block. Every weapon variant shares this one
                # e id; the required weapon is in the 'o' field (o=1..8 special weapons,
                # o=9999 default, absent = unassigned), so a single mapping covers them all.
@@ -236,7 +237,7 @@ TWO_WIDE_E_IDS = {261, 267}
 # blocks these are stored as a single object, here at the block's BOTTOM tile, so on their
 # own they decode to just that one cell and the tile above reads as a gap. mmlv_to_grid
 # expands each to the full 1x2 by also filling the tile directly ABOVE with the same char.
-TWO_TALL_E_IDS = {208}
+TWO_TALL_E_IDS = {208, 120}
 
 # d == 6 gimmick ids that are conveyor belts. Every conveyor of a given type shares one e
 # id (only the belt-art fields f/p differ); classify() reads the 'b' field for the push
