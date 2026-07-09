@@ -460,6 +460,28 @@ class MegaManLayoutEditor:
         self._draw_grid(self.grid_span, self.canvas_size)
         self._center_view()
 
+        # Floating legend explaining the seam-color strips, pinned to the bottom-left
+        # corner of the grid view. Uses place() over canvas_frame so it stays fixed on
+        # screen regardless of scrolling/zoom, instead of living on the scrollable canvas.
+        legend = tk.Frame(canvas_frame, bg="#111111", bd=1, relief="solid")
+        legend.place(in_=canvas_frame, relx=0.0, rely=1.0, x=10, y=-28, anchor="sw")
+
+        smooth_row = tk.Frame(legend, bg="#111111")
+        smooth_row.pack(anchor="w", padx=8, pady=(6, 2))
+        smooth_swatch = tk.Frame(smooth_row, bg=self.SEAM_SMOOTH_COLOR, width=16, height=14)
+        smooth_swatch.pack_propagate(False)
+        smooth_swatch.pack(side=tk.LEFT, padx=(0, 6))
+        tk.Label(smooth_row, text="Smooth scroll", bg="#111111", fg="white",
+                 font=("Arial", 9)).pack(side=tk.LEFT)
+
+        locked_row = tk.Frame(legend, bg="#111111")
+        locked_row.pack(anchor="w", padx=8, pady=(0, 6))
+        locked_swatch = tk.Frame(locked_row, bg=self.SEAM_LOCKED_COLOR, width=16, height=14)
+        locked_swatch.pack_propagate(False)
+        locked_swatch.pack(side=tk.LEFT, padx=(0, 6))
+        tk.Label(locked_row, text="Screen lock", bg="#111111", fg="white",
+                 font=("Arial", 9)).pack(side=tk.LEFT)
+
         # Scroll wheel zooms (centered on the cursor); middle-drag pans.
         self.grid_canvas.bind("<MouseWheel>", self._on_grid_mousewheel)
         self.grid_canvas.bind("<ButtonPress-2>", lambda e: self.grid_canvas.scan_mark(e.x, e.y))
