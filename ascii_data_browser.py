@@ -520,9 +520,20 @@ class TileViewer(tk.Tk):
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
 
-        # < / > to flip through a list attribute's values (off for single values)
-        caption_nav_frame = tk.Frame(self)
-        caption_nav_frame.pack(pady=2)
+        # container so the nav row is exactly as wide as the caption box below it
+        caption_area = tk.Frame(self)
+        caption_area.pack(pady=2)
+
+        # attribute dropdown on the left, then prev/index/next grouped together next to it
+        caption_nav_frame = tk.Frame(caption_area)
+        caption_nav_frame.pack()
+        tk.Label(caption_nav_frame, text="Attribute:").pack(side=tk.LEFT, padx=(5, 2))
+        self.attr_var = tk.StringVar()
+        self.attr_dropdown = ttk.Combobox(
+            caption_nav_frame, textvariable=self.attr_var, state="readonly", width=24
+        )
+        self.attr_dropdown.pack(side=tk.LEFT, padx=(2, 10))
+        self.attr_dropdown.bind("<<ComboboxSelected>>", self.on_attr_select)
         self.prev_caption_button = tk.Button(caption_nav_frame, text="<< Prev", command=self.prev_caption)
         self.prev_caption_button.pack(side=tk.LEFT, padx=2)
         self.caption_index_label = tk.Label(caption_nav_frame, text="1 / 1")
@@ -534,7 +545,7 @@ class TileViewer(tk.Tk):
         # clicking the caption looks like selecting text, not entering an edit field;
         # takefocus=0 keeps it out of Tab traversal.
         self.caption_text = tk.Text(
-            self, height=3, width=int(self.window_size / 8), wrap=tk.WORD,
+            caption_area, height=3, width=int(self.window_size / 8), wrap=tk.WORD,
             insertontime=0, takefocus=0
         )
         self.caption_text.pack(pady=2)
@@ -561,16 +572,9 @@ class TileViewer(tk.Tk):
         self.caption_text.bind("<Button-3>", self.show_caption_context_menu)
         self.caption_text.bind("<Control-Button-1>", self.show_caption_context_menu)  # For Mac
 
-        # dropdown to pick which JSON attribute to show (level_name, theme, a caption model, ...)
+        # holds the prompt toggle below the caption box
         self.caption_cycle_frame = tk.Frame(self)
         self.caption_cycle_frame.pack(pady=(0, 2))
-        tk.Label(self.caption_cycle_frame, text="Attribute:").pack(side=tk.LEFT, padx=(5, 2))
-        self.attr_var = tk.StringVar()
-        self.attr_dropdown = ttk.Combobox(
-            self.caption_cycle_frame, textvariable=self.attr_var, state="readonly", width=24
-        )
-        self.attr_dropdown.pack(side=tk.LEFT, padx=2)
-        self.attr_dropdown.bind("<<ComboboxSelected>>", self.on_attr_select)
 
         # flips the text box between caption and 'prompt'; only shows up when there's a prompt
         self.prompt_toggle_button = tk.Button(
