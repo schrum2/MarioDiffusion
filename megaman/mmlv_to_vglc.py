@@ -186,7 +186,9 @@ BOSS_E_TO_CHAR = {
     34: "D",   # Horizontal Boss Door: a 4-wide x 2-tall door block (see BOSS_DOOR_H_E_IDS:
                # anchor is the bottom row, one tile left of the right edge -> expands 2 left,
                # 1 right, and 1 up into the full 4x2 footprint)
-    16: "M",   # Party Balloon (rideable transport)
+    16: "Z",   # Confetti Balloon: ends the level when shot, so it maps to the level-exit/orb
+               # tile 'Z' (same as the e15 exit orb). Verified d8/e16 against a labelled level;
+               # the earlier "Party Balloon / rideable transport -> M" id was a misidentification.
 }
 
 # Water / liquid tiles: a water cell carries only an 'e' id (no d/i), and Mega Man Maker
