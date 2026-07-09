@@ -357,25 +357,21 @@ def main():
         if args.negative_prompt_training:
             raise ValueError("--caption_source_keys cannot be combined with --negative_prompt_training")  # captions are free-form text, not the pos/neg phrase format
         if not args.text_conditional:
-            print("Note: --caption_source_keys is ignored for unconditional training (scenes carry no captions).")
-            args.caption_source_keys = None
+            raise ValueError("--caption_source_keys must be combined with --text_conditional")
 
     # --multiple_captions only makes sense for text-conditional, non-negative training; clear
     # the flag (rather than erroring) for the incompatible modes so unconditional and
     # negative-prompt runs still work when it is passed.
     if args.multiple_captions and not args.caption_source_keys:  # caption_source_keys handles its own selection
         if not args.text_conditional:
-            # Unconditional scenes carry no captions, so there is nothing to select among.
-            args.multiple_captions = False
+            raise ValueError("--multiple_captions must be combined with --text_conditional")
         elif args.negative_prompt_training:
-            # The stored alternative captions are full descriptions, not the structured
-            # positive/negative phrase format that negative prompt training expects.
-            print("Note: multiple-caption selection is disabled because --negative_prompt_training is set.")
-            args.multiple_captions = False
-        elif args.augment:
-            # Selecting among the stored captions is meant to be the only augmentation.
-            print("Note: --augment is ignored while multiple-caption selection is active; caption selection is the only augmentation.")
-            args.augment = False
+            raise ValueError("--multiple_captions not compatible with --negative_prompt_training")
+
+    if (args.multiple_captions or args.caption_source_keys) and args.augment:
+        # Selecting among the stored captions is meant to be the only augmentation.
+        print("Note: --augment is ignored while multiple-caption selection is active; caption selection is the only augmentation.")
+        args.augment = False
 
     """
     If sprite temperature scaling is enabled and the model is unconditional, 
