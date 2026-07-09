@@ -156,6 +156,16 @@ def fan(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def spring(x: int, y: int) -> List[str]:
+    # Spring, gimmick id 13: bounces Mega Man upward when touched. Verified d6/e13 against a
+    # labelled test level.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="13.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def teleporter(x: int, y: int) -> List[str]:
     # Teleporter, gimmick id 266. Verified d6/e266 against a labelled test level. Every
     # teleporter style maps to this one tile. NOTE: real teleporters come in linked pairs
@@ -386,6 +396,7 @@ CHAR_MAP = {
     'E': conveyor_left,
     'F': falling_platform,
     'x': fan,
+    's': spring,
     'T': teleporter,
     '~': water_tile,
     '!': lava_tile,
