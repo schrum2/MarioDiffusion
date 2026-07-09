@@ -245,22 +245,124 @@ class ImageGridViewer:
         self.select_composed_thumbnail(new_idx)
 
     def _save_composed_level(self):
-        if self.composed_scenes:
-            level = self.get_sample_output(self._merge_composed_scenes())
-            # Always open in the current working directory or a subfolder
-            initial_dir = os.path.join(os.getcwd(), "Composed Levels")
-            os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".txt",
-                filetypes=[("Text files", "*.txt")],
-                title="Save Composed Level As",
-                initialdir=initial_dir
-            )
-            if file_path:
-                level.save(file_path)
-                print(f"Composed level saved to {file_path}")
-            else:
-                print("Save operation cancelled.")
+        if not self.composed_scenes:
+            return
+        # Mario Maker saves a .swe into SMM:WE's level folder instead of a .txt
+        if self.args.game == 'MM2':
+            self._save_composed_swe()
+            return
+        level = self.get_sample_output(self._merge_composed_scenes())
+        # Always open in the current working directory or a subfolder
+        initial_dir = os.path.join(os.getcwd(), "Composed Levels")
+        os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt")],
+            title="Save Composed Level As",
+            initialdir=initial_dir
+        )
+        if file_path:
+            level.save(file_path)
+            print(f"Composed level saved to {file_path}")
+        else:
+            print("Save operation cancelled.")
+
+    def _smmwe_niveles_dir(self):
+        """SMM:WE's level folder, %LOCALAPPDATA%\\SMM_WE\\Niveles. Falls back to a
+        local folder when LOCALAPPDATA isn't set (non-Windows)."""
+        base = os.environ.get("LOCALAPPDATA")
+        if base:
+            return os.path.join(base, "SMM_WE", "Niveles")
+        return os.path.join(os.getcwd(), "Niveles")
+
+    def _smmwe_exe_path(self):
+        """Path to SMM_WE.exe (installs to Program Files\\SMMWE), or None."""
+        for env in ("ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"):
+            base = os.environ.get(env)
+            if base:
+                exe = os.path.join(base, "SMMWE", "SMM_WE.exe")
+                if os.path.isfile(exe):
+                    return exe
+        return None
+
+    def _compose_swe_bytes(self, name):
+        """Convert the merged composed scene to a .swe (ascii -> json -> swe).
+        Returns (swe_bytes, dropped_counts)."""
+        from mm2pipeline_data.ascii import ascii_to_level
+        from mm2pipeline_data.swe import build_world, encode_swe, detect_smmwe_user
+        from datetime import datetime
+
+        sample = self.get_sample_output(self._merge_composed_scenes())
+        # '_' is padding, not a real tile, but the converter reads it as Goal
+        # Ground. Treat it as empty space so it doesn't litter the level.
+        ascii_text = "\n".join(row.replace("_", " ") for row in sample.level)
+
+        level_json = ascii_to_level(ascii_text, source_file=name)
+
+        now = datetime.now()
+        s0, dropped = build_world(
+            level_json,
+            user=detect_smmwe_user(),
+            name=name,
+            desc=None,
+            date_str=now.strftime("%d/%m/%Y"),
+            time_str=now.strftime("%H:%M"),
+        )
+        return encode_swe({"S0": s0, "SB1": {"S1": []}}), dropped
+
+    @staticmethod
+    def _report_dropped(dropped):
+        if dropped:
+            total = sum(dropped.values())
+            summary = ", ".join(f"{n}x {nm}" for nm, n in
+                                sorted(dropped.items(), key=lambda kv: -kv[1]))
+            print(f"  dropped {total} object(s) with no SMM:WE equivalent: {summary}")
+
+    def _save_composed_swe(self):
+        """Save the composed scene as a .swe, prompting for a name in Niveles."""
+        niveles_dir = self._smmwe_niveles_dir()
+        os.makedirs(niveles_dir, exist_ok=True)
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".swe",
+            filetypes=[("SMM:WE level", "*.swe")],
+            title="Save Composed Level to SMM:WE",
+            initialdir=niveles_dir,
+            initialfile="composed_level.swe",
+        )
+        if not file_path:
+            print("Save operation cancelled.")
+            return
+
+        name = os.path.splitext(os.path.basename(file_path))[0]
+        swe_bytes, dropped = self._compose_swe_bytes(name)
+        with open(file_path, "wb") as f:
+            f.write(swe_bytes)
+        print(f"Composed level exported to {file_path} ({len(swe_bytes)} bytes)")
+        self._report_dropped(dropped)
+
+    def _play_composed_swe(self):
+        """Save the composed level to Niveles and launch SMM:WE. There's no way
+        to boot straight into a level, so you pick 'composed_level' in-game."""
+        import subprocess
+
+        name = "composed_level"
+        niveles_dir = self._smmwe_niveles_dir()
+        os.makedirs(niveles_dir, exist_ok=True)
+        swe_bytes, dropped = self._compose_swe_bytes(name)
+        out_path = os.path.join(niveles_dir, name + ".swe")
+        with open(out_path, "wb") as f:
+            f.write(swe_bytes)
+        print(f"Composed level exported to {out_path} ({len(swe_bytes)} bytes)")
+        self._report_dropped(dropped)
+
+        exe = self._smmwe_exe_path()
+        if exe is None:
+            print("SMM:WE executable not found (looked in Program Files\\SMMWE). "
+                  f"Open SMM:WE manually and pick '{name}' from the level browser.")
+            return
+        # run from the install dir so the game finds data.win
+        subprocess.Popen([exe], cwd=os.path.dirname(exe))
+        print(f"Launched SMM:WE -- open the level browser and play '{name}'.")
 
     def _merge_composed_scenes(self):
         scenes = self.composed_scenes
@@ -281,6 +383,10 @@ class ImageGridViewer:
         if self.args.game == 'LR':
             char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
             level = SampleOutput(level=scene, use_snes_graphics=use_snes_graphics)
+        elif self.args.game == 'MM2':
+            # Mario Maker: keep the full scene (no 15-row A* trim)
+            char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
+            level = SampleOutput(level=char_grid)
         elif self.args.game == 'Mario':
             # Mario
             if use_snes_graphics is None:
@@ -296,6 +402,8 @@ class ImageGridViewer:
                 level = self.get_sample_output(composed_scene, use_snes_graphics=self.use_snes_graphics.get())
                 #print("Level to play:", level)
                 level.play(game="loderunner", level_idx=1)
+            elif self.args.game == "MM2":
+                self._play_composed_swe()
             else:
                 #Default: Mario play logic
                 level = self.get_sample_output(composed_scene, use_snes_graphics=self.use_snes_graphics.get())
@@ -304,6 +412,11 @@ class ImageGridViewer:
     def _astar_composed_level(self):
         composed_scene = self._merge_composed_scenes()
         if composed_scene:
+            if self.args.game == "MM2":
+                # No Java sim for Mario Maker, use the Python astar/ check
+                from astar.astar_traversability_check import astar_console_report
+                print(astar_console_report(composed_scene))
+                return
             level = self.get_sample_output(composed_scene, use_snes_graphics=self.use_snes_graphics.get())
             console_output = level.run_astar()
             print(console_output)
@@ -546,6 +659,13 @@ class ImageGridViewer:
                 # Double-click to expand
                 btn.bind('<Double-Button-1>', lambda event, i=idx: self._toggle_expanded_view(i))
 
+                # Caption adherence score (prompt vs generated scene), if scored
+                score = getattr(self.genomes[idx], "score", None)
+                if score is not None:
+                    score_label = tk.Label(frame, text=f"Score: {score:.3f}",
+                                           font=("Helvetica", 10))
+                    score_label.pack()
+
                 # Button container for horizontal layout
                 button_row = tk.Frame(frame)
                 button_row.pack(pady=(2, 2))
@@ -637,7 +757,11 @@ class ImageGridViewer:
             level.play()
 
     def _run_astar_agent(self, genome):
-        # level = self.get_sample_output(genome.scene)
+        if self.args.game == "MM2":
+            # No Java sim for Mario Maker, use the Python astar/ check
+            from astar.astar_traversability_check import astar_console_report
+            print(astar_console_report(genome.scene))
+            return
         level = self.get_sample_output(genome.scene, use_snes_graphics=self.use_snes_graphics.get())
         console_output = level.run_astar()
         print(console_output)
