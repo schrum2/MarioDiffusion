@@ -145,6 +145,9 @@ GIMMICK_E_TO_CHAR = {
     262:"M",   # moving platform, another variant (see MOVING_PLATFORM_E_IDS)
     5:  "A",   # appearing/disappearing block (verified against a labelled test level)
     54: "t",   # fake / secret transparent block (verified against a labelled test level)
+    50: "C",   # hazardous beam emitter -> mapped to the hazard-emitter tile 'C' for now. The 'g'
+    51: "C",   # field is orientation (g=90 here) and 'h' the beam length/timing; neither affects
+    52: "C",   # the decode. e50/e51/e52 are the three color variants, all -> 'C'.
     163:"C",   # electric/hazard emitter ("extends a temporary passable damaging hazard outward").
                # Verified d6/e163 against a game-authored test level (three emitters flanking two
                # water pools + one atop the middle pillar). The earlier e4 id was a misidentification.
