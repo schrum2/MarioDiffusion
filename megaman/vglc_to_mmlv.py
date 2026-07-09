@@ -53,6 +53,18 @@ def moving_platform(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def moving_platform_path(x: int, y: int) -> List[str]:
+    # A bare moving-platform PATH/track node (gimmick id 31) -- same object as the platform
+    # (moving_platform) but WITHOUT the 'h' field, so it carries no physical platform. A run of
+    # these forms the rail the platform rides; exactly one node in a real path gets the 'h'
+    # field (emitted by moving_platform / the 'M' char) to host the actual platform.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="31.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def conveyor_right(x: int, y: int) -> List[str]:
     # Conveyor belt (gimmick id 73) that pushes right. Fields match a labelled test
     # level: right-facing belts carry no 'b'; the belt-art fields are p=3, f=4.
@@ -140,6 +152,16 @@ def fan(x: int, y: int) -> List[str]:
     return [
         f'o{x},{y}="9999.000000"',
         f'e{x},{y}="43.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def spring(x: int, y: int) -> List[str]:
+    # Spring, gimmick id 13: bounces Mega Man upward when touched. Verified d6/e13 against a
+    # labelled test level.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="13.000000"',
         f'd{x},{y}="6.000000"',
         f'a{x},{y}="1.000000"',
     ]
@@ -369,10 +391,12 @@ CHAR_MAP = {
     'H': spike_tile,
     'B': breakable_tile,
     'M': moving_platform,
+    '=': moving_platform_path,
     '>': conveyor_right,
     'E': conveyor_left,
     'F': falling_platform,
     'x': fan,
+    's': spring,
     'T': teleporter,
     '~': water_tile,
     '!': lava_tile,
