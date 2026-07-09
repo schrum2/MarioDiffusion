@@ -870,12 +870,23 @@ class TileViewer(tk.Tk):
             sample = {"scene": sample, "caption": "No caption available."}
             # sample = {"scene": sample, "captions": ["No caption available."]}
 
-        # Clamp caption index to the current sample's caption list
-        captions = sample.get('captions') or [sample.get('caption', '')]
+        # Normalize captions: prefer explicit 'captions' list; otherwise collect
+        # legacy caption fields (caption, caption1, caption2, ...) or fall back
+        # to a single 'caption' string. Use `current_caption_idx` to index into
+        # the resulting `captions` list consistently across the UI.
+        if isinstance(sample, dict) and isinstance(sample.get('captions'), list):
+            captions = sample['captions']
+        else:
+            caption_keys = self._sorted_caption_keys(
+                [k for k in sample if isinstance(k, str) and k.startswith("caption")]
+            )
+            if caption_keys:
+                captions = [sample.get(k, '') for k in caption_keys]
+            else:
+                captions = [sample.get('caption', '')]
+
         self.current_caption_idx = max(0, min(self.current_caption_idx, len(captions) - 1))
-        self.caption_index_label.config(
-            text=f"Caption {self.current_caption_idx + 1} / {len(captions)}"
-        )
+        self.caption_index_label.config(text=f"Caption {self.current_caption_idx + 1} / {len(captions)}")
 
         # Dynamically update tile and canvas size for this scene
         self.update_tile_and_canvas_size(sample['scene'])
@@ -1076,24 +1087,12 @@ class TileViewer(tk.Tk):
         else:
             # Jacob: The start of this section is from MarioDiffusion
 
-            # A scene may carry several caption fields (e.g. caption, caption1, ... from
-            # llm_ascii_to_caption); pick the one the cycle button currently points at and
-            # show/hide the cycle control accordingly.
-            caption_keys = self._sorted_caption_keys(
-                [k for k in sample if isinstance(k, str) and k.startswith("caption")]
-            )
-            if self.caption_cycle_idx >= len(caption_keys):
-                self.caption_cycle_idx = 0
-            self._update_caption_cycle_controls(len(caption_keys))
+            # Show the currently selected caption from the normalized list.
+            self._update_caption_cycle_controls(len(captions))
 
             self.caption_text.configure(state="normal")
             self.caption_text.delete("1.0", tk.END)
-            current_caption_key = caption_keys[self.caption_cycle_idx] if caption_keys else 'caption'
-
-            # Jacob: But this line is from MarioMakerPCG
             caption_text = captions[self.current_caption_idx]
-            # Jacob: vs this version from MarioDiffusion
-            caption_text = sample.get(current_caption_key, '')
             caption_parts = caption_text.split('.')
             for part in caption_parts:
                 part = part.strip()
@@ -1133,7 +1132,7 @@ class TileViewer(tk.Tk):
                 self.caption_cycle_button.pack(side=tk.LEFT, padx=5)
                 self.caption_cycle_label.pack(side=tk.LEFT, padx=5)
             self.caption_cycle_label.config(
-                text=f"Caption {self.caption_cycle_idx + 1} / {num_captions}"
+                text=f"Caption {self.current_caption_idx + 1} / {num_captions}"
             )
         else:
             self.caption_cycle_button.pack_forget()
@@ -1182,12 +1181,17 @@ class TileViewer(tk.Tk):
         sample = self.dataset[self.current_sample_idx]
         if not isinstance(sample, dict):
             return
-        caption_keys = self._sorted_caption_keys(
-            [k for k in sample if isinstance(k, str) and k.startswith("caption")]
-        )
-        if len(caption_keys) <= 1:
+        # Normalize to the same captions list used by redraw()
+        if isinstance(sample.get('captions'), list):
+            captions = sample['captions']
+        else:
+            caption_keys = self._sorted_caption_keys(
+                [k for k in sample if isinstance(k, str) and k.startswith("caption")]
+            )
+            captions = [sample.get(k, '') for k in caption_keys] if caption_keys else [sample.get('caption', '')]
+        if len(captions) <= 1:
             return
-        self.caption_cycle_idx = (self.caption_cycle_idx + 1) % len(caption_keys)
+        self.current_caption_idx = (self.current_caption_idx + 1) % len(captions)
         self.redraw()
 
     def prev_sample(self):
