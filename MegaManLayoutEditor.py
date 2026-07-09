@@ -149,6 +149,11 @@ class LevelEditor:
             # Jacob: Also from MarioMakerPCG
             #self.tile_buttons.append(button_row)
 
+        # Palette tiles, arranged in a grid (side-by-side), in cycle order
+        self.palette_swatch_frames = {}
+        for tile_id in range(len(self.id_to_char)):
+            self._add_palette_entry(palette_inner, tile_id)
+
         # From MarioDiffusion
         controls = ttk.Frame(outer)
         controls.pack(pady=(12, 0))
