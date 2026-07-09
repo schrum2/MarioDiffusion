@@ -415,13 +415,14 @@ class TileViewer(tk.Tk):
         self.filter_reason_label.pack(pady=(0, 2))
 
         self.show_real_var = tk.BooleanVar(value=False)
-        show_real_image_button = tk.Checkbutton(
+        self.show_real_image_button = tk.Checkbutton(
             checkbox_frame,
             text="Show Real Image",
             variable=self.show_real_var,
-            command=self.show_real_image
+            command=self.show_real_image,
+            state=tk.DISABLED
         )
-        show_real_image_button.pack(side=tk.LEFT, padx=5)
+        self.show_real_image_button.pack(side=tk.LEFT, padx=5)
 
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
@@ -593,6 +594,11 @@ class TileViewer(tk.Tk):
             if tileset_changed:
                 self.tileset_path = new_tileset_path
 
+            self._update_real_image_button_state()
+            if self.game.get() != "MM2":
+                self.show_real_var.set(False)
+                self._exit_real_image_mode()
+
             if tileset_changed and self.dataset_path and self.tileset_path:
                 self.load_files_from_paths(self.dataset_path, self.tileset_path)
 
@@ -604,6 +610,7 @@ class TileViewer(tk.Tk):
         self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker 2"], state="readonly")
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", on_game_select)
+        self._update_real_image_button_state()
 
 
     # method to enter txt file name and save composed level
@@ -1140,6 +1147,13 @@ class TileViewer(tk.Tk):
         else:
             self.caption_cycle_button.pack_forget()
             self.caption_cycle_label.pack_forget()
+
+    def _update_real_image_button_state(self):
+        """Enable the real-image checkbox only for Mario Maker 2 and disable it otherwise."""
+        if self.game.get() == "MM2":
+            self.show_real_image_button.config(state=tk.NORMAL)
+        else:
+            self.show_real_image_button.config(state=tk.DISABLED)
 
     def _update_prompt_toggle_control(self, has_prompt):
         """Show the prompt toggle button only when the current scene has a 'prompt' field;
