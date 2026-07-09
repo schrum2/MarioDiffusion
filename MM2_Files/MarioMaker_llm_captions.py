@@ -24,6 +24,13 @@ import time
 import urllib.request
 import urllib.error
 
+# common_settings lives at the repo root; this script is under MM2_Files/, so make sure
+# the repo root is importable whether it's run as a module or directly.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+import util.common_settings as common_settings
+
 # Reprompt budget for wrong caption counts. Kept large and separate from --max-reprompts
 # (empty/non-English responses) since a lazy model usually complies on a later try.
 MAX_CAPTION_RETRIES = 100
@@ -205,6 +212,31 @@ MM2_CHAR_NAMES = {
 TERRAIN_CHARS_MM2 = frozenset({"#", "H", "B", "S", "I", "C", "/", "\\"})
 TERRAIN_CHARS_EXT = frozenset({"#", "B", "N", "S"})
 TERRAIN_CHARS_WE = frozenset({"#", "B", "N", "?", "H", "I", "O"})
+
+# ── Different games for their tilesets, right now MM2 and the three Mega Man tilesets ─────────
+
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_DATASETS_DIR = os.path.join(os.path.dirname(_SCRIPT_DIR), "datasets")
+
+GAME_SETTINGS = {
+    "MM2": {
+        "tileset": os.path.join(_REPO_ROOT, *common_settings.MM2_TILESET.split("/")),
+        "tileset_we": os.path.join(_REPO_ROOT, *common_settings.MM2_TILESET.split("/")),
+    },
+    "MM": {
+        "tileset": os.path.join(_DATASETS_DIR, "MM.json"),
+        "tileset_we": os.path.join(_DATASETS_DIR, "MM.json"),
+    },
+    "MM-simple": {
+        "tileset": os.path.join(_DATASETS_DIR, "MM-simple-tileset.json"),
+        "tileset_we": os.path.join(_DATASETS_DIR, "MM-simple-tileset.json"),
+    },
+    "MMLV": {
+        "tileset": os.path.join(_DATASETS_DIR, "MMLV.json"),
+        "tileset_we": os.path.join(_DATASETS_DIR, "MMLV.json"),
+    },
+}
 
 # ── Prompt template ───────────────────────────────────────────────────────────
 
@@ -429,9 +461,11 @@ def get_char_names(tileset_path):
     basename = os.path.basename(tileset_path)
     if "extended_tiles" in basename:
         return EXTENDED_CHAR_NAMES
-    if "tileset_we" in basename:
-        return derive_char_names(tileset_path)
-    return MM2_CHAR_NAMES
+    if basename == "mm2_tileset_full.json":
+        return MM2_CHAR_NAMES
+    # Everything else (the MM2 'we' set and the Mega Man tilesets) has no curated
+    # name dict, so build names straight from each tileset's own tags.
+    return derive_char_names(tileset_path)
 
 
 def build_dict_string(tileset_path, char_names):
@@ -1543,13 +1577,22 @@ def main():
     parser = argparse.ArgumentParser(
         description="LLM-powered captions for MM2 ASCII datasets via Ollama."
     )
+    parser.add_argument(
+        "--game",
+        required=True,
+        choices=list(GAME_SETTINGS),
+        help=(
+            "Which game's tileset settings to use: MM2 (Mario Maker 2), MM (Mega Man), "
+            "or MM-Simple (Mega Man simple tileset). Sets the default --tileset/--tileset-we."
+        ),
+    )
     parser.add_argument("--dataset", required=True, help="Input dataset JSON.")
     parser.add_argument(
         "--tileset",
-        default="mm2_tileset_we.json",
+        default=None,
         help=(
-            "Tileset JSON the dataset was built with (mm2_tileset_we.json, "
-            "extended_tiles.json, or mm2_tileset_full.json). Default: mm2_tileset_we.json"
+            "Tileset JSON the dataset was built with. Defaults to the tileset for "
+            "--game (e.g. MM2 -> mm2_tileset_we.json)."
         ),
     )
     parser.add_argument("--output", required=True, help="Output captioned JSON.")
@@ -1699,10 +1742,10 @@ def main():
     )
     parser.add_argument(
         "--tileset-we",
-        default="mm2_tileset_we.json",
+        default=None,
         help=(
             "Tileset JSON defining the T0x token numbering, used only when "
-            "--grid-format tokens. Default: mm2_tileset_we.json"
+            "--grid-format tokens. Defaults to the tileset for --game."
         ),
     )
     parser.add_argument(
@@ -1741,6 +1784,13 @@ def main():
         ),
     )
     args = parser.parse_args()
+
+    # Fill the tileset paths from the selected game unless the user passed them explicitly.
+    game_settings = GAME_SETTINGS[args.game]
+    if args.tileset is None:
+        args.tileset = game_settings["tileset"]
+    if args.tileset_we is None:
+        args.tileset_we = game_settings["tileset_we"]
 
     for path, label in [(args.dataset, "dataset"), (args.tileset, "tileset")]:
         if not os.path.isfile(path):

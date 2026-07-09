@@ -29,6 +29,34 @@ EXE_NAME = "toost.exe" if sys.platform == "win32" else "toost"
 # toost.exe and its assets are bundled under MM2_Files/toost_stuff/.
 TOOST_DIR = paths.TOOST_DIR
 
+# Toost seemingly needs a font for it to work here. Less than ideal, but we can workaround.
+# The NotoSansJP-Bold.otf font isn't necessary since we can fallback to a system font.
+# Suggested by claude, this should not require any admin priveleges and should work on non-windows as well.
+FONT_PATH = TOOST_DIR / "fonts" / "NotoSansJP-Bold.otf"
+SYS_FONTS = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+FONT_FALLBACK = [
+    os.path.join(SYS_FONTS, "arial.ttf"),
+    os.path.join(SYS_FONTS, "segoeui.ttf"),
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # linux
+    "/Library/Fonts/Arial.ttf",                         # macOS
+]
+
+
+def ensure_font():
+    """Make sure the font toost.exe loads at startup exists, sourced from
+    the system instead of committed to the repo."""
+
+    if FONT_PATH.is_file():
+        return True
+    for src in FONT_FALLBACK:
+        if os.path.isfile(src):
+            FONT_PATH.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, FONT_PATH)
+            print_info(f"Sourced toost font from the system: {src} -> {FONT_PATH.name}")
+            return True
+    print_info("No system font was found to source. Copy any .otf/.ttf there and rename it to {FONT_PATH.name}.") #This should literally never happen but just in case.
+    return False
+
 
 def find_exe():
     candidates = [
@@ -138,8 +166,9 @@ def batch_convert(exe, input_dir, output_dir, images_dir, min_objects,
         result = subprocess.run(cmd, capture_output=True, cwd=run_cwd)
         if result.returncode != 0:
             print("\033[91mFAILED\033[0m")
-            if result.stderr:
-                print(f"    {result.stderr.decode(errors='replace').strip()}")
+            for stream in (result.stdout, result.stderr):
+                if stream:
+                    print(f"    {stream.decode(errors='replace').strip()}")
             failed += 1
             continue
 
@@ -188,6 +217,8 @@ def main(argv=None):
                    "MSYS2 MinGW64 terminal with: mingw32-make BUILD=release")
         sys.exit(1)
     print_success(f"Using exe: {exe}")
+    if not ensure_font():
+        sys.exit(1)
 
     output_dir = args.output_folder or os.path.join(args.input, "json")
     images_dir = args.images_output or os.path.join(args.input, "images")
