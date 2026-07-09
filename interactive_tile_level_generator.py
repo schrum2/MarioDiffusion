@@ -142,7 +142,7 @@ class CaptionBuilder(ParentBuilder):
         elif game_selected == "Mario":
             self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.MARIO_HEIGHT}")
-        elif game_selected == "Mario Maker 2": # Jacob: New. Correct label?
+        elif game_selected == "Mario Maker 2":
             self.width_entry.insert(0, f"{common_settings.MM2_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.MM2_HEIGHT}")
         else:
@@ -449,7 +449,6 @@ class CaptionBuilder(ParentBuilder):
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save image:\n{str(e)}")
 
-    # Jacob: This code is from MarioDiffusion
     def get_patterns(self):
         # Different for LoRA and tile diffusion
         patterns = [
@@ -474,8 +473,7 @@ class CaptionBuilder(ParentBuilder):
                     ]
         return patterns
 
-    # Jacob: This code is from MarioMakerPCG. It seems like the logic from this
-    #        should be incorporated into the method above for generality.
+    # NOTE: Currently unused. It is tileset aware code that Claude made at one point. 
     def group_phrases(self):
         """Sort the loaded caption phrases into groups that mirror our MM2 tileset.
 
@@ -568,8 +566,11 @@ class CaptionBuilder(ParentBuilder):
             # Caption generated scenes the same way the dataset was captioned
             # (MarioMaker_create_ascii_captions), not with the SMB assign_caption
             # from MarioDiffusion, so the comparison lines up with the loaded data.
-            # Jacob: Modify so that this is only used with Mario Maker and not otherwise
-            self.mm_assign_caption, self.mm_compare_captions = mm2_caption_tools(tileset_path)
+            # Mario Maker has it's own unique captioning. 
+            if game_selected == "Mario Maker 2":
+                self.mm_assign_caption, self.mm_compare_captions = mm2_caption_tools(tileset_path)
+            else:
+                self.mm_assign_caption, self.mm_compare_captions = None, None
             # print(f"Tileset in use: {tileset_path}")
             # print(f"Self ID to Char: {self.id_to_char}")
             # print(f"Self Char to ID: {self.char_to_id}")
@@ -752,7 +753,7 @@ class CaptionBuilder(ParentBuilder):
                 #print("images:", images)
                 scene = sample_indices[0].tolist()
 
-                # Jacob: This code was from MarioDiffusion
+                # Mario Maker ID's don't need any modification
                 if game_selected == "Lode Runner":
                     number_of_tiles = common_settings.LR_TILE_COUNT
                     scene = [[x % number_of_tiles for x in row] for row in scene]
@@ -773,18 +774,15 @@ class CaptionBuilder(ParentBuilder):
                     scene = [[x % number_of_tiles for x in row] for row in scene]
                     tileset_path = common_settings.MMLV_TILESET
                     _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                # Jacob: Need to add a case for Mario Maker
-                # Jacob: Why was there no default case for plain Maio? How does that work?
 
                 self.generated_scenes.append(scene)
-                #selected_game = self.game_var.get()
                 if game_selected == "Lode Runner":
                     actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                     pil_img = visualize_samples(images, game='LR')
                 elif game_selected == "Mario":
                     actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                     pil_img = visualize_samples(images)
-                elif game_selected == "Mario Maker 2": #Jacob: Correct label?
+                elif game_selected == "Mario Maker 2":
                     actual_caption = self.mm_assign_caption(scene)
                     pil_img = visualize_samples(images, game="MM2")
                 else:
@@ -797,7 +795,7 @@ class CaptionBuilder(ParentBuilder):
                     compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 elif game_selected == 'Lode Runner':
                     compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-                elif game_selected == "Mario Maker 2": #Jacob: Correct label?
+                elif game_selected == "Mario Maker 2":
                     compare_score, exact_matches, partial_matches, excess_phrases = self.mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 else:
                     compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
@@ -879,10 +877,6 @@ class CaptionBuilder(ParentBuilder):
                         describe_locations=False,
                         describe_absence=False
                     )
-                # Jacob: There was some code here for Lode Runner and Mega Man but I deleted it.
-                #        Do NOT add a case for Mario Maker. This segment based calculation isn't really
-                #        necessary, and is tailored to plain Mario anyway.
-
             # Update the score label text
             if avg_segment_score is not None:
                 score_label_text = f"""Comparison Score: {compare_score}
@@ -955,6 +949,8 @@ Average Segment Score: {avg_segment_score}"""
         #print(self.current_levels)
 
     def add_to_composed_level(self, idx):
+        # Assigns tileset_path below, so it must be declared global 
+        global tileset_path
         # Store the actual scene
         scene = self.generated_scenes[idx]
         if game_selected == "Lode Runner":
@@ -973,8 +969,7 @@ Average Segment Score: {avg_segment_score}"""
             number_of_tiles = common_settings.MMLV_TILE_COUNT
             scene = [[x % number_of_tiles for x in row] for row in scene]
             tileset_path = common_settings.MMLV_TILESET
-        # Jacob: Add Mario Maker case
-        # Jacob: Why does standard Mario not have a case?
+        # Mario and Mario Maker need no case here as the Tile Id's are already in range and correct
         self.composed_scenes.append(scene)
 
         # Create and store the thumbnail
@@ -1213,11 +1208,6 @@ Average Segment Score: {avg_segment_score}"""
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            # Jacob: This A* is meant to be for the A* Agent, not the simple drawing
-            # Mario Maker only, so always use the Python astar/ check
-            #from astar.astar_traversability_check import astar_console_report
-            #print(astar_console_report(scene, id_to_char=self.id_to_char,
-            #                           tile_descriptors=self.tile_descriptors))
             level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             console_output = level.run_astar()
             print(console_output)
@@ -1260,7 +1250,6 @@ Average Segment Score: {avg_segment_score}"""
         canvas.configure(scrollregion=(0, 0, pil_img.width, pil_img.height))
         win.geometry(f"{min(pil_img.width + 24, 1200)}x{min(pil_img.height + 24, 800)}")
 
-    # Jacob: What is this method even doing? Why do much repetition?
     def get_sample_output(self, idx_or_scene, use_snes_graphics=False):
         if isinstance(idx_or_scene, int):
             if idx_or_scene < len(self.generated_scenes):
@@ -1272,11 +1261,9 @@ Average Segment Score: {avg_segment_score}"""
             if game_selected == "Lode Runner":
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
-            elif game_selected == "Mario Maker 2": # Jacob: Correct label?
-                # Jacob: This code was in the MarioMakerPCG repo. It is similar to the else case.
-                #        Is a special case for Mario Maker needed? Why does Lode Runner have a 
-                #        special case, but Mega Man doesn't?
-                char_grid = scene_to_ascii(scene, self.id_to_char)
+            elif game_selected == "Mario Maker 2":
+                # Shorten needs to be false for Mario Maker otherwise the top rows would be axed. It has different logic.
+                char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             else:
                 char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
@@ -1288,11 +1275,9 @@ Average Segment Score: {avg_segment_score}"""
             if game_selected == "Lode Runner":
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
-            elif game_selected == "Mario Maker 2": # Jacob: Correct label?
-                # Jacob: This code was in the MarioMakerPCG repo. It is similar to the else case.
-                #        Is a special case for Mario Maker needed? Why does Lode Runner have a 
-                #        special case, but Mega Man doesn't?
-                char_grid = scene_to_ascii(scene, self.id_to_char)
+            elif game_selected == "Mario Maker 2":
+                # Shorten needs to be false for Mario Maker otherwise the top rows would be axed. It has different logic.
+                char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             else:
                 char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
@@ -1307,14 +1292,11 @@ Average Segment Score: {avg_segment_score}"""
             level.play(game="loderunner", level_idx=1)
         elif selected_game in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
             self._play_megaman_level(idx)
-        # Jacob: Should add Mario Maker case to launch SMM:WE
-        else: # Jacob: Assuming Mario? We should check specifically
+        else:
+            # Mario. (Per-image play is only enabled for Mario; Mario Maker plays
+            # via the composed-level flow, which exports a .swe and launches SMM:WE.)
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
-
-        # Jacob: This code was in the MarioMakerPCG repo, but I don't think it worked for Mario Maker.
-        #level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
-        #level.play()
 
     def edit_level(self, idx):
         scene = self.generated_scenes[idx]
@@ -1388,11 +1370,10 @@ Average Segment Score: {avg_segment_score}"""
         elif game_selected == 'Lode Runner':
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-        elif game_selected == 'Mario Maker 2': # Jacob: Correct label?
-            # Jacob: From Mario Maker PCG
+        elif game_selected == 'Mario Maker 2':
             actual_caption = self.mm_assign_caption(scene)
             compare_score, exact_matches, partial_matches, excess_phrases = self.mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-        else: # Jacob: Else case is Mega Man? Use explicit elif
+        else:  # Mega Man variants
             actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
@@ -1409,9 +1390,6 @@ Average Segment Score: {avg_segment_score}"""
                 describe_locations=False,
                 describe_absence=False
             )
-        # Jacob: There was code here for Lode Runner and Mega Man, but I
-        #        don't think they need to bother with the average segment
-        #        caption adherence score. Mario Maker doesn't need it either.
 
         return exact_matches, partial_matches, excess_phrases, compare_score, avg_segment_score
 
@@ -1450,10 +1428,10 @@ Average Segment Score: {avg_segment_score}"""
         elif game_selected == "Mega Man (Maker)":
             game_name = "MMLV"
             num_classes = common_settings.MMLV_TILE_COUNT
-        elif game_selected == "Mario": # Jacob: added expicit Mario case
+        elif game_selected == "Mario":
             game_name = "Mario"
             num_classes = common_settings.MARIO_TILE_COUNT
-        elif game_selected == "Mario Maker 2": # Jacob: Correct label?
+        elif game_selected == "Mario Maker 2":
             game_name = "MM2"
             num_classes = common_settings.MM2_TILE_COUNT
         else:
@@ -1521,7 +1499,7 @@ Average Segment Score: {avg_segment_score}"""
             "Mega Man (Simple)": "MM-Simple",
             "Mega Man (Full)": "MM-Full",
             "Mega Man (Maker)": "MMLV",
-            "Mario Maker 2" : "MM2", # Jacob: Is this the label we want?
+            "Mario Maker 2" : "MM2",
         }.get(self.game_var.get())
         if game_name is None:
             return None, False, {}
@@ -1543,7 +1521,6 @@ Average Segment Score: {avg_segment_score}"""
         return img
 
     def use_astar(self, idx):
-        # Jacob: This is the code from MarioDiffusion
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
         console_output = level.run_astar()
         print(console_output)
