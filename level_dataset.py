@@ -457,13 +457,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
     # canonical mm2_tileset_we.json Mario Maker 2 data -- only "MM-Simple"/"MM-Full"
     # below are the unrelated Mega Man tilesets.
     if game in ('mm2', 'MM2'):
-        # render_mm2 lives in MM2_Files/, which isn't on the default import path,
-        # so add that folder before importing it.
-        import sys
-        mm2_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), "MM2_Files")
-        if mm2_files not in sys.path:
-            sys.path.insert(0, mm2_files)
-        from render_mm2 import _render_mm2_samples
+        from MM2_Files.render_mm2 import _render_mm2_samples
         image = _render_mm2_samples(sample_indices, output_dir, start_index, prompts)
         # Match visualize_samples' contract: with output_dir it saved the PNGs and
         # returns the indices; without one it returns the first scene's image.
@@ -710,9 +704,11 @@ class LevelDataset(Dataset):
         self.max_length = max_length
         self.mode = mode
         # Selecting among multiple captions is the only augmentation we want, so it takes
-        # precedence over phrase shuffling and scene flipping when enabled.
+        # precedence over phrase shuffling and scene flipping when enabled. It is controlled
+        # solely by the explicit flags (multiple_captions / caption_source_keys) -- it never
+        # turns on by itself.
         self.multiple_captions = multiple_captions
-        self.caption_source_keys = list(caption_source_keys) if caption_source_keys else None  # list of keys = multi-source mode, None = legacy "caption" field
+        self.caption_source_keys = list(caption_source_keys) if caption_source_keys else None  # list of keys = multi-source mode, None = legacy fields
         self.select_captions = bool(self.caption_source_keys) or multiple_captions  # pick from a pool of captions instead of augmenting one
         self.augment = augment and not self.select_captions
         self.random_flip = random_flip and not self.select_captions
@@ -757,12 +753,13 @@ class LevelDataset(Dataset):
                       f"{len(self.data)} sample(s) with no caption from any requested source.")
             self.data = kept
         elif self.require_captions:
-            missing = sum(1 for item in self.data if "caption" not in item)
-            # Text-conditional training needs a caption on every item; fail loudly (rather than
-            # with a bare KeyError deep in the code) if one is missing. Unconditional training
-            # (require_captions=False) tolerates caption-less scenes.
+            missing = sum(1 for item in self.data if not self._caption_options(item))
+            # Text-conditional training needs at least one caption on every item, in either the
+            # legacy "caption"/"caption1"/... fields or a "*_captions" list; fail loudly (rather
+            # than with a bare KeyError deep in the code) if one is missing. Unconditional
+            # training (require_captions=False) tolerates caption-less scenes.
             if missing:
-                raise ValueError(f"{missing}/{len(self.data)} dataset items have no 'caption' field, but captions are required")
+                raise ValueError(f"{missing}/{len(self.data)} dataset items have no caption, but captions are required")
 
         # Determine padding length (if not provided). Only the captioned items contribute; an
         # unconditional dataset may have none, in which case the (unused) caption budget is 0.
@@ -896,7 +893,14 @@ class LevelDataset(Dataset):
             return caption # Same as original
 
     def _caption_options(self, sample):
-        """Returns every caption available for a sample, from whichever mode we're in."""
+        """Returns every caption available for a sample, from whichever mode we're in.
+
+        Multi-source mode (caption_source_keys) reads only the listed keys. Legacy mode pools
+        every caption a sample carries: the "caption"/"caption1"/"caption2"/... string fields
+        AND any "<source>_captions" list (as written by MarioMaker_llm_captions.py with
+        --caption-mode keyed), so a dataset in either shape offers up all of its captions to
+        random selection without needing an explicit flag.
+        """
         if self.caption_source_keys:
             options = []
             for key in self.caption_source_keys:
@@ -906,10 +910,14 @@ class LevelDataset(Dataset):
                 elif isinstance(value, str) and value:
                     options.append(value)  # some source stored a bare string instead of a list
             return options
-        return [  # legacy mode: "caption", "caption1", "caption2", etc.
-            value for key, value in sample.items()
-            if key == "caption" or (key.startswith("caption") and key[len("caption"):].isdigit())
-        ]
+        options = []
+        for key, value in sample.items():
+            if key == "caption" or (key.startswith("caption") and key[len("caption"):].isdigit()):
+                if isinstance(value, str) and value:
+                    options.append(value)  # legacy fields: "caption", "caption1", "caption2", ...
+            elif key.endswith("_captions") and isinstance(value, list):
+                options.extend(c for c in value if isinstance(c, str) and c)  # keyed "<model>_captions" list
+        return options
 
     def _select_caption(self, sample):
         """Picks one caption for this sample. Training (shuffle=True) picks at random, which is
@@ -1049,10 +1057,8 @@ class LevelDataset(Dataset):
 
     def get_sample_caption(self, idx):
         """Returns a raw caption from the dataset, just for debugging ("" if unconditional)."""
-        if self.caption_source_keys:
-            options = self._caption_options(self.data[idx])
-            return options[0] if options else ""  # no single "caption" field in this mode
-        return self.data[idx].get("caption", "")
+        options = self._caption_options(self.data[idx])
+        return options[0] if options else ""
 
     def decode_scene(self, one_hot_scene):
         """

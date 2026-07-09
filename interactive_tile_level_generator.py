@@ -8,8 +8,6 @@ from PIL import ImageTk, Image
 import sys
 from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
 from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split, mario_tiles, lr_tiles, mm_tiles
-from render_mm2 import mm2_tiles
-from MarioMaker_create_ascii_captions import get_char_names, CAPTION_METADATA_FIELDS
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
@@ -276,7 +274,7 @@ class CaptionBuilder(ParentBuilder):
         
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario Maker (MM)"], state="readonly", font=GUI_FONT)
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker (MM)"], state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", lambda e: self.update_mario_only_buttons()) 
         self.update_mario_only_buttons() 
@@ -490,6 +488,8 @@ class CaptionBuilder(ParentBuilder):
         tied to any single tile, get their own groups on top.
         """
         global tileset_path
+
+        from MM2_Files.MarioMaker_create_ascii_captions import get_char_names, CAPTION_METADATA_FIELDS
 
         # Tile char -> lowercase display name, read straight from the tileset tags
         # so the names track exactly what the captioner emits (e.g. "goomba",
@@ -1445,17 +1445,6 @@ Average Segment Score: {avg_segment_score}"""
         console_output = level.run_astar()
         print(console_output)
 
-        # Jacob: This is the code from MarioMakerPCG
-        #        I'm not sure why it is so different, but it should be
-        #        made to behave like the general approach.
-        if idx < len(self.generated_scenes):
-            scene = self.generated_scenes[idx]
-        else:
-            scene = torch.argmax(torch.tensor(self.current_levels[idx]), dim=0).numpy().tolist()
-        from astar.astar_traversability_check import astar_console_report
-        print(astar_console_report(scene, id_to_char=self.id_to_char,
-                                   tile_descriptors=self.tile_descriptors))
-
     def uncheck_all(self):
         """Uncheck all checkboxes in the provided list or dict."""
         for var in self.checkbox_vars.values():
@@ -1518,8 +1507,6 @@ Average Segment Score: {avg_segment_score}"""
 
     def update_mario_only_buttons(self):
         is_mario = self.game_var.get() == "Mario"
-        # Jacob: I think the Mario-only buttons really are for Mario, not Mario Maker
-        # is_mario = self.game_var.get() == "Mario Maker (MM)"
         state = tk.NORMAL if is_mario else tk.DISABLED
         self.play_composed_button.config(state=state)
         self.astar_composed_button.config(state=state)
@@ -1571,7 +1558,7 @@ def parse_args():
         help="Which game to create a model for (affects sample style and tile count)"
     )
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
-    parser.add_argument("--load_data", type=str, default="datasets/MM_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
+    parser.add_argument("--load_data", type=str, default="datasets/Mar1and2_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
     parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     return parser.parse_args()
 

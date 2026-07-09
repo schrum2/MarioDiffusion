@@ -24,6 +24,9 @@ import webbrowser
 
 
 class TileViewer(tk.Tk):
+    # keys we don't want in the dropdown (handled elsewhere)
+    RESERVED_ATTRS = {"scene", "details", "data"}
+
     def __init__(self, dataset_path=None, tileset_path=None):
         super().__init__()
         self.title("Tile Dataset Viewer")
@@ -157,9 +160,9 @@ class TileViewer(tk.Tk):
         sample['caption'] = caption
         sample['captions'] = [caption]
         sample['details'] = details
-        # Jacob: favor current_caption_idx instead of caption_cycle_idx
+        # jump the dropdown to the new caption
+        self.attr_var.set('caption')
         self.current_caption_idx = 0
-        # self.caption_cycle_idx = 0 
         print(f"New caption: {caption}")
         print(details)
         self.redraw()
@@ -517,12 +520,15 @@ class TileViewer(tk.Tk):
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
 
+        # < / > to flip through a list attribute's values (off for single values)
         caption_nav_frame = tk.Frame(self)
         caption_nav_frame.pack(pady=2)
-        tk.Button(caption_nav_frame, text="< Caption", command=self.prev_caption).pack(side=tk.LEFT, padx=2)
-        self.caption_index_label = tk.Label(caption_nav_frame, text="Caption 1 / 1")
+        self.prev_caption_button = tk.Button(caption_nav_frame, text="<< Prev", command=self.prev_caption)
+        self.prev_caption_button.pack(side=tk.LEFT, padx=2)
+        self.caption_index_label = tk.Label(caption_nav_frame, text="1 / 1")
         self.caption_index_label.pack(side=tk.LEFT, padx=5)
-        tk.Button(caption_nav_frame, text="Caption >", command=self.next_caption).pack(side=tk.LEFT, padx=2)
+        self.next_caption_button = tk.Button(caption_nav_frame, text="Next >>", command=self.next_caption)
+        self.next_caption_button.pack(side=tk.LEFT, padx=2)
 
         # Add Text widget for captions. insertontime=0 hides the blinking insert caret so
         # clicking the caption looks like selecting text, not entering an edit field;
@@ -555,19 +561,18 @@ class TileViewer(tk.Tk):
         self.caption_text.bind("<Button-3>", self.show_caption_context_menu)
         self.caption_text.bind("<Control-Button-1>", self.show_caption_context_menu)  # For Mac
 
-        # Button to cycle between multiple caption fields on a scene (e.g. caption,
-        # caption1, ... from llm_ascii_to_caption). The frame stays packed in place so the
-        # layout is stable; the button/label inside are shown only for multi-caption scenes.
+        # dropdown to pick which JSON attribute to show (level_name, theme, a caption model, ...)
         self.caption_cycle_frame = tk.Frame(self)
         self.caption_cycle_frame.pack(pady=(0, 2))
-        self.caption_cycle_button = tk.Button(
-            self.caption_cycle_frame, text="Cycle Caption", command=self.cycle_caption
+        tk.Label(self.caption_cycle_frame, text="Attribute:").pack(side=tk.LEFT, padx=(5, 2))
+        self.attr_var = tk.StringVar()
+        self.attr_dropdown = ttk.Combobox(
+            self.caption_cycle_frame, textvariable=self.attr_var, state="readonly", width=24
         )
-        self.caption_cycle_label = tk.Label(self.caption_cycle_frame, text="")
+        self.attr_dropdown.pack(side=tk.LEFT, padx=2)
+        self.attr_dropdown.bind("<<ComboboxSelected>>", self.on_attr_select)
 
-        # Button to switch the text box between the scene's caption and its optional
-        # 'prompt' field. Like the cycle controls, it stays hidden unless the current scene
-        # actually has a 'prompt' field.
+        # flips the text box between caption and 'prompt'; only shows up when there's a prompt
         self.prompt_toggle_button = tk.Button(
             self.caption_cycle_frame, text="Show Prompt", command=self.toggle_prompt
         )
@@ -983,23 +988,17 @@ class TileViewer(tk.Tk):
             sample = {"scene": sample, "caption": "No caption available."}
             # sample = {"scene": sample, "captions": ["No caption available."]}
 
-        # Normalize captions: prefer explicit 'captions' list; otherwise collect
-        # legacy caption fields (caption, caption1, caption2, ...) or fall back
-        # to a single 'caption' string. Use `current_caption_idx` to index into
-        # the resulting `captions` list consistently across the UI.
-        if isinstance(sample, dict) and isinstance(sample.get('captions'), list):
-            captions = sample['captions']
-        else:
-            caption_keys = self._sorted_caption_keys(
-                [k for k in sample if isinstance(k, str) and k.startswith("caption")]
-            )
-            if caption_keys:
-                captions = [sample.get(k, '') for k in caption_keys]
-            else:
-                captions = [sample.get('caption', '')]
+        # refresh the dropdown and grab the picked attribute's value(s) to page through
+        attr_names = self._attribute_names(sample)
+        self._sync_attr_dropdown(attr_names)
+        values = self._selected_values(sample)
 
-        self.current_caption_idx = max(0, min(self.current_caption_idx, len(captions) - 1))
-        self.caption_index_label.config(text=f"Caption {self.current_caption_idx + 1} / {len(captions)}")
+        self.current_caption_idx = max(0, min(self.current_caption_idx, len(values) - 1))
+        self.caption_index_label.config(text=f"{self.current_caption_idx + 1} / {len(values)}")
+        # only let you page when there's more than one value
+        nav_state = tk.NORMAL if len(values) > 1 else tk.DISABLED
+        self.prev_caption_button.config(state=nav_state)
+        self.next_caption_button.config(state=nav_state)
 
         # Dynamically update tile and canvas size for this scene
         self.update_tile_and_canvas_size(sample['scene'])
@@ -1188,24 +1187,17 @@ class TileViewer(tk.Tk):
         has_prompt = isinstance(sample, dict) and 'prompt' in sample
         self._update_prompt_toggle_control(has_prompt)
 
-        # Jacob: This first if-case is all from MarioDiffusion
         if self.show_prompt and has_prompt:
-            # Showing the raw prompt: hide the caption-cycle controls and render it as
-            # plain (uncolored) text, since prompts don't carry per-phrase detail coords.
-            self._update_caption_cycle_controls(0)
+            # prompt has no phrase coords, so just show it plain
             self.caption_text.configure(state="normal")
             self.caption_text.delete("1.0", tk.END)
             self.caption_text.tag_configure("black", foreground="black")
             self.caption_text.insert(tk.END, str(sample.get('prompt', '')), ("black", "center"))
         else:
-            # Jacob: The start of this section is from MarioDiffusion
-
-            # Show the currently selected caption from the normalized list.
-            self._update_caption_cycle_controls(len(captions))
-
+            # show the picked attribute, coloring caption phrases by topic
             self.caption_text.configure(state="normal")
             self.caption_text.delete("1.0", tk.END)
-            caption_text = captions[self.current_caption_idx]
+            caption_text = str(values[self.current_caption_idx])
             caption_parts = caption_text.split('.')
             for part in caption_parts:
                 part = part.strip()
@@ -1225,31 +1217,34 @@ class TileViewer(tk.Tk):
         )
         self.title(f"Tile Dataset Viewer - Sample {self.current_sample_idx + 1} / {len(self.dataset)}")
 
-    def _sorted_caption_keys(self, keys):
-        """Order caption fields so bare 'caption' comes first, then caption1, caption2, ...
-        Any non-numeric suffix falls back to lexical order at the end."""
-        def sort_key(k):
-            suffix = k[len("caption"):]
-            if suffix == "":
-                return (0, 0, "")
-            if suffix.isdigit():
-                return (1, int(suffix), "")
-            return (2, 0, suffix)
-        return sorted(keys, key=sort_key)
+    def _attribute_names(self, sample):
+        """Keys we can show in the dropdown: skip the reserved ones, keep strings/numbers/lists."""
+        if not isinstance(sample, dict):
+            return []
+        return [k for k, v in sample.items()
+                if k not in self.RESERVED_ATTRS
+                and isinstance(v, (str, int, float, bool, list))]
 
-    def _update_caption_cycle_controls(self, num_captions):
-        """Show the caption cycle button only when the current scene has more than one
-        caption field; otherwise hide it so the browser looks/behaves exactly as before."""
-        if num_captions > 1:
-            if not self.caption_cycle_button.winfo_ismapped():
-                self.caption_cycle_button.pack(side=tk.LEFT, padx=5)
-                self.caption_cycle_label.pack(side=tk.LEFT, padx=5)
-            self.caption_cycle_label.config(
-                text=f"Caption {self.current_caption_idx + 1} / {num_captions}"
-            )
-        else:
-            self.caption_cycle_button.pack_forget()
-            self.caption_cycle_label.pack_forget()
+    def _sync_attr_dropdown(self, attr_names):
+        """Update the dropdown options, keeping the current pick if it's still there,
+        else fall back to a caption field or the first attribute."""
+        if list(self.attr_dropdown['values']) != attr_names:
+            self.attr_dropdown['values'] = attr_names
+        if self.attr_var.get() not in attr_names:
+            default = next((k for k in ("caption", "captions") if k in attr_names), None)
+            self.attr_var.set(default or (attr_names[0] if attr_names else ""))
+            self.current_caption_idx = 0
+
+    def _selected_values(self, sample):
+        """The picked attribute as a list of values. Empty list gives one blank so paging still works."""
+        value = sample.get(self.attr_var.get()) if isinstance(sample, dict) else None
+        if isinstance(value, list):
+            return value if value else ['']
+        return [value if value is not None else '']
+
+    def on_attr_select(self, event=None):
+        self.current_caption_idx = 0  # new attribute, start at the first value
+        self.redraw()
 
     def _update_game_specific_controls(self):
         """Enable game-specific UI controls based on the selected game."""
@@ -1306,26 +1301,6 @@ class TileViewer(tk.Tk):
         n = lines[0] if isinstance(lines, (tuple, list)) else lines
         self.caption_text.configure(height=max(3, int(n)))
 
-    def cycle_caption(self):
-        """Advance to the next caption field on the current scene and redraw."""
-        if not self.dataset:
-            return
-        sample = self.dataset[self.current_sample_idx]
-        if not isinstance(sample, dict):
-            return
-        # Normalize to the same captions list used by redraw()
-        if isinstance(sample.get('captions'), list):
-            captions = sample['captions']
-        else:
-            caption_keys = self._sorted_caption_keys(
-                [k for k in sample if isinstance(k, str) and k.startswith("caption")]
-            )
-            captions = [sample.get(k, '') for k in caption_keys] if caption_keys else [sample.get('caption', '')]
-        if len(captions) <= 1:
-            return
-        self.current_caption_idx = (self.current_caption_idx + 1) % len(captions)
-        self.redraw()
-
     def prev_sample(self):
         if self.current_sample_idx > 0:
             self.current_sample_idx -= 1
@@ -1354,9 +1329,7 @@ class TileViewer(tk.Tk):
             print("Invalid index entered.")
 
     def prev_caption(self):
-        if not self.dataset:
-            return
-        captions = self.dataset[self.current_sample_idx].get('captions') or ['']
+        # step back through the current attribute's values
         if self.current_caption_idx > 0:
             self.current_caption_idx -= 1
             self.redraw()
@@ -1364,8 +1337,8 @@ class TileViewer(tk.Tk):
     def next_caption(self):
         if not self.dataset:
             return
-        captions = self.dataset[self.current_sample_idx].get('captions') or ['']
-        if self.current_caption_idx < len(captions) - 1:
+        values = self._selected_values(self.dataset[self.current_sample_idx])
+        if self.current_caption_idx < len(values) - 1:
             self.current_caption_idx += 1
             self.redraw()
 
