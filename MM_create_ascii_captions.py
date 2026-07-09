@@ -466,50 +466,51 @@ def analyze_floor(scene, wall_ids, describe_absence, floor_row = 15):
         return f" giant gap with {describe_quantity(chunks) if coarse_counts else chunks} chunk"+("s" if pluralize and chunks != 1 else "")+" of floor."
 
 
-def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence):
+def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence,
+                      caption_mode="legacy", caption_key="deterministic_captions"):
     """Processes the dataset and generates captions for each level scene."""
     # Load dataset
     with open(dataset_path, "r") as f:
         dataset = json.load(f)
-    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence)
+    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence,
+                    caption_mode=caption_mode, caption_key=caption_key)
     print(f"Captioned dataset saved to {output_path}")
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence):
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence,
+                    caption_mode="legacy", caption_key="deterministic_captions"):
+    """Add a deterministic caption to every scene.
+
+    "legacy" stores it in the "caption" field; "keyed" stores it as a one-element list under
+    caption_key (default "deterministic_captions"), so a scene can carry captions from several
+    sources at once. Either way every other input attribute is copied through, so passing a
+    dataset that already carries metadata or LLM captions accumulates sources rather than
+    replacing them.
+    """
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
-    num_excluded = 0
     # Generate captions
     captioned_dataset = []
     for i, combined_scene in enumerate(dataset):
         # Blank for Mega Man
-        if isinstance(combined_scene, dict):
+        is_dict = isinstance(combined_scene, dict)
+        if is_dict:
             scene = combined_scene['scene']
             data = combined_scene.get('data', None)
         else:
             scene = combined_scene
             data = None
-        caption = ""
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, data)
 
-
-            #import torch
-            #import torch.nn.functional as F
-            #scene_tensor = torch.tensor(scene, dtype=torch.long)
-            #one_hot_scene = F.one_hot(scene_tensor, num_classes=13).float() 
-            #one_hot_scene = one_hot_scene.permute(2, 0, 1)
-            #scene = one_hot_scene.unsqueeze(0)
-            #from level_dataset import visualize_samples
-            #image = visualize_samples(scene)
-            #image.show()
-            #if input("Press Enter to continue or type 'q' to quit: ") == 'q':
-            #    print("Exiting caption generation.")
-            #    sys.exit(0)
-
-        captioned_dataset.append({
-            "scene": scene,
-            "caption": caption
-        })
+        # Copy all input attributes (metadata + captions from other sources) so they carry
+        # through; only the scene/caption fields below are (re)written.
+        entry = dict(combined_scene) if is_dict else {}
+        entry["scene"] = scene
+        if caption_mode == "keyed":
+            entry[caption_key] = [caption]
+        else:
+            entry["caption"] = caption
+        captioned_dataset.append(entry)
 
     # Save new dataset with captions
     with open(output_path, "w") as f:
@@ -691,6 +692,12 @@ if __name__ == "__main__":
     parser.add_argument("--tileset", default='datasets/MM.json', help="Descriptions of individual tile types")
     parser.add_argument("--output", required=True, help="Output JSON file path")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument("--caption-mode", choices=["legacy", "keyed"], default="legacy",
+                        help="Output schema. 'legacy' (default) writes the single 'caption' field. 'keyed' writes the caption as a "
+                             "one-element list under --caption-key, so a scene can carry captions from several sources at once. Both "
+                             "modes copy all other input attributes (metadata and captions from other sources) to the output.")
+    parser.add_argument("--caption-key", default="deterministic_captions",
+                        help="Key to store the caption list under when --caption-mode keyed. Default: deterministic_captions")
     global args
     args = parser.parse_args()
 
@@ -702,4 +709,5 @@ if __name__ == "__main__":
         print("Error: One or more input files do not exist.")
         sys.exit(1)
 
-    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence)
+    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence,
+                      caption_mode=args.caption_mode, caption_key=args.caption_key)
