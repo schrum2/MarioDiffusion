@@ -7,6 +7,7 @@ from PIL import Image, ImageTk
 from level_dataset import mario_tiles, lr_tiles, mm_tiles
 from util.sampler import scene_to_ascii
 
+# Jacob: Despite the name, I think some of the standard LevelEditor class applies to all games.
 
 class LevelEditor:
     """
@@ -37,6 +38,10 @@ class LevelEditor:
         self.selected_cells = set()
 
         self.master.title("Level Editor")
+        # Jacob: These two lines were in MarioMakerPCG, but I'm not sure they are needed
+        # self.grid_frame = ttk.Frame(master)
+        # self.grid_frame.pack(padx=10, pady=10)
+
         self.master.geometry("700x500")
         self.master.minsize(700, 500)
 
@@ -99,6 +104,7 @@ class LevelEditor:
         palette_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.tile_images = self._load_tile_images(game)
+        # self.tile_buttons = [] # Jacob: Why did MarioMakerPCG add this?
         self.tile_photo_images = []
         self.palette_photo_images = []
 
@@ -106,6 +112,7 @@ class LevelEditor:
         self.cell_labels = {}
 
         for r, row in enumerate(self.scene):
+            # button_row = [] # Jacob: Why did MarioMakerPCG add this?
             for c, tile_id in enumerate(row):
                 frame = tk.Frame(
                     self.grid_frame,
@@ -116,6 +123,16 @@ class LevelEditor:
                 frame.grid(row=r, column=c, padx=1, pady=1)
 
                 photo = ImageTk.PhotoImage(self.tile_images[tile_id])
+                # Jacob: this is code from MarioMakerPCG.
+                #        I think the code from MarioDiffusion (below) is more up-to-date,
+                #        so I commented the MarioMakerPCG code out
+                #btn = ttk.Button(
+                #    self.grid_frame,
+                #    image=photo,
+                #    command=lambda r=r, c=c: self.cycle_tile(r, c)
+                #)
+                #btn.image = photo
+                #btn.grid(row=r, column=c, padx=1, pady=1)
                 self.tile_photo_images.append(photo)
                 label = tk.Label(frame, image=photo, borderwidth=0)
                 label.image = photo
@@ -126,17 +143,22 @@ class LevelEditor:
 
                 self.cell_frames[(r, c)] = frame
                 self.cell_labels[(r, c)] = label
+                
+                # Jacob: Also from MarioMakerPCG
+                #button_row.append(btn)
+            # Jacob: Also from MarioMakerPCG
+            #self.tile_buttons.append(button_row)
 
-        # Palette tiles, arranged in a grid (side-by-side), in cycle order
-        self.palette_swatch_frames = {}
-        for tile_id in range(len(self.id_to_char)):
-            self._add_palette_entry(palette_inner, tile_id)
-
+        # From MarioDiffusion
         controls = ttk.Frame(outer)
         controls.pack(pady=(12, 0))
         ttk.Button(controls, text="Save", command=self.save, width=14).pack(side=tk.LEFT, padx=6)
         ttk.Button(controls, text="Cancel", command=master.destroy, width=14).pack(side=tk.LEFT, padx=6)
-
+        # Jacob: From MarioMakerPCG
+        #controls = ttk.Frame(master)
+        #controls.pack(pady=8)
+        #ttk.Button(controls, text="Save", command=self.save).pack(side=tk.LEFT, padx=4)
+        #ttk.Button(controls, text="Cancel", command=master.destroy).pack(side=tk.LEFT, padx=4)
     # ------------------------------------------------------------------ selection
 
     def _left_click_cell(self, row, col, shift):
@@ -166,6 +188,18 @@ class LevelEditor:
         next_id = (current_id + direction) % len(self.id_to_char)
         self._paint_cell(row, col, next_id)
 
+    # Jacob: From MarioMakerPCG. What is it for?
+    #        It seems to have overlap with some code below, which makes me
+    #        suspect it was replaced, but I'm not sure.
+    def cycle_tile(self, row, col):
+        current_id = self.scene[row][col]
+        next_id = (current_id + 1) % len(self.id_to_char)
+        self.scene[row][col] = next_id
+        photo = ImageTk.PhotoImage(self.tile_images[next_id])
+        btn = self.tile_buttons[row][col]
+        btn.config(image=photo)
+        btn.image = photo
+        self.tile_photo_images.append(photo)
     # ------------------------------------------------------------------ palette
 
     def _tile_hover_text(self, tile_id):
@@ -241,13 +275,18 @@ class LevelEditor:
         # since both apps pass this class their own game string.
         if game in ("Lode Runner", "LR"):
             return lr_tiles()
-        elif game in ("Mega Man (Simple)", "MM-Simple"):
+        elif game in ("Mega Man (Simple)", "MM-Simple", "MM-simple"):
             return mm_tiles("MM-Simple")
-        elif game in ("Mega Man (Full)", "MM-Full"):
+        elif game in ("Mega Man (Full)", "MM-Full", "MM-full"):
             return mm_tiles("MM-Full")
         elif game in ("Mega Man (Maker)", "MMLV"):
             return mm_tiles("MMLV")
-        return mario_tiles()
+        elif game in ("Mario Maker 2", "MM2", "Mario Maker"):
+            # MM2 per-tile sprites, indexed exactly like extract_tileset()/id_to_char
+            # so tile id N in the scene maps to tile image N in the editor grid.
+            return mm2_tiles()        
+        else: # Mario case 
+            return mario_tiles()
 
 
 class MegaManLayoutEditor:
