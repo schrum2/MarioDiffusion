@@ -1507,8 +1507,6 @@ Average Segment Score: {avg_segment_score}"""
 
     def update_mario_only_buttons(self):
         is_mario = self.game_var.get() == "Mario"
-        # Jacob: I think the Mario-only buttons really are for Mario, not Mario Maker
-        # is_mario = self.game_var.get() == "Mario Maker (MM)"
         state = tk.NORMAL if is_mario else tk.DISABLED
         self.play_composed_button.config(state=state)
         self.astar_composed_button.config(state=state)
