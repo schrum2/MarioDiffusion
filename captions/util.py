@@ -175,7 +175,7 @@ def extract_tileset(tileset_path):
     with open(tileset_path, "r") as f:
         tileset = json.load(f)
         #print(f"tileset: {tileset}")
-        if "MM" in os.path.basename(tileset_path): #Clunky test that I'll likly change later to prevent sorting on the MegaMan data, because it doesn't expect it. Basename-only so MM2_Data/mm2_tileset_we.json (lowercase mm2) doesn't false-match Mega Man's MM.json/MM-simple-tileset.json/MMLV.json.
+        if "MM" in os.path.basename(tileset_path): #Clunky test that I'll likly change later to prevent sorting on the MegaMan data, because it doesn't expect it.
             tile_chars = tileset['tiles'].keys()
         else: #Applies to lode runner/mario
             tile_chars = sorted(tileset['tiles'].keys())

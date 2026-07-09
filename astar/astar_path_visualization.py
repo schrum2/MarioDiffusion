@@ -30,6 +30,7 @@ import util.common_settings as common_settings
 # game_render name -> (tile count for one-hot, pixel size of each tile)
 _RENDER_INFO = {
     "Mario": (common_settings.MARIO_TILE_COUNT, common_settings.MARIO_TILE_PIXEL_DIM),
+    "MM2": (common_settings.MM2_TILE_COUNT, common_settings.MM2_TILE_PIXEL_DIM),
     "LR": (common_settings.LR_TILE_COUNT, common_settings.LR_TILE_PIXEL_DIM),
     "MM-Simple": (common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_TILE_PIXEL_DIM),
     "MM-Full": (common_settings.MM_FULL_TILE_COUNT, common_settings.MM_TILE_PIXEL_DIM),
