@@ -8,8 +8,6 @@ from PIL import ImageTk, Image
 import sys
 from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
 from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split, mario_tiles, lr_tiles, mm_tiles
-from render_mm2 import mm2_tiles
-from MarioMaker_create_ascii_captions import get_char_names, CAPTION_METADATA_FIELDS
 from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
@@ -490,6 +488,8 @@ class CaptionBuilder(ParentBuilder):
         tied to any single tile, get their own groups on top.
         """
         global tileset_path
+
+        from MM2_Files.MarioMaker_create_ascii_captions import get_char_names, CAPTION_METADATA_FIELDS
 
         # Tile char -> lowercase display name, read straight from the tileset tags
         # so the names track exactly what the captioner emits (e.g. "goomba",

@@ -18,10 +18,9 @@ _here = os.path.dirname(os.path.abspath(__file__))
 sys.path[:] = [p for p in sys.path if os.path.abspath(p or os.getcwd()) != _here]
 _repo_root = os.path.dirname(_here)
 sys.path.insert(0, _repo_root)
-sys.path.insert(0, os.path.join(_repo_root, "MM2_Files"))
 
 import util.common_settings as common_settings
-from MarioMaker_create_ascii_captions import (
+from MM2_Files.MarioMaker_create_ascii_captions import (
     build_id_to_char, get_char_names, get_tile_categories, assign_caption,
     pluralize)
 

@@ -12,16 +12,10 @@ import sys
 import random
 from collections import OrderedDict
 
-# The MM2 caption helpers live in MM2_Files/, so put that on the path before
-# importing them (same shim as captions/MM2_caption_match.py).
-_MM2_FILES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "MM2_Files")
-if _MM2_FILES not in sys.path:
-    sys.path.insert(0, _MM2_FILES)
-
 from captions.MM2_caption_match import (
     QUANTITY_TERMS, build_name_lookup, phrase_topic, topic_entity,
 )
-from MarioMaker_create_ascii_captions import CAPTION_METADATA_FIELDS
+from MM2_Files.MarioMaker_create_ascii_captions import CAPTION_METADATA_FIELDS
 
 # style/theme/difficulty, in the order MarioMaker_create_ascii_captions emits them.
 METADATA_ORDER = [suffix for _field, suffix in CAPTION_METADATA_FIELDS]
