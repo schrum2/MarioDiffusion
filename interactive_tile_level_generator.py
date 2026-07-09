@@ -1445,17 +1445,6 @@ Average Segment Score: {avg_segment_score}"""
         console_output = level.run_astar()
         print(console_output)
 
-        # Jacob: This is the code from MarioMakerPCG
-        #        I'm not sure why it is so different, but it should be
-        #        made to behave like the general approach.
-        if idx < len(self.generated_scenes):
-            scene = self.generated_scenes[idx]
-        else:
-            scene = torch.argmax(torch.tensor(self.current_levels[idx]), dim=0).numpy().tolist()
-        from astar.astar_traversability_check import astar_console_report
-        print(astar_console_report(scene, id_to_char=self.id_to_char,
-                                   tile_descriptors=self.tile_descriptors))
-
     def uncheck_all(self):
         """Uncheck all checkboxes in the provided list or dict."""
         for var in self.checkbox_vars.values():
