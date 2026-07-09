@@ -181,8 +181,11 @@ BOSS_E_TO_CHAR = {
     15: "Z",   # Energy Element / MM1 Exit Orb  -> the level exit
     0:  "D",   # Vertical Boss Door (also the no-'e' default)
     1:  "D",   # Horizontal Boss Door
-    33: "D",   # Boss Door: a 2-wide x 4-tall door block (see BOSS_DOOR_E_IDS: expands its
-               # bottom-right anchor left + 3 up into the full 2x4 footprint)
+    33: "D",   # Vertical Boss Door: a 2-wide x 4-tall door block (see BOSS_DOOR_V_E_IDS:
+               # expands its bottom-right anchor left + 3 up into the full 2x4 footprint)
+    34: "D",   # Horizontal Boss Door: a 4-wide x 2-tall door block (see BOSS_DOOR_H_E_IDS:
+               # anchor is the bottom row, one tile left of the right edge -> expands 2 left,
+               # 1 right, and 1 up into the full 4x2 footprint)
     16: "M",   # Party Balloon (rideable transport)
 }
 
@@ -229,13 +232,22 @@ TWO_TALL_E_IDS = {208}
 # direction ('b'=-1 -> left 'E', else right '>'). Multiple conveyor types exist (e73, e74).
 CONVEYOR_E_IDS = {73, 74}
 
-# d == 8 (boss category) ids that are 2-wide x 4-tall boss-door blocks. Like the multi-tile
-# gimmick blocks these are stored as a single object, here at the door's BOTTOM-RIGHT tile, so
-# on their own they decode to just that one cell and the other seven tiles read as gaps.
-# mmlv_to_grid expands each to the full 2x4 by filling the tile to the left and the three tiles
-# above (and their left neighbours) with the same char. Note this is the d8 boss class, NOT the
-# d6 block class the other footprint sets use.
-BOSS_DOOR_E_IDS = {33}
+# Invisible logic / trigger objects that have NO tile representation and should be ignored
+# (decoded to empty air '-'), e.g. boss event triggers. These are keyed by the full (d, e) pair,
+# NOT by 'e' alone, because subtype ids collide across classes -- e.g. d8/e36 is the boss event
+# trigger, but d6/e36 is a common (still unidentified) block-like gimmick, so an 'e'-only ignore
+# set would wrongly blank out every d6/e36. classify() returns None (air) for any (d, e) here.
+TRIGGER_IDS = {(8, 36)}   # d8 e36 = boss event trigger
+
+# d == 8 (boss category) boss-door blocks. Like the multi-tile gimmick blocks these are stored
+# as a single object at one corner, so on their own they decode to just that one cell and the
+# rest of the footprint reads as gaps. mmlv_to_grid expands them to the full door. Note these are
+# the d8 boss class, NOT the d6 block class the other footprint sets use. Two orientations:
+#   VERTICAL   (e33): 2-wide x 4-tall, anchored at the BOTTOM-RIGHT tile.
+#   HORIZONTAL (e34): 4-wide x 2-tall, anchored at the BOTTOM row, one tile LEFT of the right
+#                     edge (relative tile (row=1, col=2) of the 0-indexed 4x2 block).
+BOSS_DOOR_V_E_IDS = {33}
+BOSS_DOOR_H_E_IDS = {34}
 
 # d == 6 gimmick ids that are moving platforms. A moving platform is placed as a chain of
 # invisible PATH/track nodes that all share the same e id; exactly one node (the platform's
@@ -269,11 +281,18 @@ def is_1x2_block(cell: dict) -> bool:
     return d is not None and int(d) == 6 and e is not None and int(e) in TWO_TALL_E_IDS
 
 
-def is_boss_door(cell: dict) -> bool:
-    """True if the cell is a d8 boss door that occupies a 2-wide x 4-tall footprint."""
+def is_boss_door_v(cell: dict) -> bool:
+    """True if the cell is a d8 vertical boss door (2-wide x 4-tall footprint)."""
     d = cell.get("d")
     e = cell.get("e")
-    return d is not None and int(d) == 8 and e is not None and int(e) in BOSS_DOOR_E_IDS
+    return d is not None and int(d) == 8 and e is not None and int(e) in BOSS_DOOR_V_E_IDS
+
+
+def is_boss_door_h(cell: dict) -> bool:
+    """True if the cell is a d8 horizontal boss door (4-wide x 2-tall footprint)."""
+    d = cell.get("d")
+    e = cell.get("e")
+    return d is not None and int(d) == 8 and e is not None and int(e) in BOSS_DOOR_H_E_IDS
 
 
 def classify(cell: dict) -> str:
@@ -288,6 +307,8 @@ def classify(cell: dict) -> str:
         dc = int(d)
         e = cell.get("e")
         ei = int(e) if e is not None else 0
+        if (dc, ei) in TRIGGER_IDS:                 # invisible logic/trigger object: no tile,
+            return None                             # ignore it and leave the cell as empty air
         if dc == 4:                                 # player spawn (any character)
             return "P"
         if dc == 5:                                 # enemy
@@ -407,11 +428,19 @@ def mmlv_to_grid(path: Path):
         # A 1-wide x 2-tall block is stored at its bottom tile; fill the tile directly above.
         elif is_1x2_block(cell):
             char_cells.setdefault((tx, ty - 1), ch)
-        # A boss door is a 2-wide x 4-tall block stored at its bottom-right tile; fill the other
-        # seven tiles of the 2x4 footprint (one column left, three rows up).
-        elif is_boss_door(cell):
+        # A vertical boss door is a 2-wide x 4-tall block stored at its bottom-right tile; fill
+        # the other seven tiles of the 2x4 footprint (one column left, three rows up).
+        elif is_boss_door_v(cell):
             for dx in (0, -1):
                 for dy in (0, -1, -2, -3):
+                    if dx == 0 and dy == 0:
+                        continue
+                    char_cells.setdefault((tx + dx, ty + dy), ch)
+        # A horizontal boss door is a 4-wide x 2-tall block stored at the bottom row, one tile
+        # left of the right edge; fill the other seven tiles (two columns left, one right, one up).
+        elif is_boss_door_h(cell):
+            for dx in (-2, -1, 0, 1):
+                for dy in (0, -1):
                     if dx == 0 and dy == 0:
                         continue
                     char_cells.setdefault((tx + dx, ty + dy), ch)
