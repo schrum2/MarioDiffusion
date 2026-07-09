@@ -46,7 +46,7 @@ class TextDiffusionEvolver(Evolver):
         elif self.args.game == 'LR':
             height = common_settings.LR_HEIGHT
             width = common_settings.LR_WIDTH
-        num_channels_latents = len(self.id_to_char)
+        num_channels_latents = self.pipe.unet.config.in_channels
         #print("num_channels_latents:", num_channels_latents)
         latents_shape = (1, num_channels_latents, height, width)
         latents = torch.randn(
