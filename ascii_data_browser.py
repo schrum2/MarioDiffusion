@@ -373,8 +373,9 @@ class TileViewer(tk.Tk):
         load_tileset_button.pack(side=tk.LEFT, padx=2)
 
         # Add a button to load a trained diffusion model
-        self.load_model_button = tk.Button(frame, text="Load Model", command=self.load_model)
-        self.load_model_button.pack(pady=2)
+        # Jacob: This never really worked and clutters the interface, so I'm commenting it out.
+        #self.load_model_button = tk.Button(frame, text="Load Model", command=self.load_model)
+        #self.load_model_button.pack(pady=2)
 
         checkbox_frame = tk.Frame(self)
         checkbox_frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
@@ -489,20 +490,22 @@ class TileViewer(tk.Tk):
         self.sample_label.pack(side=tk.LEFT, padx=5)
 
         tk.Label(nav_info_frame, text="Jump to:").pack(side=tk.LEFT)
-        self.jump_entry = tk.Entry(nav_info_frame, width=5)
+        self.jump_entry = tk.Entry(nav_info_frame, width=8)
         self.jump_entry.pack(side=tk.LEFT)
         self.jump_entry.bind("<Return>", self.jump_to_sample)
 
         # Generate button (initially disabled)
-        self.generate_button = tk.Button(nav_info_frame, text="Generate From Scene", command=self.generate_from_scene, state=tk.DISABLED)
-        self.generate_button.pack(side=tk.LEFT, padx=20)
+        # Jacob: This never really worked and clutters the interface, so I'm commenting it out.
+        #self.generate_button = tk.Button(nav_info_frame, text="Generate From Scene", command=self.generate_from_scene, state=tk.DISABLED)
+        #self.generate_button.pack(side=tk.LEFT, padx=20)
 
         # Steps input field
-        tk.Label(nav_info_frame, text="Steps:").pack(side=tk.LEFT)
-        self.steps_entry = tk.Entry(nav_info_frame, width=4)
-        self.steps_entry.insert(0, "50")  # Default value
-        self.steps_entry.config(state=tk.DISABLED)  # Initially disabled
-        self.steps_entry.pack(side=tk.LEFT, padx=20)
+        # Jacob: This is related to the Generate From Scene button, which is disabled, so I'm disabling this too.
+        #tk.Label(nav_info_frame, text="Steps:").pack(side=tk.LEFT)
+        #self.steps_entry = tk.Entry(nav_info_frame, width=4)
+        #self.steps_entry.insert(0, "50")  # Default value
+        #self.steps_entry.config(state=tk.DISABLED)  # Initially disabled
+        #self.steps_entry.pack(side=tk.LEFT, padx=20)
 
         # Navigation buttons
         tk.Button(nav_info_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=10)
