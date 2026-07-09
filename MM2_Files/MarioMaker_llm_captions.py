@@ -1185,6 +1185,22 @@ def load_existing(output_path, caption_mode="legacy", caption_key=None):
     }
 
 
+def load_all_by_name(output_path):
+    """Every entry already in the output file, keyed by name and UNfiltered.
+
+    Unlike load_existing (which only returns items already captioned by the
+    current source, so they can be skipped), this returns the prior entries made before.
+    """
+    if not os.path.isfile(output_path):
+        return {}
+    with open(output_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return {
+        item["name"]: item for item in data
+        if isinstance(item, dict) and "name" in item
+    }
+
+
 def _write(output_path, data):
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
@@ -1292,8 +1308,13 @@ def generate_captions(dataset_path, tileset_path, output_path, model, url, timeo
         os.makedirs(ascii_output_dir, exist_ok=True)
 
     existing = load_existing(output_path, caption_mode, caption_key)
+    # New run merges captions with this by loading all the names that were in the dataset before
+    prior_by_name = load_all_by_name(output_path)
     if existing:
         print(f"Resuming: {len(existing)} captions already present in {output_path}")
+    elif prior_by_name:
+        print(f"Accumulating: {len(prior_by_name)} scene(s) already in {output_path} "
+              f"will keep their existing captions; adding this source alongside them.")
     else:
         print("Starting fresh.")
 
@@ -1496,7 +1517,17 @@ def generate_captions(dataset_path, tileset_path, output_path, model, url, timeo
 
         print(f"OK ({len(captions)} captions)")
 
-        entry = dict(item) if isinstance(item, dict) else {"scene": scene}  # copy input so metadata/other sources ride along
+        # Base the entry on any prior output for this scene so caption keys from
+        # earlier runs (other models) survive.
+        if name in prior_by_name:
+            entry = dict(prior_by_name[name])
+            if isinstance(item, dict):
+                for k, v in item.items():
+                    entry.setdefault(k, v)
+        elif isinstance(item, dict):
+            entry = dict(item)  # copy input so metadata/other sources ride along
+        else:
+            entry = {"scene": scene}
         entry["scene"] = scene
         entry["name"] = name
 
