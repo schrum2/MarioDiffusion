@@ -77,7 +77,7 @@ def parse_args():
     parser.add_argument(
         "--output_format",
         type=str,
-        default="ascii",
+        default="image",
         choices=["ascii", "image", "both"],
         help="Output format: ascii text files, tile images, or both",
     )

@@ -24,7 +24,7 @@ def dataset_width_range(json_path):
     widths = [
         len(item["scene"][0])
         for item in data
-        if isinstance(item, dict) and item.get("scene")
+        if isinstance(item, dict) and item.get("scene") is not None
     ]
     if not widths:
         return None

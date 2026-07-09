@@ -240,7 +240,7 @@ def main():
         num_tiles=num_tiles,
         #num_tiles=args.num_tiles
     )
-    scene_widths = {len(item["scene"][0]) for item in dataset.data if isinstance(item, dict) and item.get("scene")}
+    scene_widths = {len(item["scene"][0]) for item in dataset.data if isinstance(item, dict) and item.get("scene") is not None}
 
     if args.match_scene_width and not scene_widths:
         print(f"Error: --match_scene_width requires a scene-bearing dataset, but '{path_to_json}' has caption-only entries.")
@@ -375,7 +375,7 @@ def mm2_caption_adherence(args, device, pipe, items, tileset):
 
     by_shape = {}
     for item in items:
-        if item.get("scene"):
+        if item.get("scene") is not None:
             shape = (len(item["scene"]), len(item["scene"][0]))
         else:
             shape = (args.height, args.width)
