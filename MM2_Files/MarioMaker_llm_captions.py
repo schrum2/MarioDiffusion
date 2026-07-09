@@ -24,6 +24,13 @@ import time
 import urllib.request
 import urllib.error
 
+# common_settings lives at the repo root; this script is under MM2_Files/, so make sure
+# the repo root is importable whether it's run as a module or directly.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+import util.common_settings as common_settings
+
 # Reprompt budget for wrong caption counts. Kept large and separate from --max-reprompts
 # (empty/non-English responses) since a lazy model usually complies on a later try.
 MAX_CAPTION_RETRIES = 100
@@ -206,19 +213,16 @@ TERRAIN_CHARS_MM2 = frozenset({"#", "H", "B", "S", "I", "C", "/", "\\"})
 TERRAIN_CHARS_EXT = frozenset({"#", "B", "N", "S"})
 TERRAIN_CHARS_WE = frozenset({"#", "B", "N", "?", "H", "I", "O"})
 
-# ── Per-game asset settings ───────────────────────────────────────────────────
-# --game redirects the tileset paths to the right game's assets. The MM2 tileset
-# lives beside this script in MM2_Files/; the Mega Man tilesets live in the repo's
-# datasets/ folder. Char names and terrain are still derived from whichever tileset
-# is loaded (see get_char_names / compute_metadata).
+# ── Different games for their tilesets, right now MM2 and the three Mega Man tilesets ─────────
+
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _DATASETS_DIR = os.path.join(os.path.dirname(_SCRIPT_DIR), "datasets")
 
 GAME_SETTINGS = {
     "MM2": {
-        "tileset": os.path.join(_SCRIPT_DIR, "mm2_tileset_we.json"),
-        "tileset_we": os.path.join(_SCRIPT_DIR, "mm2_tileset_we.json"),
+        "tileset": os.path.join(_REPO_ROOT, *common_settings.MM2_TILESET.split("/")),
+        "tileset_we": os.path.join(_REPO_ROOT, *common_settings.MM2_TILESET.split("/")),
     },
     "MM": {
         "tileset": os.path.join(_DATASETS_DIR, "MM.json"),
