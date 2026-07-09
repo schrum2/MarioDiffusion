@@ -252,8 +252,8 @@ class TileViewer(tk.Tk):
             print(f"Could not import A* path tools: {e}")
             return None
 
-        game = self.game.get()   # "Mario" / "LR" / "MM-Simple" / "MM-Full"
-        trav_game = {"Mario": "Mario", "LR": "LR",
+        game = self.game.get()   # "Mario" / "MM2" / "LR" / "MM-Simple" / "MM-Full"
+        trav_game = {"Mario": "Mario", "MM2": "MM2", "LR": "LR",
                      "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MM"}.get(game)
         if trav_game is None:
             return None
@@ -1265,7 +1265,8 @@ class TileViewer(tk.Tk):
         if not is_mario:
             self.use_snes_graphics.set(False)
 
-        self.astar_composed_button.config(state=tk.NORMAL if is_mario else tk.DISABLED)
+        # Mario uses the Java sim; MM2 uses the Python A* check in astar_composed_level.
+        self.astar_composed_button.config(state=tk.NORMAL if (is_mario or is_mm2) else tk.DISABLED)
 
         self.build_mm_level_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
 
