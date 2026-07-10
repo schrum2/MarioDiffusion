@@ -139,12 +139,22 @@ class SampleOutput:
     def _launch_lr_subprocess(self, tmp_path, level_idx):
         import subprocess, sys
 
-        code = (
-            "from loderunner import main;"
-            f"main.play_lr_level(r'{tmp_path}', level_index={level_idx})"
+        # Suppress exception
+        script = (
+            "import sys\n"
+            "from loderunner import main\n"
+            "from loderunner.graphics import GraphicsError\n"
+            "try:\n"
+            "    main.play_lr_level(sys.argv[1], level_index=int(sys.argv[2]))\n"
+            "except GraphicsError:\n"
+            "    pass\n"
+            "except Exception as e:\n"
+            "    print(f'Lode Runner exited: {e}')\n"
         )
-        # Store the handle so the caller (your GUI) can poll/terminate it
-        self.lr_process = subprocess.Popen([sys.executable, "-c", code])
+
+        self.lr_process = subprocess.Popen(
+            [sys.executable, "-c", script, tmp_path, str(level_idx)]
+        )
         return self.lr_process
 
     def play(self, game="Mario", level_idx=None, dataset_path=None):
