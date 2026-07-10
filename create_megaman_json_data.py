@@ -141,11 +141,13 @@ def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'dataset
         tile_to_id = {char: idx for idx, char in enumerate(cleared_list_of_chars)}
         id_to_tile = {idx: char for char, idx in tile_to_id.items()}
 
-        #Create a new tileset to match these tiles
+        #Create a new tileset to match these tiles. We also persist the *actual* id
+        #assignment order used to encode scene data, since sort_keys=True below alphabetizes
+        #the "tiles" section for human readability and no longer reflects the real ids.
         output = os.path.join(new_tileset_dir, "MM-simple-tileset.json")
         tile_dict = {tile: sorted(list(tile_descriptors.get(tile))) for tile in tile_to_id}
-        tile_dict = {"tiles" : tile_dict}
-        
+        tile_dict = {"tiles" : tile_dict, "tile_to_id": dict(tile_to_id)}
+
         with open(output, 'w') as f:
             json.dump(tile_dict, f, indent=4, sort_keys=True)
 
