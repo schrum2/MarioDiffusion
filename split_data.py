@@ -13,7 +13,7 @@ COMMAND LINE: python split_data.py --json_file SMB1_LevelsAndCaptions-regular-te
 def parse_args():
     parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
     parser.add_argument("--json_file", type=str, required=True, help="Path to dataset JSON file")
-    parser.add_argument("--game", type=str, required=True, choices=["Mario", "mario", "loderunner", "mm-simple", "mm-full", "mmlv", "MM-Simple", "MM-Full", "MMLV"], help="Game name")
+    parser.add_argument("--game", type=str, required=True, choices=["MM2", "Mario", "mario", "loderunner", "LR", "mm-simple", "mm-full", "mmlv", "MM-Simple", "MM-Full", "MMLV"], help="Game name")
     parser.add_argument("--train_pct", type=float, default=0.8, help="Train split percentage")
     parser.add_argument("--val_pct", type=float, default=0.1, help="Validation split percentage")
     parser.add_argument("--test_pct", type=float, default=0.1, help="Test split percentage")
@@ -173,12 +173,15 @@ if __name__ == "__main__":
             full_dataset = json.load(f)
         if not upside_down_pipes(full_dataset):
             required_structures = [kw for kw in required_structures if "upside down pipe" not in kw]
-    elif args.game.lower() == "loderunner":
+    elif args.game.lower() == "loderunner" or args.game.lower() == "lr":
         required_structures = LR_TOPIC_KEYWORDS
         required_structures = [kw for kw in required_structures if "loose block" not in kw]
         required_structures = [kw for kw in required_structures if "ceiling" not in kw]
     elif args.game.lower() in ["mm-simple", "mm-full", "mmlv"]:
         required_structures = MM_TOPIC_KEYWORDS
+    elif args.game.lower() == "mm2":
+        # Jacob: TODO
+        raise ValueError("MM2 topic keywords have not been defined")
     else:
         raise ValueError("Unsupported game specified")
     train_split, val_split, test_split = verify_coverage(required_structures)
