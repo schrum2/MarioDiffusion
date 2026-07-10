@@ -18,6 +18,9 @@ import time
 SNAP_H_PAD_ROWS = 2
 
 
+SPAWN_EXIT_CHARS = ('P', 'Z')
+
+
 #This enum is for the readability of the direction enum
 class Axis(Enum):
     VERT=0
@@ -172,6 +175,7 @@ def parse_args():
     parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width for path mode.')
     parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
+    parser.add_argument('--keep_spawn_exit', action='store_true', help="Keep the player spawn ('P') and exit orb ('Z') tiles in the output scenes. By default these markers are stripped (encoded as air) since they are level metadata, not geometry to be learned.")
     #The A* traversability filter is on by default now (also feeds the low-content check in apply_filters); --no_traversable_filter turns the hard filter off.
     parser.add_argument('--no_traversable_filter', dest='traversable_only', action='store_false', default=True, help='Disable filtering out A*-untraversable scenes (this filter is ON by default). The A* path length is still computed for the low-content rescue check regardless.')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by the traversability check (higher = more thorough, slower)')
@@ -395,7 +399,22 @@ def main():
     
     if args.group_encodings:
         tile_to_id, id_to_char = create_tile_to_id(args.tileset, tile_descriptors, new_tileset_dir=os.path.dirname(args.output))
-    
+
+    # Strip the spawn/exit markers, and remap their chars to the air id unless --keep_spawn_exit
+    # find_start still scans the raw 'P' char, so spawn detection is unaffected
+    if not args.keep_spawn_exit:
+        air_id = tile_to_id.get('-')
+        if air_id is None:
+            air_id = next((tid for ch, tid in tile_to_id.items()
+                           if 'empty' in tile_descriptors.get(ch, []) and 'water' not in tile_descriptors.get(ch, [])), 0)
+        strip_chars = {ch for ch in tile_to_id if 'spawn' in tile_descriptors.get(ch, [])}
+        strip_chars.update(ch for ch in SPAWN_EXIT_CHARS if ch in tile_to_id)
+        for ch in strip_chars:
+            tile_to_id[ch] = air_id
+        if strip_chars:
+            print(f"Stripping spawn/exit tiles {sorted(strip_chars)} -> air id {air_id} "
+                  f"(pass --keep_spawn_exit to retain them)")
+
     #We literally only need level overrides for 1-7, every other level parses as expected
     overrides_1_7 = [120, 121, 122, 123, 182] #Needed to avoid an early turn leading to a split path, and to prevent the level from turning back around to go back to the start
 
