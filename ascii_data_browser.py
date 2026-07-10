@@ -1572,14 +1572,24 @@ class TileViewer(tk.Tk):
             return os.path.join(base, "SMM_WE", "Niveles")
         return os.path.join(os.getcwd(), "Niveles")
 
-    def _smmwe_exe_path(self):
-        """Path to SMM_WE.exe (installs to Program Files\\SMMWE), or None."""
+    def _smmwe_exe_search_paths(self):
+        """Return candidate paths where SMM:WE may be installed."""
+        paths = []
         for env in ("ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"):
             base = os.environ.get(env)
             if base:
-                exe = os.path.join(base, "SMMWE", "SMM_WE.exe")
-                if os.path.isfile(exe):
-                    return exe
+                paths.append(os.path.join(base, "SMMWE", "SMM_WE.exe"))
+        paths.extend([
+            r"C:\Program Files (x86)\SMMWE\SMM_WE.exe",
+            r"C:\Program Files\SMMWE\SMM_WE.exe",
+        ])
+        return paths
+
+    def _smmwe_exe_path(self):
+        """Path to SMM_WE.exe (installs to Program Files\\SMMWE), or None."""
+        for exe in self._smmwe_exe_search_paths():
+            if os.path.isfile(exe):
+                return exe
         return None
 
     def _compose_swe_bytes(self, name):
@@ -1654,8 +1664,18 @@ class TileViewer(tk.Tk):
 
         exe = self._smmwe_exe_path()
         if exe is None:
-            print("SMM:WE executable not found (looked in Program Files\\SMMWE). "
-                  f"Open SMM:WE manually and pick '{name}' from the level browser.")
+            search_paths = self._smmwe_exe_search_paths()
+            search_text = "\n".join(search_paths)
+            message = (
+                "Could not find the SMM:WE executable.\n"
+                "SMM_WE.exe was searched for in the following locations:\n\n"
+                f"{search_text}\n\n"
+                "Please install SMM:WE or place SMM_WE.exe in one of these folders."
+            )
+            messagebox.showerror("SMM:WE executable not found", message)
+            print("SMM:WE executable not found. Looked in the following locations:")
+            for path in search_paths:
+                print(f"  {path}")
             return
         # run from the install dir so the game finds data.win
         subprocess.Popen([exe], cwd=os.path.dirname(exe))
