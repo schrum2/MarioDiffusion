@@ -53,10 +53,116 @@ def moving_platform(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
-def water_tile(x: int, y: int) -> List[str]:
+def conveyor_right(x: int, y: int) -> List[str]:
+    # Conveyor belt (gimmick id 73) that pushes right. Fields match a labelled test
+    # level: right-facing belts carry no 'b'; the belt-art fields are p=3, f=4.
     return [
         f'o{x},{y}="9999.000000"',
-        f'e{x},{y}="177.000000"',
+        f'p{x},{y}="3.000000"',
+        f'f{x},{y}="4.000000"',
+        f'e{x},{y}="73.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def conveyor_left(x: int, y: int) -> List[str]:
+    # Conveyor belt (gimmick id 73) that pushes left. Same as the right belt plus
+    # b=-1 (the left-facing flag observed in the labelled test level).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'p{x},{y}="3.000000"',
+        f'f{x},{y}="4.000000"',
+        f'e{x},{y}="73.000000"',
+        f'b{x},{y}="-1.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def water_tile(x: int, y: int) -> List[str]:
+    # Real Mega Man Maker water uses e=178 (verified against a labelled level);
+    # mmlv_to_vglc still also accepts the legacy 177 for backward compatibility.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="178.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def lava_tile(x: int, y: int) -> List[str]:
+    # Lava, liquid id 1095 (verified against a labelled level). Like water it is a
+    # liquid-only object (no 'd'), but it is a deadly hazard tile ('!').
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="1095.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def disappearing_block(x: int, y: int) -> List[str]:
+    # Appearing/disappearing ("Yoku") block, gimmick id 5.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="5.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def fake_block(x: int, y: int) -> List[str]:
+    # Fake / secret transparent block, gimmick id 54.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'h{x},{y}="2.000000"',
+        f'e{x},{y}="54.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def hazard_emitter(x: int, y: int) -> List[str]:
+    # Electric/hazard emitter (the passable 'C' hazard), gimmick id 163.
+    # Verified d6/e163 against a game-authored test level; the earlier e4 id was wrong.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="163.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def falling_platform(x: int, y: int) -> List[str]:
+    # Falling platform, gimmick id 11: a solid block that drops when stood on.
+    # Verified d6/e11 against a labelled test level.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="11.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def fan(x: int, y: int) -> List[str]:
+    # Fan, gimmick id 43: blows Mega Man upward. Verified d6/e43 against a labelled test level.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="43.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def teleporter(x: int, y: int) -> List[str]:
+    # Teleporter, gimmick id 266. Verified d6/e266 against a labelled test level. Every
+    # teleporter style maps to this one tile. NOTE: real teleporters come in linked pairs
+    # (the m/n fields point at a partner's coords); this emitter places a bare, unlinked
+    # teleporter, so a generated one loads but won't warp anywhere until pairing logic exists.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="266.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def weapon_energy(x: int, y: int) -> List[str]:
+    # The Magnet Beam ('U') has no Mega Man Maker equivalent, so it is emitted as a
+    # small weapon-energy pickup (pickup id 3) per the project decision to fold it in.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="3.000000"',
+        f'd{x},{y}="7.000000"',
         f'a{x},{y}="1.000000"',
     ]
 
@@ -233,9 +339,11 @@ def enemy_footholder(x: int, y: int) -> List[str]:
     ]
 
 def enemy_jumper(x: int, y: int) -> List[str]:
+    # Kamadoma stand-in (enemy id 18): the real Kamadoma isn't in Mega Man Maker, so
+    # the substitute jumping enemy that 'q' maps to is emitted here.
     return [
         f'o{x},{y}="9999.000000"',
-        f'e{x},{y}="159.000000"',
+        f'e{x},{y}="18.000000"',
         f'd{x},{y}="5.000000"',
         f'b{x},{y}="-1.000000"',
         f'a{x},{y}="1.000000"',
@@ -255,18 +363,25 @@ CHAR_MAP = {
     '@': None,
     '-': None,
     '#': solid_block,
-    'A': solid_block,
-    't': solid_block,
+    'A': disappearing_block,
+    't': fake_block,
     '|': ladder_tile,
     'H': spike_tile,
     'B': breakable_tile,
     'M': moving_platform,
+    '>': conveyor_right,
+    'E': conveyor_left,
+    'F': falling_platform,
+    'x': fan,
+    'T': teleporter,
     '~': water_tile,
+    '!': lava_tile,
     'Z': orb_tile,
     'P': player_tile,
-    'C': solid_block,
+    'C': hazard_emitter,
+    'I': enemy_tackle_fire,
     '+': [], 'L': [], 'l': [], 'W': [], 'w': [],
-    'D': [], 'U': [], '*': [],
+    'D': [], 'U': weapon_energy, '*': [],
     'a': enemy_ground,
     'b': enemy_flying,
     '<': enemy_octopus_lr,
@@ -363,7 +478,14 @@ def is_void_enclosed(rows: List[str], row_idx: int, col_idx: int,
 
     return False
 
-def convert(lines: List[str], level_name: str = "Generated", author: str = "converter") -> str:
+def convert(lines: List[str], level_name: str = "Generated", author: str = "converter",
+            locked_seams: set[tuple[tuple[int, int], tuple[int, int]]] | None = None) -> str:
+    if locked_seams is None:
+        locked_seams = set()
+
+    def seam_is_locked(a, b):
+        return (a, b) in locked_seams or (b, a) in locked_seams
+
     rows = [r.rstrip('\n') for r in lines]
     if not rows:
         raise ValueError("Empty level file.")
@@ -409,7 +531,6 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
                 if is_void_enclosed(rows, row_idx, col_idx,
                                     playable_row_range, col_ranges_per_row):
                     # Treat as air — emit 2a only
-                    out.append(f'2a{x},{y}="1.000000"')
                     screen_y = (y // 224) * 224
                     active_screen_rows.add(screen_y)
                 # else: true outer void — emit nothing
@@ -418,30 +539,52 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
             emitter = CHAR_MAP.get(ch)
             if emitter is None:
                 # Unknown char — treat as air
-                out.append(f'2a{x},{y}="1.000000"')
+                pass
             else:
                 if callable(emitter):
                     out.extend(emitter(x, y))
-                out.append(f'2a{x},{y}="1.000000"')
 
             screen_y = (y // 224) * 224
             active_screen_rows.add(screen_y)
 
-    # 2b screen boundary markers
-    # 2b screen boundary markers — one per screen-sized block that has content
-    screen_rows = set()
+    # 2b screen boundary markers — one per screen-sized block (256x224) that
+    # has content, for EVERY screen column the level spans, not just column 0.
+    screen_blocks: set[tuple[int, int]] = set()
     for row_idx, row in enumerate(rows):
         y = row_idx * TILE_PX
         screen_y = (y // 224) * 224
         for col_idx, ch in enumerate(row):
             if ch != VOID_CHAR:
-                screen_rows.add(screen_y)
+                x = col_idx * TILE_PX
+                screen_x = (x // 256) * 256
+                screen_blocks.add((screen_x, screen_y))
 
     print(f"DEBUG rows height: {len(rows)}")
-    print(f"DEBUG screen_rows: {sorted(screen_rows)}")
+    print(f"DEBUG screen_blocks: {sorted(screen_blocks)}")
 
-    for sy in sorted(screen_rows):
-        out.append(f'2b0,{sy}="0.000000"')
+    from collections import defaultdict
+    rows_by_y: dict[int, list[int]] = defaultdict(list)
+    for sx, sy in screen_blocks:
+        rows_by_y[sy].append(sx)
+
+    def _emit_chain(chain: List[int], sy: int) -> None:
+        left, right = chain[0], chain[-1]
+        out.append(f'2b{left},{sy}="0.000000"')
+        if right != left:
+            out.append(f'2c{right},{sy}="1.000000"')
+        for x in chain:
+            out.append(f'2a{x},{sy}="1.000000"')
+
+    for sy in sorted(rows_by_y):
+        xs = sorted(rows_by_y[sy])
+        chain = [xs[0]]
+        for prev_x, x in zip(xs, xs[1:]):
+            if x == prev_x + 256 and not seam_is_locked((prev_x, sy), (x, sy)):
+                chain.append(x)
+            else:
+                _emit_chain(chain, sy)
+                chain = [x]
+        _emit_chain(chain, sy)
 
     out += [
         '1t="0.000000"',

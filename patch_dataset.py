@@ -8,10 +8,10 @@ import math
 import os
 
 class PatchDataset(Dataset):
-    def __init__(self, json_path, subsampling=False, subsample_threshold=0.01, output_dir="."): # removed ignore_tile_id=-1
+    def __init__(self, json_path, subsampling=True, subsample_threshold=0.01, output_dir="."): # removed ignore_tile_id=-1
         with open(json_path, 'r') as f:
             self.patches = json.load(f)
-            
+
         patch_size = len(self.patches[0])  # Get dimensions from first patch
 
         if isinstance(patch_size, list):
@@ -43,14 +43,24 @@ class PatchDataset(Dataset):
     def plot_center_distribution(self, save_path=None):
         counts = Counter(center for center, _ in self.samples)
         tiles, freqs = zip(*sorted(counts.items()))
-        
+
         plt.figure(figsize=(10, 4))
         plt.bar(tiles, freqs)
         plt.xlabel("Tile ID (center)")
         plt.ylabel("Frequency (after subsampling)")
         plt.title("Center Tile Distribution After Subsampling")
+
         if save_path:
             plt.savefig(save_path)
+            plt.close()
+
+            # Save raw data
+            report_path = os.path.splitext(save_path)[0] + ".txt"
+            with open(report_path, "w") as f:
+                f.write("Tile ID\tFrequency\n")
+                f.write("-----------------\n")
+                for tile, freq in zip(tiles, freqs):
+                    f.write(f"{tile}\t{freq}\n")
         else:
             plt.show()
 
@@ -64,11 +74,26 @@ class PatchDataset(Dataset):
         return counts
 
     def _compute_subsampling_probs(self):
+        """Word2vec-style subsampling keep-probabilities.
+
+        keep_prob(t) = (sqrt(threshold / f) + 1) * (threshold / f)
+
+        where f is the tile's relative frequency among centers. This is the
+        formula from Mikolov et al.'s word2vec paper/code: frequent tiles get
+        aggressively downsampled, rare tiles are always kept (keep_prob clamps
+        to 1.0). Note this is NOT the same as the earlier version of this
+        method, which had the sqrt term inverted and was substantially too
+        permissive for high-frequency tiles (e.g. background/filler tiles).
+        """
         total = sum(self.center_counts.values())
         probs = {}
         for token, freq in self.center_counts.items():
             f = freq / total
-            prob = (math.sqrt(f / self.subsample_threshold) + 1) * (self.subsample_threshold / f)
+            if f <= 0:
+                probs[token] = 1.0
+                continue
+            ratio = self.subsample_threshold / f
+            prob = (math.sqrt(ratio) + 1) * ratio
             # Clamp to [0, 1]
             probs[token] = min(prob, 1.0)
         return probs

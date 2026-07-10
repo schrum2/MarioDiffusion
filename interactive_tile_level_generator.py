@@ -13,6 +13,7 @@ from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from captions.MM_caption_match import compare_captions as mm_compare_captions
 from create_ascii_captions import assign_caption
+from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
 from captions.util import extract_tileset
@@ -23,6 +24,7 @@ from level_dataset import append_absence_captions, remove_duplicate_phrases
 from captions.caption_match import TOPIC_KEYWORDS
 from ascii_data_browser import TileViewer
 from models.fdm_pipeline import FDMPipeline
+from MegaManLayoutEditor import LevelEditor, MegaManLayoutEditor
 
 
 # Add the parent directory to sys.path so sibling folders can be imported
@@ -119,18 +121,30 @@ class CaptionBuilder(ParentBuilder):
 
         self.width_label = ttk.Label(self.caption_frame, text="Width (in tiles):", style="TLabel")
         self.width_label.pack()
-        self.width_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
+        self.width_entry = ttk.Combobox(self.caption_frame, font=GUI_FONT, state="normal")
         self.width_entry.pack()
         self.height_label = ttk.Label(self.caption_frame, text="Height (in tiles):")
         self.height_label.pack()
-        self.height_entry = ttk.Entry(self.caption_frame, font=GUI_FONT)
+        self.height_entry = ttk.Combobox(self.caption_frame, font=GUI_FONT, state="normal")
         self.height_entry.pack()
+
+        self.MM_WIDTH_OPTIONS = ["16", "32", "48", "64"]
+        self.MM_HEIGHT_OPTIONS = ["16", "32", "48", "64"]   # sent to the model as-is
+
+        self.null_rows_label = ttk.Label(self.caption_frame, text="", style="TLabel")
+        self.null_rows_label.pack()
+
+        self.height_entry.bind("<<ComboboxSelected>>", self._update_null_rows_label)
+
         if game_selected == "Lode Runner":
             self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.LR_HEIGHT}")
         elif game_selected == "Mario":
             self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.MARIO_HEIGHT}")
+        elif game_selected == "Mario Maker 2": # Jacob: New. Correct label?
+            self.width_entry.insert(0, f"{common_settings.MM2_WIDTH}")
+            self.height_entry.insert(0, f"{common_settings.MM2_HEIGHT}")
         else:
             self.width_entry.insert(0, f"{common_settings.MEGAMAN_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.MEGAMAN_HEIGHT}")
@@ -181,6 +195,16 @@ class CaptionBuilder(ParentBuilder):
         self.debug_caption_checkbox = ttk.Checkbutton(self.caption_frame, text="Debug Caption Match", variable=self.debug_caption, style="TCheckbutton")
         self.debug_caption_checkbox.pack()
 
+        self.show_astar_var = tk.BooleanVar(value=False)
+        self.show_astar_checkbox = ttk.Checkbutton(
+            self.caption_frame,
+            text="With Simple A*",
+            variable=self.show_astar_var,
+            style="TCheckbutton",
+            command=self.toggle_all_astar_overlays
+        )
+        self.show_astar_checkbox.pack()
+
         # Frame for composed level controls
         self.composed_frame = ttk.Frame(self.caption_frame)
         self.composed_frame.pack(fill=tk.X, pady=(20, 5))  # 20 pixels above, 5 below
@@ -215,9 +239,16 @@ class CaptionBuilder(ParentBuilder):
         self.save_composed_button.pack(side=tk.LEFT, padx=10)
         
         self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1), style="TButton")
-        self.move_left_button.pack(side=tk.LEFT, padx=60)
+        self.move_left_button.pack(side=tk.LEFT, padx=15)
+
+        self.large_view_button = ttk.Button(row3, text="Large View", command=self.show_large_composed_view, style="TButton")
+        self.large_view_button.pack(side=tk.LEFT, padx=15)
+
         self.move_right_button = ttk.Button(row3, text="Move Selected Image Right", command=lambda: self.move_selected_image(1), style="TButton")
-        self.move_right_button.pack(side=tk.LEFT, padx=60)
+        self.move_right_button.pack(side=tk.LEFT, padx=15)
+
+        self.edit_composed_button = ttk.Button(row3, text="Edit Selected Image", command=self.edit_selected_composed_image, style="TButton")
+        self.edit_composed_button.pack(side=tk.LEFT, padx=15)
 
         # Frame for thumbnails with horizontal scrolling
         self.bottom_canvas = tk.Canvas(self.caption_frame, height=70, borderwidth=0, highlightthickness=0)
@@ -239,11 +270,11 @@ class CaptionBuilder(ParentBuilder):
 
         # Game selection
         # Game selection
-        self.game_var = tk.StringVar(value=game_selected if game_selected else "Mario")
+        self.game_var = tk.StringVar(value=game_selected if game_selected else "Mario Maker (MM)")
         
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)"], state="readonly", font=GUI_FONT)
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker (MM)"], state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", lambda e: self.update_mario_only_buttons()) 
         self.update_mario_only_buttons() 
@@ -272,6 +303,18 @@ class CaptionBuilder(ParentBuilder):
             self.automatic_absence_caption_checkbox.config(state=tk.DISABLED)
             self.automatic_absence_caption.set(False)
 
+    def _update_dimension_controls(self, is_megaman):
+        if is_megaman:
+            self.width_entry.config(values=self.MM_WIDTH_OPTIONS, state="readonly")
+            self.height_entry.config(values=self.MM_HEIGHT_OPTIONS, state="readonly")
+            if self.width_entry.get() not in self.MM_WIDTH_OPTIONS:
+                self.width_entry.set(self.MM_WIDTH_OPTIONS[0])
+            if self.height_entry.get() not in self.MM_HEIGHT_OPTIONS:
+                self.height_entry.set(self.MM_HEIGHT_OPTIONS[0])
+        else:
+            self.width_entry.config(values=[], state="normal")
+            self.height_entry.config(values=[], state="normal")
+        self._update_null_rows_label()
 
     def _play_megaman_level(self, idx):
         import subprocess, os
@@ -406,6 +449,7 @@ class CaptionBuilder(ParentBuilder):
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save image:\n{str(e)}")
 
+    # Jacob: This code is from MarioDiffusion
     def get_patterns(self):
         # Different for LoRA and tile diffusion
         patterns = [
@@ -430,12 +474,102 @@ class CaptionBuilder(ParentBuilder):
                     ]
         return patterns
 
+    # Jacob: This code is from MarioMakerPCG. It seems like the logic from this
+    #        should be incorporated into the method above for generality.
+    def group_phrases(self):
+        """Sort the loaded caption phrases into groups that mirror our MM2 tileset.
+
+        MarioDiffusion groups SMB captions with a hardcoded list of substring
+        patterns (floor/pipe/cannon/staircase/...). Our captions instead come from
+        mm2_tileset_we.json by way of MarioMaker_create_ascii_captions, so we build
+        the groups from the tileset itself: every tile is filed into a category by
+        its tags, and each phrase lands in the category of the tile it names. The
+        style/theme/difficulty metadata and the ground/floor summary, which are not
+        tied to any single tile, get their own groups on top.
+        """
+        global tileset_path
+
+        from MM2_Files.MarioMaker_create_ascii_captions import get_char_names, CAPTION_METADATA_FIELDS
+
+        # Tile char -> lowercase display name, read straight from the tileset tags
+        # so the names track exactly what the captioner emits (e.g. "goomba",
+        # "question block", "mushroom platform").
+        char_names = {char: name.lower() for char, name in get_char_names(tileset_path).items()}
+
+        def tile_category(char):
+            """Category for a tile, picked by the first matching tag. Order is only
+            match priority: an enemy that is also "damaging"/"hazard" still counts
+            as an enemy, and a warp pipe as a pipe rather than a generic block."""
+            tags = self.tile_descriptors.get(char, set())
+            name = char_names.get(char, "")
+            if "enemy" in tags:
+                return "Enemies"
+            if "collectable" in tags:
+                return "Collectables & Power-ups"
+            if "hazard" in tags:
+                return "Hazards"
+            if "platform" in tags:
+                return "Platforms"
+            if tags & {"pipe", "warp", "door"}:
+                return "Pipes, Doors & Warps"
+            if "solid" in tags or name.endswith("block"):
+                return "Blocks & Terrain"
+            return "Other"
+
+        # Match longer names first so "mushroom platform" beats "mushroom" and
+        # "bullet bill blaster" beats any shorter overlap.
+        named_tiles = sorted(char_names.items(), key=lambda item: len(item[1]), reverse=True)
+
+        # Metadata phrases end in one of these words ("SMW style", "night theme",
+        # "easy difficulty"); see MarioMaker_create_ascii_captions. Each suffix
+        # gets its own panel rather than one shared "Level Style" bucket.
+        metadata_group_names = {
+            "style": "Level Style",
+            "theme": "Level Theme",
+            "difficulty": "Difficulty",
+        }
+        suffix_to_group = {
+            suffix: metadata_group_names.get(suffix, "Level Style")
+            for _field, suffix in CAPTION_METADATA_FIELDS
+        }
+
+        # Panel order: structural terrain first, enemies/hazards last.
+        group_order = [
+            "Level Style", "Level Theme", "Difficulty", "Ground & Floor",
+            "Blocks & Terrain", "Platforms", "Pipes, Doors & Warps",
+            "Collectables & Power-ups", "Enemies", "Hazards", "Other",
+        ]
+        grouped = {name: [] for name in group_order}
+
+        for phrase in self.all_phrases:
+            low = phrase.lower()
+            metadata_match = next((suffix for suffix in suffix_to_group if low.endswith(suffix)), None)
+            if metadata_match:
+                grouped[suffix_to_group[metadata_match]].append(phrase)
+            elif "floor" in low or "ground" in low:
+                grouped["Ground & Floor"].append(phrase)
+            else:
+                category = "Other"
+                for char, name in named_tiles:
+                    if name and name in low:
+                        category = tile_category(char)
+                        break
+                grouped[category].append(phrase)
+
+        # Only show categories that actually occur in the loaded captions.
+        return [(name, grouped[name]) for name in group_order if grouped[name]]
+
     def load_data(self, filepath = None):
         global tileset_path, game_selected
         if filepath == None:
             filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON", "*.json")])
         if filepath:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+            # Caption generated scenes the same way the dataset was captioned
+            # (MarioMaker_create_ascii_captions), not with the SMB assign_caption
+            # from MarioDiffusion, so the comparison lines up with the loaded data.
+            # Jacob: Modify so that this is only used with Mario Maker and not otherwise
+            self.mm_assign_caption, self.mm_compare_captions = mm2_caption_tools(tileset_path)
             # print(f"Tileset in use: {tileset_path}")
             # print(f"Self ID to Char: {self.id_to_char}")
             # print(f"Self Char to ID: {self.char_to_id}")
@@ -497,47 +631,6 @@ class CaptionBuilder(ParentBuilder):
                 self.negative_prompt_entry.config(state=tk.DISABLED)
                 self.automatic_negative_caption_checkbox.config(state=tk.DISABLED)
 
-    # creates a pop-up window to ask the user to confirm if the detected game is correct when the tile count is ambiguous (e.g. 13 tiles could be either Mario or Mega)
-    #but, we dont like how it pops up every time so for now were commenting it out and for future if yall can find a more elegant way to handle ambiguous tile counts that would be great
-    '''  def detect_game_from_model(self):
-            try:
-                if hasattr(self.pipe, 'unet'):
-                    tile_count = self.pipe.unet.config.out_channels
-                elif hasattr(self.pipe, 'model'):
-                    tile_count = self.pipe.model.config.out_channels  # adjust if FDM differs
-                else:
-                    return None  # can't detect
-
-                if tile_count == common_settings.LR_TILE_COUNT:        # 8
-                    return "Lode Runner"
-                elif tile_count == common_settings.MM_FULL_TILE_COUNT:  # 41
-                    return "Mega Man (Full)"
-                elif tile_count == 13:
-                    # Ambiguous — ask the user to confirm
-                    answer = messagebox.askyesno(
-                        "Confirm Game",
-                        "Is this a Mario model?\n\n"
-                        "Click Yes for Mario, No for Mega Man (Simple)."
-                    )
-                    return "Mario" if answer else "Mega Man (Simple)"
-                else:
-                    return None  # unknown tile count
-            except Exception:
-                return None  # silently fail if attributes aren't there
-
-        def _apply_game_defaults(self, game):
-            self.width_entry.config(state=tk.NORMAL)
-            self.height_entry.config(state=tk.NORMAL)
-            if game == "Lode Runner":
-                w, h = common_settings.LR_WIDTH, common_settings.LR_HEIGHT
-            elif game == "Mario":
-                w, h = common_settings.MARIO_WIDTH, common_settings.MARIO_HEIGHT
-            else:
-                w, h = common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT
-            self.width_entry.delete(0, tk.END)
-            self.width_entry.insert(0, str(w))
-            self.height_entry.delete(0, tk.END)
-            self.height_entry.insert(0, str(h)) '''
 
     def update_caption(self):
         self.selected_phrases = [phrase for phrase, var in self.checkbox_vars.items() if var.get()]
@@ -642,13 +735,24 @@ class CaptionBuilder(ParentBuilder):
                 if "caption" in param_values: print(f"Caption: {param_values['caption']}")
                 else: print("No caption")
                 images = self.pipe(generator=generator, **param_values).images
-                self.current_levels.append(images[0].cpu().detach().numpy()) 
+
+                chop_rows = 0
+                if game_selected in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
+                    try:
+                        chop_rows = (int(self.height_entry.get()) // 16) * 2
+                    except ValueError:
+                        chop_rows = 0
+                if chop_rows > 0:
+                    images = images[:, :, chop_rows:, :]
+
+                self.current_levels.append(images[0].cpu().detach().numpy())
                 
                 sample_tensor = images[0].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample_tensor)
                 #print("images:", images)
                 scene = sample_indices[0].tolist()
 
+                # Jacob: This code was from MarioDiffusion
                 if game_selected == "Lode Runner":
                     number_of_tiles = common_settings.LR_TILE_COUNT
                     scene = [[x % number_of_tiles for x in row] for row in scene]
@@ -664,7 +768,14 @@ class CaptionBuilder(ParentBuilder):
                     scene = [[x % number_of_tiles for x in row] for row in scene]
                     tileset_path = common_settings.MM_FULL_TILESET
                     _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                
+                elif game_selected == "Mega Man (Maker)":
+                    number_of_tiles = common_settings.MMLV_TILE_COUNT
+                    scene = [[x % number_of_tiles for x in row] for row in scene]
+                    tileset_path = common_settings.MMLV_TILESET
+                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+                # Jacob: Need to add a case for Mario Maker
+                # Jacob: Why was there no default case for plain Maio? How does that work?
+
                 self.generated_scenes.append(scene)
                 #selected_game = self.game_var.get()
                 if game_selected == "Lode Runner":
@@ -673,9 +784,12 @@ class CaptionBuilder(ParentBuilder):
                 elif game_selected == "Mario":
                     actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                     pil_img = visualize_samples(images)
+                elif game_selected == "Mario Maker 2": #Jacob: Correct label?
+                    actual_caption = self.mm_assign_caption(scene)
+                    pil_img = visualize_samples(images, game="MM2")
                 else:
                     actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-                    pil_img = visualize_samples(images, game="MM-Simple" if game_selected == "Mega Man (Simple)" else "MM-Full")
+                    pil_img = visualize_samples(images, game={"Mega Man (Simple)": "MM-Simple", "Mega Man (Maker)": "MMLV"}.get(game_selected, "MM-Full"))
 
                 self.generated_images.append(pil_img)
                 img_tk = ImageTk.PhotoImage(pil_img)
@@ -683,6 +797,8 @@ class CaptionBuilder(ParentBuilder):
                     compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 elif game_selected == 'Lode Runner':
                     compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+                elif game_selected == "Mario Maker 2": #Jacob: Correct label?
+                    compare_score, exact_matches, partial_matches, excess_phrases = self.mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 else:
                     compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
@@ -763,32 +879,9 @@ class CaptionBuilder(ParentBuilder):
                         describe_locations=False,
                         describe_absence=False
                     )
-            elif game_selected == "Lode Runner":
-                if len(scene[0]) > common_settings.LR_WIDTH:
-                    from captions.LR_caption_match import process_scene_segments as lr_process_scene_segments
-                    avg_segment_score, _, _ = lr_process_scene_segments(
-                        scene=scene,
-                        segment_width=common_settings.LR_WIDTH,
-                        prompt=prompt,
-                        id_to_char=self.id_to_char,
-                        char_to_id=self.char_to_id,
-                        tile_descriptors=self.tile_descriptors,
-                        describe_locations=False,
-                        describe_absence=False
-                    )
-            else:
-                if len(scene[0]) > common_settings.MEGAMAN_WIDTH:
-                    from captions.MM_caption_match import process_scene_segments as mm_process_scene_segments
-                    avg_segment_score, _, _ = mm_process_scene_segments(
-                        scene=scene,
-                        segment_width=common_settings.LR_WIDTH,
-                        prompt=prompt,
-                        id_to_char=self.id_to_char,
-                        char_to_id=self.char_to_id,
-                        tile_descriptors=self.tile_descriptors,
-                        describe_locations=False,
-                        describe_absence=False
-                    )
+                # Jacob: There was some code here for Lode Runner and Mega Man but I deleted it.
+                #        Do NOT add a case for Mario Maker. This segment based calculation isn't really
+                #        necessary, and is tailored to plain Mario anyway.
 
             # Update the score label text
             if avg_segment_score is not None:
@@ -811,6 +904,8 @@ Average Segment Score: {avg_segment_score}"""
             button_frame.pack(pady=5)
     
             is_mario = game_selected == "Mario"
+            # Jacob: I removed this. We don't support A* Agent for Mario Maker.
+            # is_mario = game_selected == "Mario Maker (MM)"
 
             # Add Play button
             play_button = ttk.Button(
@@ -833,15 +928,6 @@ Average Segment Score: {avg_segment_score}"""
             )
             astar_button.pack(side=tk.LEFT, padx=5)
 
-            # Add Simple A* button: toggles the path overlay drawn on the image itself.
-            simple_astar_button = ttk.Button(
-                button_frame,
-                text="Simple A*",
-                command=lambda idx=i: self.simple_astar(idx),
-                style="TButton"
-            )
-            simple_astar_button.pack(side=tk.LEFT, padx=5)
-
             # Add "Add To Level" button
             add_button = ttk.Button(
                 button_frame,
@@ -858,6 +944,9 @@ Average Segment Score: {avg_segment_score}"""
                 style="TButton"
             )
             edit_button.pack(side=tk.LEFT, padx=5)
+
+            if self.show_astar_var.get():
+                self._show_astar_overlay_for_index(i)
 
             del images, sample_tensor, sample_indices, scene  # Delete unused tensors
             if torch.cuda.is_available():
@@ -882,6 +971,12 @@ Average Segment Score: {avg_segment_score}"""
             number_of_tiles = common_settings.MM_FULL_TILE_COUNT
             scene = [[x % number_of_tiles for x in row] for row in scene]
             tileset_path = common_settings.MM_FULL_TILESET
+        elif game_selected == "Mega Man (Maker)":
+            number_of_tiles = common_settings.MMLV_TILE_COUNT
+            scene = [[x % number_of_tiles for x in row] for row in scene]
+            tileset_path = common_settings.MMLV_TILESET
+        # Jacob: Add Mario Maker case
+        # Jacob: Why does standard Mario not have a case?
         self.composed_scenes.append(scene)
 
         # Create and store the thumbnail
@@ -954,6 +1049,13 @@ Average Segment Score: {avg_segment_score}"""
         # Update selection
         self.select_composed_thumbnail(new_idx)
 
+    def edit_selected_composed_image(self):
+        idx = self.selected_composed_index
+        if idx is None or not (0 <= idx < len(self.composed_scenes)):
+            messagebox.showinfo("No selection", "Please select a thumbnail first.")
+            return
+        self.edit_composed_scene(idx)
+
     def clear_composed_level(self):
         self.composed_scenes.clear()
         self.composed_thumbnails.clear()
@@ -1008,10 +1110,54 @@ Average Segment Score: {avg_segment_score}"""
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
+            # Jacob: This A* is meant to be for the A* Agent, not the simple drawing
+            # Mario Maker only, so always use the Python astar/ check
+            #from astar.astar_traversability_check import astar_console_report
+            #print(astar_console_report(scene, id_to_char=self.id_to_char,
+            #                           tile_descriptors=self.tile_descriptors))
             level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             console_output = level.run_astar()
             print(console_output)
 
+    def show_large_composed_view(self):
+        """Pop up a large rendering of the full composed level, optionally with the
+        Simple A* path overlaid if 'With Simple A*' is checked."""
+        scene = self.merge_selected_scenes()
+        if not scene:
+            messagebox.showinfo("No composed level", "Add at least one image to the composed level first.")
+            return
+
+        pil_img = None
+        if self.show_astar_var.get():
+            pil_img = self._astar_overlay_image(scene)  # None if A* fails/can't produce a path
+
+        if pil_img is None:
+            pil_img = self._render_scene_image(scene)
+
+        self._show_image_popup(pil_img, "Composed Level - Large View")
+
+    def _show_image_popup(self, pil_img, title):
+        """Show a (possibly large) PIL image in a scrollable popup window."""
+        win = tk.Toplevel(self.master)
+        win.title(title)
+        win.grid_rowconfigure(0, weight=1)
+        win.grid_columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(win, bg="#222222")
+        hbar = ttk.Scrollbar(win, orient=tk.HORIZONTAL, command=canvas.xview)
+        vbar = ttk.Scrollbar(win, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vbar.grid(row=0, column=1, sticky="ns")
+        hbar.grid(row=1, column=0, sticky="ew")
+
+        photo = ImageTk.PhotoImage(pil_img)
+        canvas._photo_ref = photo  # keep a ref so it isn't garbage-collected
+        canvas.create_image(0, 0, image=photo, anchor="nw")
+        canvas.configure(scrollregion=(0, 0, pil_img.width, pil_img.height))
+        win.geometry(f"{min(pil_img.width + 24, 1200)}x{min(pil_img.height + 24, 800)}")
+
+    # Jacob: What is this method even doing? Why do much repetition?
     def get_sample_output(self, idx_or_scene, use_snes_graphics=False):
         if isinstance(idx_or_scene, int):
             if idx_or_scene < len(self.generated_scenes):
@@ -1023,6 +1169,12 @@ Average Segment Score: {avg_segment_score}"""
             if game_selected == "Lode Runner":
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
+            elif game_selected == "Mario Maker 2": # Jacob: Correct label?
+                # Jacob: This code was in the MarioMakerPCG repo. It is similar to the else case.
+                #        Is a special case for Mario Maker needed? Why does Lode Runner have a 
+                #        special case, but Mega Man doesn't?
+                char_grid = scene_to_ascii(scene, self.id_to_char)
+                level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             else:
                 char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
@@ -1033,9 +1185,16 @@ Average Segment Score: {avg_segment_score}"""
             if game_selected == "Lode Runner":
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
+            elif game_selected == "Mario Maker 2": # Jacob: Correct label?
+                # Jacob: This code was in the MarioMakerPCG repo. It is similar to the else case.
+                #        Is a special case for Mario Maker needed? Why does Lode Runner have a 
+                #        special case, but Mega Man doesn't?
+                char_grid = scene_to_ascii(scene, self.id_to_char)
+                level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
             else:
                 char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
+
             return level
       
     def play_level(self, idx):
@@ -1043,11 +1202,16 @@ Average Segment Score: {avg_segment_score}"""
         if selected_game == "Lode Runner":
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             level.play(game="loderunner", level_idx=1)
-        elif selected_game in ("Mega Man (Simple)", "Mega Man (Full)"):
+        elif selected_game in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
             self._play_megaman_level(idx)
-        else:
+        # Jacob: Should add Mario Maker case to launch SMM:WE
+        else: # Jacob: Assuming Mario? We should check specifically
             level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
             level.play()
+
+        # Jacob: This code was in the MarioMakerPCG repo, but I don't think it worked for Mario Maker.
+        #level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
+        #level.play()
 
     def edit_level(self, idx):
         scene = self.generated_scenes[idx]
@@ -1062,6 +1226,42 @@ Average Segment Score: {avg_segment_score}"""
             self.tile_descriptors,
             self.game_var.get(),
             on_save=lambda updated_scene: self._replace_generated_scene(idx, updated_scene)
+        )
+
+    def edit_composed_scene(self, idx, extra_on_save=None):
+        """Open the LevelEditor for a scene stored in self.composed_scenes.
+
+        Updates the stored scene and its thumbnail in the bottom strip when saved.
+        extra_on_save, if given, is called with the updated scene afterward —
+        used by the Mega Man layout editor to refresh its own grid render."""
+        scene = self.composed_scenes[idx]
+        editor_window = tk.Toplevel(self.master)
+        editor_window.title("Level Editor")
+
+        def on_save(updated_scene):
+            self.composed_scenes[idx] = updated_scene
+
+            # Refresh the thumbnail shown in the composed-level strip
+            rendered = self._render_scene_image(updated_scene)
+            thumb = rendered.copy()
+            thumb.thumbnail((64, 64))
+            photo = ImageTk.PhotoImage(thumb)
+            self.composed_thumbnails[idx] = photo
+            if idx < len(self.composed_thumbnail_labels):
+                self.composed_thumbnail_labels[idx].config(image=photo)
+                self.composed_thumbnail_labels[idx].image = photo
+
+            if extra_on_save:
+                extra_on_save(updated_scene)
+
+        LevelEditor(
+            editor_window,
+            scene,
+            self.id_to_char,
+            self.char_to_id,
+            self.tile_descriptors,
+            self.game_var.get(),
+            on_save=on_save
         )
 
     def _replace_generated_scene(self, idx, updated_scene):
@@ -1085,7 +1285,11 @@ Average Segment Score: {avg_segment_score}"""
         elif game_selected == 'Lode Runner':
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-        else:
+        elif game_selected == 'Mario Maker 2': # Jacob: Correct label?
+            # Jacob: From Mario Maker PCG
+            actual_caption = self.mm_assign_caption(scene)
+            compare_score, exact_matches, partial_matches, excess_phrases = self.mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+        else: # Jacob: Else case is Mega Man? Use explicit elif
             actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
@@ -1102,30 +1306,9 @@ Average Segment Score: {avg_segment_score}"""
                 describe_locations=False,
                 describe_absence=False
             )
-        elif game_selected == "Lode Runner" and len(scene[0]) > common_settings.LR_WIDTH:
-            from captions.LR_caption_match import process_scene_segments as lr_process_scene_segments
-            avg_segment_score, _, _ = lr_process_scene_segments(
-                scene=scene,
-                segment_width=common_settings.LR_WIDTH,
-                prompt=prompt,
-                id_to_char=self.id_to_char,
-                char_to_id=self.char_to_id,
-                tile_descriptors=self.tile_descriptors,
-                describe_locations=False,
-                describe_absence=False
-            )
-        elif game_selected not in ["Mario", "Lode Runner"] and len(scene[0]) > common_settings.MEGAMAN_WIDTH:
-            from captions.MM_caption_match import process_scene_segments as mm_process_scene_segments
-            avg_segment_score, _, _ = mm_process_scene_segments(
-                scene=scene,
-                segment_width=common_settings.LR_WIDTH,
-                prompt=prompt,
-                id_to_char=self.id_to_char,
-                char_to_id=self.char_to_id,
-                tile_descriptors=self.tile_descriptors,
-                describe_locations=False,
-                describe_absence=False
-            )
+        # Jacob: There was code here for Lode Runner and Mega Man, but I
+        #        don't think they need to bother with the average segment
+        #        caption adherence score. Mario Maker doesn't need it either.
 
         return exact_matches, partial_matches, excess_phrases, compare_score, avg_segment_score
 
@@ -1151,7 +1334,7 @@ Average Segment Score: {avg_segment_score}"""
             score_label_text = f"Comparison Score: {compare_score}"
         score_label.config(text=score_label_text)
 
-    def _render_scene_image(self, scene): 
+    def _render_scene_image(self, scene):
         if game_selected == "Lode Runner":
             game_name = "LR"
             num_classes = common_settings.LR_TILE_COUNT
@@ -1161,9 +1344,17 @@ Average Segment Score: {avg_segment_score}"""
         elif game_selected == "Mega Man (Full)":
             game_name = "MM-Full"
             num_classes = common_settings.MM_FULL_TILE_COUNT
-        else:
+        elif game_selected == "Mega Man (Maker)":
+            game_name = "MMLV"
+            num_classes = common_settings.MMLV_TILE_COUNT
+        elif game_selected == "Mario": # Jacob: added expicit Mario case
             game_name = "Mario"
             num_classes = common_settings.MARIO_TILE_COUNT
+        elif game_selected == "Mario Maker 2": # Jacob: Correct label?
+            game_name = "MM2"
+            num_classes = common_settings.MM2_TILE_COUNT
+        else:
+            raise ValueError(f"Unsupported game selected: {game_selected}")
 
         one_hot = torch.nn.functional.one_hot(
             torch.tensor(scene, dtype=torch.long),
@@ -1181,12 +1372,9 @@ Average Segment Score: {avg_segment_score}"""
         refs["image_label"].config(image=tk_img)
         refs["image_label"].image = tk_img
 
-    def simple_astar(self, idx):
-        """Toggle the A* path overlay on a generated image (Simple A* button)."""
+    def _show_astar_overlay_for_index(self, idx):
+        """Display the Simple A* path overlay on a single generated image."""
         refs = self.generated_widget_refs[idx]
-        if refs.get("astar_overlay_shown"):
-            self._refresh_generated_image(idx)  # back to the plain render
-            return
         overlay = self._astar_overlay_image(self.generated_scenes[idx])
         if overlay is None:
             return
@@ -1194,6 +1382,24 @@ Average Segment Score: {avg_segment_score}"""
         tk_img = ImageTk.PhotoImage(overlay)
         refs["image_label"].config(image=tk_img)
         refs["image_label"].image = tk_img
+
+    def toggle_all_astar_overlays(self):
+        """Called when the 'With Simple A*' checkbox is toggled: show or hide the
+        A* path overlay on every currently generated image."""
+        show = self.show_astar_var.get()
+        for idx in range(len(self.generated_scenes)):
+            if show:
+                self._show_astar_overlay_for_index(idx)
+            else:
+                self._refresh_generated_image(idx)
+
+    def _replace_generated_scene(self, idx, updated_scene):
+        self.generated_scenes[idx] = updated_scene 
+        self.generated_images[idx] = self._render_scene_image(updated_scene) 
+        self._refresh_generated_image(idx)
+        if self.show_astar_var.get():
+            self._show_astar_overlay_for_index(idx)
+        self._refresh_generated_caption(idx)
 
     def _astar_path_for_scene(self, scene, spawn=None, orb=None):
         """Run A* on a single scene and return (pil_image_or_None, solved, stats).
@@ -1211,6 +1417,8 @@ Average Segment Score: {avg_segment_score}"""
             "Lode Runner": "LR",
             "Mega Man (Simple)": "MM-Simple",
             "Mega Man (Full)": "MM-Full",
+            "Mega Man (Maker)": "MMLV",
+            "Mario Maker 2" : "MM2", # Jacob: Is this the label we want?
         }.get(self.game_var.get())
         if game_name is None:
             return None, False, {}
@@ -1232,6 +1440,7 @@ Average Segment Score: {avg_segment_score}"""
         return img
 
     def use_astar(self, idx):
+        # Jacob: This is the code from MarioDiffusion
         level = self.get_sample_output(idx, use_snes_graphics=self.use_snes_graphics.get())
         console_output = level.run_astar()
         print(console_output)
@@ -1307,12 +1516,27 @@ Average Segment Score: {avg_segment_score}"""
         if not is_mario:
             self.use_snes_graphics.set(False)
 
-        is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)")
+        is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)")
         self.mm_layout_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
+        self.save_composed_button.config(state=tk.DISABLED if is_megaman else tk.NORMAL)
+        self._update_dimension_controls(is_megaman)
+
+    def _update_null_rows_label(self, event=None):
+        is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)")
+        if not is_megaman:
+            self.null_rows_label.config(text="")
+            return
+        try:
+            height = int(self.height_entry.get())
+        except ValueError:
+            self.null_rows_label.config(text="")
+            return
+        chop = (height // 16) * 2
+        self.null_rows_label.config(text=f"({chop} null row{'s' if chop != 1 else ''} chopped from top)")
 
     def open_megaman_layout_editor(self):
         global game_selected
-        if game_selected not in ("Mega Man (Simple)", "Mega Man (Full)"):
+        if game_selected not in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
             messagebox.showinfo("Mega Man only", "Switch the game dropdown to a Mega Man mode to use this tool.")
             return
         if not self.composed_scenes:
@@ -1323,758 +1547,6 @@ Average Segment Score: {avg_segment_score}"""
             return
         MegaManLayoutEditor(self.master, self)
     
-
-class LevelEditor:
-    def __init__(self, master, scene, id_to_char, char_to_id, tile_descriptors, game, on_save=None):
-        self.master = master
-        self.scene = [list(row) for row in scene]
-        self.id_to_char = id_to_char
-        self.char_to_id = char_to_id
-        self.tile_descriptors = tile_descriptors
-        self.game = game
-        self.on_save = on_save
-
-        self.master.title("Level Editor")
-        self.grid_frame = ttk.Frame(master)
-        self.grid_frame.pack(padx=10, pady=10)
-
-        self.tile_images = self._load_tile_images(game)
-        self.tile_buttons = []
-        self.tile_photo_images = []
-
-        for r, row in enumerate(self.scene):
-            button_row = []
-            for c, tile_id in enumerate(row):
-                photo = ImageTk.PhotoImage(self.tile_images[tile_id])
-                btn = ttk.Button(
-                    self.grid_frame,
-                    image=photo,
-                    command=lambda r=r, c=c: self.cycle_tile(r, c)
-                )
-                btn.image = photo
-                btn.grid(row=r, column=c, padx=1, pady=1)
-                self.tile_photo_images.append(photo)
-                button_row.append(btn)
-            self.tile_buttons.append(button_row)
-
-        controls = ttk.Frame(master)
-        controls.pack(pady=8)
-        ttk.Button(controls, text="Save", command=self.save).pack(side=tk.LEFT, padx=4)
-        ttk.Button(controls, text="Cancel", command=master.destroy).pack(side=tk.LEFT, padx=4)
-
-    def cycle_tile(self, row, col):
-        current_id = self.scene[row][col]
-        next_id = (current_id + 1) % len(self.id_to_char)
-        self.scene[row][col] = next_id
-        photo = ImageTk.PhotoImage(self.tile_images[next_id])
-        btn = self.tile_buttons[row][col]
-        btn.config(image=photo)
-        btn.image = photo
-        self.tile_photo_images.append(photo)
-
-    def save(self):
-        self.master.destroy()
-        if self.on_save:
-            self.on_save(self.scene)
-
-    def cancel(self):
-        self.master.destroy()
-
-    def _load_tile_images(self, game):
-        if game == "Lode Runner":
-            return lr_tiles()
-        elif game == "Mega Man (Simple)":
-            return mm_tiles("MM-Simple")
-        elif game == "Mega Man (Full)":
-            return mm_tiles("MM-Full")
-        return mario_tiles()
-
-class MegaManLayoutEditor:
-    """
-    Lets the user arrange the scenes accumulated via 'Add To Level' on a free 2D grid.
-
-    Spawn (Player Start) and exit (Exit Orb) are placed via draggable markers that snap
-    to a single tile inside a placed scene. Each marker is one-of-a-kind. On export the
-    merged level is first stripped of every stray spawn/exit tile the generator may have
-    baked into individual scenes, then exactly the user-placed markers are stamped in -
-    so a built level always has at most one spawn and one exit and never inherits the
-    invisible leftovers that used to survive clearing or reopening the editor.
-
-    The grid can be zoomed so individual tiles are large enough to target precisely.
-    """
-
-    DEFAULT_CELL_PIXELS = 72
-    MIN_CELL_PIXELS = 48
-    MAX_CELL_PIXELS = 420
-    GRID_RADIUS = 8
-
-    # Marker key -> (display label, swatch color, ASCII char stamped into the level).
-    # 'P' (player spawn) and 'Z' (exit orb) are the chars the .mmlv converter understands;
-    # writing them straight into the ASCII level lets markers work for both the Simple and
-    # Full tilesets (the Simple tileset has no spawn/exit tile of its own).
-    MARKER_DEFS = {
-        "start": ("Player Start", "#FFDD00", "P"),
-        "exit":  ("Exit Orb",     "#00FFAA", "Z"),
-    }
-
-    # Chars that represent a spawn or exit in any Mega Man ASCII level; stripped on export.
-    SPAWN_EXIT_CHARS = ("P", "Z")
-
-    def __init__(self, master, app):
-        self.master = master
-        self.app = app
-
-        self.placements = {}              # (col, row) -> scene_index
-        self.placed_scene_indices = set()
-        self.placed_items = {}            # (col, row) -> (image_item_id, text_item_id)
-
-        # marker_placements: key -> (col, row, t_col, t_row)
-        # t_col/t_row are *tile* indices within the scene at that cell (snapped, exact).
-        self.marker_placements = {}       # "start" / "exit" -> (col, row, t_col, t_row)
-        self.marker_canvas_ids = {}       # "start" / "exit" -> (oval_id, text_id)
-
-        # Zoom state and render caches.
-        self.cell_pixels = self.DEFAULT_CELL_PIXELS
-        self._native_scene_cache = {}     # scene_index -> native PIL render (zoom-independent)
-        self._scene_photos = {}           # scene_index -> PhotoImage at current zoom (GC guard)
-
-        self._drag_data = None
-        self._drag_window = None
-
-        self.window = tk.Toplevel(master)
-        self.window.title("Mega Man Level Layout")
-        self.window.geometry("1050x700")
-
-        # --- Left: palette of unplaced scenes + markers ---
-        palette_frame = ttk.Frame(self.window, width=170)
-        palette_frame.pack(side=tk.LEFT, fill=tk.Y)
-        ttk.Label(palette_frame, text="Unplaced Scenes", font=("Arial", 11, "bold")).pack(pady=(8, 2))
-        ttk.Label(palette_frame, text="Drag onto the grid →", wraplength=150).pack(pady=(0, 4))
-
-        # Marker buttons at the top of the palette
-        self._marker_palette_frames = {}
-        for key, (label, color, _) in self.MARKER_DEFS.items():
-            f = tk.Frame(palette_frame, bg=color, bd=2, relief="raised", cursor="fleur")
-            f.pack(fill=tk.X, padx=6, pady=3)
-            tk.Label(f, text=label, bg=color, font=("Arial", 9, "bold"), fg="#111111").pack(side=tk.LEFT, padx=4, pady=4)
-            f.bind("<ButtonPress-1>", lambda e, k=key: self._start_marker_drag(e, k))
-            for child in f.winfo_children():
-                child.bind("<ButtonPress-1>", lambda e, k=key: self._start_marker_drag(e, k))
-            self._marker_palette_frames[key] = f
-
-        ttk.Separator(palette_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=6, pady=6)
-
-        self.palette_canvas = tk.Canvas(palette_frame, width=160, highlightthickness=0)
-        palette_scrollbar = ttk.Scrollbar(palette_frame, orient=tk.VERTICAL, command=self.palette_canvas.yview)
-        self.palette_inner = ttk.Frame(self.palette_canvas)
-        self.palette_inner.bind("<Configure>", lambda e: self.palette_canvas.configure(
-            scrollregion=self.palette_canvas.bbox("all")))
-        self.palette_canvas.create_window((0, 0), window=self.palette_inner, anchor="nw")
-        self.palette_canvas.configure(yscrollcommand=palette_scrollbar.set)
-        self.palette_canvas.pack(side=tk.LEFT, fill=tk.Y, expand=True)
-        palette_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # --- Right: toolbar + grid canvas ---
-        right_frame = ttk.Frame(self.window)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-
-        ttk.Label(
-            right_frame,
-            text="Drag a scene onto the grid to place it. Drag a placed scene to move it. "
-                 "Right-click a placed scene to send it back to the palette. "
-                 "Drag Player Start / Exit Orb markers onto a tile of any placed scene "
-                 "(zoom in first for precise placement; markers snap to a single tile). "
-                 "Scroll to zoom on the cursor; middle-mouse drag to pan.",
-            wraplength=820
-        ).pack(side=tk.TOP, fill=tk.X, padx=5, pady=(5, 0))
-
-        toolbar = ttk.Frame(right_frame)
-        toolbar.pack(side=tk.TOP, fill=tk.X, pady=5)
-        ttk.Button(toolbar, text="Play This Layout",       command=self.play_layout).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Save This Layout As...",  command=self.save_layout).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Show A* Path",            command=self.show_astar_path).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Clear Grid",              command=self.clear_grid).pack(side=tk.LEFT, padx=5)
-
-        # Zoom controls
-        ttk.Button(toolbar, text="Zoom -", width=6, command=lambda: self._zoom(1 / 1.25)).pack(side=tk.LEFT, padx=(20, 2))
-        self._zoom_label = ttk.Label(toolbar, text="100%", width=6, anchor="center")
-        self._zoom_label.pack(side=tk.LEFT)
-        ttk.Button(toolbar, text="Zoom +", width=6, command=lambda: self._zoom(1.25)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Reset",  width=6, command=self._zoom_reset).pack(side=tk.LEFT, padx=2)
-
-        ttk.Label(toolbar, text="Level Name:").pack(side=tk.LEFT, padx=(20, 5))
-
-        self.level_name_var = tk.StringVar(value="AI_Generated_Level")
-
-        ttk.Entry(
-            toolbar,
-            textvariable=self.level_name_var,
-            width=25
-        ).pack(side=tk.LEFT, padx=5)
-
-        canvas_frame = ttk.Frame(right_frame)
-        canvas_frame.pack(fill=tk.BOTH, expand=True)
-        canvas_frame.grid_rowconfigure(0, weight=1)
-        canvas_frame.grid_columnconfigure(0, weight=1)
-
-        self.grid_span = self.GRID_RADIUS * 2 + 1
-        self.visible_w, self.visible_h = 820, 560
-        self.canvas_size = self.grid_span * self.cell_pixels
-
-        self.grid_canvas = tk.Canvas(canvas_frame, bg="#222222", width=self.visible_w, height=self.visible_h,
-                                      scrollregion=(0, 0, self.canvas_size, self.canvas_size))
-        hbar = ttk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.grid_canvas.xview)
-        vbar = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL,   command=self.grid_canvas.yview)
-        self.grid_canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
-        self.grid_canvas.grid(row=0, column=0, sticky="nsew")
-        vbar.grid(row=0, column=1, sticky="ns")
-        hbar.grid(row=1, column=0, sticky="ew")
-
-        self._draw_grid(self.grid_span, self.canvas_size)
-        self._center_view()
-
-        # Scroll wheel zooms (centered on the cursor); middle-drag pans.
-        self.grid_canvas.bind("<MouseWheel>", self._on_grid_mousewheel)
-        self.grid_canvas.bind("<ButtonPress-2>", lambda e: self.grid_canvas.scan_mark(e.x, e.y))
-        self.grid_canvas.bind("<B2-Motion>",     lambda e: self.grid_canvas.scan_dragto(e.x, e.y, gain=1))
-
-        self._populate_palette()
-
-    # ------------------------------------------------------------------ grid / zoom
-
-    def _draw_grid(self, grid_span, canvas_size):
-        ox, oy = self._cell_to_pixel(0, 0)
-        self.grid_canvas.create_rectangle(ox, oy, ox + self.cell_pixels, oy + self.cell_pixels,
-                                           fill="#333355", outline="")
-        for i in range(grid_span + 1):
-            pos = i * self.cell_pixels
-            self.grid_canvas.create_line(pos, 0, pos, canvas_size, fill="#444444")
-            self.grid_canvas.create_line(0, pos, canvas_size, pos, fill="#444444")
-
-    def _grid_origin_offset(self):
-        return self.GRID_RADIUS * self.cell_pixels
-
-    def _cell_to_pixel(self, col, row):
-        off = self._grid_origin_offset()
-        return off + col * self.cell_pixels, off + row * self.cell_pixels
-
-    def _pixel_to_cell(self, x, y):
-        off = self._grid_origin_offset()
-        col = int((x - off) // self.cell_pixels)
-        row = int((y - off) // self.cell_pixels)
-        return col, row
-
-    def _center_view(self):
-        half_x = (self.canvas_size / 2 - self.visible_w / 2) / self.canvas_size
-        half_y = (self.canvas_size / 2 - self.visible_h / 2) / self.canvas_size
-        self.grid_canvas.xview_moveto(max(0, half_x))
-        self.grid_canvas.yview_moveto(max(0, half_y))
-
-    def _update_zoom_label(self):
-        pct = int(round(100 * self.cell_pixels / self.DEFAULT_CELL_PIXELS))
-        self._zoom_label.config(text=f"{pct}%")
-
-    def _zoom(self, factor, anchor=None):
-        """Zoom by `factor`, keeping the point under `anchor` (canvas-widget pixel
-        coords) fixed on screen. anchor=None keeps the current view center fixed."""
-        new = int(round(self.cell_pixels * factor))
-        new = max(self.MIN_CELL_PIXELS, min(self.MAX_CELL_PIXELS, new))
-        if new == self.cell_pixels:
-            return
-        if anchor is None:
-            anchor = (self.grid_canvas.winfo_width() / 2,
-                      self.grid_canvas.winfo_height() / 2)
-        ax, ay = anchor
-        # World point under the anchor, in the current canvas coords. Everything is laid
-        # out linearly from (0, 0), so after zooming it sits at (wx, wy) * ratio.
-        wx = self.grid_canvas.canvasx(ax)
-        wy = self.grid_canvas.canvasy(ay)
-        ratio = new / self.cell_pixels
-
-        self.cell_pixels = new
-        self._redraw_all()            # recomputes self.canvas_size
-        self._update_zoom_label()
-
-        # Scroll so that scaled world point lands back under the anchor pixel.
-        self.grid_canvas.xview_moveto(max(0.0, (wx * ratio - ax) / self.canvas_size))
-        self.grid_canvas.yview_moveto(max(0.0, (wy * ratio - ay) / self.canvas_size))
-
-    def _on_grid_mousewheel(self, event):
-        """Wheel up = zoom in, wheel down = zoom out, centered on the cursor."""
-        self._zoom(1.25 if event.delta > 0 else 1 / 1.25, anchor=(event.x, event.y))
-        return "break"   # don't also fire the app-wide mousewheel handler
-
-    def _zoom_reset(self):
-        if self.cell_pixels == self.DEFAULT_CELL_PIXELS:
-            return
-        self.cell_pixels = self.DEFAULT_CELL_PIXELS
-        self._redraw_all()
-        self._update_zoom_label()
-        self._center_view()
-
-    def _redraw_all(self):
-        """Rebuild every canvas item from the data model at the current zoom level."""
-        self.canvas_size = self.grid_span * self.cell_pixels
-        self.grid_canvas.delete("all")
-        self.grid_canvas.configure(scrollregion=(0, 0, self.canvas_size, self.canvas_size))
-        self._draw_grid(self.grid_span, self.canvas_size)
-
-        self.placed_items.clear()
-        self._scene_photos.clear()
-        for (col, row), scene_index in self.placements.items():
-            self._draw_scene(scene_index, col, row)
-
-        self.marker_canvas_ids.clear()
-        for key, (col, row, t_col, t_row) in self.marker_placements.items():
-            self._draw_marker(key, col, row, t_col, t_row)
-
-    def _scene_photo(self, scene_index):
-        """A PhotoImage of a composed scene rendered to fill the current cell size.
-        The native render is cached across zooms; only the resize repeats per zoom."""
-        native = self._native_scene_cache.get(scene_index)
-        if native is None:
-            native = self.app._render_scene_image(self.app.composed_scenes[scene_index])
-            self._native_scene_cache[scene_index] = native
-        size = self.cell_pixels
-        resample = Image.NEAREST if size >= native.width else Image.LANCZOS
-        photo = ImageTk.PhotoImage(native.resize((size, size), resample))
-        self._scene_photos[scene_index] = photo   # keep a ref so it isn't GC'd
-        return photo
-
-    # ------------------------------------------------------------------ palette
-
-    def _populate_palette(self):
-        for child in self.palette_inner.winfo_children():
-            child.destroy()
-        for idx, thumb in enumerate(self.app.composed_thumbnails):
-            if idx in self.placed_scene_indices:
-                continue
-            item_frame = ttk.Frame(self.palette_inner, borderwidth=2, relief="raised")
-            item_frame.pack(pady=4, padx=4)
-            lbl = tk.Label(item_frame, image=thumb)
-            lbl.image = thumb
-            lbl.pack()
-            ttk.Label(item_frame, text=f"#{idx + 1}").pack()
-            lbl.bind("<ButtonPress-1>", lambda e, i=idx: self._start_drag(e, i, None))
-
-    # ------------------------------------------------------------------ scene drag
-
-    def _start_drag(self, event, scene_index, from_cell):
-        thumb = self.app.composed_thumbnails[scene_index]
-        self._drag_data = {"kind": "scene", "scene_index": scene_index, "from_cell": from_cell}
-        self._show_drag_window(event, image=thumb)
-
-    def _show_drag_window(self, event, image=None, text=None, color=None):
-        self._drag_window = tk.Toplevel(self.window)
-        self._drag_window.overrideredirect(True)
-        try:
-            self._drag_window.attributes("-topmost", True)
-        except Exception:
-            pass
-        if image:
-            lbl = tk.Label(self._drag_window, image=image, bd=0)
-            lbl.image = image
-            lbl.pack()
-        else:
-            lbl = tk.Label(self._drag_window, text=text, bg=color, font=("Arial", 9, "bold"),
-                           fg="#111111", width=10, height=2)
-            lbl.pack()
-        self._move_drag_window(event)
-        self.window.bind("<Motion>",          self._move_drag_window)
-        self.window.bind("<ButtonRelease-1>", self._on_drag_release)
-
-    def _move_drag_window(self, event):
-        if self._drag_window:
-            self._drag_window.geometry(f"+{event.x_root - 32}+{event.y_root - 32}")
-
-    def _begin_drag_from_cell(self, event, col, row):
-        scene_index = self.placements.get((col, row))
-        if scene_index is None:
-            return
-        self._remove_markers_on_cell(col, row)  # markers don't follow a moving scene
-        self._clear_cell_visual(col, row)
-        del self.placements[(col, row)]
-        self.placed_scene_indices.discard(scene_index)
-        self._start_drag(event, scene_index, (col, row))
-
-    def _on_drag_release(self, event):
-        self.window.unbind("<Motion>")
-        self.window.unbind("<ButtonRelease-1>")
-        if self._drag_window:
-            self._drag_window.destroy()
-            self._drag_window = None
-
-        drag = self._drag_data
-        self._drag_data = None
-
-        if drag is None:
-            return
-
-        if drag["kind"] == "marker":
-            self._finish_marker_drop(event, drag["marker_key"])
-        else:
-            self._finish_scene_drop(event, drag)
-
-    def _finish_scene_drop(self, event, drag):
-        scene_index = drag["scene_index"]
-        from_cell   = drag["from_cell"]
-
-        cx1 = self.grid_canvas.winfo_rootx()
-        cy1 = self.grid_canvas.winfo_rooty()
-        cx2 = cx1 + self.grid_canvas.winfo_width()
-        cy2 = cy1 + self.grid_canvas.winfo_height()
-
-        placed = False
-        if cx1 <= event.x_root <= cx2 and cy1 <= event.y_root <= cy2:
-            x   = self.grid_canvas.canvasx(event.x_root - cx1)
-            y   = self.grid_canvas.canvasy(event.y_root - cy1)
-            col, row = self._pixel_to_cell(x, y)
-            if (col, row) not in self.placements:
-                self._place_scene_at(scene_index, col, row)
-                placed = True
-            else:
-                messagebox.showinfo("Occupied", "That grid cell already has a scene.")
-
-        if not placed and from_cell is not None:
-            self._place_scene_at(scene_index, *from_cell)
-
-        self._populate_palette()
-
-    def _place_scene_at(self, scene_index, col, row):
-        self.placements[(col, row)] = scene_index
-        self.placed_scene_indices.add(scene_index)
-        self._draw_scene(scene_index, col, row)
-
-    def _draw_scene(self, scene_index, col, row):
-        """Draw the scene image + index label for a cell and wire its mouse bindings."""
-        px, py  = self._cell_to_pixel(col, row)
-        photo   = self._scene_photo(scene_index)
-        img_id  = self.grid_canvas.create_image(px, py, image=photo, anchor="nw")
-        text_id = self.grid_canvas.create_text(px + 4, py + 4, text=f"#{scene_index + 1}",
-                                                anchor="nw", fill="yellow", font=("Arial", 8))
-        self.placed_items[(col, row)] = (img_id, text_id)
-        self.grid_canvas.tag_bind(img_id, "<ButtonPress-1>",
-                                   lambda e, c=col, r=row: self._begin_drag_from_cell(e, c, r))
-        self.grid_canvas.tag_bind(img_id, "<ButtonPress-3>",
-                                   lambda e, c=col, r=row: self._remove_from_cell(c, r))
-
-    def _clear_cell_visual(self, col, row):
-        items = self.placed_items.pop((col, row), None)
-        if items:
-            for item_id in items:
-                self.grid_canvas.delete(item_id)
-
-    def _remove_markers_on_cell(self, col, row):
-        """Drop any spawn/exit marker anchored to this cell (its scene is leaving)."""
-        for key, (mc, mr, _tc, _tr) in list(self.marker_placements.items()):
-            if (mc, mr) == (col, row):
-                self._remove_marker(key)
-
-    def _remove_from_cell(self, col, row):
-        self._remove_markers_on_cell(col, row)
-        scene_index = self.placements.pop((col, row), None)
-        self._clear_cell_visual(col, row)
-        if scene_index is not None:
-            self.placed_scene_indices.discard(scene_index)
-        self._populate_palette()
-
-    def clear_grid(self):
-        # Clearing the data model and rebuilding the canvas guarantees no spawn/exit
-        # (or any other) visual survives - including orphans from earlier re-placements.
-        self.placements.clear()
-        self.placed_scene_indices.clear()
-        self.marker_placements.clear()
-        self._redraw_all()
-        self._populate_palette()
-
-    # ------------------------------------------------------------------ marker drag
-
-    def _start_marker_drag(self, event, marker_key):
-        label, color, _ = self.MARKER_DEFS[marker_key]
-        self._drag_data = {"kind": "marker", "marker_key": marker_key}
-        self._show_drag_window(event, text=label, color=color)
-
-    def _finish_marker_drop(self, event, marker_key):
-        cx1 = self.grid_canvas.winfo_rootx()
-        cy1 = self.grid_canvas.winfo_rooty()
-        cx2 = cx1 + self.grid_canvas.winfo_width()
-        cy2 = cy1 + self.grid_canvas.winfo_height()
-
-        if not (cx1 <= event.x_root <= cx2 and cy1 <= event.y_root <= cy2):
-            return  # dropped outside — do nothing, marker stays in palette
-
-        x = self.grid_canvas.canvasx(event.x_root - cx1)
-        y = self.grid_canvas.canvasy(event.y_root - cy1)
-        col, row = self._pixel_to_cell(x, y)
-
-        if (col, row) not in self.placements:
-            messagebox.showinfo("No scene here",
-                                "Drop the marker onto a cell that already has a scene placed in it.")
-            return
-
-        t_col, t_row = self._tile_under_pointer(col, row, x, y)
-        self._place_marker(marker_key, col, row, t_col, t_row)
-
-    def _tile_under_pointer(self, col, row, x, y):
-        """Map a canvas pixel inside a cell to the (t_col, t_row) tile it lands on."""
-        scene = self.app.composed_scenes[self.placements[(col, row)]]
-        scene_h, scene_w = len(scene), len(scene[0])
-        px, py = self._cell_to_pixel(col, row)
-        tw = self.cell_pixels / scene_w
-        th = self.cell_pixels / scene_h
-        t_col = int((x - px) // tw)
-        t_row = int((y - py) // th)
-        t_col = max(0, min(t_col, scene_w - 1))
-        t_row = max(0, min(t_row, scene_h - 1))
-        return t_col, t_row
-
-    def _place_marker(self, marker_key, col, row, t_col, t_row):
-        # Replace any previous instance of this marker — exactly one spawn, one exit.
-        old = self.marker_canvas_ids.pop(marker_key, None)
-        if old is not None:
-            self.grid_canvas.delete(*old)
-        self.marker_placements[marker_key] = (col, row, t_col, t_row)
-        self._draw_marker(marker_key, col, row, t_col, t_row)
-
-    def _draw_marker(self, marker_key, col, row, t_col, t_row):
-        """Draw a marker centered on its snapped tile, scaled to the current zoom."""
-        label, color, _ = self.MARKER_DEFS[marker_key]
-        scene = self.app.composed_scenes[self.placements[(col, row)]]
-        scene_h, scene_w = len(scene), len(scene[0])
-        px, py = self._cell_to_pixel(col, row)
-        tw = self.cell_pixels / scene_w
-        th = self.cell_pixels / scene_h
-        cx = px + (t_col + 0.5) * tw
-        cy = py + (t_row + 0.5) * th
-        r  = max(5, min(tw, th) * 0.45)
-
-        oval_id = self.grid_canvas.create_oval(
-            cx - r, cy - r, cx + r, cy + r,
-            fill=color, outline="#000000", width=1
-        )
-        text_id = self.grid_canvas.create_text(
-            cx, cy, text=label[0], fill="#111111", font=("Arial", max(7, int(r)), "bold")
-        )
-        self.marker_canvas_ids[marker_key] = (oval_id, text_id)
-
-        for cid in (oval_id, text_id):
-            self.grid_canvas.tag_bind(
-                cid, "<ButtonPress-3>",
-                lambda e, k=marker_key: self._remove_marker(k)
-            )
-
-    def _remove_marker(self, marker_key):
-        ids = self.marker_canvas_ids.pop(marker_key, None)
-        if ids:
-            for cid in ids:
-                self.grid_canvas.delete(cid)
-        self.marker_placements.pop(marker_key, None)
-
-    # ------------------------------------------------------------------ build merged scene
-
-    def _marker_grid_positions(self):
-        """Absolute (col, row) in the merged grid for each placed marker key.
-
-        Uses the same origin/scene geometry as the merge, so positions line up with
-        build_merged_ascii's stamping and build_merged_scene's tile layout."""
-        if not self.placements or not self.marker_placements:
-            return {}
-        scenes = self.app.composed_scenes
-        sample = next(iter(self.placements.values()))
-        scene_h, scene_w = len(scenes[sample]), len(scenes[sample][0])
-        min_col = min(c for c, r in self.placements)
-        min_row = min(r for c, r in self.placements)
-        return {
-            key: ((col - min_col) * scene_w + t_col,
-                  (row - min_row) * scene_h + t_row)
-            for key, (col, row, t_col, t_row) in self.marker_placements.items()
-        }
-
-    def build_merged_scene(self):
-        """Merge placed scenes into one tile-ID grid (no spawn/exit handling).
-        Used for A* (with explicit or auto spawn/orb) and as the base for export."""
-        if not self.placements:
-            messagebox.showinfo("Empty layout", "Drag at least one scene onto the grid first.")
-            return None
-
-        scenes = self.app.composed_scenes
-        dims   = {(len(scenes[i]), len(scenes[i][0])) for i in self.placements.values()}
-        if len(dims) > 1:
-            messagebox.showerror(
-                "Mismatched scene sizes",
-                "All scenes must share the same width and height.\n"
-                "Found sizes (h×w): " + ", ".join(f"{h}×{w}" for h, w in dims)
-            )
-            return None
-        scene_h, scene_w = next(iter(dims))
-
-        blank_tid = self.app.char_to_id.get("@", 0)
-
-        cols    = [c for c, r in self.placements]
-        rows    = [r for c, r in self.placements]
-        min_col = min(cols);  max_col = max(cols)
-        min_row = min(rows);  max_row = max(rows)
-
-        out_w  = (max_col - min_col + 1) * scene_w
-        out_h  = (max_row - min_row + 1) * scene_h
-        merged = [[blank_tid for _ in range(out_w)] for _ in range(out_h)]
-
-        for (col, row), scene_index in self.placements.items():
-            scene = scenes[scene_index]
-            x_off = (col - min_col) * scene_w
-            y_off = (row - min_row) * scene_h
-            for y, tile_row in enumerate(scene):
-                for x, tile in enumerate(tile_row):
-                    merged[y_off + y][x_off + x] = tile
-
-        return merged
-
-    def build_merged_ascii(self):
-        """The merged level as ASCII rows, ready for the .mmlv converter.
-
-        Every spawn/exit tile baked into the generated scenes is stripped first, then
-        exactly the user-placed markers are stamped in. Returns a list of strings,
-        or None if there is nothing (or something invalid) to build."""
-        merged = self.build_merged_scene()
-        if merged is None:
-            return None
-
-        grid = [list(r) for r in scene_to_ascii(merged, self.app.id_to_char, shorten=False)]
-
-        # Strip any spawn/exit the generator left inside individual scenes.
-        empty = "-" if "-" in self.app.char_to_id else "@"
-        for r in range(len(grid)):
-            for c in range(len(grid[r])):
-                if grid[r][c] in self.SPAWN_EXIT_CHARS:
-                    grid[r][c] = empty
-
-        # Stamp the user-placed markers at their absolute tile in the merged grid.
-        for marker_key, (out_col, out_row) in self._marker_grid_positions().items():
-            _, _, ch = self.MARKER_DEFS[marker_key]
-            if 0 <= out_row < len(grid) and 0 <= out_col < len(grid[out_row]):
-                grid[out_row][out_col] = ch
-
-        return ["".join(r) for r in grid]
-
-    # ------------------------------------------------------------------ actions
-
-    def play_layout(self):
-        merged = self.build_merged_scene()
-        if merged is None:
-            return
-
-        if "start" not in self.marker_placements:
-            if not messagebox.askyesno(
-                "No Player Start set",
-                "You haven't placed a Player Start marker. The player may not spawn correctly.\n\n"
-                "Play anyway?"
-            ):
-                return
-
-        import os
-
-        try:
-            success = self.save_level_files()
-
-            if not success:
-                return
-
-            os.startfile("megamaker://")
-
-        except Exception as e:
-            messagebox.showerror("Play failed", str(e))
-
-    def show_astar_path(self):
-        """Run the simple A* agent on the merged layout and show its path overlaid.
-
-        The user's placed Player Start / Exit Orb markers are used as the A* spawn and
-        goal; if either is missing, A* auto-places that one (low-left spawn / right orb)."""
-        merged = self.build_merged_scene()
-        if merged is None:
-            return
-        positions = self._marker_grid_positions()
-        try:
-            img, solved, stats = self.app._astar_path_for_scene(
-                merged, spawn=positions.get("start"), orb=positions.get("exit"))
-        except Exception as e:
-            messagebox.showerror("A* failed", str(e))
-            return
-        if img is None:
-            messagebox.showinfo("A* Path", "No A* path could be drawn for this layout.")
-            return
-        verdict = "traversable" if solved else "NOT traversable"
-        print(f"Composed layout A* path: {verdict}  ({stats})")
-        self._show_image_window(img, f"A* Path — {verdict}   {stats}")
-
-    def _show_image_window(self, pil_img, title):
-        """Show a (possibly large) PIL image in a scrollable popup window."""
-        win = tk.Toplevel(self.window)
-        win.title(title)
-        win.grid_rowconfigure(0, weight=1)
-        win.grid_columnconfigure(0, weight=1)
-
-        canvas = tk.Canvas(win, bg="#222222")
-        hbar = ttk.Scrollbar(win, orient=tk.HORIZONTAL, command=canvas.xview)
-        vbar = ttk.Scrollbar(win, orient=tk.VERTICAL,   command=canvas.yview)
-        canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
-        canvas.grid(row=0, column=0, sticky="nsew")
-        vbar.grid(row=0, column=1, sticky="ns")
-        hbar.grid(row=1, column=0, sticky="ew")
-
-        photo = ImageTk.PhotoImage(pil_img)
-        canvas._photo_ref = photo   # keep a ref so it isn't GC'd
-        canvas.create_image(0, 0, image=photo, anchor="nw")
-        canvas.configure(scrollregion=(0, 0, pil_img.width, pil_img.height))
-        win.geometry(f"{min(pil_img.width + 24, 1200)}x{min(pil_img.height + 24, 800)}")
-
-    def save_layout(self):
-        success = self.save_level_files()
-
-        if success:
-            level_name = self.level_name_var.get().strip()
-
-            if not level_name:
-                level_name = "AI_Generated_Level"
-
-            messagebox.showinfo(
-                "Saved",
-                f"Level saved as:\n{level_name}.txt\n{level_name}.mmlv"
-            )
-
-    def save_level_files(self):
-        rows = self.build_merged_ascii()
-        if rows is None:
-            return False
-
-        levels_dir = os.path.join(
-            os.path.expanduser("~"),
-            "AppData", "Local", "MegaMaker", "Levels"
-        )
-        os.makedirs(levels_dir, exist_ok=True)
-
-        level_name = self.level_name_var.get().strip() or "AI_Generated_Level"
-        txt_path = os.path.join(levels_dir, level_name + ".txt")
-        mmlv_path = os.path.join(levels_dir, level_name + ".mmlv")
-
-        try:
-            kept = [r for r in rows if any(ch != '@' for ch in r)]
-            with open(txt_path, 'w') as f:
-                f.write("\n".join(kept))
-
-            from megaman.vglc_to_mmlv import convert
-
-            lines = open(txt_path).readlines()
-            result = convert(lines, level_name=level_name, author="AI")
-
-            with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
-                f.write(result)
-
-            return True
-
-        except Exception as e:
-            messagebox.showerror("Save failed", str(e))
-            return False
-
 import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description="Interactive Tile Level Generator")
@@ -2082,7 +1554,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
@@ -2104,6 +1576,12 @@ if __name__ == "__main__":
     elif args.game == "MM-Full":
         game_selected = "Mega Man (Full)"
         tileset_path = common_settings.MM_FULL_TILESET
+    elif args.game == "MMLV":
+        game_selected = "Mega Man (Maker)"
+        tileset_path = common_settings.MMLV_TILESET
+    elif args.game == "MM2":
+        game_selected = "Mario Maker (MM)"
+        tileset_path = common_settings.MM2_TILESET
 
     root = tk.Tk()
     app = CaptionBuilder(root)

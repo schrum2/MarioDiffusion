@@ -15,7 +15,8 @@ from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from evaluate_caption_adherence import calculate_caption_score_and_samples
-from MM_create_ascii_captions import assign_caption as mm_assign_caption ##test
+from captions.MM2_caption_match import caption_tools as mm2_caption_tools
+from MM_create_ascii_captions import assign_caption as mm_assign_caption
 from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.plotter import plot_scores_by_width
@@ -79,11 +80,15 @@ def parse_args():
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
     parser.add_argument("--json", type=str, default="datasets/SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
-    parser.add_argument("--num_tiles", type=int, default=13, help="Number of tile types")
+    parser.add_argument("--num_tiles", type=int, default=None, help="Number of tile types. If omitted, defaults to the per-game value below.")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
-    parser.add_argument("--multiple_captions", action="store_true", help="Each sample stores several captions ('caption', 'caption1', ...); select one at random per access instead of phrase-shuffle augmentation. This becomes the only augmentation (phrase shuffling and scene flipping are disabled).")
-    
+    parser.add_argument("--multiple_captions", action="store_true", help="Each sample stores several captions (legacy 'caption'/'caption1'/... fields or a '<model>_captions' list); select one at random per access instead of phrase-shuffle augmentation. This becomes the only augmentation (phrase shuffling and scene flipping are disabled). Off by default; unconditional and negative-prompt training never select.")
+    parser.add_argument("--caption_source_keys", nargs="+", type=str, default=None, help="Each argument names a dataset key holding a LIST of captions, e.g. '--caption_source_keys gemma4:26b_captions qwen3:32b_captions deterministic_captions'. During training, one caption is drawn at random from the pooled captions of all the listed sources; validation picks the first available caption deterministically. Samples with no caption under any listed source are dropped. Omit this to train on the single 'caption' field instead.")
+    parser.add_argument("--complete_levels", action="store_true", help="Treat scenes as variable-size complete levels: group them into --num_buckets size buckets and pad each up to its bucket's shared shape with the null/void tile (--pad_tile_id). Use with datasets built via 'create_megaman_json_data.py --scan_mode whole'.")
+    parser.add_argument("--num_buckets", type=int, default=5, help="Number of size buckets when --complete_levels is set.")
+    parser.add_argument("--pad_tile_id", type=int, default=None, help="Tile id used to fill the pad region under --complete_levels (the null/void tile). Defaults to the 'null'-descriptor tile resolved from --tileset.")
+
     # New text conditioning args
     parser.add_argument("--mlm_model_dir", type=str, default="mlm", help="Path to pre-trained text embedding model")
     parser.add_argument("--pretrained_language_model", type=str, default=None, help="Link to a pre-trained language model, everything after huggingface.co/. This will override the mlm_model_dir argument.")
@@ -104,6 +109,7 @@ def parse_args():
     parser.add_argument("--attention_head_dim", type=int, default=8, help="Number of attention heads")
     
     # Training args
+    parser.add_argument("--max_grad_norm", type=float, default=1.0, help="Max gradient norm for clipping")
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--num_epochs", type=int, default=500, help="Number of training epochs")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps")
@@ -111,7 +117,12 @@ def parse_args():
     parser.add_argument("--lr_scheduler_cycles", type=float, default=0.5, help="Number of cycles for the cosine learning rate scheduler")
     parser.add_argument("--save_image_epochs", type=int, default=20, help="Save generated levels every N epochs")
     parser.add_argument("--save_model_epochs", type=int, default=20, help="Save model every N epochs")
-    parser.add_argument("--mixed_precision", type=str, default="no", choices=["no", "fp16", "bf16"], help="Mixed precision type")
+    parser.add_argument("--mixed_precision", type=str, default="fp16", choices=["no", "fp16", "bf16"], help="Mixed precision type")
+    parser.add_argument("--gradient_checkpointing", action="store_true", help="Enable gradient checkpointing to reduce VRAM usage at the cost of slower training")
+    parser.add_argument("--num_workers", type=int, default=8, help="Number of DataLoader worker processes")
+    parser.add_argument("--no_pin_memory", dest="pin_memory", action="store_false", help="Disable pinned memory for host-to-device transfers when CUDA is available")
+    parser.add_argument("--no_tf32", dest="use_tf32", action="store_false", help="Disable TF32 matmul kernels on supported NVIDIA GPUs")
+    parser.set_defaults(pin_memory=True, use_tf32=True)
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--validate_epochs", type=int, default=5, help="Calculate validation loss every N epochs")
     parser.add_argument("--max_iterations", type=float, default=float("inf"), help="Maximum number of training iterations (global steps). Training will stop when this is exceeded. Default is infinity (no limit).")
@@ -130,7 +141,7 @@ def parse_args():
     parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
 
     # For caption score calculation
-    parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=None, help="Descriptions of individual tile types. If omitted, defaults to the per-game value below.")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
 
@@ -162,10 +173,9 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full", "MMLV"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
-
 
     parser.add_argument(
         "--sprite_temperature_n",
@@ -182,7 +192,11 @@ def parse_args():
         help="Number of epochs to wait for improvement before early stopping."
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.mixed_precision == "fp16" and not torch.cuda.is_available():
+        print("Warning: No CUDA device found, falling back from fp16 to no mixed precision.")
+        args.mixed_precision = "no"
+    return args
 
 # TODO: We'll probably want to move this somewhere else eventually
 def compute_sprite_scaling_factors(json_path, num_tiles, n):
@@ -301,8 +315,16 @@ def main():
     elif args.game == "MM-Full":
         args.num_tiles = common_settings.MM_FULL_TILE_COUNT
         args.tileset = '../TheVGLC/MegaMan/MM.json'
+    elif args.game == "MMLV":
+        args.num_tiles = common_settings.MMLV_TILE_COUNT
+        args.tileset = common_settings.MMLV_TILESET
+    elif args.game == "MM2":
+        args.num_tiles = common_settings.MM2_TILE_COUNT
+        args.tileset = common_settings.MM2_TILESET
     else:
         raise ValueError(f"Unknown game: {args.game}")
+
+    print("Setting num tiles to {} and tileset to {}".format(args.num_tiles, args.tileset))
 
     # Check if config file is provided before training loop begins
     if hasattr(args, 'config') and args.config:
@@ -331,16 +353,29 @@ def main():
     if args.split_pretrained_sentences and not args.pretrained_language_model:
         raise ValueError("Sentence splitting requires the use of a pretrained language model")
 
-    if args.multiple_captions:
-        if not args.text_conditional:
-            raise ValueError("Multiple captions requires text conditioning to be enabled")
+    if args.caption_source_keys:
         if args.negative_prompt_training:
+            raise ValueError("--caption_source_keys cannot be combined with --negative_prompt_training")  # captions are free-form text, not the pos/neg phrase format
+        if not args.text_conditional:
+            print("Note: --caption_source_keys is ignored for unconditional training (scenes carry no captions).")
+            args.caption_source_keys = None
+
+    # --multiple_captions only makes sense for text-conditional, non-negative training; clear
+    # the flag (rather than erroring) for the incompatible modes so unconditional and
+    # negative-prompt runs still work when it is passed.
+    if args.multiple_captions and not args.caption_source_keys:  # caption_source_keys handles its own selection
+        if not args.text_conditional:
+            # Unconditional scenes carry no captions, so there is nothing to select among.
+            args.multiple_captions = False
+        elif args.negative_prompt_training:
             # The stored alternative captions are full descriptions, not the structured
             # positive/negative phrase format that negative prompt training expects.
-            raise ValueError("Multiple captions cannot be combined with negative prompt training")
-        if args.augment:
+            print("Note: multiple-caption selection is disabled because --negative_prompt_training is set.")
+            args.multiple_captions = False
+        elif args.augment:
             # Selecting among the stored captions is meant to be the only augmentation.
-            print("Note: --augment is ignored when --multiple_captions is set; caption selection is the only augmentation.")
+            print("Note: --augment is ignored while multiple-caption selection is active; caption selection is the only augmentation.")
+            args.augment = False
 
     """
     If sprite temperature scaling is enabled and the model is unconditional, 
@@ -363,6 +398,10 @@ def main():
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
+        torch.backends.cuda.matmul.allow_tf32 = args.use_tf32
+        torch.backends.cudnn.allow_tf32 = args.use_tf32
+        torch.backends.cudnn.benchmark = True
+        torch.set_float32_matmul_precision("high" if args.use_tf32 else "highest")
     
     # Setup accelerator
     accelerator = Accelerator(
@@ -410,20 +449,42 @@ def main():
     else:
         print("No block embedding model specified. One-hot encoding enabled.")
 
-    train_dataloader, val_dataloader, sample_widths = gen_train_help.create_dataloaders(json_path=args.json,
+    # Under --complete_levels the dataset pads variable-size levels to per-bucket shapes.
+    # Resolve the pad tile (default: the 'null'-descriptor tile from the tileset) and the
+    # UNet spatial divisor so bucket pad dimensions stay denoisable.
+    pad_tile_id = args.pad_tile_id
+    unet_factor = 2 ** (len(args.dim_mults) - 1)
+    if args.complete_levels and pad_tile_id is None:
+        _, _, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+        null_chars = [c for c, d in tile_descriptors.items() if 'null' in d]
+        if not null_chars:
+            raise ValueError("--complete_levels needs a pad tile: no 'null' tile in --tileset; pass --pad_tile_id explicitly.")
+        pad_tile_id = char_to_id[null_chars[0]]
+        print(f"Resolved pad_tile_id={pad_tile_id} ('{null_chars[0]}') from {args.tileset}")
+
+    train_dataloader, val_dataloader, sample_shapes = gen_train_help.create_dataloaders(json_path=args.json,
                                         val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
                                         augment=args.augment, num_tiles=args.num_tiles,
                                         negative_prompt_training=args.negative_prompt_training,
                                         block_embeddings=block_embeddings, batch_size=args.batch_size,
                                         persistent_workers=(not args.auto_augment),
-                                        multiple_captions=args.multiple_captions)
+                                        multiple_captions=args.multiple_captions,
+                                        caption_source_keys=args.caption_source_keys,
+                                        require_captions=args.text_conditional,
+                                        bucket_levels=args.complete_levels, num_buckets=args.num_buckets,
+                                        pad_tile_id=pad_tile_id, unet_factor=unet_factor,
+                                        num_workers=args.num_workers,
+                                        pin_memory=(args.pin_memory and torch.cuda.is_available()))
 
-    # Persist the BucketBatchSampler's scene-width range alongside the model so post-training
-    # tools (evaluate_caption_adherence.py, run_diffusion.py) can randomize generated widths
+    # Persist the BucketBatchSampler's scene shapes alongside the model so post-training
+    # tools (evaluate_caption_adherence.py, run_diffusion.py) can randomize generated sizes
     # over the same range the model was trained on, without re-reading the training dataset.
-    if sample_widths:
+    # shapes are (height, width) tuples; "widths" is kept for backward compatibility.
+    if sample_shapes:
+        sample_widths = [w for (_h, w) in sample_shapes]
         with open(os.path.join(args.output_dir, "training_widths.json"), "w") as f:
             json.dump({
+                "shapes": sorted([list(s) for s in sample_shapes]),
                 "widths": sorted(sample_widths),
                 "min": min(sample_widths),
                 "max": max(sample_widths),
@@ -461,9 +522,15 @@ def main():
             caption_text = str(sample) 
         seen_caption_set.add(canonicalize_caption(caption_text)) 
 
-    first_sample = train_dataloader.dataset[0]
-    scene_height = first_sample[0].shape[1]
-    scene_width = first_sample[0].shape[2]
+    if args.complete_levels and sample_shapes:
+        # Scenes vary in size across buckets; the UNet is fully convolutional so sample_size is
+        # only the config default. Use the largest bucket shape so it covers every bucket.
+        scene_height = max(h for (h, _w) in sample_shapes)
+        scene_width = max(w for (_h, w) in sample_shapes)
+    else:
+        first_sample = train_dataloader.dataset[0]
+        scene_height = first_sample[0].shape[1]
+        scene_width = first_sample[0].shape[2]
 
     print(f"Scene height: {scene_height}")
     print(f"Scene width: {scene_width}")
@@ -502,7 +569,11 @@ def main():
             block_out_channels=[args.model_dim * mult for mult in args.dim_mults],
             down_block_types = [item.replace("CrossAttn", "") for item in args.down_block_types],
             up_block_types=[item.replace("CrossAttn", "") for item in args.up_block_types],
+            attention_head_dim=args.attention_head_dim,  # Number of attention heads: only matters if some AttnDownBlock2D or AttnUpBlock2D are used
         )
+
+    if args.gradient_checkpointing:
+        model.enable_gradient_checkpointing()
     
     # Setup the noise scheduler
     noise_scheduler = DDPMScheduler(
@@ -746,7 +817,7 @@ def main():
         
         for batch in train_dataloader:
             # Add explicit memory clearing at start of batch
-            if torch.cuda.is_available():
+            if args.auto_augment and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
             with accelerator.accumulate(model):
@@ -754,11 +825,12 @@ def main():
                     args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator
                 )
                 accelerator.backward(loss)
+                if accelerator.sync_gradients:
+                    accelerator.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 optimizer.step()
                 lr_scheduler.step()
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=True)
             train_loss += loss.detach().item()
-
 
             # Update progress bar
             progress_bar.update(1)
@@ -767,8 +839,8 @@ def main():
             
             # Detach tensors and clear memory
             del loss
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
+            #if torch.cuda.is_available():
+            #    torch.cuda.synchronize()
 
             
                         
@@ -795,8 +867,8 @@ def main():
                     val_loss += val_batch_loss.item()
                     # Clear memory after each validation batch
                     del val_batch_loss
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    #if torch.cuda.is_available():
+                    #    torch.cuda.empty_cache()
 
             val_loss /= len(val_dataloader)
 
@@ -819,12 +891,21 @@ def main():
                 # validation sets (e.g. 16 and 32 wide) are scored fairly instead of forcing every
                 # caption to the single fixed scene_width. per_width_scores collects each sample's
                 # score under the width it was generated at, for the per-width adherence plot below.
+                # MM2 validation needs the MM2 tools; the SMB defaults misread the
+                # MM2 tile vocabulary.
+                if args.game == "MM2":
+                    mm2_assign_fn, mm2_compare_fn = mm2_caption_tools(args.tileset)
+                else:
+                    mm2_assign_fn = mm2_compare_fn = None
+
                 per_width_scores = {}
                 avg_caption_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width,
-                    match_scene_width=True, per_width_scores=per_width_scores
+                    match_scene_width=True, per_width_scores=per_width_scores,
+                    game=args.game,
+                    assign_caption_fn=mm2_assign_fn, compare_captions_fn=mm2_compare_fn # Jacob: I'm not sure this is really needed here
                 )
                 # Collapse the per-width score lists into a mean score per width for this epoch.
                 width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
@@ -1008,7 +1089,7 @@ def main():
                     # Create a new DataLoader with multiple workers, but do NOT use persistent_workers.
                     # This retains parallel data loading without keeping worker processes and dataset copies alive across
                     # augmentation steps (safer memory usage than persistent_workers=True).
-                    # Rebuild with BucketBatchSampler so newly added samples are re-bucketed by width
+                    # Rebuild with BucketBatchSampler so newly added samples are re-bucketed by shape
                     new_sampler = gen_train_help.BucketBatchSampler(train_dataset, args.batch_size, drop_last=True, shuffle=True)
                     raw_new_loader = DataLoader(
                         train_dataset,
@@ -1016,8 +1097,8 @@ def main():
                         num_workers=4,
                         persistent_workers=False,
                     )
-                    # Re-bucketing may surface new widths from augmented samples; refresh benchmark widths.
-                    sample_widths = new_sampler.shapes
+                    # Re-bucketing may surface new shapes from augmented samples; refresh benchmark shapes.
+                    sample_shapes = new_sampler.shapes
 
                     train_dataloader = accelerator.prepare(raw_new_loader)
 
@@ -1166,15 +1247,15 @@ def main():
                     pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
 
                 
-                # Generate sample levels at up to the first four scene widths present in the dataset
-                # so mixed-size training is benchmarked across sizes. A single-width dataset loops
+                # Generate sample levels at up to the first four scene shapes present in the dataset
+                # so mixed-size training is benchmarked across sizes. A single-shape dataset loops
                 # once and is unchanged. start_index keeps filenames unique within the one dir.
-                for i, width in enumerate(sample_widths[:4]):
+                for i, (sh, sw) in enumerate(sample_shapes[:4]):
                     with torch.no_grad():
                         samples = pipeline(
-                            batch_size=4// min(len(sample_widths), 4),  # Divide batch across widths to keep total samples consistent
-                            height=scene_height,
-                            width=width,
+                            batch_size=4// min(len(sample_shapes), 4),  # Divide batch across shapes to keep total samples consistent
+                            height=sh,
+                            width=sw,
                             generator=torch.Generator(device=accelerator.device).manual_seed(args.seed),
                             num_inference_steps = args.num_inference_timesteps, # Fewer steps needed for inference
                             output_type="tensor",

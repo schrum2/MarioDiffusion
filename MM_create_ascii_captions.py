@@ -269,73 +269,81 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
     return result if result else []
 
 
-def find_ladders(scene, ladder_ids, already_accounted = set(), describe_absence=False):
+def find_ladders(scene, ladder_ids, already_accounted=set(), describe_absence=False):
     """
-    Finds vertical lines (runs) of ladder tiles, and categorizes each by whether
-    it connects to the top, bottom, both (full height), or neither (middle) of the scene.
-    Returns a caption phrase describing the ladders.
+    Finds vertical runs of ladder tiles and classifies each by where it connects
+    within the playable area (excluding the 2-row ceiling and the floor row):
+    top only, bottom only, both (full height), or neither (middle).
     """
-
-    ladders = []
+    ladders = []  # list of (start_y, end_y, x)
     height = len(scene)
     width = len(scene[0]) if height > 0 else 0
 
-    for x in range(width):
+    ceiling_row = 2          # rows 0-1 are non-playable ceiling
+    floor_row = height - 1   # last row is the floor
+    playable_top = ceiling_row
+    playable_bottom = floor_row 
 
+    for x in range(width):
         y = 0
         while y < height:
             if scene[y][x] not in ladder_ids:
                 y += 1
                 continue
 
-            # Start of valid run
             possible_locations = set()
             run_start = y
             while y < height:
-
                 if scene[y][x] in ladder_ids:
-                    possible_locations.add( (y,x) )
+                    possible_locations.add((y, x))
                     y += 1
                 else:
                     break
-            already_accounted.update(possible_locations) # Blocks of the line are now accounted for
+            already_accounted.update(possible_locations)
             run_end = y - 1
-            ladders.append((run_end, run_start, x))
+            ladders.append((run_start, run_end, x))
 
-    if len(ladders) == 0:
+    if not ladders:
         if describe_absence:
-            return f" {describe_quantity(0) if coarse_counts else 0} ladder{'s' if pluralize else ''}."
+            return [(" no ladders.", set())]
         else:
-            return ""
+            return []
 
-    # Categorize each ladder run by where it connects
-    categories = {"full height": 0, "at bottom": 0, "at top": 0, "in the middle": 0}
-    for run_end, run_start, x in ladders:
-        touches_top = (run_start == 0)
-        touches_bottom = (run_end == height - 1)
-        if touches_top and touches_bottom:
-            categories["full height"] += 1
-        elif touches_bottom:
-            categories["at bottom"] += 1
-        elif touches_top:
-            categories["at top"] += 1
+    categories = {"both": [], "top": [], "bottom": [], "middle": []}
+    for start_y, end_y, x in ladders:
+        connects_top = start_y <= playable_top
+        connects_bottom = end_y >= playable_bottom
+        if connects_top and connects_bottom:
+            categories["both"].append((start_y, end_y, x))
+        elif connects_top:
+            categories["top"].append((start_y, end_y, x))
+        elif connects_bottom:
+            categories["bottom"].append((start_y, end_y, x))
         else:
-            categories["in the middle"] += 1
+            categories["middle"].append((start_y, end_y, x))
 
-    parts = []
-    for category, count in categories.items():
-        if count == 0:
+    suffix_map = {"top": "at top", "bottom": "at bottom", "middle": "in the middle"}
+
+    # One (phrase, coords) tuple per ladder category, so each subtype gets its own
+    # entry in `details` instead of being merged into one combo string.
+    result = []
+    for cat in ("both", "top", "bottom", "middle"):
+        items = categories[cat]
+        if not items:
             continue
-        if category == "full height":
-            label = "full height ladder"
-            suffix = ""
-        else:
-            label = "ladder"
-            suffix = f" {category}"
-        plural_label = label + "s" if pluralize and count != 1 else label
-        parts.append(f"{describe_quantity(count) if coarse_counts else count} {plural_label}{suffix}")
+        count = len(items)
+        plural = "s" if pluralize and count != 1 else ""
+        quantity = describe_quantity(count) if coarse_counts else count
 
-    return " " + ". ".join(parts) + "."
+        if cat == "both":
+            phrase = f" {quantity} full height ladder{plural}."
+        else:
+            phrase = f" {quantity} ladder{plural} {suffix_map[cat]}."
+
+        coords = {(y, x) for start_y, end_y, x in items for y in range(start_y, end_y + 1)}
+        result.append((phrase, coords))
+
+    return result
 
 def find_water_caption(scene, empty_ids, water_ids, describe_absence=False):
     """
@@ -461,50 +469,52 @@ def analyze_floor(scene, wall_ids, describe_absence, floor_row=15, ladder_ids=No
                 in_chunk = False
         return f" giant gap with {describe_quantity(chunks) if coarse_counts else chunks} chunk"+("s" if pluralize and chunks != 1 else "")+" of floor."
 
-def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence):
+
+def generate_captions(dataset_path, tileset_path, output_path, describe_locations, describe_absence,
+                      caption_mode="legacy", caption_key="deterministic_captions"):
     """Processes the dataset and generates captions for each level scene."""
     # Load dataset
     with open(dataset_path, "r") as f:
         dataset = json.load(f)
-    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence)
+    save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence,
+                    caption_mode=caption_mode, caption_key=caption_key)
     print(f"Captioned dataset saved to {output_path}")
 
-def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence):
+def save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence,
+                    caption_mode="legacy", caption_key="deterministic_captions"):
+    """Add a deterministic caption to every scene.
+
+    "legacy" stores it in the "caption" field; "keyed" stores it as a one-element list under
+    caption_key (default "deterministic_captions"), so a scene can carry captions from several
+    sources at once. Either way every other input attribute is copied through, so passing a
+    dataset that already carries metadata or LLM captions accumulates sources rather than
+    replacing them.
+    """
 
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
-    num_excluded = 0
     # Generate captions
     captioned_dataset = []
     for i, combined_scene in enumerate(dataset):
         # Blank for Mega Man
-        if isinstance(combined_scene, dict):
+        is_dict = isinstance(combined_scene, dict)
+        if is_dict:
             scene = combined_scene['scene']
             data = combined_scene.get('data', None)
         else:
             scene = combined_scene
             data = None
-        caption = ""
         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, data)
 
-
-            #import torch
-            #import torch.nn.functional as F
-            #scene_tensor = torch.tensor(scene, dtype=torch.long)
-            #one_hot_scene = F.one_hot(scene_tensor, num_classes=13).float() 
-            #one_hot_scene = one_hot_scene.permute(2, 0, 1)
-            #scene = one_hot_scene.unsqueeze(0)
-            #from level_dataset import visualize_samples
-            #image = visualize_samples(scene)
-            #image.show()
-            #if input("Press Enter to continue or type 'q' to quit: ") == 'q':
-            #    print("Exiting caption generation.")
-            #    sys.exit(0)
-
-        captioned_dataset.append({
-            "scene": scene,
-            "caption": caption
-        })
+        # Copy all input attributes (metadata + captions from other sources) so they carry
+        # through; only the scene/caption fields below are (re)written.
+        entry = dict(combined_scene) if is_dict else {}
+        entry["scene"] = scene
+        if caption_mode == "keyed":
+            entry[caption_key] = [caption]
+        else:
+            entry["caption"] = caption
+        captioned_dataset.append(entry)
 
     # Save new dataset with captions
     with open(output_path, "w") as f:
@@ -550,8 +560,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     hazard_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'hazard' in value]
     moving_plat_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'moving' in value]
     wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value) and ("hazard" not in value))]
-    disappearing_ids = [char_to_id["A"]] if "A" in char_to_id else [] 
-
+    disappearing_ids = [char_to_id["A"]] if "A" in char_to_id else [] #There's nothing unique about the descriptors for disappearing blocks, so we just set it here
     #Ideas:
     #Walls for each size/exit directions
     #Some kind of data transfer telling us which way the level is moving
@@ -663,9 +672,9 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     # Solid structures
     
     #Count ladders
-    ladders_phrase = find_ladders(scene, ladder_ids, already_accounted, describe_absence)
-    add_to_caption(ladders_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in ladder_ids])
-
+    ladder_phrases = find_ladders(scene, ladder_ids, already_accounted, describe_absence)
+    for phrase, coords in ladder_phrases:
+        add_to_caption(phrase, coords)
 
     structures = find_solid_structures(scene, id_to_char, tile_descriptors, already_accounted)
     structure_phrase = describe_structures(structures, describe_locations=describe_locations, describe_absence=describe_absence, debug=debug)
@@ -687,6 +696,12 @@ if __name__ == "__main__":
     parser.add_argument("--tileset", default='datasets/MM.json', help="Descriptions of individual tile types")
     parser.add_argument("--output", required=True, help="Output JSON file path")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument("--caption-mode", choices=["legacy", "keyed"], default="legacy",
+                        help="Output schema. 'legacy' (default) writes the single 'caption' field. 'keyed' writes the caption as a "
+                             "one-element list under --caption-key, so a scene can carry captions from several sources at once. Both "
+                             "modes copy all other input attributes (metadata and captions from other sources) to the output.")
+    parser.add_argument("--caption-key", default="deterministic_captions",
+                        help="Key to store the caption list under when --caption-mode keyed. Default: deterministic_captions")
     global args
     args = parser.parse_args()
 
@@ -698,4 +713,5 @@ if __name__ == "__main__":
         print("Error: One or more input files do not exist.")
         sys.exit(1)
 
-    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence)
+    generate_captions(dataset_file, tileset_file, output_file, False, args.describe_absence,
+                      caption_mode=args.caption_mode, caption_key=args.caption_key)

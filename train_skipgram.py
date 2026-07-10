@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from safetensors.torch import save_file
 from torch.utils.data import DataLoader, TensorDataset
 from util.plotter import Plotter
+from embedding_analysis import UpdateCounter, analyze_embeddings
 
 # Ensure repo root on path
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -24,6 +25,8 @@ from patch_dataset import PatchDataset
 class SkipGramModel(nn.Module):
     def __init__(self, vocab_size, embedding_dim):
         super().__init__()
+        self.vocab_size = vocab_size
+        self.embedding_dim = embedding_dim
         self.in_embed = nn.Embedding(vocab_size, embedding_dim)
         self.out_embed = nn.Embedding(vocab_size, embedding_dim)
         initrange = 0.5 / embedding_dim
@@ -73,13 +76,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--json_file', required=True)
     parser.add_argument('--output_dir', default='skipgram_out')
-    parser.add_argument('--embedding_dim', type=int, default=32)
+    parser.add_argument('--embedding_dim', type=int, default=16)
     parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--negative_samples', type=int, default=10)
-    parser.add_argument('--subsampling', action='store_true')
-    parser.add_argument('--subsample_threshold', type=float, default=0.001)
+    parser.add_argument('--no_subsampling', action='store_true',
+                        help='Disable Mikolov-style frequent-tile subsampling (enabled by default). Use this to reproduce old behavior.')
+    parser.add_argument('--subsample_threshold', type=float, default=0.05, 
+                        help='Subsampling threshold (lower = more aggressive downsampling of frequent center tiles). '
+                             'Word2vec NLP defaults (1e-3 to 1e-5) assume much lower max-frequency than tile data typically has '
+                             '(e.g. a dominant background tile can be 40-60%% of centers) -- if background/filler tiles still '
+                             'dominate after enabling subsampling, try raising this (e.g. 0.05-0.2) rather than lowering it.')
     parser.add_argument('--vocab_size', type=int, default=None)
     parser.add_argument('--save_every', type=int, default=20,
                         help='Save checkpoint every N epochs. 0 disables periodic checkpointing.')
@@ -103,7 +111,7 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    dataset = PatchDataset(json_path=args.json_file, subsampling=args.subsampling, subsample_threshold=args.subsample_threshold, output_dir=args.output_dir)
+    dataset = PatchDataset(json_path=args.json_file, subsampling=not args.no_subsampling, subsample_threshold=args.subsample_threshold, output_dir=args.output_dir)
 
     # Determine vocab size
     detected_vocab = max(max(patch) for sample in dataset.patches for patch in sample) + 1
@@ -134,6 +142,8 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = SkipGramModel(vocab_size=vocab_size, embedding_dim=args.embedding_dim).to(device)
+    init_in_embed = model.in_embed.weight.detach().clone()
+    update_counter = UpdateCounter(vocab_size)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = None
     if args.lr_patience > 0:
@@ -163,6 +173,7 @@ def main():
         for centers_batch, contexts_batch in loader:
             centers_batch = centers_batch.to(device)
             contexts_batch = contexts_batch.to(device)
+            update_counter.update(centers_batch)
             B = centers_batch.size(0)
             # negative sampling
             neg = np.random.choice(vocab_size, size=(B, args.negative_samples), p=unigram)
@@ -218,6 +229,15 @@ def main():
             'embedding_dim': int(args.embedding_dim),
             'negative_samples': int(args.negative_samples)
         }, f, indent=2)
+
+    analyze_embeddings(
+        model=model,
+        output_dir=args.output_dir,
+        update_counter=update_counter,
+        dataset_center_counts=getattr(dataset, 'center_counts', None),
+        init_in_embed=init_in_embed,
+        top_k_neighbors=5,
+    )
 
     plotter.stop_plotting()
     plot_thread.join(timeout=1)

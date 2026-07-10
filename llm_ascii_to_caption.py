@@ -1,4 +1,7 @@
 """
+
+NEEDS TO BE MERGED WITH MM2_Files/MarioMaker_llm_captions
+
 This script loads Mega Man levels in VGLC-ASCII format and captions them with an LLM
 
 A loop runs over every scene in the dataset, prompting the LLM with the tileset
@@ -55,12 +58,12 @@ MM_TILESET_DICT = {
         "e": "Stationary, ranged Screw Driver enemy",
         "m": "Jumping exploding Bombombomb enemy",
         "i": "Floating, ranged Watcher enemy",
-        "b": "Flying Bunby Heli enemy",
+        "b": "Flying Bunby Heli enemy (green)",
         "a": "Stationary, ranged Met enemy",
         "d": "Ranged Pickelman enemy",
         "h": "Crazy Razy enemy",
         "n": "Flying PePe penguin enemy",
-        "I": "Changkey vertical fire pillar"
+        "I": "Tackle Fire Enemies",
     }
 }
 
@@ -171,22 +174,27 @@ def scene_to_ASCII(scene: list[list[int]], id_to_char: dict[int, str],
             for row in scene[first_real:]]
 
 
-def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[int]], str]]:
+def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[int]], str, dict]]:
     """
     Load integer tile-id scenes for an LLM to caption.
 
     {path} could be:
-        - a JSON file produced by create_megaman_json_data.py: a list of entries, each a
-          dict with a "sample" key holding the 2D integer tile-id grid (a "scene" key or a
-          bare grid are also accepted).
+        - a JSON file produced by create_megaman_json_data.py (or a previous captioning pass):
+          a list of entries, each a dict with a "sample" key holding the 2D integer tile-id grid
+          (a "scene" key or a bare grid are also accepted). Any other keys the entry carries --
+          metadata (source_level, scan_mode, data, ...) and captions from earlier sources
+          (deterministic_captions, some_model_captions, ...) -- are returned as `attrs` so main()
+          can copy them straight through to the output. This is what lets a captioned dataset be
+          fed back in to accumulate sources instead of replacing them.
 
         - a directory of VGLC-ASCII level files (*.txt), one whole level per file. These
           are encoded to integer grids (via char_to_id) so the output format is the same
-          either way.
+          either way. There is no metadata to carry, so `attrs` is empty.
 
-    Returns a list of (scene, label) tuples, where each scene is a 2D grid of integer
-    tile ids and label identifies the source. The integer grid is what gets stored in the
-    output; it is only decoded to ASCII transiently for the captioning prompt.
+    Returns a list of (scene, label, attrs) tuples, where each scene is a 2D grid of integer
+    tile ids, label identifies the source, and attrs is the dict of all other input attributes
+    (empty for directory input). The integer grid is what gets stored in the output; it is only
+    decoded to ASCII transiently for the captioning prompt.
     """
     # A directory of level files: load_levels reads every *.txt, strips blank
     # lines/trailing whitespace, and returns one list-of-rows per file. Encode each to an
@@ -195,7 +203,7 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
     if os.path.isdir(path):
         levels = load_levels(path)
         files = sorted(Path(path).glob("*.txt"))
-        return [([[char_to_id[c] for c in row] for row in level], file.name)
+        return [([[char_to_id[c] for c in row] for row in level], file.name, {})
                 for level, file in zip(levels, files)]
 
     # Otherwise treat it as a JSON file of integer tile-id scenes.
@@ -207,9 +215,12 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
         if isinstance(entry, dict):
             # create_megaman_json_data.py writes the grid under "sample"; accept "scene" too.
             grid = entry["sample"] if "sample" in entry else entry["scene"]
+            # Everything except the grid field itself is metadata/other captions to carry through.
+            attrs = {k: v for k, v in entry.items() if k not in ("sample", "scene")}
         else:
             grid = entry
-        scenes.append((grid, Path(path).name))
+            attrs = {}
+        scenes.append((grid, Path(path).name, attrs))
     return scenes
 
 
@@ -544,6 +555,16 @@ def parse_args():
                            help="Optional path to write the captioned [{scene, caption}] list as JSON")
     argparser.add_argument("--limit", type=int, default=None,
                            help="Max number of scenes to caption. Defaults to the entire dataset")
+    argparser.add_argument("--caption-mode", default="keyed", choices=["legacy", "keyed"],
+                           help="Output schema. 'keyed' (default) writes the captions as a list under --caption-key (default "
+                                "'<model>_captions'), so a scene can carry captions from several models at once. 'legacy' writes "
+                                "'caption'/'caption1'/... fields instead. In both modes every other input attribute (metadata and captions from other "
+                                "sources) is copied to the output, so passing a previously-captioned dataset back in accumulates sources rather than replacing them.")
+    argparser.add_argument("--caption-key", default=None,
+                           help="Key to store the caption list under when --caption-mode keyed. Defaults to '<model>_captions' "
+                                "(the resolved model name), so each model's captions land under their own key.")
+
+
     return argparser.parse_args()
 
 
@@ -576,6 +597,10 @@ def main() -> list[list[str]]:
     # Resolve the model: --model overrides, otherwise fall back to the per-branch default.
     model = args.model or DEFAULT_MODELS[args.llm]
 
+    # Key the keyed-mode caption list under --caption-key, or '<model>_captions' by default so
+    # each model's captions accumulate under their own field when datasets are chained.
+    caption_key = args.caption_key or f"{model}_captions"
+
     # Label combining the inference source and resolved model; printed and stored per entry.
     llmstr = f"{args.llm} - {model}"
 
@@ -584,7 +609,7 @@ def main() -> list[list[str]]:
     print(f"[timing] Captioning started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n")
 
     # caption each scene, append back to running lists
-    for i, (scene, label) in enumerate(scenes):
+    for i, (scene, label, attrs) in enumerate(scenes):
 
         # Decode the integer grid to ASCII rows purely to build the prompt; the integer
         # grid itself is what gets stored back in the output unchanged. Null padding rows
@@ -613,9 +638,17 @@ def main() -> list[list[str]]:
             continue
 
         caption_lists.append(caption_set)
-        # ugly but necessary; want single json object with flat fields scene, cap, cap1, ..., cap4.
-        # "scene" holds the original integer tile-id grid
-        captioned_dataset.append({"scene": scene, "caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2], "caption3": caption_set[3], "caption4": caption_set[4], "model": llmstr})
+        # Copy all carried-through input attributes (metadata + captions from earlier sources)
+        # first, then (re)write the scene and this run's captions on top, so chaining datasets
+        # accumulates sources instead of replacing them. "scene" holds the integer tile-id grid.
+        entry = dict(attrs)
+        entry["scene"] = scene
+        if args.caption_mode == "legacy":
+            entry.update({"caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2],
+                          "caption3": caption_set[3], "caption4": caption_set[4], "model": llmstr})
+        else:
+            entry[caption_key] = caption_set
+        captioned_dataset.append(entry)
 
     # Mark the end of the full captioning process and report total elapsed time.
     end_time = time.time()

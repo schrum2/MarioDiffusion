@@ -115,13 +115,20 @@ class TextConditionalDDPMPipeline(DDPMPipeline):
             # right class rather than a bare AutoModel that encode() wouldn't recognize.
             text_encoder, tokenizer, _ = st_helper.load_pretrained_encoder(encoder_config['text_encoder_name'])
             
+        # A locally-trained custom TransformerModel saves its tokenizer as tokenizer.pkl. Detect
+        # that up front and skip the Hugging Face attempt entirely: AutoModel would otherwise
+        # bare-match the custom config to an HF architecture (e.g. MegaModel) and dump a wall of
+        # "newly initialized weights" warnings before AutoTokenizer fails on the .pkl anyway.
+        elif os.path.exists(os.path.join(text_encoder_path, "tokenizer.pkl")):
+            pass  # handled by the TransformerModel fallback below
+
         #Legacy loading system, loads models directly if the whole thing is saved in the directory
         elif os.path.exists(text_encoder_path):
             try: # Assumes MiniLM or GTE is directly saved on the disk in subdir
                 text_encoder = AutoModel.from_pretrained(text_encoder_path, local_files_only=True, trust_remote_code=True)
                 tokenizer = AutoTokenizer.from_pretrained(text_encoder_path, local_files_only=True)
-            except (ValueError, KeyError):
-                # The model must be a TransformerModel, which is a custom class
+            except (ValueError, KeyError, OSError):
+                # The model must be a TransformerModel, which is a custom class.
                 text_encoder = None
                 tokenizer = None
 

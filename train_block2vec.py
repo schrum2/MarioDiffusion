@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.functional as F
 import argparse
 import os
@@ -9,13 +9,14 @@ from util.plotter import Plotter  # Import the Plotter class
 from patch_dataset import PatchDataset
 from models.block2vec_model import Block2Vec
 import util.common_settings as common_settings
+from embedding_analysis import UpdateCounter, analyze_embeddings
 
 # ====== Defaults, but overridden by params ======
 EMBEDDING_DIM = 16
-BATCH_SIZE = 32
+BATCH_SIZE = 1024
 EPOCHS = 100
 LR = 1e-3
-NEGATIVE_SAMPLES = 5
+NEGATIVE_SAMPLES = 10
 VOCAB_SIZE = common_settings.MARIO_TILE_COUNT
 
 def print_nearest_neighbors(model, tile_id, k=5):
@@ -38,6 +39,13 @@ def main():
     parser.add_argument('--lr', type=float, default=LR, help='Learning rate')
     parser.add_argument('--negative_samples', type=int, default=NEGATIVE_SAMPLES, help='Number of negative context tiles per positive pair')
     parser.add_argument('--vocab_size', type=int, default=None, help='Number of tile types. Defaults to the largest tile id in the data + 1. Set this to the tileset size so every tile id gets an embedding row.')
+    parser.add_argument('--no_subsampling', action='store_true',
+                        help='Disable Mikolov-style frequent-tile subsampling (enabled by default). Use this to reproduce old behavior.')
+    parser.add_argument('--subsample_threshold', type=float, default=0.05,
+                        help='Subsampling threshold (lower = more aggressive downsampling of frequent center tiles). '
+                             'Word2vec NLP defaults (1e-3 to 1e-5) assume much lower max-frequency than tile data typically has '
+                             '(e.g. a dominant background tile can be 40-60%% of centers) -- if background/filler tiles still '
+                             'dominate after enabling subsampling, try raising this (e.g. 0.05-0.2) rather than lowering it.')
     parser.add_argument('--use_class_weights', action='store_true', help='Use inverse-frequency class weights to upweight rare center tiles')
     parser.add_argument('--focal_gamma', type=float, default=0.0, help='Focal loss gamma. 0 = disabled')
     parser.add_argument('--label_smoothing', type=float, default=0.0, help='Label smoothing (not used for BCE negative sampling, kept for future)')
@@ -71,9 +79,33 @@ def main():
         os.makedirs(args.output_dir)
 
     # Load dataset
-    dataset = PatchDataset(json_path=args.json_file, output_dir=args.output_dir)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+    dataset = PatchDataset(
+        json_path=args.json_file,
+        output_dir=args.output_dir,
+        subsampling=not args.no_subsampling,
+        subsample_threshold=args.subsample_threshold,
+    )
 
+    # Flatten each (center, context_list) patch sample into individual
+    # (center, single_context) pairs -- the same granularity train_skipgram.py
+    # uses via build_pairs(). Without this, batch_size here would count
+    # *patches* per step (each expanding to context_len pairs internally in
+    # Block2Vec.forward), while train_skipgram.py's batch_size counts
+    # *pairs* per step directly -- making "the same" batch_size value mean
+    # very different numbers of actual gradient-contributing pairs between
+    # the two scripts.
+    flat_centers = []
+    flat_contexts = []
+    for center, context_list in dataset.samples:
+        for ctx in context_list:
+            flat_centers.append(center)
+            flat_contexts.append(ctx)
+    centers_t = torch.tensor(flat_centers, dtype=torch.long)
+    contexts_t = torch.tensor(flat_contexts, dtype=torch.long)
+    print(f"Flattened {len(dataset.samples)} patches into {len(centers_t)} (center, context) pairs")
+
+    flat_dataset = TensorDataset(centers_t, contexts_t)
+    dataloader = DataLoader(flat_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
     # Compute vocab size from the actual dataset to handle any tile set (Mario, MM, etc.)
     try:
         detected_vocab = max(max(patch) for sample in dataset.patches for patch in sample) + 1
@@ -95,7 +127,28 @@ def main():
 
 
     # Model, optimizer
-    model = Block2Vec(vocab_size=vocab_size, embedding_dim=args.embedding_dim, negative_samples=args.negative_samples)
+    # Build a unigram^0.75 negative-sampling distribution from the same
+    # dataset.center_counts used for --use_class_weights, matching the
+    # word2vec-style weighting used in train_skipgram.py (so negatives are
+    # drawn harder against frequent tiles instead of uniformly over vocab).
+    neg_sampling_counts = torch.zeros(vocab_size, dtype=torch.float)
+    for tile_id, count in dataset.center_counts.items():
+        if tile_id < vocab_size:
+            neg_sampling_counts[tile_id] = count
+    neg_sampling_counts += 1e-8  # smoothing, avoids zero-weight tiles never being sampled as negatives
+    negative_sampling_weights = neg_sampling_counts.pow(0.75)
+
+    model = Block2Vec(
+        vocab_size=vocab_size,
+        embedding_dim=args.embedding_dim,
+        negative_samples=args.negative_samples,
+        negative_sampling_weights=negative_sampling_weights,
+    )
+    # --- snapshot embeddings before training, for "distance moved" diagnostics ---
+    init_in_embed = model.in_embed.weight.detach().clone()
+    # --- tracks how many times each tile id is actually used as a training center ---
+    update_counter = UpdateCounter(vocab_size)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = None
     if args.lr_patience > 0:
@@ -130,6 +183,12 @@ def main():
         per_class_loss_sum = [0.0] * vocab_size
         per_class_count = [0] * vocab_size
         for center, context in dataloader:
+            # context arrives flat as (batch,) now that pairs are pre-flattened;
+            # give it a trailing dim of 1 so Block2Vec.forward's existing
+            # expand/reshape logic (and the use_class_weights / per-class
+            # stats code below, which reads context.shape) keeps working
+            # unchanged -- context_len is just 1 now instead of patch_size^2-1.
+            context = context.unsqueeze(1)
             optimizer.zero_grad()
 
             # If class weights requested, build a per-example weight vector matching expanded centers
@@ -156,6 +215,7 @@ def main():
 
             # Accumulate per-class stats
             batch_centers = center.unsqueeze(1).expand(-1, context.shape[1]).reshape(-1)
+            update_counter.update(batch_centers)          
             for i, c in enumerate(batch_centers.tolist()):
                 per_class_loss_sum[c] += per_example_loss[i].item()
                 per_class_count[c] += 1
@@ -203,6 +263,17 @@ def main():
     # ====== Save Embeddings ======
     model.save_pretrained(args.output_dir)
     print(f"Embeddings saved to {args.output_dir}")
+
+    # --- write analysis report + figures ---
+    dataset_center_counts = getattr(dataset, "center_counts", None)
+    analyze_embeddings(
+        model=model,
+        output_dir=args.output_dir,
+        update_counter=update_counter,
+        dataset_center_counts=dataset_center_counts,
+        init_in_embed=init_in_embed,
+        top_k_neighbors=5,
+    )
 
     # Stop the plotting thread
     plotter.stop_plotting()

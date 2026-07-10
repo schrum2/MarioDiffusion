@@ -1,4 +1,4 @@
-REM @echo off
+@echo off
 REM Usage: train-ununconditional.bat <seed> <game>
 REM <seed> is optional, defaults to 0
 REM <game> indicates source of data: SMB1, SMB2, etc.
@@ -12,8 +12,21 @@ set GAME=%2
 set GAME_PLAYED=
 if /I "%GAME%"=="LR" set GAME_PLAYED=--game LR
 
-set DIFF_OUTPUT=%GAME%-unconditional%SEED%
-set UNCOND_OUTPUT=%DIFF_OUTPUT%-samples
+set MODEL_DIR=%GAME%-unconditional%SEED%
+set UNCOND_OUTPUT=%MODEL_DIR%-samples
 
-python train_diffusion.py --augment --output_dir "%DIFF_OUTPUT%" --num_epochs 500 --json datasets\%GAME%_LevelsAndCaptions-regular-train.json --val_json datasets\%GAME%_LevelsAndCaptions-regular-validate.json --seed %SEED% %GAME_PLAYED%
-call batch\run_diffusion_multi.bat %DIFF_OUTPUT% %TYPE% %GAME%
+REM Per-execution timing log: each step appends a timestamped record. The log is
+REM staged under timing_logs\ during the run then moved into the trained model's directory at the end.
+set TIMING_LOG=timing_logs\train-unconditional-%SEED%.jsonl
+if exist "%TIMING_LOG%" del "%TIMING_LOG%"
+python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train-unconditional start"
+
+python train_diffusion.py --augment --output_dir "%MODEL_DIR%" --num_epochs 500 --json datasets\%GAME%_LevelsAndCaptions-regular-train.json --val_json datasets\%GAME%_LevelsAndCaptions-regular-validate.json --seed %SEED% %GAME_PLAYED%
+python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
+
+
+call batch\run_diffusion_multi.bat %MODEL_DIR% %TYPE% %GAME%
+python log_timestamp.py --log_file %TIMING_LOG% --event "unconditional samples"
+
+REM move the timing log into the trained model's directory
+move /Y %TIMING_LOG% %MODEL_DIR%\pipeline_timing.jsonl

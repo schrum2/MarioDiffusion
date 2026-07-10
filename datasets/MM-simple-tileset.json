@@ -1,0 +1,77 @@
+{
+    "tile_to_id": {
+        "#": 0,
+        "-": 12,
+        "@": 1,
+        "A": 2,
+        "B": 3,
+        "C": 4,
+        "D": 5,
+        "H": 6,
+        "M": 7,
+        "a": 10,
+        "l": 11,
+        "|": 8,
+        "~": 9
+    },
+    "tiles": {
+        "#": [
+            "ground",
+            "solid",
+            "wall"
+        ],
+        "-": [
+            "empty",
+            "passable"
+        ],
+        "@": [
+            "null"
+        ],
+        "A": [
+            "passable",
+            "penetrable",
+            "solid"
+        ],
+        "B": [
+            "breakable",
+            "penetrable",
+            "solid"
+        ],
+        "C": [
+            "hazard",
+            "passable"
+        ],
+        "D": [
+            "movable",
+            "passable"
+        ],
+        "H": [
+            "hazard",
+            "solid"
+        ],
+        "M": [
+            "moving",
+            "penetrable",
+            "solid"
+        ],
+        "a": [
+            "damaging",
+            "enemy",
+            "ranged"
+        ],
+        "l": [
+            "collectable",
+            "passable",
+            "powerup"
+        ],
+        "|": [
+            "climbable",
+            "passable"
+        ],
+        "~": [
+            "empty",
+            "passable",
+            "water"
+        ]
+    }
+}

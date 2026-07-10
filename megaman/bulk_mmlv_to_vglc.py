@@ -41,7 +41,7 @@ def main():
 
         except Exception as e:
             failed += 1
-            print("\nFAILED:", file.name)
+            print(f"\nFAILED: {file.name} - {e}")
 
     print("\nDone")
     print("Success:", success)
