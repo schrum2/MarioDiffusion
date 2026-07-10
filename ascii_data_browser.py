@@ -11,7 +11,9 @@ import torch
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
-from captions.util import extract_tileset 
+from captions.MM2_caption_match import assign_caption as mm2_assign_caption
+from captions.MM2_caption_match import get_tile_categories, get_char_names
+from captions.util import extract_tileset
 import util.common_settings as common_settings
 import random
 import colorsys
@@ -154,8 +156,11 @@ class TileViewer(tk.Tk):
                 return_details=True
             )
         elif self.game.get()=="MM2" or self.game.get()=="MM":
-            caption, details = None, None
-            # Jacob: There didn't seem to be a way of assigning deterministic Mario Maker captions
+            # Code from interactive_tile_level_generator
+            _, _, ground_chars = get_tile_categories(self.tileset_path)
+            char_names = get_char_names(self.tileset_path)
+            caption = mm2_assign_caption(sample['scene'], self.id_to_char, char_names, ground_chars)
+            details = None #MM2 assign caption only returns a single caption string
 
         sample['caption'] = caption
         sample['captions'] = [caption]
