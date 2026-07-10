@@ -16,7 +16,7 @@ from create_ascii_captions import assign_caption
 #from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 from captions.MM2_caption_match import assign_caption as mm2_assign_caption
 from captions.MM2_caption_match import compare_captions as mm2_compare_captions
-from captions.MM2_caption_match import get_tile_categories
+from captions.MM2_caption_match import get_tile_categories, get_char_names
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
 from captions.util import extract_tileset
@@ -778,7 +778,8 @@ class CaptionBuilder(ParentBuilder):
                     pil_img = visualize_samples(images)
                 elif self.game_var.get() == "Mario Maker 2":
                     _, _, ground_chars = get_tile_categories(tileset_path)
-                    actual_caption = mm2_assign_caption(scene, self.id_to_char, self.char_to_id, ground_chars)
+                    char_names = get_char_names(tileset_path)
+                    actual_caption = mm2_assign_caption(scene, self.id_to_char, char_names, ground_chars)
                     print("hello")
                     pil_img = visualize_samples(images, game="MM2")
                 else:
@@ -793,12 +794,11 @@ class CaptionBuilder(ParentBuilder):
                 elif self.game_var.get() == 'Lode Runner':
                     compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 elif self.game_var.get() == "Mario Maker 2":
-                    compare_score, exact_matches, partial_matches, excess_phrases = mm2_compare_captions(prompt, actual_caption)
+                    compare_score, exact_matches, partial_matches, excess_phrases = mm2_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 else:
                     compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
             except Exception as e:
-                raise e
                 messagebox.showerror(
                     "Generation Error",
                     f"Failed to generate image {i + 1}.\n\n"
