@@ -13,7 +13,6 @@ from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from captions.MM_caption_match import compare_captions as mm_compare_captions
 from create_ascii_captions import assign_caption
-#from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 from captions.MM2_caption_match import assign_caption as mm2_assign_caption
 from captions.MM2_caption_match import compare_captions as mm2_compare_captions
 from captions.MM2_caption_match import get_tile_categories, get_char_names
@@ -888,14 +887,15 @@ Average Segment Score: {avg_segment_score}"""
                 )
                 play_button.pack(side=tk.LEFT, padx=5)
 
-                # Add Use A* button
-                astar_button = ttk.Button(
-                    button_frame,
-                    text="Use A*",
-                    command=lambda idx=i: self.use_astar(idx),
-                    style="TButton"
-                )
-                astar_button.pack(side=tk.LEFT, padx=5)
+                if config["is_mario"]:
+                    # Add Use A* button
+                    astar_button = ttk.Button(
+                        button_frame,
+                        text="Use A*",
+                        command=lambda idx=i: self.use_astar(idx),
+                        style="TButton"
+                    )
+                    astar_button.pack(side=tk.LEFT, padx=5)
 
             # Add "Add To Level" button
             add_button = ttk.Button(
@@ -1542,13 +1542,16 @@ Average Segment Score: {avg_segment_score}"""
         config = self._selected_game_config()
         is_mario = config["is_mario"]
         state = tk.NORMAL if is_mario else tk.DISABLED
-        self.play_composed_button.config(state=state)
         self.astar_composed_button.config(state=state)
         self.graphics_checkbox.config(state=state)
         self.move_left_button.config(state=state)
         self.move_right_button.config(state=state)
         if not is_mario:
             self.use_snes_graphics.set(False)
+
+        is_playable = config["is_composed_playable"]
+        state = tk.NORMAL if is_playable else tk.DISABLED
+        self.play_composed_button.config(state=state)
 
         is_megaman = config["is_megaman"]
         self.mm_layout_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)

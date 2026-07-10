@@ -104,6 +104,7 @@ def get_game_config(game=None):
             "is_mario_maker_2": False,
             "is_megaman": False,
             "supports_per_image_play": True,
+            "is_composed_playable": True, 
         }
     if game_name == "Lode Runner":
         return {
@@ -118,7 +119,8 @@ def get_game_config(game=None):
             "is_lode_runner": True,
             "is_mario_maker_2": False,
             "is_megaman": False,
-            "supports_per_image_play": False,
+            "supports_per_image_play": True,
+            "is_composed_playable": False, 
         }
     if game_name == "Mega Man (Simple)":
         return {
@@ -134,6 +136,7 @@ def get_game_config(game=None):
             "is_mario_maker_2": False,
             "is_megaman": True,
             "supports_per_image_play": False,
+            "is_composed_playable": False, 
         }
     if game_name == "Mega Man (Full)":
         return {
@@ -149,6 +152,7 @@ def get_game_config(game=None):
             "is_mario_maker_2": False,
             "is_megaman": True,
             "supports_per_image_play": False,
+            "is_composed_playable": False, 
         }
     if game_name == "Mega Man (Maker)":
         return {
@@ -164,6 +168,7 @@ def get_game_config(game=None):
             "is_mario_maker_2": False,
             "is_megaman": True,
             "supports_per_image_play": False,
+            "is_composed_playable": False, 
         }
     if game_name == "Mario Maker 2":
         return {
@@ -179,5 +184,6 @@ def get_game_config(game=None):
             "is_mario_maker_2": True,
             "is_megaman": False,
             "supports_per_image_play": False,
+            "is_composed_playable": True, 
         }
     raise ValueError(f"Unsupported game selected: {game_name}")
