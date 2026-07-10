@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import subprocess
 import os
 import json
 import torch
@@ -231,7 +232,7 @@ class CaptionBuilder(ParentBuilder):
         self.delete_image_button.pack(side=tk.LEFT, padx=10)
         self.clear_composed_button = ttk.Button(row2, text="Clear Composed Level", command=self.clear_composed_level, style="TButton")
         self.clear_composed_button.pack(side=tk.LEFT, padx=10)
-        self.save_composed_button = ttk.Button(row2, text="Save Composed Level", command=self.save_composed_level, style="TButton")
+        self.save_composed_button = ttk.Button(row2, text="Save Composed Level ASCII", command=self.save_composed_level, style="TButton")
         self.save_composed_button.pack(side=tk.LEFT, padx=10)
         
         self.move_left_button = ttk.Button(row3, text="Move Selected Image Left", command=lambda: self.move_selected_image(-1), style="TButton")
@@ -309,10 +310,7 @@ class CaptionBuilder(ParentBuilder):
             self.height_entry.config(values=[], state="normal")
         self._update_null_rows_label()
 
-    def _play_megaman_level(self, idx):
-        import subprocess, os
-        from util.sampler import scene_to_ascii
- 
+    def _play_megaman_level(self, idx): 
         scene = self.generated_scenes[idx]
         scene_to_ascii(scene, self.id_to_char, shorten=False)
 
@@ -342,9 +340,6 @@ class CaptionBuilder(ParentBuilder):
             mb.showinfo("Saved", f"Level saved to:\n{mmlv_path}\n\nCould not find MegaMaker.exe — open it manually.")
 
     def _play_megaman_level_from_scene(self, scene):
-        import subprocess
-        from util.sampler import scene_to_ascii
-
         char_grid = char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
 
 
@@ -1063,9 +1058,11 @@ Average Segment Score: {avg_segment_score}"""
         scene = self.merge_selected_scenes()
         if scene:
             # Mario Maker saves a .swe into SMM:WE's level folder instead of a .txt
-            if self.game_var.get() == "Mario Maker 2":
-                self._save_composed_swe()
-                return
+            # To save an SWE, choose to play the level. This option saves ASCII instead
+            #if self.game_var.get() == "Mario Maker 2":
+            #    self._save_composed_swe()
+            #    return
+
             # Always open in the current working directory or a subfolder
             initial_dir = os.path.join(os.getcwd(), "Composed Levels")
             os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists

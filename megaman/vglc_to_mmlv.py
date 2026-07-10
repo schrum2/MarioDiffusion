@@ -168,12 +168,55 @@ def rising_platform(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def fire_emitter_right(x: int, y: int) -> List[str]:
+    # Horizontal fire/hazard emitter (gimmick id 3) pointing RIGHT (no 'b' facing flag). Verified
+    # d6/e3 against a labelled test level (the tile the (4,9) sprite represents).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="3.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def fire_emitter_left(x: int, y: int) -> List[str]:
+    # Horizontal fire/hazard emitter (gimmick id 3) pointing LEFT: same as the right emitter plus
+    # b=-1 (the left-facing flag, same convention as the conveyor belts).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'b{x},{y}="-1.000000"',
+        f'e{x},{y}="3.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def key_pickup(x: int, y: int) -> List[str]:
     # Key collectible, gimmick id 32: a 1x1 pickup that opens key doors. Verified d6/e32 against
     # a labelled test level. Round-trips exactly (1x1).
     return [
         f'o{x},{y}="9999.000000"',
         f'e{x},{y}="32.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def vertical_key_door(x: int, y: int) -> List[str]:
+    # Vertical key door, gimmick id 33 (d6): a 1-wide x 3-tall door stored at its BOTTOM tile
+    # (the forward decoder expands it two tiles up). Emitted once per 1x3 chunk of 'V' at the
+    # chunk's bottom cell (see MULTI_TILE_CHUNKS).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="33.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def horizontal_key_door(x: int, y: int) -> List[str]:
+    # Horizontal key door, gimmick id 80 (d6): a 3-wide x 1-tall door stored at its MIDDLE tile
+    # (the forward decoder expands it one tile left and one right). Emitted once per 3x1 chunk of
+    # 'Y' at the chunk's middle cell (see MULTI_TILE_CHUNKS).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="80.000000"',
         f'd{x},{y}="6.000000"',
         f'a{x},{y}="1.000000"',
     ]
@@ -207,6 +250,28 @@ def weapon_energy(x: int, y: int) -> List[str]:
         f'o{x},{y}="9999.000000"',
         f'e{x},{y}="3.000000"',
         f'd{x},{y}="7.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def boss_door_vertical(x: int, y: int) -> List[str]:
+    # Vertical boss door, boss id 33 (d8): a 2-wide x 4-tall door stored at its BOTTOM-RIGHT tile
+    # (the forward decoder expands it up and left into the full 2x4). Emitted once per 2x4 chunk of
+    # 'D' at the chunk's bottom-right cell (see MULTI_TILE_CHUNKS).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="33.000000"',
+        f'd{x},{y}="8.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def boss_door_horizontal(x: int, y: int) -> List[str]:
+    # Horizontal boss door, boss id 34 (d8): a 4-wide x 2-tall door stored at its BOTTOM row one
+    # tile left of the right edge (the forward decoder expands it left/right/up into the full 4x2).
+    # Emitted once per 4x2 chunk of 'D' at that anchor cell (see MULTI_TILE_CHUNKS).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="34.000000"',
+        f'd{x},{y}="8.000000"',
         f'a{x},{y}="1.000000"',
     ]
 
@@ -419,14 +484,12 @@ CHAR_MAP = {
     'F': falling_platform,
     'x': fan,
     's': spring,
-    'R': rising_platform,
+    'G': fire_emitter_right,
+    'J': fire_emitter_left,
     'K': key_pickup,
-    # Key doors (1x3 vertical 'V', 3x1 horizontal 'Y') are treated as breakable, so like the other
-    # multi-tile blocks they reverse to a generic 1x1 breakable rather than the real key-door
-    # gimmick (which would re-expand and overlap). Lossy by design.
-    'V': breakable_tile,
-    'Y': breakable_tile,
-    'T': teleporter,
+    # NOTE: the multi-tile distinct-char tiles 'T' (2x2 teleporter), 'R' (2x1 rising platform),
+    # 'V' (1x3 key door) and 'Y' (3x1 key door) are intentionally NOT in CHAR_MAP -- convert()
+    # handles them via MULTI_TILE_CHUNKS (one object per footprint chunk at its anchor).
     '~': water_tile,
     '!': lava_tile,
     'Z': orb_tile,
@@ -434,7 +497,8 @@ CHAR_MAP = {
     'C': hazard_emitter,
     'I': enemy_tackle_fire,
     '+': [], 'L': [], 'l': [], 'W': [], 'w': [],
-    'D': [], 'U': weapon_energy, '*': [],
+    # 'D' (boss door) is handled via MULTI_TILE_CHUNKS (2x4 vertical / 4x2 horizontal), not here.
+    'U': weapon_energy, '*': [],
     'a': enemy_ground,
     'b': enemy_flying,
     '<': enemy_octopus_lr,
@@ -459,29 +523,64 @@ CHAR_MAP = {
 VOID_CHAR = '@'
 
 
-def find_teleporter_chunks(rows: List[str]) -> tuple[set, set]:
-    """Group the 'T' teleporter tiles into 2x2 chunks.
+# Multi-tile tiles whose CHAR uniquely identifies one Mega Man Maker gimmick that occupies more
+# than one tile. Each is stored in the .mmlv as a SINGLE object at a specific anchor tile that the
+# forward decoder (mmlv_to_vglc) then expands into the full footprint. So the reverse must group
+# the ASCII cells back into that footprint and emit ONE object at the matching anchor -- otherwise
+# a per-cell emit would make the forward pass re-expand every cell and overlap.
+#
+# Each entry maps char -> LIST of shape dicts (tried in order), each with (cells, anchor, emitter):
+#   cells:  (col, row) offsets of the footprint relative to its TOP-LEFT cell (all >= 0).
+#   anchor: which of those offsets is the object's stored anchor tile (matches the forward
+#           expansion anchor exactly).
+#   emitter: the single-object emitter to place at the anchor.
+# Most chars have one shape; 'D' has two (a boss door is either a 2x4 vertical or a 4x2 horizontal
+# door, both drawn with 'D'), tried largest-first with earlier shapes' cells excluded from later
+# ones. Only distinct-char tiles are here; chars shared across many unrelated shapes/ids (B, #, M)
+# stay 1x1 in CHAR_MAP, since a shared char can't tell us which footprint a region was.
+_D_VERT_CELLS = [(dc, dr) for dc in (0, 1) for dr in (0, 1, 2, 3)]      # 2 wide x 4 tall
+_D_HORIZ_CELLS = [(dc, dr) for dc in (0, 1, 2, 3) for dr in (0, 1)]     # 4 wide x 2 tall
+MULTI_TILE_CHUNKS = {
+    'T': [{'cells': [(0, 0), (1, 0), (0, 1), (1, 1)], 'anchor': (1, 1), 'emitter': teleporter}],          # 2x2, bottom-right
+    'R': [{'cells': [(0, 0), (1, 0)],                 'anchor': (1, 0), 'emitter': rising_platform}],     # 2x1, right
+    'V': [{'cells': [(0, 0), (0, 1), (0, 2)],         'anchor': (0, 2), 'emitter': vertical_key_door}],   # 1x3, bottom
+    'Y': [{'cells': [(0, 0), (1, 0), (2, 0)],         'anchor': (1, 0), 'emitter': horizontal_key_door}], # 3x1, middle
+    'D': [
+        {'cells': _D_VERT_CELLS,  'anchor': (1, 3), 'emitter': boss_door_vertical},    # 2x4, bottom-right
+        {'cells': _D_HORIZ_CELLS, 'anchor': (2, 1), 'emitter': boss_door_horizontal},  # 4x2, bottom row, one left of right edge
+    ],
+}
 
-    Every Mega Man Maker teleporter occupies a 2x2 footprint stored as ONE object at its
-    bottom-right tile, so a 2x2 block of 'T' in the ASCII must reverse to a single teleporter
-    object -- not four overlapping ones. Scanning top-left to bottom-right, each 'T' that starts
-    a full, not-yet-claimed 2x2 of 'T's claims that block; the block's BOTTOM-RIGHT cell is the
-    emit anchor.
+
+def find_char_chunks(rows: List[str], ch: str, cell_offsets, anchor_offset,
+                     exclude: set | None = None) -> tuple[set, set]:
+    """Greedily group cells of char `ch` into footprint-shaped chunks.
+
+    `cell_offsets` are (col, row) offsets of the footprint from its top-left cell; `anchor_offset`
+    is which of them is the stored anchor. `exclude` is a set of (row, col) cells already claimed by
+    an earlier shape (so multi-shape chars like 'D' don't reuse cells). Scanning row-major, each
+    available `ch` cell is tried as the footprint's top-left; if every offset cell is an available
+    `ch` cell and not yet claimed here, the block is claimed and its anchor recorded.
 
     Returns (anchors, members):
-      - anchors: (row, col) bottom-right cells that should emit one teleporter object.
-      - members: every (row, col) 'T' cell that belongs to some 2x2 chunk (so non-anchor members
-        emit nothing). Any 'T' that never forms a clean 2x2 is in neither set, letting the caller
-        fall back to emitting it as a lone teleporter (keeps ragged model output from vanishing).
+      - anchors: (row, col) anchor cells that should each emit one object.
+      - members: every (row, col) cell belonging to some claimed chunk (non-anchor members emit
+        nothing). A `ch` cell claimed by no shape is in neither set across all shapes, so the caller
+        can fall back to emitting it as a lone object (keeps ragged model output from vanishing).
     """
-    t_cells = {(r, c) for r, row in enumerate(rows) for c, ch in enumerate(row) if ch == 'T'}
+    exclude = exclude if exclude is not None else set()
+    available = {(r, c) for r, row in enumerate(rows) for c, x in enumerate(row)
+                 if x == ch} - exclude
     anchors: set = set()
     members: set = set()
-    for r, c in sorted(t_cells):
-        block = {(r, c), (r, c + 1), (r + 1, c), (r + 1, c + 1)}
-        if block <= t_cells and not (block & members):
+    adc, adr = anchor_offset
+    for r, c in sorted(available):
+        if (r, c) in members:
+            continue
+        block = {(r + dr, c + dc) for (dc, dr) in cell_offsets}
+        if block <= available and not (block & members):
             members |= block
-            anchors.add((r + 1, c + 1))   # bottom-right tile is the stored anchor
+            anchors.add((r + adr, c + adc))
     return anchors, members
 
 
@@ -593,9 +692,26 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
 
     playable_row_range = compute_playable_row_range(rows)
 
-    # Teleporters are 2x2 in Mega Man Maker: collapse each 2x2 block of 'T' to a single
-    # teleporter object emitted at the block's bottom-right cell (its stored anchor).
-    teleporter_anchors, teleporter_members = find_teleporter_chunks(rows)
+    # Multi-tile distinct-char tiles (teleporter/rising platform/key doors/boss doors): collapse
+    # each footprint-shaped chunk to a single object at that chunk's anchor cell (see
+    # MULTI_TILE_CHUNKS). Per char, try each shape in order (excluding cells already claimed) and
+    # build {anchor_pos: emitter} + the set of all claimed cells; a lone cell claimed by no shape
+    # falls back to the first shape's emitter.
+    chunk_emit: dict = {}       # char -> {(row, col): emitter} for anchor cells
+    chunk_members: dict = {}    # char -> set of all cells claimed by some chunk
+    chunk_fallback: dict = {}   # char -> emitter to use for a lone (unclaimed) cell
+    for ch, shapes in MULTI_TILE_CHUNKS.items():
+        claimed: set = set()
+        emit_map: dict = {}
+        for spec in shapes:
+            anchors, members = find_char_chunks(rows, ch, spec['cells'], spec['anchor'],
+                                                exclude=claimed)
+            claimed |= members
+            for a in anchors:
+                emit_map[a] = spec['emitter']
+        chunk_emit[ch] = emit_map
+        chunk_members[ch] = claimed
+        chunk_fallback[ch] = shapes[0]['emitter']
 
     out: List[str] = ['[Level]']
     active_screen_rows: set = set()
@@ -619,17 +735,17 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
                 # else: true outer void — emit nothing
                 continue
 
-            # Teleporters: one object per 2x2 chunk, anchored at its bottom-right cell.
-            if ch == 'T':
+            # Multi-tile distinct-char tiles: one object per footprint chunk, at its anchor cell.
+            if ch in MULTI_TILE_CHUNKS:
                 pos = (row_idx, col_idx)
-                if pos in teleporter_members:
-                    # Part of a 2x2 chunk: emit only at the bottom-right anchor.
-                    if pos in teleporter_anchors:
-                        out.extend(teleporter(x, y))
+                if pos in chunk_members[ch]:
+                    # Part of a full chunk: emit only at the anchor cell, using that shape's emitter.
+                    if pos in chunk_emit[ch]:
+                        out.extend(chunk_emit[ch][pos](x, y))
                 else:
-                    # A lone 'T' not forming a clean 2x2 (e.g. ragged model output): emit it
-                    # as a single teleporter so it isn't silently dropped.
-                    out.extend(teleporter(x, y))
+                    # A lone cell not forming a full footprint (e.g. ragged model output): emit a
+                    # single object (first shape's emitter) so it isn't silently dropped.
+                    out.extend(chunk_fallback[ch](x, y))
                 screen_y = (y // 224) * 224
                 active_screen_rows.add(screen_y)
                 continue
