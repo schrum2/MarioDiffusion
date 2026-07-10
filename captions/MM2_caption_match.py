@@ -137,7 +137,7 @@ def quantity_score(phrase1, phrase2, debug=False):
     return 0.1
 
 
-def compare_captions(correct_caption, generated_caption, debug=False, return_matches=False, name_lookup=None):
+def compare_captions(correct_caption, generated_caption, debug=False, return_matches=False, name_lookup=NAME_LOOKUP):
     """Score generated_caption against correct_caption over the topics that
     either caption mentions. Same return shape as caption_match.compare_captions."""
     correct = extract_topics(correct_caption, name_lookup)

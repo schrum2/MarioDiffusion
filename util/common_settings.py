@@ -65,3 +65,135 @@ MMLV_TILESET = 'datasets/MMLV.json'
 MEGAMAN_METADATA_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     'datasets', 'megaman_level_metadata.json')
+
+# Shared game metadata and helpers used across the app
+GAME_DISPLAY_NAMES = [
+    "Mario",
+    "Lode Runner",
+    "Mega Man (Simple)",
+    "Mega Man (Full)",
+    "Mega Man (Maker)",
+    "Mario Maker 2",
+]
+GAME_CLI_CHOICES = ["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"]
+GAME_ALIASES = {
+    "Mario": "Mario",
+    "LR": "Lode Runner",
+    "MM-Simple": "Mega Man (Simple)",
+    "MM-Full": "Mega Man (Full)",
+    "MMLV": "Mega Man (Maker)",
+    "MM2": "Mario Maker 2",
+}
+MEGAMAN_GAMES = {"Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"}
+
+
+def normalize_game_name(game):
+    if game is None:
+        return "Mario Maker 2"
+    if not isinstance(game, str):
+        return str(game)
+    normalized = game.strip()
+    if normalized in GAME_ALIASES:
+        return GAME_ALIASES[normalized]
+    return normalized
+
+
+def get_game_config(game=None):
+    game_name = normalize_game_name(game)
+    if game_name == "Mario":
+        return {
+            "name": "Mario",
+            "cli_name": "Mario",
+            "tileset": MARIO_TILESET,
+            "tile_count": MARIO_TILE_COUNT,
+            "width": MARIO_WIDTH,
+            "height": MARIO_HEIGHT,
+            "render_name": "Mario",
+            "is_mario": True,
+            "is_lode_runner": False,
+            "is_mario_maker_2": False,
+            "is_megaman": False,
+            "supports_per_image_play": True,
+            "is_composed_playable": True, 
+        }
+    if game_name == "Lode Runner":
+        return {
+            "name": "Lode Runner",
+            "cli_name": "LR",
+            "tileset": LR_TILESET,
+            "tile_count": LR_TILE_COUNT,
+            "width": LR_WIDTH,
+            "height": LR_HEIGHT,
+            "render_name": "LR",
+            "is_mario": False,
+            "is_lode_runner": True,
+            "is_mario_maker_2": False,
+            "is_megaman": False,
+            "supports_per_image_play": True,
+            "is_composed_playable": False, 
+        }
+    if game_name == "Mega Man (Simple)":
+        return {
+            "name": "Mega Man (Simple)",
+            "cli_name": "MM-Simple",
+            "tileset": MM_SIMPLE_TILESET,
+            "tile_count": MM_SIMPLE_TILE_COUNT,
+            "width": MEGAMAN_WIDTH,
+            "height": MEGAMAN_HEIGHT,
+            "render_name": "MM-Simple",
+            "is_mario": False,
+            "is_lode_runner": False,
+            "is_mario_maker_2": False,
+            "is_megaman": True,
+            "supports_per_image_play": False,
+            "is_composed_playable": False, 
+        }
+    if game_name == "Mega Man (Full)":
+        return {
+            "name": "Mega Man (Full)",
+            "cli_name": "MM-Full",
+            "tileset": MM_FULL_TILESET,
+            "tile_count": MM_FULL_TILE_COUNT,
+            "width": MEGAMAN_WIDTH,
+            "height": MEGAMAN_HEIGHT,
+            "render_name": "MM-Full",
+            "is_mario": False,
+            "is_lode_runner": False,
+            "is_mario_maker_2": False,
+            "is_megaman": True,
+            "supports_per_image_play": False,
+            "is_composed_playable": False, 
+        }
+    if game_name == "Mega Man (Maker)":
+        return {
+            "name": "Mega Man (Maker)",
+            "cli_name": "MMLV",
+            "tileset": MMLV_TILESET,
+            "tile_count": MMLV_TILE_COUNT,
+            "width": MEGAMAN_WIDTH,
+            "height": MEGAMAN_HEIGHT,
+            "render_name": "MMLV",
+            "is_mario": False,
+            "is_lode_runner": False,
+            "is_mario_maker_2": False,
+            "is_megaman": True,
+            "supports_per_image_play": False,
+            "is_composed_playable": False, 
+        }
+    if game_name == "Mario Maker 2":
+        return {
+            "name": "Mario Maker 2",
+            "cli_name": "MM2",
+            "tileset": MM2_TILESET,
+            "tile_count": MM2_TILE_COUNT,
+            "width": MM2_WIDTH,
+            "height": MM2_HEIGHT,
+            "render_name": "MM2",
+            "is_mario": False,
+            "is_lode_runner": False,
+            "is_mario_maker_2": True,
+            "is_megaman": False,
+            "supports_per_image_play": False,
+            "is_composed_playable": True, 
+        }
+    raise ValueError(f"Unsupported game selected: {game_name}")

@@ -747,8 +747,6 @@ class LevelDataset(Dataset):
         print(f"Training samples: {len(self.data)}")
 
         if self.require_captions and self.caption_source_keys:
-            # Jacob: I think this code is wrong, but will address it later
-
             # Drop samples with no caption from any requested source (e.g. an expensive model
             # that only covered every 5th scene) instead of crashing the whole run.
             kept = [item for item in self.data if self._caption_options(item)]
@@ -915,6 +913,8 @@ class LevelDataset(Dataset):
                 elif isinstance(value, str) and value:
                     options.append(value)  # some source stored a bare string instead of a list
             return options
+
+        # If there are no caption source keys specified, consider all caption fields
         options = []
         for key, value in sample.items():
             if key == "caption" or (key.startswith("caption") and key[len("caption"):].isdigit()):

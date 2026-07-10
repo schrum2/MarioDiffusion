@@ -34,6 +34,9 @@ from create_ascii_captions import assign_caption
 import astar.astar_traversability_check
 
 
+# REVISION CANDIDATE: mse_loss, reconstruction_loss, and combined_loss are self-contained
+# (no dependency on main()'s local state) and could move to a shared training_utils.py
+# alongside general_training_helper.py, shrinking this file and grouping loss logic together.
 def mse_loss(pred, target, scene_oh=None, noisy_scenes=None, **kwargs):
     """Standard MSE loss between prediction and target."""
     return torch.nn.functional.mse_loss(pred, target)
@@ -70,6 +73,9 @@ def combined_loss(pred, target, scene_oh=None, noisy_scenes=None, timesteps=None
     """Combined MSE and reconstruction loss."""
     mse = mse_loss(pred, target)
     rec = reconstruction_loss(pred, target, scene_oh, noisy_scenes, timesteps=timesteps, scheduler=scheduler)
+    # REVISION CANDIDATE: 0.001 is hardcoded here; since common_settings.py already centralizes
+    # other tunables (NUM_INFERENCE_STEPS, GUIDANCE_SCALE), this combo-loss weight is a natural
+    # candidate to move there too, or promote to a CLI arg, per the TODO below.
     return mse + 0.001 * rec  # 0.001 can be made a parameter
 
 
@@ -173,7 +179,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full", "MMLV"],
+        choices=common_settings.GAME_CLI_CHOICES,
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
@@ -199,6 +205,8 @@ def parse_args():
     return args
 
 # TODO: We'll probably want to move this somewhere else eventually
+# REVISION CANDIDATE: self-contained utility, no dependency on main()'s local state -
+# a good fit for the same training_utils.py mentioned above.
 def compute_sprite_scaling_factors(json_path, num_tiles, n):
     """
     Computes per-sprite scaling factors for temperature scaling.
@@ -226,6 +234,9 @@ def compute_sprite_scaling_factors(json_path, num_tiles, n):
     scalings = [s / min_scaling for s in scalings]
     return torch.tensor(scalings, dtype=torch.float32)
 
+# REVISION CANDIDATE: find_latest_checkpoint, copy_log_up_to_epoch, and
+# infer_global_step_from_log are self-contained (no dependency on main()'s local state)
+# and could also move to training_utils.py alongside the loss functions above.
 def find_latest_checkpoint(output_dir):
     """Find the latest checkpoint directory and extract its epoch number."""
     checkpoints = glob.glob(os.path.join(output_dir, "checkpoint-*"))
@@ -303,26 +314,13 @@ def main():
     # Print the selected loss function to console
     print(f"Using loss function: {args.loss_type}")
 
-    if args.game == "Mario":
-        args.num_tiles = common_settings.MARIO_TILE_COUNT
-        args.tileset = common_settings.MARIO_TILESET
-    elif args.game == "LR":
-        args.num_tiles = common_settings.LR_TILE_COUNT
-        args.tileset = common_settings.LR_TILESET
-    elif args.game == "MM-Simple":
-        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
-        args.tileset = 'datasets/MM-simple-tileset.json'
-    elif args.game == "MM-Full":
-        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
-        args.tileset = '../TheVGLC/MegaMan/MM.json'
-    elif args.game == "MMLV":
-        args.num_tiles = common_settings.MMLV_TILE_COUNT
-        args.tileset = common_settings.MMLV_TILESET
-    elif args.game == "MM2":
-        args.num_tiles = common_settings.MM2_TILE_COUNT
-        args.tileset = common_settings.MM2_TILESET
-    else:
-        raise ValueError(f"Unknown game: {args.game}")
+    # Was a hand-rolled if-elif chain duplicating common_settings.get_game_config(), which
+    # already maps each --game choice to its tile count and tileset path. Note the previous
+    # MM-Full branch pointed at '../TheVGLC/MegaMan/MM.json', which was confirmed incorrect;
+    # get_game_config() resolves MM-Full to MM_FULL_TILESET ('datasets/MM.json') instead.
+    game_config = common_settings.get_game_config(args.game)
+    args.num_tiles = game_config["tile_count"]
+    args.tileset = game_config["tileset"]
 
     print("Setting num tiles to {} and tileset to {}".format(args.num_tiles, args.tileset))
 
@@ -357,25 +355,21 @@ def main():
         if args.negative_prompt_training:
             raise ValueError("--caption_source_keys cannot be combined with --negative_prompt_training")  # captions are free-form text, not the pos/neg phrase format
         if not args.text_conditional:
-            print("Note: --caption_source_keys is ignored for unconditional training (scenes carry no captions).")
-            args.caption_source_keys = None
+            raise ValueError("--caption_source_keys must be combined with --text_conditional")
 
     # --multiple_captions only makes sense for text-conditional, non-negative training; clear
     # the flag (rather than erroring) for the incompatible modes so unconditional and
     # negative-prompt runs still work when it is passed.
     if args.multiple_captions and not args.caption_source_keys:  # caption_source_keys handles its own selection
         if not args.text_conditional:
-            # Unconditional scenes carry no captions, so there is nothing to select among.
-            args.multiple_captions = False
+            raise ValueError("--multiple_captions must be combined with --text_conditional")
         elif args.negative_prompt_training:
-            # The stored alternative captions are full descriptions, not the structured
-            # positive/negative phrase format that negative prompt training expects.
-            print("Note: multiple-caption selection is disabled because --negative_prompt_training is set.")
-            args.multiple_captions = False
-        elif args.augment:
-            # Selecting among the stored captions is meant to be the only augmentation.
-            print("Note: --augment is ignored while multiple-caption selection is active; caption selection is the only augmentation.")
-            args.augment = False
+            raise ValueError("--multiple_captions not compatible with --negative_prompt_training")
+
+    if (args.multiple_captions or args.caption_source_keys) and args.augment:
+        # Selecting among the stored captions is meant to be the only augmentation.
+        print("Note: --augment is ignored while multiple-caption selection is active; caption selection is the only augmentation.")
+        args.augment = False
 
     """
     If sprite temperature scaling is enabled and the model is unconditional, 
@@ -489,16 +483,6 @@ def main():
                 "min": min(sample_widths),
                 "max": max(sample_widths),
             }, f, indent=4)
-
-    #print(train_dataloader.dataset)
-    #input("Press Enter to continue...")
-    #print(train_dataloader.dataset[0])
-    #input("Press Enter to continue...")
-    #print(train_dataloader.dataset.data)
-    #input("Press Enter to continue...")
-    #print(train_dataloader.dataset.data[0])
-    #input("Press Enter to continue...")
-
 
     # Also, if the caption is already present in the training dataset, we can skip it to avoid duplicates
     # Important: two captions could have their phrases in different orders but still be essentially the same, so we should check for that as well
@@ -884,8 +868,11 @@ def main():
                 ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
-                inference_steps = args.num_inference_timesteps
                 # TODO: These should be argparse parameters
+                # REVISION CANDIDATE: guidance_scale is read directly from common_settings here,
+                # while num_inference_timesteps (used just below) is exposed as a CLI arg that
+                # merely defaults to common_settings.NUM_INFERENCE_STEPS. Consider making both
+                # CLI args with common_settings defaults, or neither, for consistency.
                 guidance_scale = common_settings.GUIDANCE_SCALE
                 # Match each caption's generation width to its source scene's width so multi-width
                 # validation sets (e.g. 16 and 32 wide) are scored fairly instead of forcing every
@@ -900,7 +887,7 @@ def main():
 
                 per_width_scores = {}
                 avg_caption_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(
-                    accelerator.device, pipeline, val_dataloader, inference_steps, guidance_scale, args.seed,
+                    accelerator.device, pipeline, val_dataloader, args.num_inference_timesteps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width,
                     match_scene_width=True, per_width_scores=per_width_scores,
@@ -910,12 +897,6 @@ def main():
                 # Collapse the per-width score lists into a mean score per width for this epoch.
                 width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
                 
-                # MEMORY FIX: Explicitly delete pipeline to free GPU memory
-                # Claude suggested this, but I'm skeptical that it is necessary and it would cause slowdown
-                #del pipeline
-                #if torch.cuda.is_available():
-                #    torch.cuda.empty_cache()
-
                 # If auto-augmentation is enabled and the caption score meets the threshold, identify bad samples and add them to the training dataset
                 if args.auto_augment and avg_caption_score is not None and avg_caption_score >= args.auto_augment_threshold:
                     # Calculate how many samples we can add without exceeding the max dataset size
@@ -1397,6 +1378,10 @@ def main():
         # lr_scheduler_path = os.path.join(args.output_dir, "lr_scheduler.pt")
         # torch.save(lr_scheduler.state_dict(), lr_scheduler_path)
         
+# REVISION CANDIDATE: main() calls gen_train_help.load_config_from_json and
+# gen_train_help.update_args_from_config, not these local copies below - these appear to be
+# dead duplicates left over from a move to general_training_helper.py. Worth confirming
+# nothing else imports these from this module, then deleting.
 # Add function to load config from JSON
 def load_config_from_json(config_path):
     """Load hyperparameters from a JSON config file."""

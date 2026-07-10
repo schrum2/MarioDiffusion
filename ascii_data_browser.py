@@ -11,7 +11,9 @@ import torch
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
-from captions.util import extract_tileset 
+from captions.MM2_caption_match import assign_caption as mm2_assign_caption
+from captions.MM2_caption_match import get_tile_categories, get_char_names
+from captions.util import extract_tileset
 import util.common_settings as common_settings
 import random
 import colorsys
@@ -154,8 +156,11 @@ class TileViewer(tk.Tk):
                 return_details=True
             )
         elif self.game.get()=="MM2" or self.game.get()=="MM":
-            caption, details = None, None
-            # Jacob: There didn't seem to be a way of assigning deterministic Mario Maker captions
+            # Code from interactive_tile_level_generator
+            _, _, ground_chars = get_tile_categories(self.tileset_path)
+            char_names = get_char_names(self.tileset_path)
+            caption = mm2_assign_caption(sample['scene'], self.id_to_char, char_names, ground_chars)
+            details = None #MM2 assign caption only returns a single caption string
 
         sample['caption'] = caption
         sample['captions'] = [caption]
@@ -252,8 +257,8 @@ class TileViewer(tk.Tk):
             print(f"Could not import A* path tools: {e}")
             return None
 
-        game = self.game.get()   # "Mario" / "LR" / "MM-Simple" / "MM-Full"
-        trav_game = {"Mario": "Mario", "LR": "LR",
+        game = self.game.get()   # "Mario" / "MM2" / "LR" / "MM-Simple" / "MM-Full"
+        trav_game = {"Mario": "Mario", "MM2": "MM2", "LR": "LR",
                      "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MM"}.get(game)
         if trav_game is None:
             return None
@@ -520,9 +525,20 @@ class TileViewer(tk.Tk):
         self.canvas = tk.Canvas(self, bg="white", width=self.window_size, height=self.window_size - 100)  # Further reduced height to minimize empty space
         self.canvas.pack(pady=1)  # Reduced padding for tighter vertical spacing
 
-        # < / > to flip through a list attribute's values (off for single values)
-        caption_nav_frame = tk.Frame(self)
-        caption_nav_frame.pack(pady=2)
+        # container so the nav row is exactly as wide as the caption box below it
+        caption_area = tk.Frame(self)
+        caption_area.pack(pady=2)
+
+        # attribute dropdown on the left, then prev/index/next grouped together next to it
+        caption_nav_frame = tk.Frame(caption_area)
+        caption_nav_frame.pack()
+        tk.Label(caption_nav_frame, text="Attribute:").pack(side=tk.LEFT, padx=(5, 2))
+        self.attr_var = tk.StringVar()
+        self.attr_dropdown = ttk.Combobox(
+            caption_nav_frame, textvariable=self.attr_var, state="readonly", width=24
+        )
+        self.attr_dropdown.pack(side=tk.LEFT, padx=(2, 10))
+        self.attr_dropdown.bind("<<ComboboxSelected>>", self.on_attr_select)
         self.prev_caption_button = tk.Button(caption_nav_frame, text="<< Prev", command=self.prev_caption)
         self.prev_caption_button.pack(side=tk.LEFT, padx=2)
         self.caption_index_label = tk.Label(caption_nav_frame, text="1 / 1")
@@ -534,7 +550,7 @@ class TileViewer(tk.Tk):
         # clicking the caption looks like selecting text, not entering an edit field;
         # takefocus=0 keeps it out of Tab traversal.
         self.caption_text = tk.Text(
-            self, height=3, width=int(self.window_size / 8), wrap=tk.WORD,
+            caption_area, height=3, width=int(self.window_size / 8), wrap=tk.WORD,
             insertontime=0, takefocus=0
         )
         self.caption_text.pack(pady=2)
@@ -561,16 +577,9 @@ class TileViewer(tk.Tk):
         self.caption_text.bind("<Button-3>", self.show_caption_context_menu)
         self.caption_text.bind("<Control-Button-1>", self.show_caption_context_menu)  # For Mac
 
-        # dropdown to pick which JSON attribute to show (level_name, theme, a caption model, ...)
+        # holds the prompt toggle below the caption box
         self.caption_cycle_frame = tk.Frame(self)
         self.caption_cycle_frame.pack(pady=(0, 2))
-        tk.Label(self.caption_cycle_frame, text="Attribute:").pack(side=tk.LEFT, padx=(5, 2))
-        self.attr_var = tk.StringVar()
-        self.attr_dropdown = ttk.Combobox(
-            self.caption_cycle_frame, textvariable=self.attr_var, state="readonly", width=24
-        )
-        self.attr_dropdown.pack(side=tk.LEFT, padx=2)
-        self.attr_dropdown.bind("<<ComboboxSelected>>", self.on_attr_select)
 
         # flips the text box between caption and 'prompt'; only shows up when there's a prompt
         self.prompt_toggle_button = tk.Button(
@@ -725,6 +734,10 @@ class TileViewer(tk.Tk):
     def save_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
+            # Mario Maker saves a .swe into SMM:WE's level folder instead of a .txt
+            if self.game.get() == "MM2":
+                self._save_composed_swe()
+                return
             # Always open in the current working directory or a subfolder
             initial_dir = os.path.join(os.getcwd(), "Composed Levels")
             os.makedirs(initial_dir, exist_ok=True)  # Ensure the folder exists
@@ -1261,7 +1274,8 @@ class TileViewer(tk.Tk):
         if not is_mario:
             self.use_snes_graphics.set(False)
 
-        self.astar_composed_button.config(state=tk.NORMAL if is_mario else tk.DISABLED)
+        # Mario uses the Java sim; MM2 uses the Python A* check in astar_composed_level.
+        self.astar_composed_button.config(state=tk.NORMAL if (is_mario or is_mm2) else tk.DISABLED)
 
         self.build_mm_level_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
 
@@ -1472,6 +1486,10 @@ class TileViewer(tk.Tk):
     def play_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
+            # Mario Maker exports a .swe into SMM:WE's level folder and launches the game
+            if self.game.get() == "MM2":
+                self._play_composed_swe()
+                return
             level = self.get_sample_output(scene, use_snes_graphics=self.use_snes_graphics.get())
             if self.game.get() =="LR" and not self.validate_lode_runner_level(scene):
                 print("Invalid Lode Runner level. Cannot play.")
@@ -1545,6 +1563,103 @@ class TileViewer(tk.Tk):
             # MM2 has no Java sim (it uses the Python A* path)
             raise ValueError(f"get_sample_output: no simulator for game {self.game.get()!r}")
         return level
+
+    def _smmwe_niveles_dir(self):
+        """SMM:WE's level folder, %LOCALAPPDATA%\\SMM_WE\\Niveles. Falls back to a
+        local folder when LOCALAPPDATA isn't set (non-Windows)."""
+        base = os.environ.get("LOCALAPPDATA")
+        if base:
+            return os.path.join(base, "SMM_WE", "Niveles")
+        return os.path.join(os.getcwd(), "Niveles")
+
+    def _smmwe_exe_path(self):
+        """Path to SMM_WE.exe (installs to Program Files\\SMMWE), or None."""
+        for env in ("ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"):
+            base = os.environ.get(env)
+            if base:
+                exe = os.path.join(base, "SMMWE", "SMM_WE.exe")
+                if os.path.isfile(exe):
+                    return exe
+        return None
+
+    def _compose_swe_bytes(self, name):
+        """Convert the merged composed scene to a .swe (ascii -> json -> swe).
+        Returns (swe_bytes, dropped_counts)."""
+        from mm2pipeline_data.ascii import ascii_to_level
+        from mm2pipeline_data.swe import build_world, encode_swe, detect_smmwe_user
+        from datetime import datetime
+
+        # Keep the full scene (no 15-row A* trim). '_' is padding, not a real tile,
+        # but the converter reads it as Goal Ground, so treat it as empty space.
+        char_grid = scene_to_ascii(self.merge_selected_scenes(), self.id_to_char, shorten=False)
+        ascii_text = "\n".join(row.replace("_", " ") for row in char_grid)
+
+        level_json = ascii_to_level(ascii_text, source_file=name)
+
+        now = datetime.now()
+        s0, dropped = build_world(
+            level_json,
+            user=detect_smmwe_user(),
+            name=name,
+            desc=None,
+            date_str=now.strftime("%d/%m/%Y"),
+            time_str=now.strftime("%H:%M"),
+        )
+        return encode_swe({"S0": s0, "SB1": {"S1": []}}), dropped
+
+    @staticmethod
+    def _report_dropped(dropped):
+        if dropped:
+            total = sum(dropped.values())
+            summary = ", ".join(f"{n}x {nm}" for nm, n in
+                                sorted(dropped.items(), key=lambda kv: -kv[1]))
+            print(f"  dropped {total} object(s) with no SMM:WE equivalent: {summary}")
+
+    def _save_composed_swe(self):
+        """Save the composed scene as a .swe, prompting for a name in Niveles."""
+        niveles_dir = self._smmwe_niveles_dir()
+        os.makedirs(niveles_dir, exist_ok=True)
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".swe",
+            filetypes=[("SMM:WE level", "*.swe")],
+            title="Save Composed Level to SMM:WE",
+            initialdir=niveles_dir,
+            initialfile="composed_level.swe",
+        )
+        if not file_path:
+            print("Save operation cancelled.")
+            return
+
+        name = os.path.splitext(os.path.basename(file_path))[0]
+        swe_bytes, dropped = self._compose_swe_bytes(name)
+        with open(file_path, "wb") as f:
+            f.write(swe_bytes)
+        print(f"Composed level exported to {file_path} ({len(swe_bytes)} bytes)")
+        self._report_dropped(dropped)
+
+    def _play_composed_swe(self):
+        """Save the composed level to Niveles and launch SMM:WE. There's no way
+        to boot straight into a level, so you pick 'composed_level' in-game."""
+        import subprocess
+
+        name = "composed_level"
+        niveles_dir = self._smmwe_niveles_dir()
+        os.makedirs(niveles_dir, exist_ok=True)
+        swe_bytes, dropped = self._compose_swe_bytes(name)
+        out_path = os.path.join(niveles_dir, name + ".swe")
+        with open(out_path, "wb") as f:
+            f.write(swe_bytes)
+        print(f"Composed level exported to {out_path} ({len(swe_bytes)} bytes)")
+        self._report_dropped(dropped)
+
+        exe = self._smmwe_exe_path()
+        if exe is None:
+            print("SMM:WE executable not found (looked in Program Files\\SMMWE). "
+                  f"Open SMM:WE manually and pick '{name}' from the level browser.")
+            return
+        # run from the install dir so the game finds data.win
+        subprocess.Popen([exe], cwd=os.path.dirname(exe))
+        print(f"Launched SMM:WE -- open the level browser and play '{name}'.")
 
     def show_caption_context_menu(self, event):
         try:
