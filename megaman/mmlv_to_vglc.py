@@ -174,6 +174,8 @@ GIMMICK_E_TO_CHAR = {
                # fields and occupies a full 2x2 footprint (see TWO_BY_TWO_E_IDS).
     76: "B",   # 2-wide x 1-tall weapon-specific breakable block (see TWO_WIDE_E_IDS: expands one
                # tile left). Weapon-specific like e27/e28; required weapon is 'o', doesn't affect decode.
+    10: "R",   # 2-wide x 1-tall solid RISING platform -> the 'R' rising-platform tile (first-class,
+               # id 48). Bottom-right-anchored (see TWO_WIDE_E_IDS: expands one tile left).
     267:"#",   # 2-wide horizontal solid block (see TWO_WIDE_E_IDS: expands one tile left)
     261:"M",   # 2-wide horizontal platform -> the platform tile 'M' (see TWO_WIDE_E_IDS: still
                # expands one tile left into a full 2-wide platform)
@@ -245,7 +247,7 @@ TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186, 256, 252, 266, 65}
 # are stored as a single object at the block's RIGHT tile, so on their own they decode to
 # just that one cell and the left tile reads as a gap. mmlv_to_grid expands each to the
 # full 2x1 by also filling the tile directly to the left with the same char.
-TWO_WIDE_E_IDS = {261, 267, 76}
+TWO_WIDE_E_IDS = {261, 267, 76, 10}
 
 # d == 6 gimmick ids that are 1-wide x 2-tall vertical blocks. Like the other multi-tile
 # blocks these are stored as a single object, here at the block's BOTTOM tile, so on their

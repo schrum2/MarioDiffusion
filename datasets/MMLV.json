@@ -47,6 +47,7 @@
         "s": ["passable", "spring"],
         "V": ["solid", "breakable", "penetrable", "door"],
         "Y": ["solid", "breakable", "penetrable", "door"],
-        "K": ["passable", "collectable", "key"]
+        "K": ["passable", "collectable", "key"],
+        "R": ["solid", "moving", "penetrable"]
     }
 }

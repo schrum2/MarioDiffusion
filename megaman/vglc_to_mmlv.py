@@ -156,6 +156,18 @@ def fan(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def rising_platform(x: int, y: int) -> List[str]:
+    # Rising platform, gimmick id 10: a 2-wide solid block that rises. Verified d6/e10 against a
+    # labelled test level. Emits the real e10 object; since it is multi-tile (2-wide, see
+    # TWO_WIDE_E_IDS on the forward side) this is lossy on re-expansion, like the other
+    # multi-tile blocks -- it keeps the rising-platform identity rather than exact footprint.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="10.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def key_pickup(x: int, y: int) -> List[str]:
     # Key collectible, gimmick id 32: a 1x1 pickup that opens key doors. Verified d6/e32 against
     # a labelled test level. Round-trips exactly (1x1).
@@ -407,6 +419,7 @@ CHAR_MAP = {
     'F': falling_platform,
     'x': fan,
     's': spring,
+    'R': rising_platform,
     'K': key_pickup,
     # Key doors (1x3 vertical 'V', 3x1 horizontal 'Y') are treated as breakable, so like the other
     # multi-tile blocks they reverse to a generic 1x1 breakable rather than the real key-door

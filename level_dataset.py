@@ -385,6 +385,7 @@ def mm_tiles(game):
             (2,5),    #45 'V' = Vertical key door (1x3, needs a key; treated as breakable)
             (2,6),    #46 'Y' = Horizontal key door (3x1, needs a key; treated as breakable)
             (2,7),    #47 'K' = Key collectible (opens key doors)
+            (2,8),    #48 'R' = Rising platform (2x1 solid block that rises)
     ]
 
            
