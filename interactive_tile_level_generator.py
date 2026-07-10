@@ -13,10 +13,12 @@ from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from captions.MM_caption_match import compare_captions as mm_compare_captions
 from create_ascii_captions import assign_caption
-from captions.MM2_caption_match import caption_tools as mm2_caption_tools
+#from captions.MM2_caption_match import caption_tools as mm2_caption_tools
+from captions.MM2_caption_match import assign_caption as mm2_assign_caption
+from captions.MM2_caption_match import compare_captions as mm2_compare_captions
+from captions.MM2_caption_match import get_tile_categories
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
-
 from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.sampler import scene_to_ascii
@@ -45,8 +47,6 @@ class CaptionBuilder(ParentBuilder):
     def __init__(self, master, game):
         global tileset_path
         super().__init__(master)
-
-        self.mm2_assign_caption, self.mm2_compare_captions = mm2_caption_tools(tileset_path)
 
         # Selected game is stored solely in game_var from here on
         self.game_var = tk.StringVar(value=game if game else "Mario Maker 2")
@@ -564,18 +564,6 @@ class CaptionBuilder(ParentBuilder):
             filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON", "*.json")])
         if filepath:
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-            # Caption generated scenes the same way the dataset was captioned
-            # (MarioMaker_create_ascii_captions), not with the SMB assign_caption
-            # from MarioDiffusion, so the comparison lines up with the loaded data.
-            # Mario Maker has it's own unique captioning. 
-            if self.game_var.get() == "Mario Maker 2":
-                self.mm2_assign_caption, self.mm2_compare_captions = mm2_caption_tools(tileset_path)
-            else:
-                self.mm_assign_caption, self.mm_compare_captions = None, None
-            # print(f"Tileset in use: {tileset_path}")
-            # print(f"Self ID to Char: {self.id_to_char}")
-            # print(f"Self Char to ID: {self.char_to_id}")
-            # print(f"Self Tile Descriptors: {self.tile_descriptors}")
 
             try:
                 phrases_set = set()
@@ -753,7 +741,7 @@ class CaptionBuilder(ParentBuilder):
                 #print("images:", images)
                 scene = sample_indices[0].tolist()
 
-                # Mario Maker ID's don't need any modification
+                print(f"Update tileset for game: {self.game_var.get()}")
                 if self.game_var.get() == "Lode Runner":
                     number_of_tiles = common_settings.LR_TILE_COUNT
                     scene = [[x % number_of_tiles for x in row] for row in scene]
@@ -774,8 +762,14 @@ class CaptionBuilder(ParentBuilder):
                     scene = [[x % number_of_tiles for x in row] for row in scene]
                     tileset_path = common_settings.MMLV_TILESET
                     _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+                elif self.game_var.get() == "Mario Maker 2":
+                    number_of_tiles = common_settings.MM2_TILE_COUNT
+                    scene = [[x % number_of_tiles for x in row] for row in scene]
+                    tileset_path = common_settings.MM2_TILESET
+                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
                 self.generated_scenes.append(scene)
+                print(f"Assigning caption for game: {self.game_var.get()}")
                 if self.game_var.get() == "Lode Runner":
                     actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                     pil_img = visualize_samples(images, game='LR')
@@ -783,7 +777,9 @@ class CaptionBuilder(ParentBuilder):
                     actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                     pil_img = visualize_samples(images)
                 elif self.game_var.get() == "Mario Maker 2":
-                    actual_caption = self.mm2_assign_caption(scene)
+                    _, _, ground_chars = get_tile_categories(tileset_path)
+                    actual_caption = mm2_assign_caption(scene, self.id_to_char, self.char_to_id, ground_chars)
+                    print("hello")
                     pil_img = visualize_samples(images, game="MM2")
                 else:
                     actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
@@ -791,16 +787,18 @@ class CaptionBuilder(ParentBuilder):
 
                 self.generated_images.append(pil_img)
                 img_tk = ImageTk.PhotoImage(pil_img)
+                print(f"Comparing captions for game: {self.game_var.get()}")
                 if self.game_var.get() == 'Mario':
                     compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 elif self.game_var.get() == 'Lode Runner':
                     compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 elif self.game_var.get() == "Mario Maker 2":
-                    compare_score, exact_matches, partial_matches, excess_phrases = self.mm2_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+                    compare_score, exact_matches, partial_matches, excess_phrases = mm2_compare_captions(prompt, actual_caption)
                 else:
                     compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
             except Exception as e:
+                raise e
                 messagebox.showerror(
                     "Generation Error",
                     f"Failed to generate image {i + 1}.\n\n"
