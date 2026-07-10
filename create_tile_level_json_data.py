@@ -88,6 +88,24 @@ def load_levels(levels_dir):
     return [list(level) for level in levels]  # Convert back to list-of-lists for compatibility
 
 
+def load_scene_dataset(dataset_path):
+    """
+    Loads already-encoded integer scenes from one of this repo's scene datasets,
+    e.g. datasets/MM_LevelsAndCaptions-regular-train.json. Each entry has a
+    "scene" that is a 2D grid of integer tile ids, so no tileset/character lookup
+    is needed and the ids already match the diffusion model's tile space.
+
+    Args:
+        dataset_path (str): Path to the scene dataset JSON file.
+
+    Returns:
+        list: A list of scenes, each a 2D list of integer tile ids.
+    """
+    with open(dataset_path, 'r') as f:
+        data = json.load(f)
+    return [entry["scene"] if isinstance(entry, dict) else entry for entry in data]
+
+
 def pad_and_sample(level, tile_to_id, window_size, char_map=None, unmapped_chars=None):
     """
     Extracts tile samples of a specified window size from a level.
@@ -132,9 +150,39 @@ def pad_and_sample(level, tile_to_id, window_size, char_map=None, unmapped_chars
     print(f"Extracted {len(samples)} unique samples.")
     return samples
 
-def main(tileset_path, levels_dir, output_path, window_size, char_map_path=None):
+
+def sample_scene(scene, window_size):
     """
-    Orchestrates the process of loading tilesets and levels, generating samples, and saving them to a JSON file.
+    Same idea as pad_and_sample but for an already-encoded integer scene: the
+    cells are tile ids, so there is no character/tileset lookup to do.
+
+    Args:
+        scene (list): A 2D list of integer tile ids.
+        window_size (int): The size of the square window to extract.
+
+    Returns:
+        set: A set of windows, each a tuple of tuples of integer tile ids.
+    """
+    height = len(scene)
+    width = len(scene[0])
+    samples = set()
+
+    for y in range(0, height - window_size + 1):
+        for x in range(0, width - window_size + 1):
+            sample = tuple(tuple(scene[row_idx][x:x + window_size])
+                           for row_idx in range(y, y + window_size))
+            samples.add(sample)
+
+    print(f"Extracted {len(samples)} unique samples.")
+    return samples
+
+def main(tileset_path, levels_dir, output_path, window_size, char_map_path=None, dataset_path=None):
+    """
+    Orchestrates the process of loading levels, generating samples, and saving them to a JSON file.
+
+    When dataset_path is given the windows are sliced straight out of an existing
+    integer-encoded scene dataset (the path used for Mario Maker here); otherwise
+    the original VGLC flow is used, reading ASCII level files and a tileset.
 
     Args:
         tileset_path (str): Path to the JSON file containing the tileset data.
@@ -143,36 +191,47 @@ def main(tileset_path, levels_dir, output_path, window_size, char_map_path=None)
         window_size (int): The size of the square window to extract.
         char_map_path (str): Optional path to a {source_char: target_char} JSON
             file remapping raw VGLC characters onto the tileset (see load_char_map).
+        dataset_path (str): Optional path to an integer-encoded scene dataset; when
+            set, tileset_path/levels_dir/char_map_path are ignored.
 
     Returns:
         None
     """
-    tile_to_id = load_tileset(tileset_path)
-    char_map = load_char_map(char_map_path, tile_to_id)
-    levels = load_levels(levels_dir)
-
     dataset = []
     unique_set = set()
-    unmapped_chars = set()
-    for level in levels:
-        samples = pad_and_sample(level, tile_to_id, window_size, char_map=char_map, unmapped_chars=unmapped_chars)
-        for sample in samples:
-            dataset.append([list(row) for row in sample])
-            unique_set.add(sample)
 
-    # These characters appeared in the level data but were neither in the tileset
-    # nor in the character map, so they were encoded as the extra tile ('{extra_tile}').
-    # That is usually a sign the character map is incomplete.
-    if unmapped_chars:
-        print(
-            f"WARNING: {len(unmapped_chars)} character(s) not in the tileset or character map "
-            f"were encoded as the extra tile '{extra_tile}': {sorted(unmapped_chars)}"
-        )
+    if dataset_path:
+        scenes = load_scene_dataset(dataset_path)
+        for scene in scenes:
+            samples = sample_scene(scene, window_size)
+            for sample in samples:
+                dataset.append([list(row) for row in sample])
+                unique_set.add(sample)
+    else:
+        tile_to_id = load_tileset(tileset_path)
+        char_map = load_char_map(char_map_path, tile_to_id)
+        levels = load_levels(levels_dir)
+
+        unmapped_chars = set()
+        for level in levels:
+            samples = pad_and_sample(level, tile_to_id, window_size, char_map=char_map, unmapped_chars=unmapped_chars)
+            for sample in samples:
+                dataset.append([list(row) for row in sample])
+                unique_set.add(sample)
+
+        # These characters appeared in the level data but were neither in the tileset
+        # nor in the character map, so they were encoded as the extra tile ('{extra_tile}').
+        # That is usually a sign the character map is incomplete.
+        if unmapped_chars:
+            print(
+                f"WARNING: {len(unmapped_chars)} character(s) not in the tileset or character map "
+                f"were encoded as the extra tile '{extra_tile}': {sorted(unmapped_chars)}"
+            )
 
     print(f"Total samples: {len(dataset)}")
     print(f"Unique samples: {len(unique_set)}")
 
-    
+
     # Convert back to lists for JSON serialization
     dataset = [ [list(row) for row in sample] for sample in unique_set ]
 
@@ -192,6 +251,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', required=True, help='Path to the output JSON file')
     parser.add_argument('--tile_size', type=int, required=False, help='Size of the tile (window) to extract')
     parser.add_argument('--char_map', default=None, help='Optional path to a {source_char: target_char} JSON that remaps raw VGLC characters onto the (simplified) tileset')
+    parser.add_argument('--from_dataset', default=None, help='Path to an integer-encoded scene dataset (e.g. datasets/MM_LevelsAndCaptions-regular-train.json). When set, windows are sliced from the scenes and --tileset/--levels/--char_map are ignored.')
     args = parser.parse_args()
 
     global extra_tile
@@ -205,4 +265,4 @@ if __name__ == "__main__":
     print(f"Using character map: {args.char_map}")
 
     # Call main with parsed arguments
-    main(args.tileset, args.levels, args.output, args.tile_size, args.char_map)
+    main(args.tileset, args.levels, args.output, args.tile_size, args.char_map, args.from_dataset)
