@@ -15,6 +15,7 @@ import util.common_settings as common_settings
 parser = argparse.ArgumentParser()
 parser.add_argument("--target", type=int, default=100, help="Number of valid levels to download")
 parser.add_argument("--start_id", type=int, default=200000, help="The level ID of the starting point of the bulk download (higher = more recent)")
+parser.add_argument("--force", action="store_true", help="Re-download and overwrite levels that already exist locally instead of skipping them")
 args = parser.parse_args()
 
 TARGET_DOWNLOADS = args.target
@@ -58,7 +59,7 @@ while downloaded < TARGET_DOWNLOADS:
 
     filename = os.path.join(SAVE_DIR, f"{level_id}.mmlv")
 
-    if os.path.exists(filename):
+    if os.path.exists(filename) and not args.force:
         print(f"Already exists: {level_id}")
         level_id += 1
         continue
