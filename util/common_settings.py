@@ -14,14 +14,7 @@ MARIO_TILE_COUNT = 13
 
 # Mario Maker 2
 
-# Mario Maker uses the canonical MM2 tileset (mm2_tileset_we.json). The MM2 data is
-# encoded as sorted(tileset['tiles']) + the appended '_' padding tile, giving 68
-# tile ids (0-67): 67 real tiles plus '_'. The trained block2vec embeddings and the
-# scene data both use this 68-id range, so the tile count must match the tileset.
-# Tiles are rendered from img/spritesheet.png using the per-object {x,y,w,h}
-# rectangles in toost's LevelData.hpp ObjectLocation map (see mm2_tiles()).
-
-MM2_TILE_COUNT = 68
+MM2_TILE_COUNT = 67 
 MM2_TILESET = 'datasets/mm2_tileset_we.json'
 MM2_TILE_PIXEL_DIM = 16
 MM2_WIDTH = 20 # Patrick: 20x20 is just what I've been using. Changing this will not result in any crashes that I'm aware of.
