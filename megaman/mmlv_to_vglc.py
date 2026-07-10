@@ -159,10 +159,13 @@ GIMMICK_E_TO_CHAR = {
     43: "x",   # fan: blows Mega Man upward.
     13: "s",   # spring: bounces Mega Man upward when touched. Verified d6/e13 against a labelled
                # test level. (Distinct from d5 e13, an unrelated unidentified enemy id.)
-    266:"T",   # teleporter (paired warp gimmick).
+    266:"T",   # teleporter (paired warp gimmick). All teleporters are 2x2 (see TWO_BY_TWO_E_IDS).
     65: "T",   # teleporter, another variant (same m/n partner-link + f style fields as e266).
+    252:"T",   # teleporter, another variant. Every teleporter id carries the m/n partner-link
+               # fields and occupies a full 2x2 footprint (see TWO_BY_TWO_E_IDS).
     267:"#",   # 2-wide horizontal solid block (see TWO_WIDE_E_IDS: expands one tile left)
-    261:"#",   # 2-wide horizontal solid platform, another variant (see TWO_WIDE_E_IDS)
+    261:"M",   # 2-wide horizontal platform -> the platform tile 'M' (see TWO_WIDE_E_IDS: still
+               # expands one tile left into a full 2-wide platform)
 }
 
 # d == 7 (pickups): the 'e' subtype id -> VGLC char.  Pickup ids are a small
@@ -225,7 +228,7 @@ LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
 # just that one cell and the other three tiles read as gaps. mmlv_to_grid expands each of
 # these to the full 2x2 by also filling the tiles directly above, directly left, and
 # diagonally up-left with the same char.
-TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186, 256}
+TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186, 256, 252, 266, 65}
 
 # d == 6 gimmick ids that are 2-wide x 1-tall horizontal blocks. Like the 2x2 blocks these
 # are stored as a single object at the block's RIGHT tile, so on their own they decode to
@@ -249,7 +252,10 @@ CONVEYOR_E_IDS = {73, 74}
 # NOT by 'e' alone, because subtype ids collide across classes -- e.g. d8/e36 is the boss event
 # trigger, but d6/e36 is a common (still unidentified) block-like gimmick, so an 'e'-only ignore
 # set would wrongly blank out every d6/e36. classify() returns None (air) for any (d, e) here.
-TRIGGER_IDS = {(8, 36)}   # d8 e36 = boss event trigger
+TRIGGER_IDS = {
+    (8, 36),   # d8 e36 = boss event trigger
+    (6, 99),   # d6 e99 = music trigger block (invisible in-game)
+}
 
 # d == 8 (boss category) boss-door blocks. Like the multi-tile gimmick blocks these are stored
 # as a single object at one corner, so on their own they decode to just that one cell and the
