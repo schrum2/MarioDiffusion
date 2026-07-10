@@ -568,7 +568,7 @@ class CaptionBuilder(ParentBuilder):
             # from MarioDiffusion, so the comparison lines up with the loaded data.
             # Mario Maker has it's own unique captioning. 
             if game_selected == "Mario Maker 2":
-                self.mm_assign_caption, self.mm_compare_captions = mm2_caption_tools(tileset_path)
+                self.mm2_assign_caption, self.mm2_compare_captions = mm2_caption_tools(tileset_path)
             else:
                 self.mm_assign_caption, self.mm_compare_captions = None, None
             # print(f"Tileset in use: {tileset_path}")
@@ -783,7 +783,7 @@ class CaptionBuilder(ParentBuilder):
                     actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                     pil_img = visualize_samples(images)
                 elif game_selected == "Mario Maker 2":
-                    actual_caption = self.mm_assign_caption(scene)
+                    actual_caption = self.mm2_assign_caption(scene)
                     pil_img = visualize_samples(images, game="MM2")
                 else:
                     actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
@@ -796,7 +796,7 @@ class CaptionBuilder(ParentBuilder):
                 elif game_selected == 'Lode Runner':
                     compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 elif game_selected == "Mario Maker 2":
-                    compare_score, exact_matches, partial_matches, excess_phrases = self.mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+                    compare_score, exact_matches, partial_matches, excess_phrases = self.mm2_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 else:
                     compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
@@ -1371,7 +1371,7 @@ Average Segment Score: {avg_segment_score}"""
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
         elif game_selected == 'Mario Maker 2':
-            actual_caption = self.mm_assign_caption(scene)
+            actual_caption = self.mm2_assign_caption(scene)
             compare_score, exact_matches, partial_matches, excess_phrases = self.mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
         else:  # Mega Man variants
             actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
