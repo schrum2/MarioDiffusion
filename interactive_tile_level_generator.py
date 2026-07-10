@@ -40,6 +40,128 @@ tileset_path = None  # Global variable for tileset path
 
 GUI_FONT = ("Arial", GUI_FONT_SIZE)
 
+GAME_DISPLAY_NAMES = [
+    "Mario",
+    "Lode Runner",
+    "Mega Man (Simple)",
+    "Mega Man (Full)",
+    "Mega Man (Maker)",
+    "Mario Maker 2",
+]
+GAME_ALIASES = {
+    "Mario": "Mario",
+    "LR": "Lode Runner",
+    "MM-Simple": "Mega Man (Simple)",
+    "MM-Full": "Mega Man (Full)",
+    "MMLV": "Mega Man (Maker)",
+    "MM2": "Mario Maker 2",
+}
+MEGAMAN_GAMES = {"Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"}
+
+
+def normalize_game_name(game):
+    if game is None:
+        return "Mario Maker 2"
+    if game in GAME_ALIASES:
+        return GAME_ALIASES[game]
+    return game
+
+
+def get_game_config(game=None):
+    game_name = normalize_game_name(game)
+    if game_name == "Mario":
+        return {
+            "name": "Mario",
+            "cli_name": "Mario",
+            "tileset": common_settings.MARIO_TILESET,
+            "tile_count": common_settings.MARIO_TILE_COUNT,
+            "width": common_settings.MARIO_WIDTH,
+            "height": common_settings.MARIO_HEIGHT,
+            "render_name": "Mario",
+            "is_mario": True,
+            "is_lode_runner": False,
+            "is_mario_maker_2": False,
+            "is_megaman": False,
+            "supports_per_image_play": True,
+        }
+    if game_name == "Lode Runner":
+        return {
+            "name": "Lode Runner",
+            "cli_name": "LR",
+            "tileset": common_settings.LR_TILESET,
+            "tile_count": common_settings.LR_TILE_COUNT,
+            "width": common_settings.LR_WIDTH,
+            "height": common_settings.LR_HEIGHT,
+            "render_name": "LR",
+            "is_mario": False,
+            "is_lode_runner": True,
+            "is_mario_maker_2": False,
+            "is_megaman": False,
+            "supports_per_image_play": False,
+        }
+    if game_name == "Mega Man (Simple)":
+        return {
+            "name": "Mega Man (Simple)",
+            "cli_name": "MM-Simple",
+            "tileset": common_settings.MM_SIMPLE_TILESET,
+            "tile_count": common_settings.MM_SIMPLE_TILE_COUNT,
+            "width": common_settings.MEGAMAN_WIDTH,
+            "height": common_settings.MEGAMAN_HEIGHT,
+            "render_name": "MM-Simple",
+            "is_mario": False,
+            "is_lode_runner": False,
+            "is_mario_maker_2": False,
+            "is_megaman": True,
+            "supports_per_image_play": False,
+        }
+    if game_name == "Mega Man (Full)":
+        return {
+            "name": "Mega Man (Full)",
+            "cli_name": "MM-Full",
+            "tileset": common_settings.MM_FULL_TILESET,
+            "tile_count": common_settings.MM_FULL_TILE_COUNT,
+            "width": common_settings.MEGAMAN_WIDTH,
+            "height": common_settings.MEGAMAN_HEIGHT,
+            "render_name": "MM-Full",
+            "is_mario": False,
+            "is_lode_runner": False,
+            "is_mario_maker_2": False,
+            "is_megaman": True,
+            "supports_per_image_play": False,
+        }
+    if game_name == "Mega Man (Maker)":
+        return {
+            "name": "Mega Man (Maker)",
+            "cli_name": "MMLV",
+            "tileset": common_settings.MMLV_TILESET,
+            "tile_count": common_settings.MMLV_TILE_COUNT,
+            "width": common_settings.MEGAMAN_WIDTH,
+            "height": common_settings.MEGAMAN_HEIGHT,
+            "render_name": "MMLV",
+            "is_mario": False,
+            "is_lode_runner": False,
+            "is_mario_maker_2": False,
+            "is_megaman": True,
+            "supports_per_image_play": False,
+        }
+    if game_name == "Mario Maker 2":
+        return {
+            "name": "Mario Maker 2",
+            "cli_name": "MM2",
+            "tileset": common_settings.MM2_TILESET,
+            "tile_count": common_settings.MM2_TILE_COUNT,
+            "width": common_settings.MM2_WIDTH,
+            "height": common_settings.MM2_HEIGHT,
+            "render_name": "MM2",
+            "is_mario": False,
+            "is_lode_runner": False,
+            "is_mario_maker_2": True,
+            "is_megaman": False,
+            "supports_per_image_play": False,
+        }
+    raise ValueError(f"Unsupported game selected: {game_name}")
+
+
 class CaptionBuilder(ParentBuilder):
 
 
@@ -49,7 +171,8 @@ class CaptionBuilder(ParentBuilder):
         super().__init__(master)
 
         # Selected game is stored solely in game_var from here on
-        self.game_var = tk.StringVar(value=game if game else "Mario Maker 2")
+        initial_game = normalize_game_name(game) or "Mario"
+        self.game_var = tk.StringVar(value=initial_game)
         # Set ttk style for font size
         style = ttk.Style()
         style.configure("TLabel", font=GUI_FONT)
@@ -140,18 +263,9 @@ class CaptionBuilder(ParentBuilder):
 
         self.height_entry.bind("<<ComboboxSelected>>", self._update_null_rows_label)
 
-        if self.game_var.get() == "Lode Runner":
-            self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
-            self.height_entry.insert(0, f"{common_settings.LR_HEIGHT}")
-        elif self.game_var.get() == "Mario":
-            self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
-            self.height_entry.insert(0, f"{common_settings.MARIO_HEIGHT}")
-        elif self.game_var.get() == "Mario Maker 2":
-            self.width_entry.insert(0, f"{common_settings.MM2_WIDTH}")
-            self.height_entry.insert(0, f"{common_settings.MM2_HEIGHT}")
-        else:
-            self.width_entry.insert(0, f"{common_settings.MEGAMAN_WIDTH}")
-            self.height_entry.insert(0, f"{common_settings.MEGAMAN_HEIGHT}")
+        config = get_game_config(self.game_var.get())
+        self.width_entry.insert(0, str(config["width"]))
+        self.height_entry.insert(0, str(config["height"]))
 
         self.generate_button = ttk.Button(self.caption_frame, text="Generate Image", command=self.generate_image)
         self.generate_button.pack(pady=5)
@@ -275,7 +389,7 @@ class CaptionBuilder(ParentBuilder):
         # Game selection
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker 2"], state="readonly", font=GUI_FONT)
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=GAME_DISPLAY_NAMES, state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", lambda e: self.update_mario_only_buttons()) 
         self.update_mario_only_buttons() 
@@ -659,6 +773,37 @@ class CaptionBuilder(ParentBuilder):
             #self.negative_prompt_entry.insert(tk.END, self.present_caption)
             self.negative_prompt_entry.config(state=tk.NORMAL)
     
+    def _selected_game_config(self):
+        return get_game_config(self.game_var.get())
+
+    def _prepare_scene_output(self, scene, images):
+        config = self._selected_game_config()
+        if config["is_lode_runner"]:
+            actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            pil_img = visualize_samples(images, game="LR")
+        elif config["is_mario"]:
+            actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            pil_img = visualize_samples(images)
+        elif config["is_mario_maker_2"]:
+            _, _, ground_chars = get_tile_categories(tileset_path)
+            char_names = get_char_names(tileset_path)
+            actual_caption = mm2_assign_caption(scene, self.id_to_char, char_names, ground_chars)
+            pil_img = visualize_samples(images, game="MM2")
+        else:
+            actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            pil_img = visualize_samples(images, game=config["render_name"])
+        return actual_caption, pil_img
+
+    def _compare_caption(self, prompt, actual_caption):
+        config = self._selected_game_config()
+        if config["is_lode_runner"]:
+            return lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+        if config["is_mario"]:
+            return compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+        if config["is_mario_maker_2"]:
+            return mm2_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+        return mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+
     def generate_image(self):
         global tileset_path
         # # cannot use multiple generations of levels in one composed level
@@ -725,8 +870,10 @@ class CaptionBuilder(ParentBuilder):
                 else: print("No caption")
                 images = self.pipe(generator=generator, **param_values).images
 
+                config = self._selected_game_config()
+
                 chop_rows = 0
-                if self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
+                if config["is_megaman"]:
                     try:
                         chop_rows = (int(self.height_entry.get()) // 16) * 2
                     except ValueError:
@@ -735,68 +882,24 @@ class CaptionBuilder(ParentBuilder):
                     images = images[:, :, chop_rows:, :]
 
                 self.current_levels.append(images[0].cpu().detach().numpy())
-                
+
                 sample_tensor = images[0].unsqueeze(0)
                 sample_indices = convert_to_level_format(sample_tensor)
-                #print("images:", images)
                 scene = sample_indices[0].tolist()
 
                 print(f"Update tileset for game: {self.game_var.get()}")
-                if self.game_var.get() == "Lode Runner":
-                    number_of_tiles = common_settings.LR_TILE_COUNT
-                    scene = [[x % number_of_tiles for x in row] for row in scene]
-                    tileset_path = common_settings.LR_TILESET
-                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                elif self.game_var.get() == "Mega Man (Simple)":
-                    number_of_tiles = common_settings.MM_SIMPLE_TILE_COUNT
-                    scene = [[x % number_of_tiles for x in row] for row in scene]
-                    tileset_path = common_settings.MM_SIMPLE_TILESET
-                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                elif self.game_var.get() == "Mega Man (Full)":
-                    number_of_tiles = common_settings.MM_FULL_TILE_COUNT
-                    scene = [[x % number_of_tiles for x in row] for row in scene]
-                    tileset_path = common_settings.MM_FULL_TILESET
-                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                elif self.game_var.get() == "Mega Man (Maker)":
-                    number_of_tiles = common_settings.MMLV_TILE_COUNT
-                    scene = [[x % number_of_tiles for x in row] for row in scene]
-                    tileset_path = common_settings.MMLV_TILESET
-                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                elif self.game_var.get() == "Mario Maker 2":
-                    number_of_tiles = common_settings.MM2_TILE_COUNT
-                    scene = [[x % number_of_tiles for x in row] for row in scene]
-                    tileset_path = common_settings.MM2_TILESET
-                    _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+                scene = [[x % config["tile_count"] for x in row] for row in scene]
+                tileset_path = config["tileset"]
+                _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
                 self.generated_scenes.append(scene)
                 print(f"Assigning caption for game: {self.game_var.get()}")
-                if self.game_var.get() == "Lode Runner":
-                    actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-                    pil_img = visualize_samples(images, game='LR')
-                elif self.game_var.get() == "Mario":
-                    actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-                    pil_img = visualize_samples(images)
-                elif self.game_var.get() == "Mario Maker 2":
-                    _, _, ground_chars = get_tile_categories(tileset_path)
-                    char_names = get_char_names(tileset_path)
-                    actual_caption = mm2_assign_caption(scene, self.id_to_char, char_names, ground_chars)
-                    print("hello")
-                    pil_img = visualize_samples(images, game="MM2")
-                else:
-                    actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-                    pil_img = visualize_samples(images, game={"Mega Man (Simple)": "MM-Simple", "Mega Man (Maker)": "MMLV"}.get(self.game_var.get(), "MM-Full"))
+                actual_caption, pil_img = self._prepare_scene_output(scene, images)
 
                 self.generated_images.append(pil_img)
                 img_tk = ImageTk.PhotoImage(pil_img)
                 print(f"Comparing captions for game: {self.game_var.get()}")
-                if self.game_var.get() == 'Mario':
-                    compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-                elif self.game_var.get() == 'Lode Runner':
-                    compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-                elif self.game_var.get() == "Mario Maker 2":
-                    compare_score, exact_matches, partial_matches, excess_phrases = mm2_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-                else:
-                    compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+                compare_score, exact_matches, partial_matches, excess_phrases = self._compare_caption(prompt, actual_caption)
 
             except Exception as e:
                 messagebox.showerror(
@@ -862,7 +965,7 @@ class CaptionBuilder(ParentBuilder):
 
             # Check if the scene is wider than standard number of tiles and process segments if necessary
             avg_segment_score = None
-            if self.game_var.get() == "Mario":
+            if self._selected_game_config()["is_mario"]:
                 if len(scene[0]) > common_settings.MARIO_WIDTH:
                     from captions.caption_match import process_scene_segments
                     avg_segment_score, _, _ = process_scene_segments(
@@ -895,28 +998,25 @@ Average Segment Score: {avg_segment_score}"""
             button_frame = ttk.Frame(img_frame)
             button_frame.pack(pady=5)
     
-            is_mario = self.game_var.get() == "Mario"
-            
-            # Add Play button
-            play_button = ttk.Button(
-                button_frame, 
-                text="Play", 
-                command=lambda idx=i: self.play_level(idx),
-                style="TButton",
-                state=tk.NORMAL if is_mario else tk.DISABLED 
+            config = self._selected_game_config()
+            if config["supports_per_image_play"]:
+                # Add Play button
+                play_button = ttk.Button(
+                    button_frame,
+                    text="Play",
+                    command=lambda idx=i: self.play_level(idx),
+                    style="TButton"
+                )
+                play_button.pack(side=tk.LEFT, padx=5)
 
-            )
-            play_button.pack(side=tk.LEFT, padx=5)
-    
-            # Add Use A* button
-            astar_button = ttk.Button(
-                button_frame,
-                text="Use A*",
-                command=lambda idx=i: self.use_astar(idx),
-                style="TButton",
-                state=tk.NORMAL if is_mario else tk.DISABLED
-            )
-            astar_button.pack(side=tk.LEFT, padx=5)
+                # Add Use A* button
+                astar_button = ttk.Button(
+                    button_frame,
+                    text="Use A*",
+                    command=lambda idx=i: self.use_astar(idx),
+                    style="TButton"
+                )
+                astar_button.pack(side=tk.LEFT, padx=5)
 
             # Add "Add To Level" button
             add_button = ttk.Button(
@@ -1414,26 +1514,9 @@ Average Segment Score: {avg_segment_score}"""
         score_label.config(text=score_label_text)
 
     def _render_scene_image(self, scene):
-        if self.game_var.get() == "Lode Runner":
-            game_name = "LR"
-            num_classes = common_settings.LR_TILE_COUNT
-        elif self.game_var.get() == "Mega Man (Simple)":
-            game_name = "MM-Simple"
-            num_classes = common_settings.MM_SIMPLE_TILE_COUNT
-        elif self.game_var.get() == "Mega Man (Full)":
-            game_name = "MM-Full"
-            num_classes = common_settings.MM_FULL_TILE_COUNT
-        elif self.game_var.get() == "Mega Man (Maker)":
-            game_name = "MMLV"
-            num_classes = common_settings.MMLV_TILE_COUNT
-        elif self.game_var.get() == "Mario":
-            game_name = "Mario"
-            num_classes = common_settings.MARIO_TILE_COUNT
-        elif self.game_var.get() == "Mario Maker 2":
-            game_name = "MM2"
-            num_classes = common_settings.MM2_TILE_COUNT
-        else:
-            raise ValueError(f"Unsupported game selected: {self.game_var.get()}")
+        config = self._selected_game_config()
+        game_name = config["render_name"]
+        num_classes = config["tile_count"]
 
         one_hot = torch.nn.functional.one_hot(
             torch.tensor(scene, dtype=torch.long),
@@ -1491,14 +1574,7 @@ Average Segment Score: {avg_segment_score}"""
             sys.path.insert(0, astar_dir)
         from astar_traversability_check import astar_path_image
 
-        game_name = {
-            "Mario": "Mario",
-            "Lode Runner": "LR",
-            "Mega Man (Simple)": "MM-Simple",
-            "Mega Man (Full)": "MM-Full",
-            "Mega Man (Maker)": "MMLV",
-            "Mario Maker 2" : "MM2",
-        }.get(self.game_var.get())
+        game_name = self._selected_game_config()["render_name"]
         if game_name is None:
             return None, False, {}
         return astar_path_image(scene, game_name, self.id_to_char, self.tile_descriptors,
@@ -1584,7 +1660,8 @@ Average Segment Score: {avg_segment_score}"""
             self.negative_prompt_entry.config(state=tk.NORMAL)
 
     def update_mario_only_buttons(self):
-        is_mario = self.game_var.get() == "Mario"
+        config = self._selected_game_config()
+        is_mario = config["is_mario"]
         state = tk.NORMAL if is_mario else tk.DISABLED
         self.play_composed_button.config(state=state)
         self.astar_composed_button.config(state=state)
@@ -1594,13 +1671,13 @@ Average Segment Score: {avg_segment_score}"""
         if not is_mario:
             self.use_snes_graphics.set(False)
 
-        is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)")
+        is_megaman = config["is_megaman"]
         self.mm_layout_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
         self.save_composed_button.config(state=tk.DISABLED if is_megaman else tk.NORMAL)
         self._update_dimension_controls(is_megaman)
 
     def _update_null_rows_label(self, event=None):
-        is_megaman = self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)")
+        is_megaman = self._selected_game_config()["is_megaman"]
         if not is_megaman:
             self.null_rows_label.config(text="")
             return
@@ -1613,7 +1690,7 @@ Average Segment Score: {avg_segment_score}"""
         self.null_rows_label.config(text=f"({chop} null row{'s' if chop != 1 else ''} chopped from top)")
 
     def open_megaman_layout_editor(self):
-        if self.game_var.get() not in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
+        if not self._selected_game_config()["is_megaman"]:
             messagebox.showinfo("Mega Man only", "Switch the game dropdown to a Mega Man mode to use this tool.")
             return
         if not self.composed_scenes:
@@ -1641,24 +1718,9 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    if args.game == "Mario":
-        game = "Mario"
-        tileset_path = common_settings.MARIO_TILESET
-    elif args.game == "LR":
-        game = "Lode Runner"
-        tileset_path = common_settings.LR_TILESET
-    elif args.game == "MM-Simple":
-        game = "Mega Man (Simple)"
-        tileset_path = common_settings.MM_SIMPLE_TILESET
-    elif args.game == "MM-Full":
-        game = "Mega Man (Full)"
-        tileset_path = common_settings.MM_FULL_TILESET
-    elif args.game == "MMLV":
-        game = "Mega Man (Maker)"
-        tileset_path = common_settings.MMLV_TILESET
-    elif args.game == "MM2":
-        game = "Mario Maker 2"
-        tileset_path = common_settings.MM2_TILESET
+    config = get_game_config(args.game)
+    game = config["name"]
+    tileset_path = config["tileset"]
 
     root = tk.Tk()
     app = CaptionBuilder(root, game)
