@@ -20,52 +20,7 @@ import ollama
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
-
-MM_TILESET_DICT = {
-    "tiles" : {
-        "P": "Mega Man's starting spawn point",
-        "Z": "Level exit point/final goal",
-        "@": "Out of bounds, inaccessible null space",
-        "-": "Air",
-        "~": "Water (slows movement)",
-        "#": "Solid blocks representing ground or walls",
-        "|": "Climbable ladders",
-        "B": "Solid but breakable blocks",
-        "L": "Large Life Energy power-up",  
-        "H": "Deadly solid hazard",
-        "q": "Jumping Kamadoma enemy",
-        "o": "Flying Mambu enemy",
-        "j": "Flying Bunby Heli enemy",
-        "c": "Ranged wall-mounted Blaster enemy",
-        "^": "Vertical Adhering Suzy enemy",
-        "<": "Horizontal Adhering Suzy enemy",
-        "f": "Jumping Big Eye enemy",
-        "t": "Secret transparent blocks (looks like regular blocks, but Mega Man can phase through them)",
-        "A": "Disappearing/Reappearing blocks (fades in and out)",
-        "M": "Moving Platform blocks",
-        "D": "Passable Door blocks",
-        "W": "Large Weapon Energy power-up",
-        "w": "Small Weapon Energy power-up",
-        "l": "Small Life Energy power-up",
-        "+": "Collectible 1-UP Extra Life Power-up",
-        "*": "Collectible Yashichi Power-up",
-        "U": "Collectible Magnet Beam Power-up",
-        "C": "Hazard Blocks: extends a temporary passable but damaging hazard outward",
-        "p": "Ranged Foot Holder enemy, Mega Man can stand and jump from these",
-        "r": "Ranged, shielded Sniper Joe enemy",
-        "k": "Killer Bomb enemy",
-        "g": "Ground Gabyoall enemy",
-        "e": "Stationary, ranged Screw Driver enemy",
-        "m": "Jumping exploding Bombombomb enemy",
-        "i": "Floating, ranged Watcher enemy",
-        "b": "Flying Bunby Heli enemy (green)",
-        "a": "Stationary, ranged Met enemy",
-        "d": "Ranged Pickelman enemy",
-        "h": "Crazy Razy enemy",
-        "n": "Flying PePe penguin enemy",
-        "I": "Tackle Fire Enemies",
-    }
-}
+from util.descriptive_tilesets import GAMES
 
 
 # for ollama
@@ -124,10 +79,10 @@ freely in tone, length, and wordiness, never homogeneous in format or structure.
 EXAMPLE CAPTIONS:
 These are examples of desirable captions that encapsulate ideas/level features into discrete '.'-separated chunks
 while still varying in tone, specificity, length, etc.:
--  Multiple vertical passages interweave through this towering shaft. Snipers guard the lower levels. 
+-  Multiple vertical passages interweave through this shaft. Snipers guard the lower levels. 
 Fire pillars erupt periodically. The exit waits high above.
-- An extensive horizontal descent beginning from a modest platform on the left side. The player travels rightward 
-across progressively lower terrain featuring moving platforms and scattered enemies including Bunby Helis and a Sniper Joe. 
+- A horizontal descent beginning from a modest platform on the left side. The player travels rightward 
+across progressively lower terrain featuring moving platforms and scattered enemies including a Sniper Joe. 
 Multiple weapon power-ups dot the landscape while deadly spikes appear in the lower sections. The exit awaits far to the right at the bottom level.
 - A claustrophobic descent begins here. One wall-crawler blocks the passage near the start. Further down, the area 
 opens into a gauntlet featuring ranged enemies, moving platforms, and eventually a water-filled cavern where bouncing enemies reside.
@@ -224,7 +179,7 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
     return scenes
 
 
-def filter_tile_set(scene: str, tileset: dict = MM_TILESET_DICT["tiles"]) -> dict:
+def filter_tile_set(scene: str, tileset: dict) -> dict:
     """
     Given an ASCII level scene and the complete tile set for the game the given scene belongs to, return a filtered
     tile set dict to insert in the LLM prompt to convserve (a marginal amount of) tokens, and to avoid hallucination/confusion
@@ -249,7 +204,7 @@ _METADATA_SKIP_CHARS = {"P", "-", "t", "@", "#"}
 
 
 def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], char_to_id: dict[str, int],
-                          tile_descriptors: dict, describe_locations: bool = False,
+                          tile_descriptors: dict, names: dict, describe_locations: bool = False,
                           describe_absence: bool = False, data: dict = None) -> str:
     """
     Build a block of pre-computed structural metadata for an integer tile-id scene, to feed
@@ -265,13 +220,14 @@ def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], ch
     Args:
         scene: 2D grid of integer tile ids (the raw scene, not the ASCII decode).
         id_to_char, char_to_id, tile_descriptors: tileset maps from extract_tileset.
+        names: the game's descriptive tileset dict (char -> readable description) used to render
+            the object-count lines with human names.
         describe_locations / describe_absence / data: kept for signature compatibility with the
             caller; this metadata builder doesn't use them.
 
     Returns:
         A multi-line metadata string.
     """
-    names = MM_TILESET_DICT["tiles"]
 
     def is_null(tile: int) -> bool:
         return "null" in tile_descriptors.get(id_to_char.get(tile), set())
@@ -381,7 +337,7 @@ def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], ch
 
 
 
-def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset: dict = MM_TILESET_DICT, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
+def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset: dict = None, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
 
     
     deterministic_msg = (
@@ -541,11 +497,10 @@ def parse_args():
     argparser.add_argument("--levels", default="../TheVGLC/MegaMan/Enhanced",
                            help="JSON dataset of integer tile-id scenes from create_megaman_json_data.py, "
                                 "or a directory of VGLC-ASCII level .txt files")
-    argparser.add_argument("--tileset", default="datasets/MM.json",
-                           help="Tileset JSON used to decode integer scenes to ASCII for the prompt "
-                                "(must match the tileset the scenes were generated from)")
-    argparser.add_argument("--game", default="Mega Man",
-                           help="Game name passed to the LLM prompt for context")
+    argparser.add_argument("--game", default="megaman", choices=list(GAMES),
+                           help="Which Mega Man game/tileset to caption for. Selects the descriptive "
+                                "tileset (from util/descriptive_tilesets.py), the prompt game name, and "
+                                "the tileset JSON used to decode integer scenes to ASCII")
     argparser.add_argument("--llm", choices=["claude", "openai", "ollama"], default="ollama",
                            help="The source of the LLM inference used to caption the provided level scenes. The openai and claude choices use APIs, while ollama runs a local model")
     argparser.add_argument("--model", default=None,
@@ -573,10 +528,18 @@ def main() -> list[list[str]]:
 
     args = parse_args()
 
+    # Resolve the selected game: its human-readable name (for the prompt), its descriptive
+    # tileset dict (char -> readable description, for the prompt key and object-count names),
+    # and its tileset JSON (structural descriptors + id<->char maps for decoding scenes).
+    game = GAMES[args.game]
+    game_name = game["name"]
+    tile_names = game["tiles"]["tiles"]
+    tileset_path = game["tileset"]
+
     # Tileset map: integer id -> ASCII char, used to decode each integer scene into the
     # ASCII grid shown to the LLM. char -> id is used to encode a directory of ASCII levels.
     # tile_descriptors drives the deterministic structural caption fed to the LLM as context.
-    _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
+    _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
     # Tile ids flagged "null" in the tileset are out-of-bounds padding / void, not level
     # content; scene_to_ASCII uses this to strip the padding rows and hide the '@' void
@@ -617,14 +580,14 @@ def main() -> list[list[str]]:
         scene_str = "\n".join(scene_to_ASCII(scene, id_to_char, null_ids))
 
         # Get filtered tileset for current scene
-        filtered_tiles = filter_tile_set(scene_str, MM_TILESET_DICT["tiles"])
+        filtered_tiles = filter_tile_set(scene_str, tile_names)
 
         # Fetch the deterministic structural caption for this scene to ground the LLM as
         # an extra context message. Operates on the integer grid, not the ASCII decode.
-        det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors)
+        det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors, names=tile_names)
 
         # assign and collect captions
-        caption_set = llm_caption(scene_str, game=args.game, model=model, tileset=filtered_tiles, llm=args.llm, deterministic=det_caption)
+        caption_set = llm_caption(scene_str, game=game_name, model=model, tileset=filtered_tiles, llm=args.llm, deterministic=det_caption)
         
 
         print(f"------------------ [{llmstr}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
