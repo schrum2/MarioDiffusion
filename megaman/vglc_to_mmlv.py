@@ -156,6 +156,28 @@ def fan(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def rising_platform(x: int, y: int) -> List[str]:
+    # Rising platform, gimmick id 10: a 2-wide solid block that rises. Verified d6/e10 against a
+    # labelled test level. Emits the real e10 object; since it is multi-tile (2-wide, see
+    # TWO_WIDE_E_IDS on the forward side) this is lossy on re-expansion, like the other
+    # multi-tile blocks -- it keeps the rising-platform identity rather than exact footprint.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="10.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def key_pickup(x: int, y: int) -> List[str]:
+    # Key collectible, gimmick id 32: a 1x1 pickup that opens key doors. Verified d6/e32 against
+    # a labelled test level. Round-trips exactly (1x1).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="32.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def spring(x: int, y: int) -> List[str]:
     # Spring, gimmick id 13: bounces Mega Man upward when touched. Verified d6/e13 against a
     # labelled test level.
@@ -397,6 +419,13 @@ CHAR_MAP = {
     'F': falling_platform,
     'x': fan,
     's': spring,
+    'R': rising_platform,
+    'K': key_pickup,
+    # Key doors (1x3 vertical 'V', 3x1 horizontal 'Y') are treated as breakable, so like the other
+    # multi-tile blocks they reverse to a generic 1x1 breakable rather than the real key-door
+    # gimmick (which would re-expand and overlap). Lossy by design.
+    'V': breakable_tile,
+    'Y': breakable_tile,
     'T': teleporter,
     '~': water_tile,
     '!': lava_tile,
@@ -428,6 +457,32 @@ CHAR_MAP = {
 }
 
 VOID_CHAR = '@'
+
+
+def find_teleporter_chunks(rows: List[str]) -> tuple[set, set]:
+    """Group the 'T' teleporter tiles into 2x2 chunks.
+
+    Every Mega Man Maker teleporter occupies a 2x2 footprint stored as ONE object at its
+    bottom-right tile, so a 2x2 block of 'T' in the ASCII must reverse to a single teleporter
+    object -- not four overlapping ones. Scanning top-left to bottom-right, each 'T' that starts
+    a full, not-yet-claimed 2x2 of 'T's claims that block; the block's BOTTOM-RIGHT cell is the
+    emit anchor.
+
+    Returns (anchors, members):
+      - anchors: (row, col) bottom-right cells that should emit one teleporter object.
+      - members: every (row, col) 'T' cell that belongs to some 2x2 chunk (so non-anchor members
+        emit nothing). Any 'T' that never forms a clean 2x2 is in neither set, letting the caller
+        fall back to emitting it as a lone teleporter (keeps ragged model output from vanishing).
+    """
+    t_cells = {(r, c) for r, row in enumerate(rows) for c, ch in enumerate(row) if ch == 'T'}
+    anchors: set = set()
+    members: set = set()
+    for r, c in sorted(t_cells):
+        block = {(r, c), (r, c + 1), (r + 1, c), (r + 1, c + 1)}
+        if block <= t_cells and not (block & members):
+            members |= block
+            anchors.add((r + 1, c + 1))   # bottom-right tile is the stored anchor
+    return anchors, members
 
 
 def compute_playable_col_range(rows: List[str]) -> tuple[int, int]:
@@ -538,6 +593,10 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
 
     playable_row_range = compute_playable_row_range(rows)
 
+    # Teleporters are 2x2 in Mega Man Maker: collapse each 2x2 block of 'T' to a single
+    # teleporter object emitted at the block's bottom-right cell (its stored anchor).
+    teleporter_anchors, teleporter_members = find_teleporter_chunks(rows)
+
     out: List[str] = ['[Level]']
     active_screen_rows: set = set()
 
@@ -558,6 +617,21 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
                     screen_y = (y // 224) * 224
                     active_screen_rows.add(screen_y)
                 # else: true outer void — emit nothing
+                continue
+
+            # Teleporters: one object per 2x2 chunk, anchored at its bottom-right cell.
+            if ch == 'T':
+                pos = (row_idx, col_idx)
+                if pos in teleporter_members:
+                    # Part of a 2x2 chunk: emit only at the bottom-right anchor.
+                    if pos in teleporter_anchors:
+                        out.extend(teleporter(x, y))
+                else:
+                    # A lone 'T' not forming a clean 2x2 (e.g. ragged model output): emit it
+                    # as a single teleporter so it isn't silently dropped.
+                    out.extend(teleporter(x, y))
+                screen_y = (y // 224) * 224
+                active_screen_rows.add(screen_y)
                 continue
 
             emitter = CHAR_MAP.get(ch)

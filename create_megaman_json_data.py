@@ -18,6 +18,14 @@ import time
 SNAP_H_PAD_ROWS = 2
 
 
+SPAWN_EXIT_CHARS = ('P', 'Z')
+
+#The teleporter tile ('T'). Its "movable" descriptor is shared with the pushable block 'D',
+#so it's matched by char rather than descriptor (mirrors SPAWN_EXIT_CHARS). Scenes containing
+#one are dropped by the contains_teleporter filter unless --include_teleporters is passed.
+TELEPORTER_CHARS = ('T',)
+
+
 #This enum is for the readability of the direction enum
 class Axis(Enum):
     VERT=0
@@ -172,6 +180,7 @@ def parse_args():
     parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width for path mode.')
     parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
+    parser.add_argument('--keep_spawn_exit', action='store_true', help="Keep the player spawn ('P') and exit orb ('Z') tiles in the output scenes. By default these markers are stripped (encoded as air) since they are level metadata, not geometry to be learned.")
     #The A* traversability filter is on by default now (also feeds the low-content check in apply_filters); --no_traversable_filter turns the hard filter off.
     parser.add_argument('--no_traversable_filter', dest='traversable_only', action='store_false', default=True, help='Disable filtering out A*-untraversable scenes (this filter is ON by default). The A* path length is still computed for the low-content rescue check regardless.')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by the traversability check (higher = more thorough, slower)')
@@ -181,6 +190,7 @@ def parse_args():
     parser.add_argument('--stride_x', type=int, default=1, help='How far the sliding window moves in the horizontal direction during level scanning (sliding_window/snap modes only; must be >= 1)')
     parser.add_argument('--max_enemies', type=int, default=8, help='Filter out scenes with more than this many enemy tiles. Omit to disable.')
     parser.add_argument('--include_moving_ground', action='store_true', help='Include scenes containing moving-ground/platform tiles (e.g. "M"). By default these are excluded since their motion is not represented in the static scene graphics.')
+    parser.add_argument('--include_teleporters', action='store_true', help='Include scenes containing the teleporter tile ("T"). By default these are excluded (contains_teleporter filter) since a teleporter destination is off-scene and not represented in the static scene.')
     parser.add_argument('--min_content_pct', type=float, default=7, help='Filter out scenes where less than this percent of tiles are real content (not empty/passable/null). E.g. 15 requires at least 15%% non-empty tiles.')
     parser.add_argument('--min_playable_tiles', type=int, default=10, help='Filter out scenes where a flood fill starting from the border reaches fewer than this many open (non-wall, non-null) tiles -- i.e. scenes with almost no playable area connected to their edges. Default 10 (out of 224 in a 16x14 scene); set to 0 to disable.')
     parser.add_argument('--min_content_path_len', type=int, default=14, help='Low-content rescue: a scene flagged as low-content is kept anyway if the A* agent can traverse it along a path at least this many steps long (default 14, a little under the scene width). This spares genuinely sparse-but-playable scenes (e.g. spread-out parkour rooms). Set to 0 to disable the rescue.')
@@ -247,10 +257,11 @@ def border_flood_fill_count(scene, blocking_ids, void_ids=frozenset()):
 #reason first (can't be traversed at all -> no playable area -> too dense with enemies ->
 #static-motion tiles -> not enough real content).
 FILTER_REASONS = ("not_traversable", "insufficient_playable_area",
-                  "too_many_enemies", "moving_ground", "low_content")
+                  "too_many_enemies", "moving_ground", "contains_teleporter", "low_content")
 
 def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only=True,
                   budget=100000, max_enemies=8, exclude_moving_ground=True,
+                  exclude_teleporters=True,
                   min_content_pct=15, min_playable_tiles=10, min_content_path_len=14):
     """Split all_samples into (kept, filtered). Each filtered sample is returned as a copy
     tagged with a 'filter_reasons' key: the list of *every* reason it was cut (a subset of
@@ -261,6 +272,7 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
       insufficient_playable_area -- border-originating flood fill reaches < min_playable_tiles
       too_many_enemies         -- more than max_enemies enemy tiles
       moving_ground            -- contains moving-ground/platform tiles (static graphics can't show motion)
+      contains_teleporter      -- contains a teleporter tile ('T'); its destination is off-scene
       low_content              -- less than min_content_pct real (non-empty/null) content
     Any threshold passed as None (or, for min_playable_tiles/min_content_path_len, <= 0)
     disables that check.
@@ -280,6 +292,9 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
 
     moving_ids = {tid for tid, ch in id_to_char.items() if "moving" in tile_descriptors.get(ch, [])} \
         if exclude_moving_ground else set()
+    #Teleporter matched by char ('T'), not descriptor -- see TELEPORTER_CHARS.
+    teleporter_ids = {tid for tid, ch in id_to_char.items() if ch in TELEPORTER_CHARS} \
+        if exclude_teleporters else set()
     enemy_ids = {tid for tid, ch in id_to_char.items() if "enemy" in tile_descriptors.get(ch, [])} \
         if max_enemies is not None else set()
     #"Empty" content = tiles tagged empty (air/water/etc.) or null (out of bounds padding),
@@ -304,6 +319,8 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
             reasons.append("too_many_enemies")
         if exclude_moving_ground and any(tile in moving_ids for row in scene for tile in row):
             reasons.append("moving_ground")
+        if exclude_teleporters and any(tile in teleporter_ids for row in scene for tile in row):
+            reasons.append("contains_teleporter")
         if min_content_pct is not None and total:
             empty_count = sum(1 for row in scene for tile in row if tile in empty_ids)
             content_pct = 100.0 * (total - empty_count) / total
@@ -389,13 +406,42 @@ def main():
     #file that produced levels[i] -- gives us a real filename to tag samples with, without
     #needing to modify load_levels itself.
     level_files = sorted(Path(args.levels).glob("*.txt"))
+
+    #Per-level metadata (name/author/downloads/likes/dislikes) fetched at download time by
+    #Bulk_Download.py and keyed by MMLV level id (string). Read from the single master sidecar
+    #at the repo-wide constant path, looked up by mmlv_id per level below, and attached to
+    #every sample so it survives into the training data. Absent for the VGLC Enhanced set
+    #(non-numeric filenames) or before any download, so a missing file is not an error.
+    metadata_path = common_settings.MEGAMAN_METADATA_PATH
+    level_metadata = {}
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            level_metadata = json.load(f)
+        print(f"Loaded metadata for {len(level_metadata)} levels from {metadata_path}")
+    else:
+        print(f"No level metadata found at {metadata_path}; samples will have metadata=None")
     _, id_to_char, tile_to_id, tile_descriptors = extract_tileset(args.tileset)
     null_chars = [key for key, value in tile_descriptors.items() if 'null' in value]
     wall_chars = [key for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
     
     if args.group_encodings:
         tile_to_id, id_to_char = create_tile_to_id(args.tileset, tile_descriptors, new_tileset_dir=os.path.dirname(args.output))
-    
+
+    # Strip the spawn/exit markers, and remap their chars to the air id unless --keep_spawn_exit
+    # find_start still scans the raw 'P' char, so spawn detection is unaffected
+    if not args.keep_spawn_exit:
+        air_id = tile_to_id.get('-')
+        if air_id is None:
+            air_id = next((tid for ch, tid in tile_to_id.items()
+                           if 'empty' in tile_descriptors.get(ch, []) and 'water' not in tile_descriptors.get(ch, [])), 0)
+        strip_chars = {ch for ch in tile_to_id if 'spawn' in tile_descriptors.get(ch, [])}
+        strip_chars.update(ch for ch in SPAWN_EXIT_CHARS if ch in tile_to_id)
+        for ch in strip_chars:
+            tile_to_id[ch] = air_id
+        if strip_chars:
+            print(f"Stripping spawn/exit tiles {sorted(strip_chars)} -> air id {air_id} "
+                  f"(pass --keep_spawn_exit to retain them)")
+
     #We literally only need level overrides for 1-7, every other level parses as expected
     overrides_1_7 = [120, 121, 122, 123, 182] #Needed to avoid an early turn leading to a split path, and to prevent the level from turning back around to go back to the start
 
@@ -416,6 +462,9 @@ def main():
         #level_files is ever shorter than levels for some reason.
         source_level_name = level_files[i].name if i < len(level_files) else f"level_{i}"
         mmlv_id = extract_mmlv_id(source_level_name)
+        #Metadata record for this level (None for non-MMLV levels or ids missing from the
+        #sidecar); attached to every sample cut from this level below.
+        mmlv_meta = level_metadata.get(str(mmlv_id)) if mmlv_id is not None else None
 
         try:
             if args.scan_mode == 'snap':
@@ -561,7 +610,8 @@ def main():
                 "source_x": src_x,
                 "source_y": src_y,
                 "scan_mode": mode_tag,
-                "mmlvID": mmlv_id
+                "mmlvID": mmlv_id,
+                "metadata": mmlv_meta
             })
 
     print(f"Removed {duplicates_removed} duplicate samples")
@@ -584,6 +634,7 @@ def main():
             all_samples, id_to_char, tile_descriptors,
             traversable_only=args.traversable_only, budget=args.budget,
             max_enemies=args.max_enemies, exclude_moving_ground=not args.include_moving_ground,
+            exclude_teleporters=not args.include_teleporters,
             min_content_pct=args.min_content_pct, min_playable_tiles=args.min_playable_tiles,
             min_content_path_len=args.min_content_path_len,
         )
