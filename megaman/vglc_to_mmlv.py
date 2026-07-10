@@ -253,6 +253,28 @@ def weapon_energy(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def boss_door_vertical(x: int, y: int) -> List[str]:
+    # Vertical boss door, boss id 33 (d8): a 2-wide x 4-tall door stored at its BOTTOM-RIGHT tile
+    # (the forward decoder expands it up and left into the full 2x4). Emitted once per 2x4 chunk of
+    # 'D' at the chunk's bottom-right cell (see MULTI_TILE_CHUNKS).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="33.000000"',
+        f'd{x},{y}="8.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def boss_door_horizontal(x: int, y: int) -> List[str]:
+    # Horizontal boss door, boss id 34 (d8): a 4-wide x 2-tall door stored at its BOTTOM row one
+    # tile left of the right edge (the forward decoder expands it left/right/up into the full 4x2).
+    # Emitted once per 4x2 chunk of 'D' at that anchor cell (see MULTI_TILE_CHUNKS).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="34.000000"',
+        f'd{x},{y}="8.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def orb_tile(x: int, y: int) -> List[str]:
     return [
         f'o{x},{y}="9999.000000"',
@@ -475,7 +497,8 @@ CHAR_MAP = {
     'C': hazard_emitter,
     'I': enemy_tackle_fire,
     '+': [], 'L': [], 'l': [], 'W': [], 'w': [],
-    'D': [], 'U': weapon_energy, '*': [],
+    # 'D' (boss door) is handled via MULTI_TILE_CHUNKS (2x4 vertical / 4x2 horizontal), not here.
+    'U': weapon_energy, '*': [],
     'a': enemy_ground,
     'b': enemy_flying,
     '<': enemy_octopus_lr,
@@ -506,44 +529,56 @@ VOID_CHAR = '@'
 # the ASCII cells back into that footprint and emit ONE object at the matching anchor -- otherwise
 # a per-cell emit would make the forward pass re-expand every cell and overlap.
 #
-# Each entry maps char -> (cells, anchor, emitter):
+# Each entry maps char -> LIST of shape dicts (tried in order), each with (cells, anchor, emitter):
 #   cells:  (col, row) offsets of the footprint relative to its TOP-LEFT cell (all >= 0).
 #   anchor: which of those offsets is the object's stored anchor tile (matches the forward
-#           expansion anchor exactly: 2x2 bottom-right, 2-wide right, 1x3 bottom, 3x1 middle).
+#           expansion anchor exactly).
 #   emitter: the single-object emitter to place at the anchor.
-# Only distinct-char tiles are here; chars shared across many shapes/ids (B, #, M) stay 1x1 in
-# CHAR_MAP, since a shared char can't tell us which footprint a region was.
+# Most chars have one shape; 'D' has two (a boss door is either a 2x4 vertical or a 4x2 horizontal
+# door, both drawn with 'D'), tried largest-first with earlier shapes' cells excluded from later
+# ones. Only distinct-char tiles are here; chars shared across many unrelated shapes/ids (B, #, M)
+# stay 1x1 in CHAR_MAP, since a shared char can't tell us which footprint a region was.
+_D_VERT_CELLS = [(dc, dr) for dc in (0, 1) for dr in (0, 1, 2, 3)]      # 2 wide x 4 tall
+_D_HORIZ_CELLS = [(dc, dr) for dc in (0, 1, 2, 3) for dr in (0, 1)]     # 4 wide x 2 tall
 MULTI_TILE_CHUNKS = {
-    'T': {'cells': [(0, 0), (1, 0), (0, 1), (1, 1)], 'anchor': (1, 1), 'emitter': teleporter},          # 2x2, bottom-right
-    'R': {'cells': [(0, 0), (1, 0)],                 'anchor': (1, 0), 'emitter': rising_platform},     # 2x1, right
-    'V': {'cells': [(0, 0), (0, 1), (0, 2)],         'anchor': (0, 2), 'emitter': vertical_key_door},   # 1x3, bottom
-    'Y': {'cells': [(0, 0), (1, 0), (2, 0)],         'anchor': (1, 0), 'emitter': horizontal_key_door}, # 3x1, middle
+    'T': [{'cells': [(0, 0), (1, 0), (0, 1), (1, 1)], 'anchor': (1, 1), 'emitter': teleporter}],          # 2x2, bottom-right
+    'R': [{'cells': [(0, 0), (1, 0)],                 'anchor': (1, 0), 'emitter': rising_platform}],     # 2x1, right
+    'V': [{'cells': [(0, 0), (0, 1), (0, 2)],         'anchor': (0, 2), 'emitter': vertical_key_door}],   # 1x3, bottom
+    'Y': [{'cells': [(0, 0), (1, 0), (2, 0)],         'anchor': (1, 0), 'emitter': horizontal_key_door}], # 3x1, middle
+    'D': [
+        {'cells': _D_VERT_CELLS,  'anchor': (1, 3), 'emitter': boss_door_vertical},    # 2x4, bottom-right
+        {'cells': _D_HORIZ_CELLS, 'anchor': (2, 1), 'emitter': boss_door_horizontal},  # 4x2, bottom row, one left of right edge
+    ],
 }
 
 
-def find_char_chunks(rows: List[str], ch: str, cell_offsets, anchor_offset) -> tuple[set, set]:
+def find_char_chunks(rows: List[str], ch: str, cell_offsets, anchor_offset,
+                     exclude: set | None = None) -> tuple[set, set]:
     """Greedily group cells of char `ch` into footprint-shaped chunks.
 
     `cell_offsets` are (col, row) offsets of the footprint from its top-left cell; `anchor_offset`
-    is which of them is the stored anchor. Scanning row-major (top-to-bottom, left-to-right), each
-    unconsumed `ch` cell is tried as the footprint's top-left; if every offset cell is `ch` and not
-    yet claimed, the block is claimed and its anchor recorded.
+    is which of them is the stored anchor. `exclude` is a set of (row, col) cells already claimed by
+    an earlier shape (so multi-shape chars like 'D' don't reuse cells). Scanning row-major, each
+    available `ch` cell is tried as the footprint's top-left; if every offset cell is an available
+    `ch` cell and not yet claimed here, the block is claimed and its anchor recorded.
 
     Returns (anchors, members):
       - anchors: (row, col) anchor cells that should each emit one object.
       - members: every (row, col) cell belonging to some claimed chunk (non-anchor members emit
-        nothing). A `ch` cell that never forms a full footprint is in neither set, so the caller
+        nothing). A `ch` cell claimed by no shape is in neither set across all shapes, so the caller
         can fall back to emitting it as a lone object (keeps ragged model output from vanishing).
     """
-    present = {(r, c) for r, row in enumerate(rows) for c, x in enumerate(row) if x == ch}
+    exclude = exclude if exclude is not None else set()
+    available = {(r, c) for r, row in enumerate(rows) for c, x in enumerate(row)
+                 if x == ch} - exclude
     anchors: set = set()
     members: set = set()
     adc, adr = anchor_offset
-    for r, c in sorted(present):
+    for r, c in sorted(available):
         if (r, c) in members:
             continue
         block = {(r + dr, c + dc) for (dc, dr) in cell_offsets}
-        if block <= present and not (block & members):
+        if block <= available and not (block & members):
             members |= block
             anchors.add((r + adr, c + adc))
     return anchors, members
@@ -657,13 +692,26 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
 
     playable_row_range = compute_playable_row_range(rows)
 
-    # Multi-tile distinct-char tiles (teleporter/rising platform/key doors): collapse each
-    # footprint-shaped chunk to a single object emitted at that chunk's anchor cell (see
-    # MULTI_TILE_CHUNKS). Precompute per char: {char: (anchors, members)}.
-    chunk_info = {
-        ch: find_char_chunks(rows, ch, spec['cells'], spec['anchor'])
-        for ch, spec in MULTI_TILE_CHUNKS.items()
-    }
+    # Multi-tile distinct-char tiles (teleporter/rising platform/key doors/boss doors): collapse
+    # each footprint-shaped chunk to a single object at that chunk's anchor cell (see
+    # MULTI_TILE_CHUNKS). Per char, try each shape in order (excluding cells already claimed) and
+    # build {anchor_pos: emitter} + the set of all claimed cells; a lone cell claimed by no shape
+    # falls back to the first shape's emitter.
+    chunk_emit: dict = {}       # char -> {(row, col): emitter} for anchor cells
+    chunk_members: dict = {}    # char -> set of all cells claimed by some chunk
+    chunk_fallback: dict = {}   # char -> emitter to use for a lone (unclaimed) cell
+    for ch, shapes in MULTI_TILE_CHUNKS.items():
+        claimed: set = set()
+        emit_map: dict = {}
+        for spec in shapes:
+            anchors, members = find_char_chunks(rows, ch, spec['cells'], spec['anchor'],
+                                                exclude=claimed)
+            claimed |= members
+            for a in anchors:
+                emit_map[a] = spec['emitter']
+        chunk_emit[ch] = emit_map
+        chunk_members[ch] = claimed
+        chunk_fallback[ch] = shapes[0]['emitter']
 
     out: List[str] = ['[Level]']
     active_screen_rows: set = set()
@@ -690,16 +738,14 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
             # Multi-tile distinct-char tiles: one object per footprint chunk, at its anchor cell.
             if ch in MULTI_TILE_CHUNKS:
                 pos = (row_idx, col_idx)
-                anchors, members = chunk_info[ch]
-                emitter = MULTI_TILE_CHUNKS[ch]['emitter']
-                if pos in members:
-                    # Part of a full chunk: emit only at the anchor cell.
-                    if pos in anchors:
-                        out.extend(emitter(x, y))
+                if pos in chunk_members[ch]:
+                    # Part of a full chunk: emit only at the anchor cell, using that shape's emitter.
+                    if pos in chunk_emit[ch]:
+                        out.extend(chunk_emit[ch][pos](x, y))
                 else:
                     # A lone cell not forming a full footprint (e.g. ragged model output): emit a
-                    # single object at it so it isn't silently dropped.
-                    out.extend(emitter(x, y))
+                    # single object (first shape's emitter) so it isn't silently dropped.
+                    out.extend(chunk_fallback[ch](x, y))
                 screen_y = (y // 224) * 224
                 active_screen_rows.add(screen_y)
                 continue
