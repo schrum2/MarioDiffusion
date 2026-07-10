@@ -16,6 +16,7 @@ from create_ascii_captions import assign_caption
 from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
+
 from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.sampler import scene_to_ascii
@@ -44,6 +45,8 @@ class CaptionBuilder(ParentBuilder):
     def __init__(self, master, game):
         global tileset_path
         super().__init__(master)
+
+        self.mm2_assign_caption, self.mm2_compare_captions = mm2_caption_tools(tileset_path)
 
         # Selected game is stored solely in game_var from here on
         self.game_var = tk.StringVar(value=game if game else "Mario Maker 2")
