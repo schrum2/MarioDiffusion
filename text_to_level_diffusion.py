@@ -7,6 +7,10 @@ from captions.MM_caption_match import compare_captions as mm_compare_captions, p
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
+from captions.MM2_caption_match import compare_captions as mm2_compare_captions
+from captions.MM2_caption_match import assign_caption as mm2_assign_caption
+from captions.MM2_caption_match import get_tile_categories as mm2_get_tile_categories
+from captions.MM2_caption_match import get_char_names as mm2_get_char_names
 from captions.util import extract_tileset
 from util.sampler import scene_to_ascii
 import argparse
@@ -33,7 +37,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
@@ -115,7 +119,10 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         if self.args.game == "LR":
             number_of_tiles = common_settings.LR_TILE_COUNT
             scene = [[x % number_of_tiles for x in row] for row in scene]
- 
+        elif self.args.game == "MM2":
+            number_of_tiles = common_settings.MM2_TILE_COUNT
+            scene = [[x % number_of_tiles for x in row] for row in scene]
+
         # Assign a caption to the scene of whichever game is being played
         if self.args.game == "Mario":
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
@@ -126,6 +133,11 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         elif self.args.game == "MM-Simple" or self.args.game == "MM-Full":
             actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
             level_width = common_settings.MEGAMAN_WIDTH
+        elif self.args.game == "MM2":
+            _, _, ground_chars = mm2_get_tile_categories(self.args.tileset)
+            char_names = mm2_get_char_names(self.args.tileset)
+            actual_caption = mm2_assign_caption(scene, self.id_to_char, char_names, ground_chars)
+            level_width = common_settings.MM2_WIDTH
         else:
             raise ValueError(f"Unknown game: {self.args.game}")
         
@@ -196,6 +208,31 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 verbose=True
             )
 
+        elif self.args.game == "MM2":
+            print(f"Describe resulting image: {actual_caption}")
+            # MM2 has no process_scene_segments, so just score the whole scene
+            compare_score = mm2_compare_captions(param_values.get("caption", ""), actual_caption)
+            print(f"Comparison score: {compare_score}")
+
+            # Ask if user wants to play level
+            play_level = input("Do you want to play this level? (y/n): ").strip().lower()
+            if play_level == 'y':
+                print("Playing level...")
+                # Mario Maker 2 has no Java simulator, so use the Python A* traversability check
+                astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+                if astar_dir not in sys.path:
+                    sys.path.insert(0, astar_dir)
+                from astar_traversability_check import astar_console_report
+                console_output = astar_console_report(scene, game="MM2",
+                                                      id_to_char=self.id_to_char,
+                                                      tile_descriptors=self.tile_descriptors,
+                                                      show_image=False)
+                print(console_output)
+            elif play_level == 'n':
+                print("Level not played.")
+            else:
+                print("Unknown input: Level not played.")
+
 
         samples = visualize_samples(images, game=self.args.game)
 
@@ -247,6 +284,9 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         if self.args.game == "MM-Simple" or self.args.game == "MM-Full":
             param_values["height"] = common_settings.MEGAMAN_HEIGHT
             param_values["width"] = common_settings.MEGAMAN_WIDTH
+        if self.args.game == "MM2":
+            param_values["height"] = common_settings.MM2_HEIGHT
+            param_values["width"] = common_settings.MM2_WIDTH
 
         return dict()
 
@@ -265,6 +305,12 @@ if __name__ == "__main__":
         width = common_settings.LR_WIDTH
         args.tile_size = common_settings.LR_TILE_PIXEL_DIM
         args.tileset = common_settings.LR_TILESET
+    elif args.game == "MM2":
+        args.num_tiles = common_settings.MM2_TILE_COUNT
+        height = common_settings.MM2_HEIGHT
+        width = common_settings.MM2_WIDTH
+        args.tile_size = common_settings.MM2_TILE_PIXEL_DIM
+        args.tileset = common_settings.MM2_TILESET
     else:
         args.num_tiles = common_settings.MM_FULL_TILE_COUNT
         height = common_settings.MEGAMAN_HEIGHT
