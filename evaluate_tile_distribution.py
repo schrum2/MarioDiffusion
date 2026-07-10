@@ -15,11 +15,23 @@ from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from tqdm.auto import tqdm
 
 
+# Per-game (tileset, tile_count, width, height) defaults. Mirrors the --game
+# handling in train_diffusion.py so the two stay consistent.
+_GAME_SETTINGS = {
+    "Mario":     (common_settings.MARIO_TILESET, common_settings.MARIO_TILE_COUNT, common_settings.MARIO_WIDTH, common_settings.MARIO_HEIGHT),
+    "MM2":       (common_settings.MM2_TILESET, common_settings.MM2_TILE_COUNT, common_settings.MM2_WIDTH, common_settings.MM2_HEIGHT),
+    "LR":        (common_settings.LR_TILESET, common_settings.LR_TILE_COUNT, common_settings.LR_WIDTH, common_settings.LR_HEIGHT),
+    "MM-Simple": ('datasets/MM-simple-tileset.json', common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
+    "MM-Full":   ('../TheVGLC/MegaMan/MM.json', common_settings.MM_FULL_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
+    "MMLV":      (common_settings.MMLV_TILESET, common_settings.MMLV_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
+}
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Evaluate tile type distribution across a dataset and/or model checkpoints. "
                     "Tile names are derived entirely from the tileset's descriptors, so this "
-                    "works for any game/tileset (original Mario, MM-Simple, MM-Full, Lode Runner)."
+                    "works for any game/tileset (original Mario, MM2, MM-Simple, MM-Full, Lode Runner)."
     )
     parser.add_argument("--model_path", type=str, default=None, help="Path to the trained model directory")
     parser.add_argument("--json_path", type=str, default=None, help="Path to a single dataset JSON file. Used alone to evaluate tile distribution for that dataset, or together with --epoch_dir as the training-set baseline for the comparison plot.")
@@ -27,14 +39,27 @@ def parse_args():
     parser.add_argument("--num_samples", type=int, default=100, help="Number of levels to generate per checkpoint")
     parser.add_argument("--batch_size", type=int, default=25, help="Batch size for generation")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
-    parser.add_argument("--tileset", type=str, default=common_settings.MARIO_TILESET, help="Path to tileset JSON")
-    parser.add_argument("--width", type=int, default=common_settings.MARIO_WIDTH, help="Width of generated levels")
-    parser.add_argument("--height", type=int, default=common_settings.MARIO_HEIGHT, help="Height of generated levels")
+    parser.add_argument("--game", type=str, default="Mario", choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full", "MMLV"], help="Which game's tileset/level dimensions to use. Fills in --tileset, --num_tiles, --width and --height unless those are given explicitly.")
+    parser.add_argument("--num_tiles", type=int, default=None, help="Number of tile types (defaults to the --game value)")
+    parser.add_argument("--tileset", type=str, default=None, help="Path to tileset JSON (defaults to the --game value)")
+    parser.add_argument("--width", type=int, default=None, help="Width of generated levels (defaults to the --game value)")
+    parser.add_argument("--height", type=int, default=None, help="Height of generated levels (defaults to the --game value)")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Denoising steps")
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Classifier-free guidance scale")
     parser.add_argument("--captions_json", type=str, default=None, help="Path to a dataset JSON file (list of {\"caption\": ...} entries). If given, a fixed set of captions sampled from it is used to condition generation for every checkpoint, instead of generating unconditionally.")
     args = parser.parse_args()
+
+    # Fill in tileset / tile count / dimensions from the chosen game, mirroring the
+    # --game handling in train_diffusion.py. Explicit CLI values take precedence.
+    tileset, tile_count, width, height = _GAME_SETTINGS[args.game]
+    if args.tileset is None:
+        args.tileset = tileset
+    if args.num_tiles is None:
+        args.num_tiles = tile_count
+    if args.width is None:
+        args.width = width
+    if args.height is None:
+        args.height = height
 
     if not args.model_path and not args.json_path and not args.epoch_dir:
         parser.error("Provide --model_path, --json_path, or --epoch_dir (with --json_path).")
@@ -60,13 +85,83 @@ _SKIP_DESCRIPTORS = {
 }
 
 
-def build_char_to_name(tileset_path):
+# Authoritative MM2 char→name mapping sourced from OBJ_META in mm2_viewer_json.py.
+# MM2's tileset descriptors are too generic to name enemies/items on their own
+# (e.g. every enemy is just "enemy"/"moving"), so this supplies real names as a
+# fallback when descriptors yield nothing specific. Only used for --game MM2.
+_MM2_OBJ_NAMES = {
+    # terrain
+    "#": "Ground",          "B": "Block",               "H": "Hard Block",
+    "?": "? Block",         "h": "Hidden Block",         "N": "Note Block",
+    "d": "Donut Block",     "I": "Ice Block",            "p": "P Block",
+    "O": "ON/OFF Block",    ".": "Dotted-Line Block",    "*": "Blinking Block",
+    "Ç": "Spike Block",     "C": "Crate",                "S": "Stone",
+    "{": "Starting Brick",  "=": "Castle Bridge",        "T": "Tree",
+    "/": "Slight Slope",    "\\": "Steep Slope",
+    # doors / warps
+    "|": "Pipe",            "D": "Door",                 "W": "Warp Box",
+    "k": "Key",             "f": "Checkpoint Flag",      "G": "Goal",
+    "c": "Clear Pipe",
+    # enemies
+    "g": "Goomba",          "K": "Koopa",                "P": "Piranha Plant",
+    "m": "Hammer Bro",      "t": "Thwomp",               "o": "Bob-omb",
+    "s": "Spiny",           "b": "Buzzy Beetle",         "L": "Lakitu",
+    "l": "Lakitu's Cloud",  "Z": "Banzai Bill",          "V": "Bullet Bill Blaster",
+    "y": "Magikoopa",       "<": "Spike Top",            "u": "Boo",
+    "X": "Bowser",          "x": "Bowser Jr.",           "@": "Chain Chomp",
+    "~": "Cheep Cheep",     "q": "Blooper",              "w": "Wiggler",
+    "Y": "Pokey",           "e": "Piranha Creeper",      "F": "Porcupuffer",
+    "%": "Fish Bone",       "&": "Lava Bubble",          "r": "Rocky Wrench",
+    ",": "Muncher",         "a": "Ant Trooper",          "n": "Monty Mole",
+    "R": "Mechakoopa",      "!": "Boom Boom",            "9": "Dry Bones",
+    "j": "Skipsqueak",      ";": "Stingby",              "A": "Angry Sun",
+    "v": "Charvaargh",      "[": "Bully",
+    "1": "Lemmy",           "2": "Morton",               "3": "Larry",
+    "4": "Wendy",           "5": "Iggy",                 "6": "Roy",
+    "7": "Ludwig",
+    # items
+    "¢": "Coin",            "$": "Red Coin",             "£": "Large Coin",
+    "U": "1-Up Mushroom",   "i": "Fire Flower",          "¤": "Super Star",
+    "M": "Super Mushroom",  "¶": "Big Mushroom",
+    "¬": "Super Hammer",    "¦": "P Switch",             "¯": "POW Block",
+    "±": "Spring",          "µ": "Goomba's Shoe",        "]": "Cannon Box",
+    "}": "Propeller Box",   ")": "Goomba Mask",          "°": "Bullet Bill Mask",
+    "²": "Red POW Box",
+    # platforms
+    "-": "Lift",            "³": "Mushroom Platform",    "´": "Semisolid Platform",
+    "·": "Bridge",          "¸": "Lava Lift",            "¹": "Snake Block",
+    "º": "Track Block",     "»": "Conveyor Belt",        "¼": "Fast Conveyor Belt",
+    "½": "Sprint Platform", "¾": "Seesaw",               "¿": "Swinging Claw",
+    "À": "ON/OFF Trampoline", "Á": "Mushroom Trampoline", "J": "Jumping Machine",
+    "Â": "Half-Collision Platform", "Ã": "Donut",
+    # hazards
+    "Ä": "Fire Bar",        "Å": "Saw",                  "Æ": "Burner",
+    "^": "Spikes",          "È": "Spike Ball",           "É": "Skewer",
+    "Ê": "Twister",         "Ë": "Icicle",
+    # decoration / other
+    "Ì": "Cloud",           "Í": "Vine",                 "Î": "Water Marker",
+    "Ï": "Arrow",           "Ð": "One-Way Wall",         "Ñ": "Reel Camera",
+    "Ò": "Sound Effect",    "Ó": "Player",               "Ô": "Clown Car",
+    "Õ": "Koopa Clown Car", "Ö": "Track",                "×": "Starting Arrow",
+    "Ø": "Cannon",          "Ù": "! Block",
+    # pipe directions (in tileset but not in OBJ_META)
+    "↑": "Pipe (Up)",       "↓": "Pipe (Down)",
+    "←": "Pipe (Left)",     "→": "Pipe (Right)",
+}
+
+
+def build_char_to_name(tileset_path, obj_names=None):
     """
     Return a dict mapping each tile char to a unique human-readable name derived
     purely from the tileset's own descriptors. Prefers the most specific,
     descriptive attribute (multi-word > non-generic single word > last listed).
     Any remaining duplicates are disambiguated by appending the char, and a tile
     with no usable descriptor falls back to the char itself.
+
+    If `obj_names` (a char→name dict) is given, it is used as a fallback for any
+    char whose descriptors yield nothing but a generic term — this is how MM2,
+    whose enemy/item descriptors are too generic to name on their own, gets real
+    names like "Goomba" instead of "enemy (g)".
     """
     with open(tileset_path, 'r', encoding='utf-8') as f:
         tileset = json.load(f)
@@ -86,7 +181,12 @@ def build_char_to_name(tileset_path):
     raw_names = {}
     for char, descriptors in tileset['tiles'].items():
         name = pick_name_from_descriptors(descriptors)
-        raw_names[char] = name if name else char
+        if name and name not in _SKIP_DESCRIPTORS:
+            raw_names[char] = name
+        elif obj_names and char in obj_names:
+            raw_names[char] = obj_names[char]
+        else:
+            raw_names[char] = name if name else char
 
     # Disambiguate: when two chars share a raw name, append (char) to both
     name_count = Counter(raw_names.values())
@@ -498,7 +598,8 @@ def main():
         torch.cuda.manual_seed_all(args.seed)
 
     tile_chars, id_to_char, _, _ = extract_tileset(args.tileset)
-    char_to_name = build_char_to_name(args.tileset)
+    obj_names = _MM2_OBJ_NAMES if args.game == "MM2" else None
+    char_to_name = build_char_to_name(args.tileset, obj_names)
 
     # Determine whether '_' is a real tile in this tileset or just the padding
     # sentinel appended by extract_tileset for tilesets that lack it.
