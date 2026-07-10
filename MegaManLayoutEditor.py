@@ -5,6 +5,7 @@ import sys
 from PIL import Image, ImageTk
 
 from level_dataset import mario_tiles, lr_tiles, mm_tiles
+from MM2_Files.render_mm2 import mm2_tiles
 from util.sampler import scene_to_ascii
 
 # Jacob: Despite the name, I think some of the standard LevelEditor class applies to all games.
