@@ -8,12 +8,13 @@ import numpy as np
 from level_dataset import visualize_samples, samples_to_scenes
 import random
 from create_ascii_captions import save_level_data
-from create_level_json_data import load_tileset # Jacob: added it back, but left out the rest: MM2_EXTRA_TILE  | Used in Line 196 that is commented out. No need for it.
+from create_level_json_data import load_tileset
 import util.common_settings as common_settings
 from util.size_utils import dataset_width_range, unet_width_factor, sample_random_width
 from models.pipeline_loader import get_pipeline
 from LR_create_ascii_captions import save_level_data as lr_save_level_data
 from MM_create_ascii_captions import save_level_data as mm_save_level_data
+from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 
 
 def crop_null_border(scene, null_id):
@@ -60,7 +61,6 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--visualize", action="store_true", help="Additionally save each generated sample with its A* path overlaid (filename tagged 'solved'/'unsolved')")
-    # Jacob: I don't think this text conditional parameter should be necessary in run_diffusion
     parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--level_width", type=int, default=None, help="Overrides width from unet if specified")
     parser.add_argument("--level_height", type=int, default=None, help="Overrides height from unet if specified (e.g. to request a specific complete-level bucket size)")
@@ -82,19 +82,17 @@ def parse_args():
         help="Output format: ascii text files, tile images, or both",
     )
 
-    # Jacob: Maybe we should make it required, but not have a default value?
-    # Hopefully always the user to specify the game they wish to run diffusion on
+    # Note: "MM2" is Mario Maker 2; "MM-Simple"/"MM-Full"/"MMLV" are Mega Man.
+    # Defaults to Mario, but callers should generally pass the game explicitly.
     parser.add_argument(
         "--game",
         type=str,
         default="Mario",
-        # Jacob: Still confusing that MM means Mario Maker and not Mega Man
         choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full", "MMLV"],
         help="Which game to create a model for (affects sample style and tile count)"
-    )    
+    )
 
-    # Used to generate captions when generating images
-    # Jacob: Can we remove this in favor of the --game parameter or is it still useful?
+    # Used to generate captions when generating images. Overridden per --game below.
     parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Path to tileset JSON")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Caption mentions when tiles are entirely absent")
     return parser.parse_args()
@@ -192,9 +190,8 @@ def generate_levels(args):
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Jacob: This was all from Mario Maker, but I removed it. Then the code broke, so I added it back, but modified
-    #        It is needed by line 285 below
-    tile_to_id = load_tileset(args.tileset) # , extra_tile=MM2_EXTRA_TILE)
+    # Build id_to_char from the tileset; used when saving ASCII output below.
+    tile_to_id = load_tileset(args.tileset)
     id_to_char = {v: k for k, v in tile_to_id.items()}
     print(f"Tileset: {len(tile_to_id)} tile types from {args.tileset}")
     
@@ -205,26 +202,14 @@ def generate_levels(args):
 
     pipeline.to(device)
 
-    # Jacob: This was all from Mario Maker, but I removed it. I don't think it is needed.
-    #        Block embeddings worked in Mario Diffusion without this extra code, so I'm not
-    #        sure why we would want/need it. Pretty sure that the pipeline loads block embeddings.
+    # Models trained with block embeddings decode back to tile space inside the pipeline
+    # (see UnconditionalDDPMPipeline.__call__), so samples reach us ready for a plain argmax.
 
-    # When the model was trained with block embeddings the pipeline decodes its
-    # own embedding output back to a [batch, num_tiles, H, W] tile distribution
-    # internally (see UnconditionalDDPMPipeline.__call__), so the samples reaching
-    # us are always in tile space and a plain argmax decodes them. The unet itself
-    # has embedding_dim input channels in that case, so compare against the right
-    # number to avoid a spurious warning.
+    # Channel-count check left commented out: it warns spuriously for block-embedding models.
     #model_channels = pipeline.unet.config.in_channels
     #uses_block_embeddings = getattr(pipeline, "block_embeddings", None) is not None
     #if not uses_block_embeddings and model_channels != len(tile_to_id):
     #    print(f"Warning: model has {model_channels} channels but tileset has {len(tile_to_id)} tiles")
-
-    #ss = pipeline.unet.config.sample_size
-    #if isinstance(ss, (tuple, list)):
-    #    scene_height, scene_width = ss
-    #else:
-    #    scene_height = scene_width = ss
 
     # Determine number of tiles from model
     num_tiles = pipeline.unet.config.in_channels
@@ -262,6 +247,7 @@ def generate_levels(args):
     for batch_idx in range(num_batches):
         # Calculate batch size for this iteration
         current_batch_size = min(args.batch_size, total_samples - batch_idx * args.batch_size)
+        # Per-batch width: the fixed scene_width, unless --random_width varies it from batch to batch.
         batch_width = sample_random_width(min_width, max_width, width_factor, width_rng) if args.random_width else scene_width
         print(f"Generating batch {batch_idx+1}/{num_batches} ({current_batch_size} samples, width {batch_width})...")
 
@@ -273,7 +259,7 @@ def generate_levels(args):
                 num_inference_steps=args.inference_steps,
                 output_type="tensor",
                 height=scene_height,
-                width=batch_width, # Jacob: Changed from scene_width, but I don't think it matters
+                width=batch_width,
             ).images
 
             all_samples.append(samples)
@@ -319,19 +305,19 @@ def generate_levels(args):
             lr_save_level_data(scenes, tileset, out_path, False, args.describe_absence)
         elif args.game in ("MM-Simple", "MM-Full", "MMLV"):
             mm_save_level_data(scenes, args.tileset, out_path, False, args.describe_absence)
-        if args.game == "MM2": # Jacob: Added for Mario Maker
-            # Jacob: This is the code that was in MarioMakerPCG, but I think it just assigned old style Mario captions to the MM levels.
-            #        This should be assigning Mario Maker deterministic captions instead.
-            save_level_data(scenes, args.tileset, out_path, False, args.describe_absence, exclude_broken=False)
+        elif args.game == "MM2":
+            # MM2 has its own deterministic captioner; the SMB caption code can't read
+            # the MM2 tileset. Caption each generated scene the same way evaluation does.
+            mm2_assign_caption, _ = mm2_caption_tools(args.tileset)
+            captioned = [{"prompt": None, "scene": scene, "caption": mm2_assign_caption(scene)}
+                         for scene in scenes]
+            with open(out_path, "w") as f:
+                json.dump(captioned, f, indent=4)
         print(f"Saved {len(scenes)} captioned scenes to {out_path}")
 
 if __name__ == "__main__":
     args = parse_args()
-    # Jacob: The if/else staructure below was in MarioDiffusion,
-    #        but I would like to find a way to remove it. I don't think
-    #        num_tiles is needed at all (it comes from the model) and
-    #        we might be able to pass args.game around instead of using
-    #        it to define tileset here.
+    # Set the tileset and tile count for the chosen game (num_tiles is also re-read from the model).
     if args.game == "Mario":
         args.num_tiles = common_settings.MARIO_TILE_COUNT
         args.tileset = common_settings.MARIO_TILESET
@@ -347,7 +333,6 @@ if __name__ == "__main__":
     elif args.game == "MMLV":
         args.num_tiles = common_settings.MMLV_TILE_COUNT
         args.tileset = common_settings.MMLV_TILESET
-    # Jacob: but in the meantime, Mario Maker deserves its own case
     elif args.game == "MM2":
         args.num_tiles = common_settings.MM2_TILE_COUNT
         args.tileset = common_settings.MM2_TILESET

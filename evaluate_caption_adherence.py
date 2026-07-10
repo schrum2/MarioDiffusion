@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--game", type=str, default=None, choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"], help="Game to evaluate: selects the tileset, scene shape, tile count, and the tiles used for rendering. This is the main way to pick a game, and how Mega Man should be resolved. When omitted, the game is derived from --num_tiles (+ --mm) for backward compatibility.")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
-    # Jacob: This is confusing to use --mm as Mega Man, because Mario Maker is being added now
+    # Note: "--mm"/MM-Simple/MM-Full are Mega Man; the "MM2" game is Mario Maker 2.
     parser.add_argument("--mm", action="store_true", help="Backward-compatible shorthand for Mega Man when --game is not given: routes the 13-tile case to MM-Simple instead of Mario (they share a tile count). Prefer --game MM-Simple / --game MM-Full.")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size")
         
@@ -85,8 +85,7 @@ GAME_SETTINGS = {
     "MM2":       (common_settings.MM2_TILE_COUNT,       common_settings.MM2_TILESET,       common_settings.MM2_HEIGHT,     common_settings.MM2_WIDTH),
  }
 
-# Jacob: The fact that args.mm is used for Mega Man is confusing and should be fixed.
-# Jacob: This should be moved into a util file accessed by many other scripts
+# TODO: this game-resolution logic is duplicated across scripts and could move into a shared util.
 def resolve_game(args):
     """Map the CLI args to (game, num_tiles, tileset, height, width, path_to_json).
 
@@ -94,7 +93,7 @@ def resolve_game(args):
     game is derived from --num_tiles (+ --mm) so older calls keep working: 8 -> LR, 41 -> MM-Full,
     43 -> MMLV, 13 -> Mario, or MM-Simple when --mm is set (Mario and MM-Simple share a 13-tile count).
     """
-    # Jacob: Mario Maker can be set as the game, but will not fall back as a default
+    # MM2 must be selected explicitly via --game; it is never inferred from --num_tiles.
     if args.game is not None:
         game = args.game
     elif args.num_tiles == common_settings.LR_TILE_COUNT:
@@ -110,7 +109,7 @@ def resolve_game(args):
     num_tiles, tileset, height, width = GAME_SETTINGS[game]
     # Lode Runner has always evaluated against its regular caption set, ignoring --json.
     path_to_json = "datasets/LR_LevelsAndCaptions-regular.json" if game == "LR" else args.json
-    # Jacob: Should also return the id_to_char and reverse mappings
+    # Returns only the game selection; callers load id_to_char/char_to_id from the tileset separately.
     return game, num_tiles, tileset, height, width, path_to_json
 
 def resolve_eval_width_range(args):
@@ -192,22 +191,16 @@ def main():
         print("Error: --match_scene_width and --random_width are mutually exclusive.")
         exit(1)
 
-    # Jacob: All games have custom captions, so I'm not sure this is the best place to handle Mario Maker.
     # Mario Maker levels get their own captioner and comparison (the SMB code
     # would call every MM2 pipe broken -- the tileset has no <>[] chars).
     mm2 = "mm2" in os.path.basename(tileset).lower()
-
-    # Jacob: No, I think we want to enable this for all games
-    #if args.all_captions and not mm2:
-    #    print("Error: --all_captions is only supported for Mario Maker datasets.")
-    #    exit(1)
 
     # At least some captions will be from an LLM, and caption adherence can't be computed for those.
     if args.all_captions and args.compare_checkpoints:
         print("Error: --all_captions cannot be combined with --compare_checkpoints.")
         exit(1)
 
-    # Jacob: I feel like it should be possible to generalize this across games by incorporating metadata into the LevelDataset.
+    # TODO: this MM2-specific path could be generalized by carrying metadata in LevelDataset.
     if mm2 and not args.compare_checkpoints:
         # Generate straight from the dataset entries (not a LevelDataset) so each
         # output can be tagged with the source scene its caption came from.
@@ -235,10 +228,8 @@ def main():
         shuffle=False,
         mode="text",
         augment=False,
-        # Jacob: I think args.num_tiles was used to allow overriding the default with any size,
-        #        but using num_tiles from resolve_game is better in general. However, we might revert to args.num_tiles
+        # num_tiles comes from resolve_game so it always matches the selected game's tileset.
         num_tiles=num_tiles,
-        #num_tiles=args.num_tiles
     )
     scene_widths = {len(item["scene"][0]) for item in dataset.data if isinstance(item, dict) and item.get("scene") is not None}
 
@@ -318,8 +309,8 @@ def main():
                     paired.append({"prompt": prompt, "caption": caption, "scene": scene})
                 with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
                     json.dump(paired, f, indent=4)
-            # Jacob: I'm not certain that the same function call here will work for both Mario and MM2 (Mario Maker)
-            elif game == "Mario" or game == "MM2":
+            # MM2 returns earlier (it writes its own json), so only Mario reaches this branch.
+            elif game == "Mario":
                 save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
             elif game in ("MM-Simple", "MM-Full", "MMLV"):
                 # Same output shape as the no_caption_score MM2 path: keep the input prompt and a
@@ -514,9 +505,11 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             pipe = get_pipeline(checkpoint_dir).to(device)
 
             per_width_scores = {}
+            # Pass the MM2 caption tools (None for other games) so MM2 scores with the MM2 captioner;
+            # scene shape alone can't tell MM2 from Mario.
             avg_score, _, _, _ = calculate_caption_score_and_samples(
                 device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, game=game,
-                assign_caption_fn=assign_caption_fn, compare_captions_fn=compare_captions_fn # Jacob: Still not certain we need these two parameters
+                assign_caption_fn=assign_caption_fn, compare_captions_fn=compare_captions_fn
             )
 
             # Collapse the per-width score lists into mean scores for this checkpoint.
@@ -553,7 +546,6 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     # scores). This lets callers break the overall adherence score down by scene size without
     # changing this function's return signature (which several training scripts depend on).
 
-    # Jacob: Not sure we need these: Can't we just use the game parameter instead?
     # assign_caption_fn/compare_captions_fn override the game detection below, for
     # Mario Maker (which the height checks can't tell from Mario: both MARIO_HEIGHT).
 
@@ -656,6 +648,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
                 #quit()
 
+                # MM2 uses assign_caption_fn (set above), so it never reaches these by-game cases.
                 if assign_caption_fn is not None:
                     actual_caption = assign_caption_fn(scene)
                 elif game == "LR":
@@ -663,22 +656,23 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 elif game in ("MM-Simple", "MM-Full", "MMLV"):
                     actual_caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-                elif game in ("MM2", "Mario"): # Jacob: This is new: I think Mario and Mario Maker can call the same function.
+                elif game == "Mario":
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-                else: # Jacob: Added this failure case
+                else:
                     raise ValueError(f"Unknown game type: {game}")
 
 
                 if output: print(f"\t{caption}")
+                # Same idea: MM2 uses compare_captions_fn above, so only the other games reach here.
                 if compare_captions_fn is not None:
                     compare_score = compare_captions_fn(caption, actual_caption)
                 elif game == "LR":
                     compare_score = lr_compare_captions(caption, actual_caption)
                 elif game in ("MM-Simple", "MM-Full", "MMLV"):
                     compare_score = mm_compare_captions(caption, actual_caption)
-                elif game in ("MM2", "Mario"): # Jacob: This is new: I think Mario and Mario Maker can call the same function.
+                elif game == "Mario":
                     compare_score = compare_captions(caption, actual_caption)
-                else: # Jacob: Added this failure case
+                else:
                     raise ValueError(f"Unknown game type: {game}")
 
                 if output: print(f"\tcompare_score: {compare_score}")

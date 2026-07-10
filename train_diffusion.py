@@ -892,7 +892,8 @@ def main():
                     output=False, height=scene_height, width=scene_width,
                     match_scene_width=True, per_width_scores=per_width_scores,
                     game=args.game,
-                    assign_caption_fn=mm2_assign_fn, compare_captions_fn=mm2_compare_fn # Jacob: I'm not sure this is really needed here
+                    # MM2 caption tools (set just above); None for other games.
+                    assign_caption_fn=mm2_assign_fn, compare_captions_fn=mm2_compare_fn
                 )
                 # Collapse the per-width score lists into a mean score per width for this epoch.
                 width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}

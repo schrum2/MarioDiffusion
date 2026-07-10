@@ -318,8 +318,9 @@ def mm_tiles(game):
             (4,6),    #38 = Crazy razy enemy
             (4,7),    #39 = PePe penguin enemy
         
-            # Jacob: This was in Mario Maker but not in MarioDiffusion, so I have to assume it was removed for a reason
-            #(3,7)     #40 = Changkey fire pillar enemy (reuses the tackle-fire sprite, which doesn't actually have its own tile in MM.json)
+            # Intentionally omitted: MM.json has no dedicated tile for the Changkey fire pillar
+            # (it reuses the tackle-fire sprite).
+            #(3,7)     #40 = Changkey fire pillar enemy
         ]
 
     elif game == "MMLV":
@@ -785,8 +786,7 @@ class LevelDataset(Dataset):
             # should never say there are no upside down pipes too.
             remove_upside_down_pipes = True
             for sample in self.data:
-                caption = sample["caption"]
-                # caption = sample.get("caption", "") # Jacob: do not silently fail
+                caption = sample["caption"]  # access directly so a missing caption raises instead of being masked
                 if "upside" in caption:
                     # No problem. Upside down pipes are present
                     remove_upside_down_pipes = False

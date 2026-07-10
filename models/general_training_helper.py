@@ -54,12 +54,8 @@ class BucketBatchSampler:
         for indices in buckets.values():
             for i in range(0, len(indices), batch_size):
                 batch = indices[i:i + batch_size]
-                # Skip incomplete batches at the tail of each bucket when drop_last is set
+                # Drop incomplete batches at the tail of each bucket when drop_last is set.
                 if drop_last and len(batch) < batch_size:
-                # Skip incomplete batches at the tail of each bucket when drop_last is set,
-                # but keep the sole batch of a bucket smaller than batch_size (small datasets)
-                # Jacob: Was this needed to avoid a weird error with empbt batches? We'll find out!
-                #if drop_last and len(batch) < batch_size and len(indices) > batch_size:
                     continue
                 self.batches.append(batch)
 

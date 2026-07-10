@@ -19,7 +19,6 @@ import random
 import colorsys
 from util.sampler import scene_to_ascii
 from util.sampler import SampleOutput
-from models.pipeline_loader import get_pipeline
 from MegaManLayoutEditor import LevelEditor, MegaManLayoutEditor
 #from LodeRunner.loderunner.graphics import *
 import webbrowser
@@ -47,9 +46,7 @@ class TileViewer(tk.Tk):
         self.dataset = []
         self.id_to_char = {}
         self.current_sample_idx = 0
-        # Jacob: I think MariobMakerPCG renamed caption_cycle_idx to current_caption_idx
-        self.current_caption_idx = 0
-        #self.caption_cycle_idx = 0  # which caption field is shown when a scene has several
+        self.current_caption_idx = 0  # which caption field is shown when a scene has several (was caption_cycle_idx in MarioMakerPCG)
         self.show_prompt = False  # text box shows the scene's 'prompt' field instead of caption
         self.show_ids = tk.BooleanVar(value=False)
         self.describe_absence = tk.BooleanVar(value=False)
@@ -363,8 +360,9 @@ class TileViewer(tk.Tk):
             )
             return
         MegaManLayoutEditor(self, self)
-    
-    # Jacob: Next few methods are from MarioMakerPCG. Were they needed?
+
+    # These methods back the "show real image" view: they locate a sample's source PNG
+    # and toggle it in place of the ASCII grid.
     def _resolve_image_path(self, image_path):
         """Resolve the (usually relative) 'image' path from a sample to an
         existing file on disk, or return None if it can't be found.
@@ -470,10 +468,8 @@ class TileViewer(tk.Tk):
         load_tileset_button = tk.Button(frame, text="Select Tileset", command=self.load_tileset)
         load_tileset_button.pack(side=tk.LEFT, padx=2)
 
-        # Add a button to load a trained diffusion model
-        # Jacob: This never really worked and clutters the interface, so I'm commenting it out.
-        #self.load_model_button = tk.Button(frame, text="Load Model", command=self.load_model)
-        #self.load_model_button.pack(pady=2)
+        # A "Load Model" button sat here; removed with the in-browser generation feature
+        # (see the commented load_model method below).
 
         checkbox_frame = tk.Frame(self)
         checkbox_frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
@@ -599,18 +595,8 @@ class TileViewer(tk.Tk):
         self.jump_entry.pack(side=tk.LEFT)
         self.jump_entry.bind("<Return>", self.jump_to_sample)
 
-        # Generate button (initially disabled)
-        # Jacob: This never really worked and clutters the interface, so I'm commenting it out.
-        #self.generate_button = tk.Button(nav_info_frame, text="Generate From Scene", command=self.generate_from_scene, state=tk.DISABLED)
-        #self.generate_button.pack(side=tk.LEFT, padx=20)
-
-        # Steps input field
-        # Jacob: This is related to the Generate From Scene button, which is disabled, so I'm disabling this too.
-        #tk.Label(nav_info_frame, text="Steps:").pack(side=tk.LEFT)
-        #self.steps_entry = tk.Entry(nav_info_frame, width=4)
-        #self.steps_entry.insert(0, "50")  # Default value
-        #self.steps_entry.config(state=tk.DISABLED)  # Initially disabled
-        #self.steps_entry.pack(side=tk.LEFT, padx=20)
+        # A "Generate From Scene" button and "Steps" field sat here; removed with the
+        # model-loading feature (see the commented generate_from_scene method).
 
         # Navigation buttons
         tk.Button(nav_info_frame, text="<< Prev", command=self.prev_sample).pack(side=tk.LEFT, padx=10)
@@ -804,56 +790,39 @@ class TileViewer(tk.Tk):
             with open(dataset_path, 'r', encoding='utf-8') as f:
                 self.dataset = json.load(f)
 
-            # Jacob: There is code from MarioDiffusion and MarioMakerPCG below,
-            #        but I don't think that either approach is up to date.
-
-            # Jacob: This code is from MarioDiffusion
-            # Is designed to typically expect both scenes and captions, but if there are only level scenes,
-            # convert the data format
+            # Datasets usually hold both scenes and captions, but a bare list of scene
+            # grids is converted to dict form with an empty caption.
             if isinstance(self.dataset, list) and all(isinstance(item, list) for item in self.dataset):
-                # Convert to dict format with empty caption
                 self.dataset = [{'scene': item, 'caption': ''} for item in self.dataset]
 
-            # Jacob: This commented out code came from MarioMakerPCG
-            # Normalize every sample to a dict with 'scene' and 'captions' keys.
-            # Some datasets are raw scene grids (list of lists); others are
-            # dicts missing 'caption'/'captions' (e.g. mm2pipeline_data.dataset's
-            # {'name', 'scene'} output).
+            # MarioMakerPCG's multi-caption normalization is left commented out because this viewer
+            # pages a scene's captions through the attribute dropdown rather than a 'captions' list.
             #normalized_dataset = []
             #for item in self.dataset:
             #    if isinstance(item, list):
             #        normalized_dataset.append({'scene': item, 'captions': ['']})
             #    else:
-            #        # MarioMaker_llm_captions.py stores multiple captions as
-            #        # 'caption', 'caption1', 'caption2', ... ; collect them all
-            #        # into an in-memory 'captions' list for display/navigation.
             #        captions = [item['caption']] if item.get('caption') else []
             #        idx = 1
             #        while f'caption{idx}' in item:
             #            captions.append(item[f'caption{idx}'])
             #            idx += 1
-            #        if not captions:
-            #            captions = ['']
-            #        item['captions'] = captions
-            #        item.setdefault('caption', captions[0])
+            #        item['captions'] = captions or ['']
+            #        item.setdefault('caption', item['captions'][0])
             #        normalized_dataset.append(item)
             #self.dataset = normalized_dataset
 
-            # Jacob: Neither of the two options above seem to be aware of the 
-            #        new multi-caption approach
-
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
             self.color_map = self._build_color_map()
+            # Start the new dataset at the first sample and its first caption.
             self.current_sample_idx = 0
-            # Jacob: favor current_caption_idx instead of caption_cycle_idx
             self.current_caption_idx = 0
-            # self.caption_cycle_idx = 0 
             self.redraw()
         except Exception as e:
             print(f"Error loading files: {e}")
             raise e
 
-    # Jacob: Not sure this is necesary, or compatible with the other games.
+    # Builds the MM2 tag-based tile color map used by the grid view.
     def _build_color_map(self):
         TAG_COLORS = [
             ("empty",       (0.20, 0.30, 0.70)),
@@ -884,64 +853,58 @@ class TileViewer(tk.Tk):
             color_map[tile_id] = color
         return color_map
 
-    def load_model(self):
-        """Load a trained diffusion model."""
-        model_path = filedialog.askdirectory(title="Select Model Directory")
-        if model_path:
-            try:
-                self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                self.pipeline = get_pipeline(model_path).to(self.device)
-                print(f"Model loaded from {model_path}")
-                self.generate_button.config(state=tk.NORMAL)  # Enable the generate button
-                self.steps_entry.config(state=tk.NORMAL)  # Enable the steps entry
-            except Exception as e:
-                print(f"Error loading model: {e}")
-                self.generate_button.config(state=tk.DISABLED)
-                self.steps_entry.config(state=tk.DISABLED)
-
-    # Jacob: I'm pretty sure this has never worked right and should be removed
-    def generate_from_scene(self):
-        """Generate a new level from the current scene using the loaded model."""
-        if not hasattr(self, 'pipeline') or not self.pipeline:
-            print("No model loaded.")
-            return
-
-        if not self.dataset:
-            print("No dataset loaded.")
-            return
-
-        # Get number of steps from entry, with validation
-        try:
-            num_steps = int(self.steps_entry.get())
-            if num_steps <= 0:
-                raise ValueError("Steps must be positive")
-        except ValueError as e:
-            print(f"Invalid step count: {e}")
-            self.steps_entry.delete(0, tk.END)
-            self.steps_entry.insert(0, "50")  # Reset to default
-            num_steps = common_settings.NUM_INFERENCE_STEPS
-
-        sample = self.dataset[self.current_sample_idx]
-        input_scene = sample['scene']
-        input_scene = torch.tensor(input_scene, device=self.device)
-
-        try:
-            output = self.pipeline(
-                batch_size=1,
-                input_scene=input_scene,
-                num_inference_steps=num_steps,  # Use the value from entry
-                guidance_scale=common_settings.GUIDANCE_SCALE,
-                height=len(input_scene),
-                width=len(input_scene[0])
-            )
-            print(f"Generated new level from scene using {num_steps} steps.")
-            from level_dataset import visualize_samples
-            generated_image = visualize_samples(output.images, game=self.game.get())
-            if isinstance(generated_image, list):
-                generated_image = generated_image[0]
-            generated_image.show()
-        except Exception as e:
-            print(f"Error during generation: {e}")
+    # Model loading / scene-regeneration never worked reliably; kept commented in case it's revived.
+    # def load_model(self):
+    #     """Load a trained diffusion model."""
+    #     model_path = filedialog.askdirectory(title="Select Model Directory")
+    #     if model_path:
+    #         try:
+    #             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #             self.pipeline = get_pipeline(model_path).to(self.device)
+    #             print(f"Model loaded from {model_path}")
+    #             self.generate_button.config(state=tk.NORMAL)  # Enable the generate button
+    #             self.steps_entry.config(state=tk.NORMAL)  # Enable the steps entry
+    #         except Exception as e:
+    #             print(f"Error loading model: {e}")
+    #             self.generate_button.config(state=tk.DISABLED)
+    #             self.steps_entry.config(state=tk.DISABLED)
+    #
+    # def generate_from_scene(self):
+    #     """Generate a new level from the current scene using the loaded model."""
+    #     if not hasattr(self, 'pipeline') or not self.pipeline:
+    #         print("No model loaded.")
+    #         return
+    #     if not self.dataset:
+    #         print("No dataset loaded.")
+    #         return
+    #     # Get number of steps from entry, with validation
+    #     try:
+    #         num_steps = int(self.steps_entry.get())
+    #         if num_steps <= 0:
+    #             raise ValueError("Steps must be positive")
+    #     except ValueError as e:
+    #         print(f"Invalid step count: {e}")
+    #         self.steps_entry.delete(0, tk.END)
+    #         self.steps_entry.insert(0, "50")  # Reset to default
+    #         num_steps = common_settings.NUM_INFERENCE_STEPS
+    #     sample = self.dataset[self.current_sample_idx]
+    #     input_scene = torch.tensor(sample['scene'], device=self.device)
+    #     try:
+    #         output = self.pipeline(
+    #             batch_size=1,
+    #             input_scene=input_scene,
+    #             num_inference_steps=num_steps,
+    #             guidance_scale=common_settings.GUIDANCE_SCALE,
+    #             height=len(input_scene),
+    #             width=len(input_scene[0])
+    #         )
+    #         print(f"Generated new level from scene using {num_steps} steps.")
+    #         generated_image = visualize_samples(output.images, game=self.game.get())
+    #         if isinstance(generated_image, list):
+    #             generated_image = generated_image[0]
+    #         generated_image.show()
+    #     except Exception as e:
+    #         print(f"Error during generation: {e}")
 
     def create_triangle_coords(self, x, y, num_colors):
         """Create coordinates for triangle partitions based on number of colors"""
@@ -997,9 +960,8 @@ class TileViewer(tk.Tk):
         sample = self.dataset[self.current_sample_idx]
 
         if isinstance(sample, list):
-            # Jacob: Not sure whether "caption" or "captions" is the right key to use here, but this is a fallback for datasets that don't have captions.
+            # Fallback for datasets that are bare scene grids with no captions.
             sample = {"scene": sample, "caption": "No caption available."}
-            # sample = {"scene": sample, "captions": ["No caption available."]}
 
         # refresh the dropdown and grab the picked attribute's value(s) to page through
         attr_names = self._attribute_names(sample)
@@ -1020,7 +982,8 @@ class TileViewer(tk.Tk):
         from captions.caption_match import TOPIC_KEYWORDS # Mario
         from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
         from captions.MM_caption_match import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
-        # Jacob: TODO: Add Mario Maker
+        # MM2 has no fixed topic-keyword list (its captions derive from the tileset),
+        # so MM2 falls back to Mario's topic colors below.
 
         # Generate a palette of distinct colors algorithmically
         # See if running Lode Runner
@@ -1029,10 +992,7 @@ class TileViewer(tk.Tk):
         elif self.game.get()=="MM-Simple" or self.game.get()=="MM-Full" or self.game.get()=="MMLV":
             TOPIC_KEYWORDS = MM_TOPIC_KEYWORDS
         # If not Lode Runner or Mega Man, use the default topic keywords of Mario
-        
-        # Jacob: Why was this next assignment statement ever here?
-        #else:
-        #    TOPIC_KEYWORDS = TOPIC_KEYWORDS
+
         num_topics = len(TOPIC_KEYWORDS)
         topic_colors = {}
 
@@ -1089,9 +1049,8 @@ class TileViewer(tk.Tk):
                     num_classes = common_settings.MM_FULL_TILE_COUNT
                 elif self.game.get()=="MM2":
                     num_classes = common_settings.MM2_TILE_COUNT
-                else: # Jacob: MarioMakerPCG used this case, 
-                      #        but I wonder if this should be an exception instead.
-                    #Get the right size for the one-hot encoding
+                else:
+                    # Fallback for any game not listed above: size from the tileset.
                     num_classes = len(self.id_to_char)
 
 
@@ -1126,12 +1085,9 @@ class TileViewer(tk.Tk):
             self.current_pil_image = None  # No image to save in non-image mode
             # Display as numeric/character grid
             font = ("Courier", self.font_size)
-            # Jacob: General colors used by MarioDiffusion originally.
-            #        There may not be enough colors to accommodate MarioMaker,
-            #        and the colors are not tailored to that game
+            # Default palette used by most games.
             colors = level_dataset.colors()
-            # Jacob: This is the more specific option from MarioMakerPCG,
-            #        but I would prefer to remove it for a general solution.
+            # MM2 uses a tag-based color map (see _build_color_map), falling back to the palette.
             color_map = getattr(self, 'color_map', None) or {}
             base_colors = level_dataset.colors()
 
@@ -1141,14 +1097,15 @@ class TileViewer(tk.Tk):
                 for x in range(WIDTH):
                     tile_id = sample['scene'][y][x]
                     text = str(tile_id) if self.show_ids.get() else self.id_to_char.get(tile_id, '?')
-                    if self.game.get() == "MM2": # Jacob: From MarioMakerPCG
+                    if self.game.get() == "MM2":
+                        # MM2: prefer the tag-based color, then the palette, then a neutral gray.
                         if tile_id in color_map:
                             r, g, b = color_map[tile_id]
                         elif tile_id < len(base_colors):
                             r, g, b = base_colors[tile_id]
                         else:
                             r, g, b = (0.80, 0.80, 0.80)
-                    else: # Jacob: Default MarioDiffusion behavior
+                    else:
                         # Convert (r, g, b) float tuple to hex color string
                         r, g, b = colors[tile_id % len(colors)]
                     color_hex = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
@@ -1503,7 +1460,6 @@ class TileViewer(tk.Tk):
     def astar_composed_level(self):
         scene = self.merge_selected_scenes()
         if scene:
-            # Jacob: Seems odd that there is a special case for MM2 here.
             if self.game.get() == "MM2":
                 # No Java sim for MM2, use the Python astar/ check instead
                 from astar.astar_traversability_check import astar_console_report
@@ -1559,8 +1515,8 @@ class TileViewer(tk.Tk):
                 use_snes_graphics = self.use_snes_graphics.get()
             char_grid = scene_to_ascii(scene, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
-        else: # Jacob: Mega Man also fails here I think
-            # MM2 has no Java sim (it uses the Python A* path)
+        else:
+            # No Java simulator for MM2 or the Mega Man variants (they use the Python A* path).
             raise ValueError(f"get_sample_output: no simulator for game {self.game.get()!r}")
         return level
 
