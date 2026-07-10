@@ -179,7 +179,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full", "MMLV"],
+        choices=common_settings.GAME_DISPLAY_NAMES,
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
