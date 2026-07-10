@@ -135,6 +135,18 @@ class SampleOutput:
         level = load_level(filename)
         return SampleOutput(level=level)
 
+    # Added to launch Lode Runner in its own subprocess
+    def _launch_lr_subprocess(self, tmp_path, level_idx):
+        import subprocess, sys
+
+        code = (
+            "from loderunner import main;"
+            f"main.play_lr_level(r'{tmp_path}', level_index={level_idx})"
+        )
+        # Store the handle so the caller (your GUI) can poll/terminate it
+        self.lr_process = subprocess.Popen([sys.executable, "-c", code])
+        return self.lr_process
+
     def play(self, game="Mario", level_idx=None, dataset_path=None):
         """
         Play the level using the specified game engine.
@@ -151,17 +163,25 @@ class SampleOutput:
                 "scene": scene,
                 "caption": ""
             }]
-            #is_spawn = self.is_lr_spawn()
             with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
                 json.dump(lr_json, tmp, indent = 2)
                 tmp_path = tmp.name
-            import sys, os
-            #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-            from loderunner import main
+            
             tmp_path = tmp_path if dataset_path is None else dataset_path
+            resolved_level_idx = level_idx if level_idx is not None else 1
+
             if is_spawn:
                 print(f"Playing Lode Runner level interactively -- {tmp_path}!")
-                main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
+                self._launch_lr_subprocess(tmp_path, resolved_level_idx)
+
+            # This older approach resulted in the console freezing after exiting
+            #from loderunner import main
+            #tmp_path = tmp_path if dataset_path is None else dataset_path
+            #if is_spawn:
+            #    print(f"Playing Lode Runner level interactively -- {tmp_path}!")
+            #    main.play_lr_level(tmp_path, level_index=level_idx if level_idx is not None else 1)
+
+
         else:
             if self.use_snes_graphics:
                 simulator = CustomSimulator(level=self.level, jar_path="MarioEval.jar")
