@@ -21,9 +21,6 @@ Getting a generated level back out:
 5. `ascii-to-json` — rebuild level JSON from the model's ASCII
 6. `swe` — write a `.swe` you can play in SMM: World Engine
 
-(To preview a generated level in toost instead, use `json_to_bcd.py` at the repo
-root to turn its JSON into a `.bcd`.)
-
 Each command maps to a module you can also run directly, e.g.
 `python -m mm2pipeline_data.extract` or `python -m mm2pipeline_data.dataset build`:
 
@@ -53,8 +50,8 @@ specifics:
 
 ## Walkthrough: real levels → training dataset
 
-This is what `bat\extract_levels_to_ascii.bat` + the `prepare-mario-maker`
-/ `run_full_pipeline` scripts drive; the manual equivalent:
+This is what `MM2_Batch\extract_10k_10likes.bat` drives end to end; the
+manual equivalent:
 
 ```bat
 REM 1. Pull levels from the HuggingFace dump (writes .bcd files plus a
@@ -75,7 +72,7 @@ python -m mm2pipeline_data json-to-ascii --input out\json --output_folder out\as
 
 REM 4. Window the ASCII into fixed-size tile-id scenes. metadata.json is picked
 REM    up automatically from the input folder (or pass --metadata explicitly).
-python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --tileset mm2_tileset_we.json --sliding_window --stride 20
+python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --sliding_window --stride 20
 
 REM    Useful options: --strip_goal (train without flagpoles), --window_h/--window_w,
 REM    --min_tiles_pct (drop mostly-air windows; rejects go to *_dropped.json),
@@ -102,8 +99,7 @@ python -m mm2pipeline_data swe --input out\gen_json -o out\swe --user <your SMMW
 
 Drop the `.swe` into SMMWE's save folder (the `--user` name must match the
 logged-in SMMWE account; by default it is auto-detected from the SMMWE
-settings file). To preview a generated level in toost instead, use
-`python json_to_bcd.py <level.json> --toost-compat` from the repo root.
+settings file).
 
 ## More examples, per command
 
@@ -153,13 +149,12 @@ python -m mm2pipeline_data json-to-ascii --input out\json --output_folder out\as
 
 ```bat
 REM One best (busiest) 20x20 window per level.
-python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --tileset mm2_tileset_we.json
-
+python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json
 REM Every 20-wide window across each level (no overlap).
-python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --tileset mm2_tileset_we.json --sliding_window --stride 20
+python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --sliding_window --stride 20
 
 REM Train without flagpoles, and crop the matching PNG slice per sample.
-python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --tileset mm2_tileset_we.json --sliding_window --strip_goal --with_images
+python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --sliding_window --strip_goal --with_images
 ```
 
 ### dataset split
@@ -200,9 +195,10 @@ python -m mm2pipeline_data swe --input level_overworld.json -o mylevel.swe --use
 
 ## Misc Notes
 
-The tileset `mm2_tileset_we.json` is the shared glyph vocabulary — every
+The tileset `datasets/mm2_tileset_we.json` is the shared glyph vocabulary — every
 drawable object has to fold onto one of its glyphs (`mm2pipeline_data.tiles` checks
-this on import).
+this on import). `dataset build` uses it by default, so the examples above don't
+pass `--tileset`; point it elsewhere only if you have a custom vocabulary.
 
 Files stay matched by stem: a level is `<stem>_overworld.json` (and maybe
 `<stem>_subworld.json`), its ASCII grid keeps the same stem, and the metadata
