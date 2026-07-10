@@ -79,10 +79,10 @@ freely in tone, length, and wordiness, never homogeneous in format or structure.
 EXAMPLE CAPTIONS:
 These are examples of desirable captions that encapsulate ideas/level features into discrete '.'-separated chunks
 while still varying in tone, specificity, length, etc.:
--  Multiple vertical passages interweave through this towering shaft. Snipers guard the lower levels. 
+-  Multiple vertical passages interweave through this shaft. Snipers guard the lower levels. 
 Fire pillars erupt periodically. The exit waits high above.
-- An extensive horizontal descent beginning from a modest platform on the left side. The player travels rightward 
-across progressively lower terrain featuring moving platforms and scattered enemies including Bunby Helis and a Sniper Joe. 
+- A horizontal descent beginning from a modest platform on the left side. The player travels rightward 
+across progressively lower terrain featuring moving platforms and scattered enemies including a Sniper Joe. 
 Multiple weapon power-ups dot the landscape while deadly spikes appear in the lower sections. The exit awaits far to the right at the bottom level.
 - A claustrophobic descent begins here. One wall-crawler blocks the passage near the start. Further down, the area 
 opens into a gauntlet featuring ranged enemies, moving platforms, and eventually a water-filled cavern where bouncing enemies reside.
