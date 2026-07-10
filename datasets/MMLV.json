@@ -44,6 +44,9 @@
         "d": ["enemy", "damaging", "ranged"],
         "h": ["enemy", "damaging", "ranged"],
         "=": ["passable", "path"],
-        "s": ["passable", "spring"]
+        "s": ["passable", "spring"],
+        "V": ["solid", "breakable", "penetrable", "door"],
+        "Y": ["solid", "breakable", "penetrable", "door"],
+        "K": ["passable", "collectable", "key"]
     }
 }

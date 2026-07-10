@@ -156,6 +156,16 @@ def fan(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def key_pickup(x: int, y: int) -> List[str]:
+    # Key collectible, gimmick id 32: a 1x1 pickup that opens key doors. Verified d6/e32 against
+    # a labelled test level. Round-trips exactly (1x1).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="32.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def spring(x: int, y: int) -> List[str]:
     # Spring, gimmick id 13: bounces Mega Man upward when touched. Verified d6/e13 against a
     # labelled test level.
@@ -397,6 +407,12 @@ CHAR_MAP = {
     'F': falling_platform,
     'x': fan,
     's': spring,
+    'K': key_pickup,
+    # Key doors (1x3 vertical 'V', 3x1 horizontal 'Y') are treated as breakable, so like the other
+    # multi-tile blocks they reverse to a generic 1x1 breakable rather than the real key-door
+    # gimmick (which would re-expand and overlap). Lossy by design.
+    'V': breakable_tile,
+    'Y': breakable_tile,
     'T': teleporter,
     '~': water_tile,
     '!': lava_tile,

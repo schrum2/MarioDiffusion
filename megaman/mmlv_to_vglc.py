@@ -141,10 +141,11 @@ GIMMICK_E_TO_CHAR = {
     28: "B",   # 1-wide x 2-tall weapon-specific breakable block (see TWO_TALL_E_IDS). Like the
                # 2x2 weapon block e27, the required weapon is the 'o' field (o=1..8 special
                # weapons, o=9999 default); it doesn't affect the decode, so one mapping covers all.
-    33: "B",   # 1-wide x 3-tall vertical KEY DOOR (needs a key to pass) -> treated as breakable
+    32: "K",   # key collectible (opens key doors) -> the 'K' key tile (first-class tile, id 47).
+    33: "V",   # 1-wide x 3-tall vertical KEY DOOR (needs a key to pass) -> the 'V' key-door tile
                # (see THREE_TALL_E_IDS: expands two tiles up). NOTE this is the d6 class; the d8
                # e33 is the unrelated vertical boss door.
-    80: "B",   # 3-wide x 1-tall horizontal KEY DOOR -> treated as breakable (see THREE_WIDE_E_IDS:
+    80: "Y",   # 3-wide x 1-tall horizontal KEY DOOR -> the 'Y' key-door tile (see THREE_WIDE_E_IDS:
                # anchored at the MIDDLE tile, expands one tile left and one right).
     27: "B",   # 2x2 weapon-specific breakable block. Every weapon variant shares this one
                # e id; the required weapon is in the 'o' field (o=1..8 special weapons,

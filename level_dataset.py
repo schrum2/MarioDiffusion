@@ -382,6 +382,9 @@ def mm_tiles(game):
             (0,9),    #43 '=' = Moving-platform path/track (the rail the platform rides;
                       #        decoupled from the platform 'M', which moved to (2,10))
             (2,4),    #44 's' = Spring (bounces Mega Man upward when touched)
+            (2,5),    #45 'V' = Vertical key door (1x3, needs a key; treated as breakable)
+            (2,6),    #46 'Y' = Horizontal key door (3x1, needs a key; treated as breakable)
+            (2,7),    #47 'K' = Key collectible (opens key doors)
     ]
 
            
