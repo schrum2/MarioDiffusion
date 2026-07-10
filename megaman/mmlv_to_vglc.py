@@ -138,6 +138,14 @@ GIMMICK_E_TO_CHAR = {
                # variant, 'r'=16 is constant -- neither affects the decode)
     208:"B",   # 1-wide x 2-tall vertical breakable wall (see TWO_TALL_E_IDS: expands one tile up)
     120:"B",   # 1-wide x 2-tall breakable ICE wall (see TWO_TALL_E_IDS: expands one tile up)
+    28: "B",   # 1-wide x 2-tall weapon-specific breakable block (see TWO_TALL_E_IDS). Like the
+               # 2x2 weapon block e27, the required weapon is the 'o' field (o=1..8 special
+               # weapons, o=9999 default); it doesn't affect the decode, so one mapping covers all.
+    33: "B",   # 1-wide x 3-tall vertical KEY DOOR (needs a key to pass) -> treated as breakable
+               # (see THREE_TALL_E_IDS: expands two tiles up). NOTE this is the d6 class; the d8
+               # e33 is the unrelated vertical boss door.
+    80: "B",   # 3-wide x 1-tall horizontal KEY DOOR -> treated as breakable (see THREE_WIDE_E_IDS:
+               # anchored at the MIDDLE tile, expands one tile left and one right).
     27: "B",   # 2x2 weapon-specific breakable block. Every weapon variant shares this one
                # e id; the required weapon is in the 'o' field (o=1..8 special weapons,
                # o=9999 default, absent = unassigned), so a single mapping covers them all.
@@ -163,6 +171,8 @@ GIMMICK_E_TO_CHAR = {
     65: "T",   # teleporter, another variant (same m/n partner-link + f style fields as e266).
     252:"T",   # teleporter, another variant. Every teleporter id carries the m/n partner-link
                # fields and occupies a full 2x2 footprint (see TWO_BY_TWO_E_IDS).
+    76: "B",   # 2-wide x 1-tall weapon-specific breakable block (see TWO_WIDE_E_IDS: expands one
+               # tile left). Weapon-specific like e27/e28; required weapon is 'o', doesn't affect decode.
     267:"#",   # 2-wide horizontal solid block (see TWO_WIDE_E_IDS: expands one tile left)
     261:"M",   # 2-wide horizontal platform -> the platform tile 'M' (see TWO_WIDE_E_IDS: still
                # expands one tile left into a full 2-wide platform)
@@ -234,13 +244,25 @@ TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186, 256, 252, 266, 65}
 # are stored as a single object at the block's RIGHT tile, so on their own they decode to
 # just that one cell and the left tile reads as a gap. mmlv_to_grid expands each to the
 # full 2x1 by also filling the tile directly to the left with the same char.
-TWO_WIDE_E_IDS = {261, 267}
+TWO_WIDE_E_IDS = {261, 267, 76}
 
 # d == 6 gimmick ids that are 1-wide x 2-tall vertical blocks. Like the other multi-tile
 # blocks these are stored as a single object, here at the block's BOTTOM tile, so on their
 # own they decode to just that one cell and the tile above reads as a gap. mmlv_to_grid
 # expands each to the full 1x2 by also filling the tile directly ABOVE with the same char.
-TWO_TALL_E_IDS = {208, 120}
+TWO_TALL_E_IDS = {208, 120, 28}
+
+# d == 6 gimmick ids that are 1-wide x 3-tall vertical blocks. Like the 1x2 blocks these are
+# stored as a single object at the block's BOTTOM tile, so on their own they decode to just that
+# one cell and the two tiles above read as gaps. mmlv_to_grid expands each to the full 1x3 by
+# also filling the two tiles directly ABOVE with the same char.
+THREE_TALL_E_IDS = {33}
+
+# d == 6 gimmick ids that are 3-wide x 1-tall horizontal blocks stored as a single object at the
+# block's MIDDLE tile. On their own they decode to just that one cell and the tiles either side
+# read as gaps. mmlv_to_grid expands each to the full 3x1 by also filling the tiles directly to
+# the LEFT and RIGHT with the same char.
+THREE_WIDE_E_IDS = {80}
 
 # d == 6 gimmick ids that are conveyor belts. Every conveyor of a given type shares one e
 # id (only the belt-art fields f/p differ); classify() reads the 'b' field for the push
@@ -297,6 +319,20 @@ def is_1x2_block(cell: dict) -> bool:
     d = cell.get("d")
     e = cell.get("e")
     return d is not None and int(d) == 6 and e is not None and int(e) in TWO_TALL_E_IDS
+
+
+def is_1x3_block(cell: dict) -> bool:
+    """True if the cell is a d6 gimmick that occupies a 1-wide x 3-tall footprint."""
+    d = cell.get("d")
+    e = cell.get("e")
+    return d is not None and int(d) == 6 and e is not None and int(e) in THREE_TALL_E_IDS
+
+
+def is_3x1_block(cell: dict) -> bool:
+    """True if the cell is a d6 gimmick that occupies a 3-wide x 1-tall footprint."""
+    d = cell.get("d")
+    e = cell.get("e")
+    return d is not None and int(d) == 6 and e is not None and int(e) in THREE_WIDE_E_IDS
 
 
 def is_boss_door_v(cell: dict) -> bool:
@@ -446,6 +482,14 @@ def mmlv_to_grid(path: Path):
         # A 1-wide x 2-tall block is stored at its bottom tile; fill the tile directly above.
         elif is_1x2_block(cell):
             char_cells.setdefault((tx, ty - 1), ch)
+        # A 1-wide x 3-tall block is stored at its bottom tile; fill the two tiles directly above.
+        elif is_1x3_block(cell):
+            char_cells.setdefault((tx, ty - 1), ch)
+            char_cells.setdefault((tx, ty - 2), ch)
+        # A 3-wide x 1-tall block is stored at its middle tile; fill the tiles left and right.
+        elif is_3x1_block(cell):
+            char_cells.setdefault((tx - 1, ty), ch)
+            char_cells.setdefault((tx + 1, ty), ch)
         # A vertical boss door is a 2-wide x 4-tall block stored at its bottom-right tile; fill
         # the other seven tiles of the 2x4 footprint (one column left, three rows up).
         elif is_boss_door_v(cell):
