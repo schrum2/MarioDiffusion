@@ -85,7 +85,7 @@ _SKIP_DESCRIPTORS = {
 }
 
 
-# Authoritative MM2 char→name mapping sourced from OBJ_META in mm2_viewer_json.py.
+# Authoritative MM2 char→name mapping sourced from OBJ_META in MarioMakerPCG
 # MM2's tileset descriptors are too generic to name enemies/items on their own
 # (e.g. every enemy is just "enemy"/"moving"), so this supplies real names as a
 # fallback when descriptors yield nothing specific. Only used for --game MM2.
