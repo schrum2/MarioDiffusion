@@ -40,127 +40,6 @@ tileset_path = None  # Global variable for tileset path
 
 GUI_FONT = ("Arial", GUI_FONT_SIZE)
 
-GAME_DISPLAY_NAMES = [
-    "Mario",
-    "Lode Runner",
-    "Mega Man (Simple)",
-    "Mega Man (Full)",
-    "Mega Man (Maker)",
-    "Mario Maker 2",
-]
-GAME_ALIASES = {
-    "Mario": "Mario",
-    "LR": "Lode Runner",
-    "MM-Simple": "Mega Man (Simple)",
-    "MM-Full": "Mega Man (Full)",
-    "MMLV": "Mega Man (Maker)",
-    "MM2": "Mario Maker 2",
-}
-MEGAMAN_GAMES = {"Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"}
-
-
-def normalize_game_name(game):
-    if game is None:
-        return "Mario Maker 2"
-    if game in GAME_ALIASES:
-        return GAME_ALIASES[game]
-    return game
-
-
-def get_game_config(game=None):
-    game_name = normalize_game_name(game)
-    if game_name == "Mario":
-        return {
-            "name": "Mario",
-            "cli_name": "Mario",
-            "tileset": common_settings.MARIO_TILESET,
-            "tile_count": common_settings.MARIO_TILE_COUNT,
-            "width": common_settings.MARIO_WIDTH,
-            "height": common_settings.MARIO_HEIGHT,
-            "render_name": "Mario",
-            "is_mario": True,
-            "is_lode_runner": False,
-            "is_mario_maker_2": False,
-            "is_megaman": False,
-            "supports_per_image_play": True,
-        }
-    if game_name == "Lode Runner":
-        return {
-            "name": "Lode Runner",
-            "cli_name": "LR",
-            "tileset": common_settings.LR_TILESET,
-            "tile_count": common_settings.LR_TILE_COUNT,
-            "width": common_settings.LR_WIDTH,
-            "height": common_settings.LR_HEIGHT,
-            "render_name": "LR",
-            "is_mario": False,
-            "is_lode_runner": True,
-            "is_mario_maker_2": False,
-            "is_megaman": False,
-            "supports_per_image_play": False,
-        }
-    if game_name == "Mega Man (Simple)":
-        return {
-            "name": "Mega Man (Simple)",
-            "cli_name": "MM-Simple",
-            "tileset": common_settings.MM_SIMPLE_TILESET,
-            "tile_count": common_settings.MM_SIMPLE_TILE_COUNT,
-            "width": common_settings.MEGAMAN_WIDTH,
-            "height": common_settings.MEGAMAN_HEIGHT,
-            "render_name": "MM-Simple",
-            "is_mario": False,
-            "is_lode_runner": False,
-            "is_mario_maker_2": False,
-            "is_megaman": True,
-            "supports_per_image_play": False,
-        }
-    if game_name == "Mega Man (Full)":
-        return {
-            "name": "Mega Man (Full)",
-            "cli_name": "MM-Full",
-            "tileset": common_settings.MM_FULL_TILESET,
-            "tile_count": common_settings.MM_FULL_TILE_COUNT,
-            "width": common_settings.MEGAMAN_WIDTH,
-            "height": common_settings.MEGAMAN_HEIGHT,
-            "render_name": "MM-Full",
-            "is_mario": False,
-            "is_lode_runner": False,
-            "is_mario_maker_2": False,
-            "is_megaman": True,
-            "supports_per_image_play": False,
-        }
-    if game_name == "Mega Man (Maker)":
-        return {
-            "name": "Mega Man (Maker)",
-            "cli_name": "MMLV",
-            "tileset": common_settings.MMLV_TILESET,
-            "tile_count": common_settings.MMLV_TILE_COUNT,
-            "width": common_settings.MEGAMAN_WIDTH,
-            "height": common_settings.MEGAMAN_HEIGHT,
-            "render_name": "MMLV",
-            "is_mario": False,
-            "is_lode_runner": False,
-            "is_mario_maker_2": False,
-            "is_megaman": True,
-            "supports_per_image_play": False,
-        }
-    if game_name == "Mario Maker 2":
-        return {
-            "name": "Mario Maker 2",
-            "cli_name": "MM2",
-            "tileset": common_settings.MM2_TILESET,
-            "tile_count": common_settings.MM2_TILE_COUNT,
-            "width": common_settings.MM2_WIDTH,
-            "height": common_settings.MM2_HEIGHT,
-            "render_name": "MM2",
-            "is_mario": False,
-            "is_lode_runner": False,
-            "is_mario_maker_2": True,
-            "is_megaman": False,
-            "supports_per_image_play": False,
-        }
-    raise ValueError(f"Unsupported game selected: {game_name}")
-
 
 class CaptionBuilder(ParentBuilder):
 
@@ -171,7 +50,7 @@ class CaptionBuilder(ParentBuilder):
         super().__init__(master)
 
         # Selected game is stored solely in game_var from here on
-        initial_game = normalize_game_name(game) or "Mario"
+        initial_game = common_settings.normalize_game_name(game) or "Mario"
         self.game_var = tk.StringVar(value=initial_game)
         # Set ttk style for font size
         style = ttk.Style()
@@ -263,7 +142,7 @@ class CaptionBuilder(ParentBuilder):
 
         self.height_entry.bind("<<ComboboxSelected>>", self._update_null_rows_label)
 
-        config = get_game_config(self.game_var.get())
+        config = common_settings.get_game_config(self.game_var.get())
         self.width_entry.insert(0, str(config["width"]))
         self.height_entry.insert(0, str(config["height"]))
 
@@ -389,7 +268,7 @@ class CaptionBuilder(ParentBuilder):
         # Game selection
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=GAME_DISPLAY_NAMES, state="readonly", font=GUI_FONT)
+        self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=common_settings.GAME_DISPLAY_NAMES, state="readonly", font=GUI_FONT)
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", lambda e: self.update_mario_only_buttons()) 
         self.update_mario_only_buttons() 
@@ -774,7 +653,7 @@ class CaptionBuilder(ParentBuilder):
             self.negative_prompt_entry.config(state=tk.NORMAL)
     
     def _selected_game_config(self):
-        return get_game_config(self.game_var.get())
+        return common_settings.get_game_config(self.game_var.get())
 
     def _prepare_scene_output(self, scene, images):
         config = self._selected_game_config()
@@ -1708,7 +1587,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"],
+        choices=common_settings.GAME_CLI_CHOICES,
         help="Which game to create a model for (affects sample style and tile count)"
     )
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
@@ -1718,7 +1597,7 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    config = get_game_config(args.game)
+    config = common_settings.get_game_config(args.game)
     game = config["name"]
     tileset_path = config["tileset"]
 
