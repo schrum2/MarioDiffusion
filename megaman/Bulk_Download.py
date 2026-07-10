@@ -6,6 +6,8 @@ import time
 import argparse
 import json
 
+from tqdm import tqdm
+
 # Import the repo-wide constant for the master metadata sidecar. This script lives in
 # megaman/, so the repo root (which holds the util package) isn't on sys.path by default.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,7 +18,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--target", type=int, default=100, help="Number of valid levels to download")
 parser.add_argument("--start_id", type=int, default=200000, help="The level ID of the starting point of the bulk download (higher = more recent)")
 parser.add_argument("--force", action="store_true", help="Re-download and overwrite levels that already exist locally instead of skipping them")
+parser.add_argument("--show_downloads", action="store_true", help="Print the original per-level status lines (Downloaded/Already exists/No level found/etc.) instead of the default tqdm progress bar")
 args = parser.parse_args()
+
+
+def status(msg):
+    """Emit a routine per-attempt status line: shown only with --show_downloads, otherwise the
+    progress bar conveys progress. Routed through tqdm.write so it never clobbers an active bar."""
+    if args.show_downloads:
+        tqdm.write(msg)
 
 TARGET_DOWNLOADS = args.target
 
@@ -54,14 +64,22 @@ downloaded = 0
 failed = 0
 level_id = args.start_id
 
+# Progress toward the target number of valid downloads. The loop scans many level IDs that get
+# skipped (missing, low downloads, bad rating), so the bar tracks successful downloads, not
+# iterations; set_postfix surfaces the id currently being scanned and the failure count so the
+# bar still shows life during long stretches with no new download. --verbose disables the bar
+# and restores the original per-level status prints.
+pbar = tqdm(total=TARGET_DOWNLOADS, desc="Downloading levels", unit="level", disable=args.show_downloads)
 
 while downloaded < TARGET_DOWNLOADS:
+
+    pbar.set_postfix(scanning=level_id, failed=failed)
 
     filename = os.path.join(SAVE_DIR, f"{level_id}.mmlv")
 
     already_downloaded = os.path.exists(filename)
     if already_downloaded and not args.force:
-        print(f"Already exists: {level_id}")
+        status(f"Already exists: {level_id}")
         level_id += 1
         continue
 
@@ -71,7 +89,7 @@ while downloaded < TARGET_DOWNLOADS:
         info_response = requests.get(info_url, timeout=10)
 
         if info_response.status_code != 200:
-            print(f"No level found: {level_id}")
+            status(f"No level found: {level_id}")
             failed += 1
             level_id += 1
             continue
@@ -86,12 +104,12 @@ while downloaded < TARGET_DOWNLOADS:
 
         
         if downloads < 5:
-            print(f"Not enough downloads: {level_id}")
+            status(f"Not enough downloads: {level_id}")
             level_id += 1
             continue
 
         if likes < dislikes:
-            print(f"bad rating: {level_id}")
+            status(f"bad rating: {level_id}")
             level_id += 1
             continue
 
@@ -100,7 +118,7 @@ while downloaded < TARGET_DOWNLOADS:
         response = requests.get(meta_url, timeout=10)
 
         if response.status_code != 200:
-            print(f"download API failed: {level_id}")
+            status(f"download API failed: {level_id}")
             failed += 1
             level_id += 1
             continue
@@ -108,7 +126,7 @@ while downloaded < TARGET_DOWNLOADS:
         meta = response.json()
 
         if "location" not in meta:
-            print(f"Not valid ID: {level_id}")
+            status(f"Not valid ID: {level_id}")
             failed += 1
             level_id += 1
             continue
@@ -148,17 +166,22 @@ while downloaded < TARGET_DOWNLOADS:
         # Forced overwrites of already-present levels are updates, not new downloads, so
         # they don't count toward the target.
         if already_downloaded:
-            print(f"Updated: {level_id}")
+            status(f"Updated: {level_id}")
         else:
             downloaded += 1
-            print(f"Downloaded: {level_id} ({downloaded}/{TARGET_DOWNLOADS})")
+            pbar.update(1)
+            status(f"Downloaded: {level_id} ({downloaded}/{TARGET_DOWNLOADS})")
 
     except Exception as e:
-        print(f"[ERROR] {level_id} → {e}")
+        # Errors are rare and worth surfacing even in bar mode, so route them through tqdm.write
+        # (rather than status()) so they show regardless of --show_downloads.
+        tqdm.write(f"[ERROR] {level_id} → {e}")
         failed += 1
 
     level_id += 1
     time.sleep(0.5)
+
+pbar.close()
 
 print("\nFinished")
 print("Downloaded:", downloaded)

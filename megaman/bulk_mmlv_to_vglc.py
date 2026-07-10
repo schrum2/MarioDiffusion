@@ -1,5 +1,6 @@
 from pathlib import Path
 import argparse
+from tqdm import tqdm
 from mmlv_to_vglc import mmlv_to_grid
 
 def main():
@@ -9,7 +10,18 @@ def main():
         required=True,
         help="Folder inside MarioDiffusion to save converted VGLC files"
     )
+    parser.add_argument(
+        "--show_conversions",
+        action="store_true",
+        help="Print the original per-file status lines (Converted: ...) instead of the default tqdm progress bar"
+    )
     args = parser.parse_args()
+
+    def status(msg):
+        """Emit a routine per-file status line: shown only with --show_conversions, otherwise the
+        progress bar conveys progress. Routed through tqdm.write so it never clobbers an active bar."""
+        if args.show_conversions:
+            tqdm.write(msg)
 
     # where downloaded levels already are
     input_dir = Path.home() / "AppData/Local/MegaMaker/Levels"
@@ -25,7 +37,9 @@ def main():
     success = 0
     failed = 0
 
-    for file in files:
+    # By default show a tqdm progress bar over the files; --show_conversions disables it and
+    # restores the original per-file "Converted:" prints.
+    for file in tqdm(files, desc="Converting levels", unit="level", disable=args.show_conversions):
         try:
             lines = mmlv_to_grid(file)
 
@@ -37,11 +51,13 @@ def main():
             )
 
             success += 1
-            print("Converted:", file.name)
+            status(f"Converted: {file.name}")
 
         except Exception as e:
             failed += 1
-            print(f"\nFAILED: {file.name} - {e}")
+            # Failures are worth surfacing even in bar mode, so route them through tqdm.write
+            # (rather than status()) so they show regardless of --show_conversions.
+            tqdm.write(f"FAILED: {file.name} - {e}")
 
     print("\nDone")
     print("Success:", success)
