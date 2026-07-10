@@ -1,8 +1,15 @@
 import requests
 import gzip
 import os
+import sys
 import time
 import argparse
+import json
+
+# Import the repo-wide constant for the master metadata sidecar. This script lives in
+# megaman/, so the repo root (which holds the util package) isn't on sys.path by default.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import util.common_settings as common_settings
 
 
 parser = argparse.ArgumentParser()
@@ -21,11 +28,26 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 
 LOG_FILE = os.path.join(SAVE_DIR, "download_log.txt")
 
+# Machine-readable sidecar of the same metadata, keyed by level ID as a string. This is the
+# single master file the training-data pipeline reads (create_megaman_json_data.py), so the
+# level's name/author/downloads/likes/dislikes can be attached to every generated sample
+# without re-hitting the API. It lives at a constant, global path in the repo (not next to
+# the downloaded .mmlv files) so there is exactly one copy. Kept in sync with the log below.
+METADATA_FILE = common_settings.MEGAMAN_METADATA_PATH
+os.makedirs(os.path.dirname(METADATA_FILE), exist_ok=True)
+
 # IMPORTANT: NEVER overwrite existing log
 if not os.path.exists(LOG_FILE):
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write("Mega Man Successfully Downloaded Levels\n")
         f.write("=" * 60 + "\n\n")
+
+# Load any existing metadata so repeat runs accumulate instead of clobbering.
+if os.path.exists(METADATA_FILE):
+    with open(METADATA_FILE, "r", encoding="utf-8") as f:
+        metadata = json.load(f)
+else:
+    metadata = {}
 
 downloaded = 0
 failed = 0
@@ -107,6 +129,19 @@ while downloaded < TARGET_DOWNLOADS:
             f.write(f"Dislikes: {dislikes}\n")
             f.write("Status: downloaded\n")
             f.write("-" * 60 + "\n\n")
+
+        # Mirror the same fields into the machine-readable sidecar (keyed by str id so it
+        # matches the .mmlv/.txt filename stem the pipeline uses as the lookup key), and
+        # rewrite it now so an interrupted run keeps everything downloaded so far.
+        metadata[str(level_id)] = {
+            "name": name,
+            "author": author,
+            "downloads": downloads,
+            "likes": likes,
+            "dislikes": dislikes,
+        }
+        with open(METADATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
 
         downloaded += 1
         print(f"Downloaded: {level_id} ({downloaded}/{TARGET_DOWNLOADS})")

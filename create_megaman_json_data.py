@@ -393,6 +393,20 @@ def main():
     #file that produced levels[i] -- gives us a real filename to tag samples with, without
     #needing to modify load_levels itself.
     level_files = sorted(Path(args.levels).glob("*.txt"))
+
+    #Per-level metadata (name/author/downloads/likes/dislikes) fetched at download time by
+    #Bulk_Download.py and keyed by MMLV level id (string). Read from the single master sidecar
+    #at the repo-wide constant path, looked up by mmlv_id per level below, and attached to
+    #every sample so it survives into the training data. Absent for the VGLC Enhanced set
+    #(non-numeric filenames) or before any download, so a missing file is not an error.
+    metadata_path = common_settings.MEGAMAN_METADATA_PATH
+    level_metadata = {}
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            level_metadata = json.load(f)
+        print(f"Loaded metadata for {len(level_metadata)} levels from {metadata_path}")
+    else:
+        print(f"No level metadata found at {metadata_path}; samples will have metadata=None")
     _, id_to_char, tile_to_id, tile_descriptors = extract_tileset(args.tileset)
     null_chars = [key for key, value in tile_descriptors.items() if 'null' in value]
     wall_chars = [key for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
@@ -435,6 +449,9 @@ def main():
         #level_files is ever shorter than levels for some reason.
         source_level_name = level_files[i].name if i < len(level_files) else f"level_{i}"
         mmlv_id = extract_mmlv_id(source_level_name)
+        #Metadata record for this level (None for non-MMLV levels or ids missing from the
+        #sidecar); attached to every sample cut from this level below.
+        mmlv_meta = level_metadata.get(str(mmlv_id)) if mmlv_id is not None else None
 
         try:
             if args.scan_mode == 'snap':
@@ -580,7 +597,8 @@ def main():
                 "source_x": src_x,
                 "source_y": src_y,
                 "scan_mode": mode_tag,
-                "mmlvID": mmlv_id
+                "mmlvID": mmlv_id,
+                "metadata": mmlv_meta
             })
 
     print(f"Removed {duplicates_removed} duplicate samples")

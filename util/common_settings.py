@@ -1,3 +1,4 @@
+import os
 
 NUM_INFERENCE_STEPS = 30
 GUIDANCE_SCALE = 7.5
@@ -55,3 +56,12 @@ MM_SIMPLE_TILESET = 'datasets/MM-simple-tileset.json'
 # full VGLC set plus the conveyor-belt tiles ('>' / 'E'), so it has 2 extra tile types.
 MMLV_TILE_COUNT = 49
 MMLV_TILESET = 'datasets/MMLV.json'
+
+# The single master metadata sidecar for downloaded Mega Man Maker levels: a global file in
+# the repo, keyed by MMLV level id, holding each level's name/author/downloads/likes/dislikes.
+# megaman/Bulk_Download.py writes/updates it as levels are downloaded; create_megaman_json_data.py
+# reads it to attach that metadata to every generated sample. Resolved as an absolute path off
+# the repo root so both entry points hit the same file regardless of their working directory.
+MEGAMAN_METADATA_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'datasets', 'megaman_level_metadata.json')
