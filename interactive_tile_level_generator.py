@@ -32,8 +32,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 global tileset_path
 tileset_path = None  # Global variable for tileset path
-global game_selected
-game_selected = None  # Global variable for selected game
 
 # Global constant for GUI font size
 
@@ -42,10 +40,13 @@ GUI_FONT = ("Arial", GUI_FONT_SIZE)
 class CaptionBuilder(ParentBuilder):
 
 
-    global tileset_path, game_selected
-    def __init__(self, master):
-        global tileset_path, game_selected
-        super().__init__(master) 
+    global tileset_path
+    def __init__(self, master, game):
+        global tileset_path
+        super().__init__(master)
+
+        # Selected game is stored solely in game_var from here on
+        self.game_var = tk.StringVar(value=game if game else "Mario Maker 2")
         # Set ttk style for font size
         style = ttk.Style()
         style.configure("TLabel", font=GUI_FONT)
@@ -136,13 +137,13 @@ class CaptionBuilder(ParentBuilder):
 
         self.height_entry.bind("<<ComboboxSelected>>", self._update_null_rows_label)
 
-        if game_selected == "Lode Runner":
+        if self.game_var.get() == "Lode Runner":
             self.width_entry.insert(0, f"{common_settings.LR_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.LR_HEIGHT}")
-        elif game_selected == "Mario":
+        elif self.game_var.get() == "Mario":
             self.width_entry.insert(0, f"{common_settings.MARIO_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.MARIO_HEIGHT}")
-        elif game_selected == "Mario Maker 2":
+        elif self.game_var.get() == "Mario Maker 2":
             self.width_entry.insert(0, f"{common_settings.MM2_WIDTH}")
             self.height_entry.insert(0, f"{common_settings.MM2_HEIGHT}")
         else:
@@ -269,9 +270,6 @@ class CaptionBuilder(ParentBuilder):
 
 
         # Game selection
-        # Game selection
-        self.game_var = tk.StringVar(value=game_selected if game_selected else "Mario Maker 2")
-        
         self.game_label = ttk.Label(self.caption_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
         self.game_dropdown = ttk.Combobox(self.caption_frame, textvariable=self.game_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker 2"], state="readonly", font=GUI_FONT)
@@ -558,7 +556,7 @@ class CaptionBuilder(ParentBuilder):
         return [(name, grouped[name]) for name in group_order if grouped[name]]
 
     def load_data(self, filepath = None):
-        global tileset_path, game_selected
+        global tileset_path
         if filepath == None:
             filepath = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON", "*.json")])
         if filepath:
@@ -567,7 +565,7 @@ class CaptionBuilder(ParentBuilder):
             # (MarioMaker_create_ascii_captions), not with the SMB assign_caption
             # from MarioDiffusion, so the comparison lines up with the loaded data.
             # Mario Maker has it's own unique captioning. 
-            if game_selected == "Mario Maker 2":
+            if self.game_var.get() == "Mario Maker 2":
                 self.mm2_assign_caption, self.mm2_compare_captions = mm2_caption_tools(tileset_path)
             else:
                 self.mm_assign_caption, self.mm_compare_captions = None, None
@@ -671,8 +669,7 @@ class CaptionBuilder(ParentBuilder):
             self.negative_prompt_entry.config(state=tk.NORMAL)
     
     def generate_image(self):
-        global tileset_path, game_selected
-        game_selected = self.game_var.get()
+        global tileset_path
         # # cannot use multiple generations of levels in one composed level
         # self.clear_composed_level()
         # print("Clearing previously composed level for newly generated scenes.")
@@ -738,7 +735,7 @@ class CaptionBuilder(ParentBuilder):
                 images = self.pipe(generator=generator, **param_values).images
 
                 chop_rows = 0
-                if game_selected in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
+                if self.game_var.get() in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
                     try:
                         chop_rows = (int(self.height_entry.get()) // 16) * 2
                     except ValueError:
@@ -754,48 +751,48 @@ class CaptionBuilder(ParentBuilder):
                 scene = sample_indices[0].tolist()
 
                 # Mario Maker ID's don't need any modification
-                if game_selected == "Lode Runner":
+                if self.game_var.get() == "Lode Runner":
                     number_of_tiles = common_settings.LR_TILE_COUNT
                     scene = [[x % number_of_tiles for x in row] for row in scene]
                     tileset_path = common_settings.LR_TILESET
                     _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                elif game_selected == "Mega Man (Simple)":
+                elif self.game_var.get() == "Mega Man (Simple)":
                     number_of_tiles = common_settings.MM_SIMPLE_TILE_COUNT
                     scene = [[x % number_of_tiles for x in row] for row in scene]
                     tileset_path = common_settings.MM_SIMPLE_TILESET
                     _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                elif game_selected == "Mega Man (Full)":
+                elif self.game_var.get() == "Mega Man (Full)":
                     number_of_tiles = common_settings.MM_FULL_TILE_COUNT
                     scene = [[x % number_of_tiles for x in row] for row in scene]
                     tileset_path = common_settings.MM_FULL_TILESET
                     _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
-                elif game_selected == "Mega Man (Maker)":
+                elif self.game_var.get() == "Mega Man (Maker)":
                     number_of_tiles = common_settings.MMLV_TILE_COUNT
                     scene = [[x % number_of_tiles for x in row] for row in scene]
                     tileset_path = common_settings.MMLV_TILESET
                     _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
                 self.generated_scenes.append(scene)
-                if game_selected == "Lode Runner":
+                if self.game_var.get() == "Lode Runner":
                     actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                     pil_img = visualize_samples(images, game='LR')
-                elif game_selected == "Mario":
+                elif self.game_var.get() == "Mario":
                     actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
                     pil_img = visualize_samples(images)
-                elif game_selected == "Mario Maker 2":
+                elif self.game_var.get() == "Mario Maker 2":
                     actual_caption = self.mm2_assign_caption(scene)
                     pil_img = visualize_samples(images, game="MM2")
                 else:
                     actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
-                    pil_img = visualize_samples(images, game={"Mega Man (Simple)": "MM-Simple", "Mega Man (Maker)": "MMLV"}.get(game_selected, "MM-Full"))
+                    pil_img = visualize_samples(images, game={"Mega Man (Simple)": "MM-Simple", "Mega Man (Maker)": "MMLV"}.get(self.game_var.get(), "MM-Full"))
 
                 self.generated_images.append(pil_img)
                 img_tk = ImageTk.PhotoImage(pil_img)
-                if game_selected == 'Mario':
+                if self.game_var.get() == 'Mario':
                     compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-                elif game_selected == 'Lode Runner':
+                elif self.game_var.get() == 'Lode Runner':
                     compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-                elif game_selected == "Mario Maker 2":
+                elif self.game_var.get() == "Mario Maker 2":
                     compare_score, exact_matches, partial_matches, excess_phrases = self.mm2_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
                 else:
                     compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
@@ -864,7 +861,7 @@ class CaptionBuilder(ParentBuilder):
 
             # Check if the scene is wider than standard number of tiles and process segments if necessary
             avg_segment_score = None
-            if game_selected == "Mario":
+            if self.game_var.get() == "Mario":
                 if len(scene[0]) > common_settings.MARIO_WIDTH:
                     from captions.caption_match import process_scene_segments
                     avg_segment_score, _, _ = process_scene_segments(
@@ -897,7 +894,7 @@ Average Segment Score: {avg_segment_score}"""
             button_frame = ttk.Frame(img_frame)
             button_frame.pack(pady=5)
     
-            is_mario = game_selected == "Mario"
+            is_mario = self.game_var.get() == "Mario"
             
             # Add Play button
             play_button = ttk.Button(
@@ -953,19 +950,19 @@ Average Segment Score: {avg_segment_score}"""
         global tileset_path
         # Store the actual scene
         scene = self.generated_scenes[idx]
-        if game_selected == "Lode Runner":
+        if self.game_var.get() == "Lode Runner":
                 number_of_tiles = common_settings.LR_TILE_COUNT
                 scene = [[x % number_of_tiles for x in row] for row in scene]
                 tileset_path = common_settings.LR_TILESET
-        elif game_selected == "Mega Man (Simple)":
+        elif self.game_var.get() == "Mega Man (Simple)":
                 number_of_tiles = common_settings.MM_SIMPLE_TILE_COUNT
                 scene = [[x % number_of_tiles for x in row] for row in scene]
                 tileset_path = common_settings.MM_SIMPLE_TILESET
-        elif game_selected == "Mega Man (Full)":
+        elif self.game_var.get() == "Mega Man (Full)":
             number_of_tiles = common_settings.MM_FULL_TILE_COUNT
             scene = [[x % number_of_tiles for x in row] for row in scene]
             tileset_path = common_settings.MM_FULL_TILESET
-        elif game_selected == "Mega Man (Maker)":
+        elif self.game_var.get() == "Mega Man (Maker)":
             number_of_tiles = common_settings.MMLV_TILE_COUNT
             scene = [[x % number_of_tiles for x in row] for row in scene]
             tileset_path = common_settings.MMLV_TILESET
@@ -1258,10 +1255,10 @@ Average Segment Score: {avg_segment_score}"""
                 tensor = torch.tensor(self.current_levels[idx_or_scene])
                 scene = torch.argmax(tensor, dim=0).numpy().tolist()
 
-            if game_selected == "Lode Runner":
+            if self.game_var.get() == "Lode Runner":
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
-            elif game_selected == "Mario Maker 2":
+            elif self.game_var.get() == "Mario Maker 2":
                 # Shorten needs to be false for Mario Maker otherwise the top rows would be axed. It has different logic.
                 char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
@@ -1272,10 +1269,10 @@ Average Segment Score: {avg_segment_score}"""
         else:
             # Assume idx_or_scene is a scene (list of lists of tile indices)
             scene = idx_or_scene
-            if game_selected == "Lode Runner":
+            if self.game_var.get() == "Lode Runner":
                 tile_numbers = [[int(num) % len(self.id_to_char) for num in row] for row in scene]
                 level = SampleOutput(level=tile_numbers, use_snes_graphics=use_snes_graphics)
-            elif game_selected == "Mario Maker 2":
+            elif self.game_var.get() == "Mario Maker 2":
                 # Shorten needs to be false for Mario Maker otherwise the top rows would be axed. It has different logic.
                 char_grid = scene_to_ascii(scene, self.id_to_char, shorten=False)
                 level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
@@ -1364,13 +1361,13 @@ Average Segment Score: {avg_segment_score}"""
         scene = self.generated_scenes[idx]
         prompt = self._get_current_prompt()
 
-        if game_selected == 'Mario':
+        if self.game_var.get() == 'Mario':
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             compare_score, exact_matches, partial_matches, excess_phrases = compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-        elif game_selected == 'Lode Runner':
+        elif self.game_var.get() == 'Lode Runner':
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             compare_score, exact_matches, partial_matches, excess_phrases = lr_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
-        elif game_selected == 'Mario Maker 2':
+        elif self.game_var.get() == 'Mario Maker 2':
             actual_caption = self.mm2_assign_caption(scene)
             compare_score, exact_matches, partial_matches, excess_phrases = self.mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
         else:  # Mega Man variants
@@ -1378,7 +1375,7 @@ Average Segment Score: {avg_segment_score}"""
             compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
         avg_segment_score = None
-        if game_selected == "Mario" and len(scene[0]) > common_settings.MARIO_WIDTH:
+        if self.game_var.get() == "Mario" and len(scene[0]) > common_settings.MARIO_WIDTH:
             from captions.caption_match import process_scene_segments
             avg_segment_score, _, _ = process_scene_segments(
                 scene=scene,
@@ -1416,26 +1413,26 @@ Average Segment Score: {avg_segment_score}"""
         score_label.config(text=score_label_text)
 
     def _render_scene_image(self, scene):
-        if game_selected == "Lode Runner":
+        if self.game_var.get() == "Lode Runner":
             game_name = "LR"
             num_classes = common_settings.LR_TILE_COUNT
-        elif game_selected == "Mega Man (Simple)":
+        elif self.game_var.get() == "Mega Man (Simple)":
             game_name = "MM-Simple"
             num_classes = common_settings.MM_SIMPLE_TILE_COUNT
-        elif game_selected == "Mega Man (Full)":
+        elif self.game_var.get() == "Mega Man (Full)":
             game_name = "MM-Full"
             num_classes = common_settings.MM_FULL_TILE_COUNT
-        elif game_selected == "Mega Man (Maker)":
+        elif self.game_var.get() == "Mega Man (Maker)":
             game_name = "MMLV"
             num_classes = common_settings.MMLV_TILE_COUNT
-        elif game_selected == "Mario":
+        elif self.game_var.get() == "Mario":
             game_name = "Mario"
             num_classes = common_settings.MARIO_TILE_COUNT
-        elif game_selected == "Mario Maker 2":
+        elif self.game_var.get() == "Mario Maker 2":
             game_name = "MM2"
             num_classes = common_settings.MM2_TILE_COUNT
         else:
-            raise ValueError(f"Unsupported game selected: {game_selected}")
+            raise ValueError(f"Unsupported game selected: {self.game_var.get()}")
 
         one_hot = torch.nn.functional.one_hot(
             torch.tensor(scene, dtype=torch.long),
@@ -1615,8 +1612,7 @@ Average Segment Score: {avg_segment_score}"""
         self.null_rows_label.config(text=f"({chop} null row{'s' if chop != 1 else ''} chopped from top)")
 
     def open_megaman_layout_editor(self):
-        global game_selected
-        if game_selected not in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
+        if self.game_var.get() not in ("Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)"):
             messagebox.showinfo("Mega Man only", "Switch the game dropdown to a Mega Man mode to use this tool.")
             return
         if not self.composed_scenes:
@@ -1645,26 +1641,26 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     if args.game == "Mario":
-        game_selected = "Mario"
+        game = "Mario"
         tileset_path = common_settings.MARIO_TILESET
     elif args.game == "LR":
-        game_selected = "Lode Runner"
+        game = "Lode Runner"
         tileset_path = common_settings.LR_TILESET
     elif args.game == "MM-Simple":
-        game_selected = "Mega Man (Simple)"
+        game = "Mega Man (Simple)"
         tileset_path = common_settings.MM_SIMPLE_TILESET
     elif args.game == "MM-Full":
-        game_selected = "Mega Man (Full)"
+        game = "Mega Man (Full)"
         tileset_path = common_settings.MM_FULL_TILESET
     elif args.game == "MMLV":
-        game_selected = "Mega Man (Maker)"
+        game = "Mega Man (Maker)"
         tileset_path = common_settings.MMLV_TILESET
     elif args.game == "MM2":
-        game_selected = "Mario Maker 2"
+        game = "Mario Maker 2"
         tileset_path = common_settings.MM2_TILESET
 
     root = tk.Tk()
-    app = CaptionBuilder(root)
+    app = CaptionBuilder(root, game)
     app.load_data(args.load_data)
     app.load_model(args.model_path)
 
