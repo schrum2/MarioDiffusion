@@ -10,6 +10,7 @@ import os
 import sys
 import random
 import time
+from tqdm import tqdm
 
 
 #Snap mode: number of null padding rows added on top of each wide (horizontal) scene,
@@ -346,7 +347,11 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
         if astar_dir not in sys.path:
             sys.path.insert(0, astar_dir)
         from astar_traversability_check import evaluate
-        for i in astar_indices:
+        #A* is the slow step (see docstring). Wrap it in a progress bar so long filtering
+        #runs over large datasets show throughput/ETA instead of hanging silently. len()
+        #works for both the range (traversable_only) and the list of low_content indices.
+        for i in tqdm(astar_indices, total=len(astar_indices),
+                      desc="A* traversability", unit="scene"):
             ok, stats, _info = evaluate("MM", all_samples[i]["scene"], id_to_char,
                                         tile_descriptors, budget, False)
             traversable_flags[i] = ok
