@@ -205,8 +205,9 @@ PICKUP_E_TO_CHAR = {
 # decode to a generic enemy.
 BOSS_E_TO_CHAR = {
     15: "Z",   # Energy Element / MM1 Exit Orb  -> the level exit
-    0:  "D",   # Vertical Boss Door (also the no-'e' default)
-    1:  "D",   # Horizontal Boss Door
+    0:  "D",   # Vertical Boss Door, real-level id (also the no-'e' default). Same 2x4 footprint
+               # as e33 (see BOSS_DOOR_V_E_IDS); carries no 'e' field, so is_boss_door_v defaults it to 0.
+    1:  "D",   # Horizontal Boss Door, real-level id. Same 4x2 footprint as e34 (BOSS_DOOR_H_E_IDS).
     33: "D",   # Vertical Boss Door: a 2-wide x 4-tall door block (see BOSS_DOOR_V_E_IDS:
                # expands its bottom-right anchor left + 3 up into the full 2x4 footprint)
     34: "D",   # Horizontal Boss Door: a 4-wide x 2-tall door block (see BOSS_DOOR_H_E_IDS:
@@ -294,11 +295,15 @@ TRIGGER_IDS = {
 # as a single object at one corner, so on their own they decode to just that one cell and the
 # rest of the footprint reads as gaps. mmlv_to_grid expands them to the full door. Note these are
 # the d8 boss class, NOT the d6 block class the other footprint sets use. Two orientations:
-#   VERTICAL   (e33): 2-wide x 4-tall, anchored at the BOTTOM-RIGHT tile.
-#   HORIZONTAL (e34): 4-wide x 2-tall, anchored at the BOTTOM row, one tile LEFT of the right
-#                     edge (relative tile (row=1, col=2) of the 0-indexed 4x2 block).
-BOSS_DOOR_V_E_IDS = {33}
-BOSS_DOOR_H_E_IDS = {34}
+#   VERTICAL   (e33, e0): 2-wide x 4-tall, anchored at the BOTTOM-RIGHT tile.
+#   HORIZONTAL (e34, e1): 4-wide x 2-tall, anchored at the BOTTOM row, one tile LEFT of the right
+#                         edge (relative tile (row=1, col=2) of the 0-indexed 4x2 block).
+# e33/e34 are from labelled test placements; e0/e1 are the same doors as they appear in real
+# game levels (verified against level 200005: e0 vertical doors and e1 horizontal doors filling
+# 4-wide chambers). NOTE e0 carries NO 'e' field (absent == default 0), so the predicates below
+# must treat a missing 'e' as 0.
+BOSS_DOOR_V_E_IDS = {33, 0}
+BOSS_DOOR_H_E_IDS = {34, 1}
 
 # d == 6 gimmick ids that are moving platforms. A moving platform is placed as a chain of
 # invisible PATH/track nodes that all share the same e id; exactly one node (the platform's
@@ -347,17 +352,27 @@ def is_3x1_block(cell: dict) -> bool:
 
 
 def is_boss_door_v(cell: dict) -> bool:
-    """True if the cell is a d8 vertical boss door (2-wide x 4-tall footprint)."""
+    """True if the cell is a d8 vertical boss door (2-wide x 4-tall footprint).
+
+    A missing 'e' counts as 0 (the .mmlv absent-value default), because real-level vertical boss
+    doors (e0) carry no 'e' field at all.
+    """
     d = cell.get("d")
+    if d is None or int(d) != 8:
+        return False
     e = cell.get("e")
-    return d is not None and int(d) == 8 and e is not None and int(e) in BOSS_DOOR_V_E_IDS
+    ei = int(e) if e is not None else 0
+    return ei in BOSS_DOOR_V_E_IDS
 
 
 def is_boss_door_h(cell: dict) -> bool:
     """True if the cell is a d8 horizontal boss door (4-wide x 2-tall footprint)."""
     d = cell.get("d")
+    if d is None or int(d) != 8:
+        return False
     e = cell.get("e")
-    return d is not None and int(d) == 8 and e is not None and int(e) in BOSS_DOOR_H_E_IDS
+    ei = int(e) if e is not None else 0
+    return ei in BOSS_DOOR_H_E_IDS
 
 
 def classify(cell: dict) -> str:
