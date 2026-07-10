@@ -59,7 +59,8 @@ while downloaded < TARGET_DOWNLOADS:
 
     filename = os.path.join(SAVE_DIR, f"{level_id}.mmlv")
 
-    if os.path.exists(filename) and not args.force:
+    already_downloaded = os.path.exists(filename)
+    if already_downloaded and not args.force:
         print(f"Already exists: {level_id}")
         level_id += 1
         continue
@@ -144,8 +145,13 @@ while downloaded < TARGET_DOWNLOADS:
         with open(METADATA_FILE, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
 
-        downloaded += 1
-        print(f"Downloaded: {level_id} ({downloaded}/{TARGET_DOWNLOADS})")
+        # Forced overwrites of already-present levels are updates, not new downloads, so
+        # they don't count toward the target.
+        if already_downloaded:
+            print(f"Updated: {level_id}")
+        else:
+            downloaded += 1
+            print(f"Downloaded: {level_id} ({downloaded}/{TARGET_DOWNLOADS})")
 
     except Exception as e:
         print(f"[ERROR] {level_id} → {e}")
