@@ -17,6 +17,7 @@ import time
 import argparse
 
 import ollama
+from tqdm import tqdm
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
@@ -25,8 +26,21 @@ from util.descriptive_tilesets import GAMES
 
 # for ollama
 OLLAMA_NUM_CTX = 32768
-EXPECTED_CAPTIONS = 5
+EXPECTED_CAPTIONS = 5 # default number of captions expected per LLM query; overridable with --num_captions
 MAX_CAPTION_RETRIES = 20 # how many times we tolerate responses that don't contain the correct number of captions
+
+
+# Spelled-out forms for the caption count so the prompts can read naturally ("exactly five
+# captions") for any --num_captions value; falls back to the digit for counts outside the map.
+_NUMBER_WORDS = {
+    1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+    7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve",
+}
+
+
+def num_word(n: int) -> str:
+    """Spell out a small caption count ('five'); fall back to the digit string for larger counts."""
+    return _NUMBER_WORDS.get(n, str(n))
 
 
 # Default model per --llm branch, used when --model isn't supplied. The openai and claude
@@ -38,10 +52,13 @@ DEFAULT_MODELS = {
 }
 
 
-SYSTEM_PROMPT =  """
+def build_system_prompt(num_captions: int = EXPECTED_CAPTIONS) -> str:
+    """Build the captioning system prompt, phrased to request exactly {num_captions} captions."""
+    word = num_word(num_captions)
+    return f"""
 You are a Mega Man captioning agent; given an ASCII grid representation of a Mega Man level,
-an ASCII tile set key, and deterministic level data. you must generate EXACTLY FIVE diverse captions 
-that all describe the level accurately. 
+an ASCII tile set key, and deterministic level data. you must generate EXACTLY {word.upper()} diverse captions
+that all describe the level accurately.
 
 RULES:
 - Your captions should each DISTINCTLY vary in tone, length, wordiness, playfulness, specificity, etc.
@@ -65,10 +82,10 @@ guess between ascending and descending; simply classify the scene as vertical (c
 
 
 FORMATTING:
-- Your response must contain nothing but the five diverse captions.
+- Your response must contain nothing but the {word} diverse captions.
 - Put each caption on its own line, with no blank lines between them.
 - Do not number the captions, add bullets, or write any other text.
-- You must write exactly FIVE captions; no more, no less.
+- You must write exactly {word.upper()} captions; no more, no less.
 - Do not include any dashes or semicolons. The only punctuation you should 
 use are commas and periods (, and .). Keep commas rare and only within a single
 phrase, and do not chain multiple distinct ideas together with commas. 
@@ -92,21 +109,24 @@ REMINDERS:
 - For length: at least one caption should be long, one should be short, and the rest should
 fall in between.
 - For specificity: one or two captions should contain specific enemy/power-up names, while others can be vague and state enemy class (ranged, ground).
-- You must return FIVE distinct captions, each on their own line.
+- You must return {word.upper()} distinct captions, each on their own line.
 - Don't say things like "This level has..." or "The level features...". Just directly
 describe the level itself without mentioning "level".
 """
 
 
 
-# Trailing reminder appended as the final (freshest) user msg 
-CAPTION_REMINDER = ("Reminder: output exactly five captions and nothing else, each on its own line with no numbering, labels, or blank lines. "
-"Break each caption into short '.'-separated phrases, and make the five intentionally diverse in length, specificity, and tone. "
-"For vertical segments, do not guess at whether the segment is ascending or descending, unless it is absolutely clear by the level structure/metadata "
-"that you observe and are provided. For ambiguous vertical scenes, note the structure and verticality but don't assume directionality. "
-"You may still classify structures within a scene as ascending or descending, especially if there are notable structures "
-"present in horizontal (always left-to-right) level scenes. Don't explicitly state that a level is left-to-right; that information is already known."
-)
+# Trailing reminder appended as the final (freshest) user msg
+def build_caption_reminder(num_captions: int = EXPECTED_CAPTIONS) -> str:
+    """Build the trailing reminder message, phrased to request exactly {num_captions} captions."""
+    word = num_word(num_captions)
+    return (f"Reminder: output exactly {word} captions and nothing else, each on its own line with no numbering, labels, or blank lines. "
+    f"Break each caption into short '.'-separated phrases, and make the {word} intentionally diverse in length, specificity, and tone. "
+    "For vertical segments, do not guess at whether the segment is ascending or descending, unless it is absolutely clear by the level structure/metadata "
+    "that you observe and are provided. For ambiguous vertical scenes, note the structure and verticality but don't assume directionality. "
+    "You may still classify structures within a scene as ascending or descending, especially if there are notable structures "
+    "present in horizontal (always left-to-right) level scenes. Don't explicitly state that a level is left-to-right; that information is already known."
+    )
 
 
 
@@ -337,9 +357,14 @@ def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], ch
 
 
 
-def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset: dict = None, llm: str = "ollama", model: str = "qwen3.5:9b") -> list[str]:
+def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset: dict = None, llm: str = "ollama", model: str = "qwen3.5:9b",
+                num_captions: int = EXPECTED_CAPTIONS) -> list[str]:
 
-    
+    # Build the count-aware system prompt and trailing reminder for the requested caption count.
+    system_prompt = build_system_prompt(num_captions)
+    caption_reminder = build_caption_reminder(num_captions)
+
+
     deterministic_msg = (
         "For grounding and reference, here is pre-computed structural metadata for this level. Treat it as "
         "accurate, stay consistent with it, and don't invent features it doesn't support or "
@@ -388,13 +413,13 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
             {"role": "user", "content": deterministic_msg},
-            {"role": "user", "content": CAPTION_REMINDER},
+            {"role": "user", "content": caption_reminder},
         ]
 
         # sup claude
         message = client.messages.create(
                     max_tokens=2048,
-                    system=SYSTEM_PROMPT, # claude requires system prompt to be separated from context block
+                    system=system_prompt, # claude requires system prompt to be separated from context block
                     messages=context,
                     model=model
                     )
@@ -422,11 +447,11 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
         tileset_str = json.dumps(tileset, indent=2)
 
         context = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
             {"role": "user", "content": deterministic_msg},
-            {"role": "user", "content": CAPTION_REMINDER},
+            {"role": "user", "content": caption_reminder},
         ]
 
         # sup mr. altman
@@ -453,11 +478,11 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
 
     
         context = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Here is the tile set for {game}:\n{tileset_str}"},
             {"role": "user", "content": f"Level Scene:\n{scene}"},
             {"role": "user", "content": deterministic_msg},
-            {"role": "user", "content": CAPTION_REMINDER}
+            {"role": "user", "content": caption_reminder}
         ]
 
       
@@ -474,14 +499,14 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
 
             captions = [line.strip() for line in message.split("\n") if line.strip()]
 
-            if len(captions) == EXPECTED_CAPTIONS:
+            if len(captions) == num_captions:
                 return captions
 
             print(f"[ollama retry] Attempt {attempt}/{MAX_CAPTION_RETRIES} returned "
-                  f"{len(captions)} caption(s), expected {EXPECTED_CAPTIONS}; retrying...\n")
+                  f"{len(captions)} caption(s), expected {num_captions}; retrying...\n")
 
         print(f"[ollama] Gave up after {MAX_CAPTION_RETRIES} attempts; last response had "
-              f"{len(captions)} caption(s) instead of {EXPECTED_CAPTIONS}.\n")
+              f"{len(captions)} caption(s) instead of {num_captions}.\n")
         return captions
 
     else:
@@ -510,6 +535,14 @@ def parse_args():
                            help="Optional path to write the captioned [{scene, caption}] list as JSON")
     argparser.add_argument("--limit", type=int, default=None,
                            help="Max number of scenes to caption. Defaults to the entire dataset")
+    argparser.add_argument("--num_captions", type=int, default=EXPECTED_CAPTIONS,
+                           help="Number of captions each LLM query is expected to return. Drives the prompt "
+                                "wording, the ollama retry acceptance check, and how many captions a scene "
+                                f"must produce to be kept. Defaults to {EXPECTED_CAPTIONS}")
+    argparser.add_argument("--show_captions", action="store_true",
+                           help="Print each scene's generated captions to the console as they're produced "
+                                "(the previous default behavior). When omitted, a tqdm progress bar is shown "
+                                "instead.")
     argparser.add_argument("--caption-mode", default="keyed", choices=["legacy", "keyed"],
                            help="Output schema. 'keyed' (default) writes the captions as a list under --caption-key (default "
                                 "'<model>_captions'), so a scene can carry captions from several models at once. 'legacy' writes "
@@ -571,8 +604,12 @@ def main() -> list[list[str]]:
     start_time = time.time()
     print(f"[timing] Captioning started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n")
 
-    # caption each scene, append back to running lists
-    for i, (scene, label, attrs) in enumerate(scenes):
+    # caption each scene, append back to running lists. By default show a tqdm progress bar
+    # (matching the A* traversability bar in create_megaman_json_data.py); with --show_captions
+    # the bar is disabled and each scene's captions are printed to the console as before.
+    for i, (scene, label, attrs) in enumerate(
+            tqdm(scenes, total=len(scenes), desc="Captioning", unit="scene",
+                 disable=args.show_captions)):
 
         # Decode the integer grid to ASCII rows purely to build the prompt; the integer
         # grid itself is what gets stored back in the output unchanged. Null padding rows
@@ -587,17 +624,20 @@ def main() -> list[list[str]]:
         det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors, names=tile_names)
 
         # assign and collect captions
-        caption_set = llm_caption(scene_str, game=game_name, model=model, tileset=filtered_tiles, llm=args.llm, deterministic=det_caption)
+        caption_set = llm_caption(scene_str, game=game_name, model=model, tileset=filtered_tiles, llm=args.llm,
+                                  deterministic=det_caption, num_captions=args.num_captions)
         
 
-        print(f"------------------ [{llmstr}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
-        for j, caption in enumerate(caption_set):
-            print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
+        if args.show_captions:
+            print(f"------------------ [{llmstr}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
+            for j, caption in enumerate(caption_set):
+                print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
 
-       
-
-        if len(caption_set) != EXPECTED_CAPTIONS:
-            print(f"[skip] {label}: got {len(caption_set)} caption(s) instead of {EXPECTED_CAPTIONS}; skipping this scene.\n")
+        if len(caption_set) != args.num_captions:
+            # Route the skip warning through tqdm.write so it doesn't clobber the progress bar
+            # when it's active; a plain print is fine in --show_captions mode.
+            skip_msg = f"[skip] {label}: got {len(caption_set)} caption(s) instead of {args.num_captions}; skipping this scene.\n"
+            print(skip_msg) if args.show_captions else tqdm.write(skip_msg)
             continue
 
         caption_lists.append(caption_set)
@@ -607,8 +647,11 @@ def main() -> list[list[str]]:
         entry = dict(attrs)
         entry["scene"] = scene
         if args.caption_mode == "legacy":
-            entry.update({"caption": caption_set[0], "caption1": caption_set[1], "caption2": caption_set[2],
-                          "caption3": caption_set[3], "caption4": caption_set[4], "model": llmstr})
+            # Legacy schema: the first caption under "caption", the rest under "caption1".."captionN-1".
+            entry["caption"] = caption_set[0]
+            for idx, caption in enumerate(caption_set[1:], start=1):
+                entry[f"caption{idx}"] = caption
+            entry["model"] = llmstr
         else:
             entry[caption_key] = caption_set
         captioned_dataset.append(entry)
