@@ -386,6 +386,8 @@ def mm_tiles(game):
             (2,6),    #46 'Y' = Horizontal key door (3x1, needs a key; treated as breakable)
             (2,7),    #47 'K' = Key collectible (opens key doors)
             (2,8),    #48 'R' = Rising platform (2x1 solid block that rises)
+            (4,9),    #49 'G' = Horizontal fire emitter pointing right (damaging hazard)
+            (4,10),   #50 'J' = Horizontal fire emitter pointing left (damaging hazard)
     ]
 
            

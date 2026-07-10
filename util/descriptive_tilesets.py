@@ -105,6 +105,8 @@ MMLV_TILESET_DICT = {
         "Y": "Horizontal key door, opened with a key (behaves like a breakable barrier)",
         "K": "Collectible key that opens key doors",
         "R": "Rising platform: a solid block that rises",
+        "G": "Horizontal fire emitter shooting fire to the right (damaging hazard)",
+        "J": "Horizontal fire emitter shooting fire to the left (damaging hazard)",
     }
 }
 

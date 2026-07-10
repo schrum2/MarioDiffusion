@@ -168,6 +168,27 @@ def rising_platform(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def fire_emitter_right(x: int, y: int) -> List[str]:
+    # Horizontal fire/hazard emitter (gimmick id 3) pointing RIGHT (no 'b' facing flag). Verified
+    # d6/e3 against a labelled test level (the tile the (4,9) sprite represents).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="3.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
+def fire_emitter_left(x: int, y: int) -> List[str]:
+    # Horizontal fire/hazard emitter (gimmick id 3) pointing LEFT: same as the right emitter plus
+    # b=-1 (the left-facing flag, same convention as the conveyor belts).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'b{x},{y}="-1.000000"',
+        f'e{x},{y}="3.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def key_pickup(x: int, y: int) -> List[str]:
     # Key collectible, gimmick id 32: a 1x1 pickup that opens key doors. Verified d6/e32 against
     # a labelled test level. Round-trips exactly (1x1).
@@ -441,6 +462,8 @@ CHAR_MAP = {
     'F': falling_platform,
     'x': fan,
     's': spring,
+    'G': fire_emitter_right,
+    'J': fire_emitter_left,
     'K': key_pickup,
     # NOTE: the multi-tile distinct-char tiles 'T' (2x2 teleporter), 'R' (2x1 rising platform),
     # 'V' (1x3 key door) and 'Y' (3x1 key door) are intentionally NOT in CHAR_MAP -- convert()

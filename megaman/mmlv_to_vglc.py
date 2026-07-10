@@ -272,6 +272,14 @@ THREE_WIDE_E_IDS = {80}
 # direction ('b'=-1 -> left 'E', else right '>'). Multiple conveyor types exist (e73, e74).
 CONVEYOR_E_IDS = {73, 74}
 
+# d == 6 gimmick ids that are horizontal fire/hazard emitters. Like conveyors, the emitter's
+# facing is in the 'b' field: b == -1 faces LEFT, otherwise faces RIGHT. Two emitter ids are
+# grouped here (e3 and e4 -- e3 is the tile the sprites represent, e4 is the other emitter type
+# stacked with it in the test level); both decode to the directional fire-emitter tiles. classify
+# returns 'G' (right) or 'J' (left). NOTE the d6/e3 hazard emitter is unrelated to the tile-layer
+# solid block, whose 'e3' rides an 'i'=1 field (a cell has either a 'd' or an 'i', never both).
+FIRE_EMITTER_E_IDS = {3, 4}
+
 # Invisible logic / trigger objects that have NO tile representation and should be ignored
 # (decoded to empty air '-'), e.g. boss event triggers. These are keyed by the full (d, e) pair,
 # NOT by 'e' alone, because subtype ids collide across classes -- e.g. d8/e36 is the boss event
@@ -385,6 +393,9 @@ def classify(cell: dict) -> str:
                 # (e73, e74, ...), all sharing this same left/right encoding.
                 b = cell.get("b")
                 return "E" if (b is not None and int(b) == -1) else ">"
+            if ei in FIRE_EMITTER_E_IDS:            # horizontal fire emitter: 'b'=-1 faces left.
+                b = cell.get("b")
+                return "J" if (b is not None and int(b) == -1) else "G"
             return GIMMICK_E_TO_CHAR.get(ei, "#")
         if dc == 7:                                 # pickup (energy/life/1-up/tank …)
             return PICKUP_E_TO_CHAR.get(ei, "w")
