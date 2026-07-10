@@ -1148,6 +1148,22 @@ Average Segment Score: {avg_segment_score}"""
 
     def _save_composed_swe(self):
         """Save the composed scene as a .swe, prompting for a name in Niveles."""
+        exe = self._smmwe_exe_path()
+        if exe is None:
+            search_paths = self._smmwe_exe_search_paths()
+            search_text = "\n".join(search_paths)
+            message = (
+                "Could not find the SMM:WE executable.\n"
+                "SMM_WE.exe was searched for in the following locations:\n\n"
+                f"{search_text}\n\n"
+                "Please install SMM:WE or place SMM_WE.exe in one of these folders."
+            )
+            messagebox.showerror("SMM:WE executable not found", message)
+            print("SMM:WE executable not found. Looked in the following locations:")
+            for path in search_paths:
+                print(f"  {path}")
+            return
+
         niveles_dir = self._smmwe_niveles_dir()
         os.makedirs(niveles_dir, exist_ok=True)
         file_path = filedialog.asksaveasfilename(
@@ -1173,16 +1189,6 @@ Average Segment Score: {avg_segment_score}"""
         to boot straight into a level, so you pick 'composed_level' in-game."""
         import subprocess
 
-        name = "composed_level"
-        niveles_dir = self._smmwe_niveles_dir()
-        os.makedirs(niveles_dir, exist_ok=True)
-        swe_bytes, dropped = self._compose_swe_bytes(name)
-        out_path = os.path.join(niveles_dir, name + ".swe")
-        with open(out_path, "wb") as f:
-            f.write(swe_bytes)
-        print(f"Composed level exported to {out_path} ({len(swe_bytes)} bytes)")
-        self._report_dropped(dropped)
-
         exe = self._smmwe_exe_path()
         if exe is None:
             search_paths = self._smmwe_exe_search_paths()
@@ -1198,6 +1204,16 @@ Average Segment Score: {avg_segment_score}"""
             for path in search_paths:
                 print(f"  {path}")
             return
+
+        name = "composed_level"
+        niveles_dir = self._smmwe_niveles_dir()
+        os.makedirs(niveles_dir, exist_ok=True)
+        swe_bytes, dropped = self._compose_swe_bytes(name)
+        out_path = os.path.join(niveles_dir, name + ".swe")
+        with open(out_path, "wb") as f:
+            f.write(swe_bytes)
+        print(f"Composed level exported to {out_path} ({len(swe_bytes)} bytes)")
+        self._report_dropped(dropped)
         # run from the install dir so the game finds data.win
         subprocess.Popen([exe], cwd=os.path.dirname(exe))
         print(f"Launched SMM:WE -- open the level browser and play '{name}'.")
