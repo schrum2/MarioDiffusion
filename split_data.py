@@ -180,8 +180,8 @@ if __name__ == "__main__":
     elif args.game.lower() in ["mm-simple", "mm-full", "mmlv"]:
         required_structures = MM_TOPIC_KEYWORDS
     elif args.game.lower() == "mm2":
-        # Jacob: TODO
-        raise ValueError("MM2 topic keywords have not been defined")
+        # MM2 topics come from the tileset, not a fixed list, so there is nothing to balance
+        required_structures = []
     else:
         raise ValueError("Unsupported game specified")
     train_split, val_split, test_split = verify_coverage(required_structures)
