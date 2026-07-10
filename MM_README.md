@@ -75,7 +75,7 @@ python MM_create_ascii_captions.py --dataset datasets\MM_Levels_Filtered.json --
 
 Build a tokenizer:
 ```
-python tokenizer.py save --json datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
+python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-filtered-regular.json --pkl_file datasets\MM_Tokenizer-filtered-regular.pkl
 ```
 
 Train the text encoder (MLM):
@@ -148,8 +148,23 @@ python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --gro
 python MM_create_ascii_captions.py --dataset datasets\MM_Levels-full.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-full-regular.json
 python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset datasets\MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
 
-python tokenizer.py save --json datasets\MM_LevelsAndCaptions-full-regular.json --pkl_file datasets\MM_Tokenizer-full-regular.pkl
-python tokenizer.py save --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
+python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-full-regular.json --pkl_file datasets\MM_Tokenizer-full-regular.pkl
+python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
+```
+```
+python create_random_test_captions.py --save_file datasets\MM_RandomTest-full-regular.json --json datasets\MM_LevelsAndCaptions-full-regular.json --seed 0 --game MM-Full
+```
+
+```
+python create_random_test_captions.py --save_file datasets\MM_RandomTest-simple-regular.json --json datasets\MM_LevelsAndCaptions-simple-regular.json --seed 0 --game MM-Simple
+```
+
+```
+python split_data.py --json_file datasets\MM_LevelsAndCaptions-full-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game mm-full
+```
+
+```
+python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game mm-simple
 ```
 
 All of this can be done with this batch file:
@@ -164,6 +179,18 @@ python ascii_data_browser.py datasets\MM_LevelsAndCaptions-full-regular.json dat
 ```
 
 Train an unconditional diffusion model without any text embeddings:
+
+This entire process — from creating the level sample files, through captioning,
+tokenizing, splitting, and training — can be done with this batch file:
+
+```
+cd MM_Batch
+MM_unconditional.bat [size]
+```
+`size` is optional and sets both the scene width and height (default 16 wide,
+14 tall if omitted; passing e.g. `32` makes both dimensions 32). Output model
+directory is named `MM-simple{size}-unconditional0`.
+
 ```
 python train_diffusion.py --json datasets\MM_LevelsAndCaptions-simple-regular.json --augment --output_dir MM_unconditional_simple0 --seed 0 --game MM-Simple
 ```
@@ -262,7 +289,7 @@ python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --ti
 
 Build the tokenizer:
 ```
-python tokenizer.py save --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
+python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
 ```
 
 Create a set of random test captions for evaluation:
