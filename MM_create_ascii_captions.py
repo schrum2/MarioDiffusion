@@ -425,12 +425,16 @@ def analyze_ceiling(scene, wall_ids, describe_absence, ceiling_row = 2):
         return ""  # Not enough solid tiles for a ceiling
 
 # We need another seperate function, for the same reason
-def analyze_floor(scene, wall_ids, describe_absence, floor_row = 15):
+def analyze_floor(scene, wall_ids, describe_absence, floor_row=15, ladder_ids=None):
     """Analyzes the last row of the 16X16 scene and generates a floor description."""
+    if ladder_ids is None:
+        ladder_ids = []
     WIDTH = len(scene[0])
     last_row = scene[floor_row]  # The FLOOR row of the scene
-    solid_count = sum(1 for tile in last_row if tile in wall_ids)
-    passable_count = sum(1 for tile in last_row if tile not in wall_ids)
+    # A ladder tile at the floor isn't a fall-through gap, so treat it like solid floor for this purpose
+    non_gap_ids = set(wall_ids) | set(ladder_ids)
+    solid_count = sum(1 for tile in last_row if tile in non_gap_ids)
+    passable_count = sum(1 for tile in last_row if tile not in non_gap_ids)
 
     if solid_count == WIDTH:
         return " full floor."
@@ -444,8 +448,8 @@ def analyze_floor(scene, wall_ids, describe_absence, floor_row = 15):
         gaps = 0
         in_gap = False
         for tile in last_row:
-            # Enemies are also a gap since they immediately fall into the gap
-            if tile not in wall_ids:
+            # Enemies are also a gap since they immediately fall into the gap. Ladders are not gaps.
+            if tile not in non_gap_ids:
                 if not in_gap:
                     gaps += 1
                     in_gap = True
@@ -457,7 +461,7 @@ def analyze_floor(scene, wall_ids, describe_absence, floor_row = 15):
         chunks = 0
         in_chunk = False
         for tile in last_row:
-            if tile in wall_ids:
+            if tile in non_gap_ids:
                 if not in_chunk:
                     chunks += 1
                     in_chunk = True
@@ -557,7 +561,6 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     moving_plat_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'moving' in value]
     wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value) and ("hazard" not in value))]
     disappearing_ids = [char_to_id["A"]] if "A" in char_to_id else [] #There's nothing unique about the descriptors for disappearing blocks, so we just set it here
-    
     #Ideas:
     #Walls for each size/exit directions
     #Some kind of data transfer telling us which way the level is moving
@@ -639,7 +642,8 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         scene,
         wall_ids,
         describe_absence=describe_absence,
-        floor_row=floor_row
+        floor_row=floor_row,
+        ladder_ids=ladder_ids
     )
     already_accounted.update(floor_tiles)
     add_to_caption(floor_phrase, floor_tiles)
