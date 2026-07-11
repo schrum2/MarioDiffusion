@@ -39,19 +39,3 @@ REM assign deterministic captions
 python MM_create_ascii_captions.py --dataset datasets\MMLV_Levels.json --tileset datasets\MMLV.json --output datasets\MMLV_LevelsAndCaptions-multi.json --caption-mode keyed --caption-key deterministic_captions
 python log_timestamp.py --log_file %TIMING_LOG% --event "deterministic ASCII captions"
 
-
-
-
-
-REM -- 
-REM LLM 1: llama3.1
-REM python llm_ascii_to_caption.py --levels datasets\MMLV_LevelsAndCaptions-multi.json --game mmlv --output datasets\MMLV_LevelsAndCaptions-multi.json --llm ollama --model llama3.1:8b
-REM python log_timestamp.py --log_file %TIMING_LOG% --event "LLM captions (llama3.1:8b)"
-
-REM LLM 2: gemma4 
-REM python llm_ascii_to_caption.py --levels datasets\MMLV_LevelsAndCaptions-multi.json --game mmlv --output datasets\MMLV_LevelsAndCaptions-multi.json --llm ollama --model gemma4:26b
-REM python log_timestamp.py --log_file %TIMING_LOG% --event "LLM captions (gemma4:26b)"
-
-REM split into training/val/test splits 
-REM python split_data.py --json_file datasets\MMLV_LevelsAndCaptions-multi.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MMLV
-REm python log_timestamp.py --log_file %TIMING_LOG% --event "train/validate/test split"
