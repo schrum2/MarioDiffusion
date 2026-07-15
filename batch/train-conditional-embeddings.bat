@@ -25,7 +25,7 @@ if /I not "%METHOD%"=="skip" if /I not "%METHOD%"=="block2vec" (
 
 set "SMB1_JSON=datasets\SMB1_3x3_tiles.json"
 set "SMB2_JSON=datasets\SMB2_3x3_tiles.json"
-set "MAR12_JSON=datasets\Mar1and2_3x3_tiles.json"
+set "MAR12_JSON=Game_Mario/DATA/Mar1and2_3x3_tiles.json"
 set "SMB1_LEVELS=..\TheVGLC\Super Mario Bros\Processed"
 set "SMB2_LEVELS=..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
 
@@ -39,10 +39,10 @@ set "EMBEDDING_DIR=Mar1and2-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%"
 set "MODEL_PATH=Mar1and2-%METHOD%%EMBEDDING_DIM%-conditional%SEED%"
 set "MLM_DIR=Mar1and2-MLM-regular%SEED%"
 set "SAMPLES_DIR=Mar1and2-%METHOD%%EMBEDDING_DIM%-conditional%SEED%-samples"
-set "EVAL_ARGS=--model_path %MODEL_PATH% --save_as_json --json datasets\Mar1and2_RandomTest-regular.json --random_width --width_range_json datasets\Mar1and2_LevelsAndCaptions-regular.json --num_tiles=13"
+set "EVAL_ARGS=--model_path %MODEL_PATH% --save_as_json --json Game_Mario/DATA/Mar1and2_RandomTest-regular.json --random_width --width_range_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --num_tiles=13"
 
 if not exist "%MLM_DIR%" (
-    python train_mlm.py --epochs 300 --save_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --test_json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --output_dir "%MLM_DIR%" --seed %SEED%
+    python train_mlm.py --epochs 300 --save_checkpoints --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --test_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-test.json --pkl Game_Mario/DATA/Mar1and2_Tokenizer-regular.pkl --output_dir "%MLM_DIR%" --seed %SEED%
 )
 
 if not exist "%EMBEDDING_DIR%" (
@@ -52,7 +52,7 @@ if not exist "%EMBEDDING_DIR%" (
         python train_skipgram.py --json_file "%MAR12_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
     )
 )
-python train_diffusion.py --augment --text_conditional --output_dir "%MODEL_PATH%" --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --mlm_model_dir "%MLM_DIR%" --block_embedding_model_path "%EMBEDDING_DIR%" --plot_validation_caption_score
+python train_diffusion.py --augment --text_conditional --output_dir "%MODEL_PATH%" --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --mlm_model_dir "%MLM_DIR%" --block_embedding_model_path "%EMBEDDING_DIR%" --plot_validation_caption_score
 python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%"
 
 python evaluate_caption_adherence.py %EVAL_ARGS% --output_dir samples-from-random-Mar1and2-captions

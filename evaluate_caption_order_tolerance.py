@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
     parser.add_argument("--caption", type=str, required=False, default=None, help="Caption to evaluate, phrases separated by periods")
     parser.add_argument("--tileset", type=str, help="Path to the tileset JSON file")
-    parser.add_argument("--json", type=str, default="datasets/Mar1and2_LevelsAndCaptions-regular.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json", help="Path to dataset json file")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS)
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE)
     parser.add_argument("--seed", type=int, default=42)

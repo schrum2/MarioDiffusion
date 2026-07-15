@@ -29,6 +29,6 @@ if %errorlevel%==0 (
 )
 
 REM Run the Python script with the correct arguments
-python evaluate_caption_order_tolerance.py --json datasets\Mar1and2_LevelsAndCaptions-%TYPE%-test.json --game Mario --save_as_json --model_path %FULLDIR%
+python evaluate_caption_order_tolerance.py --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-%TYPE%-test.json --game Mario --save_as_json --model_path %FULLDIR%
 python caption_order_stats_creator.py --dir %DIRNAME%
 exit /b

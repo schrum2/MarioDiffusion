@@ -58,7 +58,7 @@ As useful as this tool is, we feel that most will have more fun generating level
 There is also a cool GUI you can work with to build larger levels out of diffusion-generated scenes. Run the following command to load the `MLM-regular` model in the GUI and create new levels interactively (**Note**: sufficiently large screen resolution will be needed to view all GUI elements).
 
 ```
-python interactive_tile_level_generator.py --model_path schrum2/MarioDiffusion-MLM-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json
+python interactive_tile_level_generator.py --model_path schrum2/MarioDiffusion-MLM-regular0 --load_data Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json
 ```
 
 **DETAILS:**
@@ -69,7 +69,7 @@ python interactive_tile_level_generator.py --model_path schrum2/MarioDiffusion-M
 5. You may also play or run A* Mario on any generated level or composed larger level, and you can toggle between SNES and NES graphics with the 'Use SNES Graphics' checkbox.
 6. Save composed larger levels as ASCII text files by clicking on 'Save Composed Level.'
 7. There is an input box for a 'Negative Prompt', but you should not expect this to do anything useful unless you are using a model trained with negative guidance, such as `schrum2/MarioDiffusion-MLM-negative0`. Even then, we recommend simply checking the box for 'Automatic Negative Captions' to assure consistent input.
-8. If you are working with a model trained on absence captions, then when launching the GUI, you should specify this with `--load_data datasets/Mar1and2_LevelsAndCaptions-absence.json` so that the phrase options on the right include absence phrases. However, when using models trained on absence captions, we recommend checking the 'Automatic Absence Captions' box.
+8. If you are working with a model trained on absence captions, then when launching the GUI, you should specify this with `--load_data Game_Mario/DATA/Mar1and2_LevelsAndCaptions-absence.json` so that the phrase options on the right include absence phrases. However, when using models trained on absence captions, we recommend checking the 'Automatic Absence Captions' box.
 
 We hope these tools for interacting with pre-trained models provide you with a fun way of seeing what is possible with diffusion models. If you would like to train models yourself, then continue to the instructions below.
 
@@ -98,7 +98,7 @@ Mar1and2-data.bat
 ```
 Now you can browse level scenes and their captions with a command like this (the json file can be replaced by any levels and captions json file in datasets):
 ```
-python ascii_data_browser.py datasets\Mar1and2_LevelsAndCaptions-regular.json 
+python ascii_data_browser.py Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json 
 ```
 This is not required, but will give you insight into the data.
 
@@ -176,34 +176,34 @@ Now, if you just want to train a model step by step, keep reading from here.
 
 Masked language modeling is used to train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. It is recommended to supply the validation and test datasets of the same type as well, though it is optional, and only used for evaluation.
 ```
-python train_mlm.py --epochs 300 --save_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --test_json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --output_dir Mar1and2-MLM-regular0 --seed 0
+python train_mlm.py --epochs 300 --save_checkpoints --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --test_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-test.json --pkl Game_Mario/DATA/Mar1and2_Tokenizer-regular.pkl --output_dir Mar1and2-MLM-regular0 --seed 0
 ```
 A report evaluating the accuracy of the final model on the training data is provided after training, but you can repeat a similar evaluation with this command:
 ```
-python evaluate_masked_token_prediction.py --model_path Mar1and2-MLM-regular0 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json
+python evaluate_masked_token_prediction.py --model_path Mar1and2-MLM-regular0 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json
 ```
 You can also see how the accuracy on the training set changes throughout training by evaluating all checkpoints with this command:
 ```
-python evaluate_masked_token_prediction.py --model_path Mar1and2-MLM-regular0 --compare_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json
+python evaluate_masked_token_prediction.py --model_path Mar1and2-MLM-regular0 --compare_checkpoints --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json
 ```
 To see accuracy on the validation set over time instead, run this command:
 ```
-python evaluate_masked_token_prediction.py --model_path Mar1and2-MLM-regular0 --compare_checkpoints --json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json
+python evaluate_masked_token_prediction.py --model_path Mar1and2-MLM-regular0 --compare_checkpoints --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json
 ```
 
 ## Train text-conditional diffusion model
 
 Now that the text embedding model is ready, train a diffusion model conditioned on text embeddings from the descriptive captions. Note that this can take a while. We used relatively modest consumer GPUs, so our models took about 12 hours to train. However, you can lower the number of epochs to 300 or even 200 and still get decent results:
 ```
-python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir Mar1and2-conditional-regular0 --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --mlm_model_dir Mar1and2-MLM-regular0 --plot_validation_caption_score --seed 0 
+python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir Mar1and2-conditional-regular0 --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --pkl Game_Mario/DATA/Mar1and2_Tokenizer-regular.pkl --mlm_model_dir Mar1and2-MLM-regular0 --plot_validation_caption_score --seed 0 
 ```
 Another trick if you care more about speed than seeing intermediate results is to set `--save_image_epochs` to a large number (larger than the number of epochs), like this
 ```
-python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir Mar1and2-conditional-regular0 --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --mlm_model_dir Mar1and2-MLM-regular0 --plot_validation_caption_score --seed 0 
+python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir Mar1and2-conditional-regular0 --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --pkl Game_Mario/DATA/Mar1and2_Tokenizer-regular.pkl --mlm_model_dir Mar1and2-MLM-regular0 --plot_validation_caption_score --seed 0 
 ```
 You can also train with negative prompting by adding an additional flag like this
 ```
-python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir Mar1and2-conditional-negative0 --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --pkl datasets\Mar1and2_Tokenizer-regular.pkl --mlm_model_dir Mar1and2-MLM-regular0 --plot_validation_caption_score --seed 0 --negative_prompt_training
+python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir Mar1and2-conditional-negative0 --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --pkl Game_Mario/DATA/Mar1and2_Tokenizer-regular.pkl --mlm_model_dir Mar1and2-MLM-regular0 --plot_validation_caption_score --seed 0 --negative_prompt_training
 ```
 
 ## Generate levels from text-conditional diffusion model
@@ -226,7 +226,7 @@ python text_to_level_diffusion.py --model_path Mar1and2-conditional-regular0
 ```
 This is the same command that was discussed in detail earlier with respect to pretrained models from Hugging Face, but now the locally trained model is being used. Similarly, the GUI described earlier in this README can also be used with locally trained models, like so:
 ```
-python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data datasets/Mar1and2_LevelsAndCaptions-regular.json
+python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json
 ```
 As indicated in the instructions earlier, additionaly settings are recommended when working with models trained on absence captions or negative captions.
 
@@ -240,15 +240,15 @@ This tool is a prototype that was not mentioned in the paper, but is another fun
 
 You can evaluate the final model's ability to adhere to input captions with this command:
 ```
-python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_LevelsAndCaptions-regular.json --output_dir text-to-level-final
+python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --output_dir text-to-level-final
 ```
 You can also evaluate how caption adherence changed during training with respect to the testing set:
 ```
-python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_LevelsAndCaptions-regular-test.json --compare_checkpoints 
+python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-test.json --compare_checkpoints 
 ```
 However, it is easy to match captions that are similar to real game captions. You can evaluate how caption adherence changed during training with respect to previously unseen randomly generated captions too:
 ```
-python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json datasets\Mar1and2_RandomTest-regular.json --compare_checkpoints 
+python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json Game_Mario/DATA/Mar1and2_RandomTest-regular.json --compare_checkpoints 
 ```
 If you'd like to create all the generated data used to evaluate caption adherence, as in our paper, you can do so by running the batch file like this:
 ```
@@ -260,7 +260,7 @@ If you used either `train-conditional.bat` or `train-conditional-pre.bat` to tra
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --augment --output_dir Mar1and2-unconditional0 --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --seed 0 
+python train_diffusion.py --augment --output_dir Mar1and2-unconditional0 --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --seed 0 
 ```
 You can also use this batch file:
 ```
@@ -293,11 +293,11 @@ python evolve_interactive_unconditional_diffusion.py --model_path Mar1and2-uncon
 
 GANs are an older technology, but they can also be trained to generate levels:
 ```
-python train_wgan.py --augment --json datasets\Mar1and2_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir Mar1and2-wgan0 --seed 0
+python train_wgan.py --augment --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir Mar1and2-wgan0 --seed 0
 ```
 Just like with the diffusion model, you can save a little bit of time by cutting out intermediate results like this
 ```
-python train_wgan.py --augment --json datasets\Mar1and2_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir Mar1and2-wgan0 --seed 0 --save_image_epochs 10000
+python train_wgan.py --augment --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir Mar1and2-wgan0 --seed 0 --save_image_epochs 10000
 ```
 You can also use the batch file instead (this will also generate levels with the wgan):
 ```
@@ -329,7 +329,7 @@ train-fdm.bat 0 Mar1and2 regular MiniLM
 ```
 Alternatively, it can be trained individually like so
 ```
-python train_fdm.py --augment --output_dir Mar1and2-fdm-MiniLM-regular0 --num_epochs 100 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --pretrained_language_model sentence-transformers/multi-qa-MiniLM-L6-cos-v1 --plot_validation_caption_score --embedding_dim 384 --seed 0
+python train_fdm.py --augment --output_dir Mar1and2-fdm-MiniLM-regular0 --num_epochs 100 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --pretrained_language_model sentence-transformers/multi-qa-MiniLM-L6-cos-v1 --plot_validation_caption_score --embedding_dim 384 --seed 0
 ```
 
 ## Generate levels from FDM
@@ -364,7 +364,7 @@ python create_ascii_captions.py --dataset "datasets\\MarioGPT_Levels.json" --out
 ```
 And then, lastly, we can use this command to get metrics on the generated levels
 ```
-python calculate_gpt2_metrics.py --generated_levels "datasets\\MarioGPT_LevelsAndCaptions-regular.json" --training_levels "datasets\\Mar1and2_LevelsAndCaptions-regular.json" --output_dir "MarioGPT_metrics"
+python calculate_gpt2_metrics.py --generated_levels "datasets\\MarioGPT_LevelsAndCaptions-regular.json" --training_levels "Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json" --output_dir "MarioGPT_metrics"
 ```
 
 ## Comparing model results
@@ -476,13 +476,13 @@ You can gain more control in the process and train a tile embedding model from 3
 ``` 
 python create_tile_level_json_data.py --output datasets\SMB1_3x3_tiles.json --tile_size 3
 python create_tile_level_json_data.py --output datasets\SMB2_3x3_tiles.json --tile_size 3 --levels "..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
-python combine_data.py datasets\Mar1and2_3x3_tiles.json datasets\SMB1_3x3_tiles.json datasets\SMB2_3x3_tiles.json
+python combine_data.py Game_Mario/DATA/Mar1and2_3x3_tiles.json datasets\SMB1_3x3_tiles.json datasets\SMB2_3x3_tiles.json
 
-python train_block2vec.py --json_file datasets\Mar1and2_3x3_tiles.json --output_dir "Mar1and2-block2vec-embeddings" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
+python train_block2vec.py --json_file Game_Mario/DATA/Mar1and2_3x3_tiles.json --output_dir "Mar1and2-block2vec-embeddings" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
 ```
 Training diffusion model with block2vec tile embeddings instead of one-hot encoding
 ``` 
-python train_diffusion.py --augment --output_dir "Mar1and2-unconditional-block2vec" --num_epochs 500 --json datasets\\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\\Mar1and2_LevelsAndCaptions-regular-validate.json --block_embedding_model_path "Mar1and2-block2vec-embeddings"
+python train_diffusion.py --augment --output_dir "Mar1and2-unconditional-block2vec" --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --block_embedding_model_path "Mar1and2-block2vec-embeddings"
 ```
 Generating levels
 ``` 

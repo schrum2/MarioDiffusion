@@ -11,8 +11,8 @@ that LLM-generated captions never introduce tokens the tokenizer has never seen.
 Examples:
     # Standard MarioDiffusion dataset + tokenizer
     python verify_data_and_tokenizer.py \
-        --json datasets/Mar1and2_LevelsAndCaptions-regular.json \
-        --pkl datasets/Mar1and2_Tokenizer-regular.pkl
+        --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json \
+        --pkl Game_Mario/DATA/Mar1and2_Tokenizer-regular.pkl
 
 Exit codes: 0 = all tokens recognized, 1 = illegal tokens found, 2 = could not run (bad input).
 """

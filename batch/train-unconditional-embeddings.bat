@@ -25,7 +25,7 @@ if /I not "%METHOD%"=="skip" if /I not "%METHOD%"=="block2vec" (
 
 set "SMB1_JSON=datasets\SMB1_3x3_tiles.json"
 set "SMB2_JSON=datasets\SMB2_3x3_tiles.json"
-set "MAR12_JSON=datasets\Mar1and2_3x3_tiles.json"
+set "MAR12_JSON=Game_Mario/DATA/Mar1and2_3x3_tiles.json"
 set "EMBEDDING_DIR=Mar1and2-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%"
 set "MODEL_PATH=Mar1and2-%METHOD%%EMBEDDING_DIM%-unconditional%SEED%"
 set "SAMPLES_DIR=Mar1and2-%METHOD%%EMBEDDING_DIM%-unconditional%SEED%-samples"
@@ -44,7 +44,7 @@ if not exist "%EMBEDDING_DIR%" (
     )
 )
 
-python train_diffusion.py --augment --output_dir "%MODEL_PATH%" --num_epochs 500 --json datasets\Mar1and2_LevelsAndCaptions-regular-train.json --val_json datasets\Mar1and2_LevelsAndCaptions-regular-validate.json --block_embedding_model_path "%EMBEDDING_DIR%" --plot_validation_caption_score
+python train_diffusion.py --augment --output_dir "%MODEL_PATH%" --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --block_embedding_model_path "%EMBEDDING_DIR%" --plot_validation_caption_score
 python run_diffusion.py --model_path "%MODEL_PATH%" --num_samples 100 --save_as_json --output_dir "%SAMPLES_DIR%"
 
 popd

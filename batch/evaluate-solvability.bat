@@ -20,4 +20,4 @@ python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-fdm-GTE-absen
 python evaluate_solvability.py --num_runs 1 --model_path "Mar1and2-wgan0"
 
 :: MarioGPT Models
-python calculate_gpt2_metrics.py --generated_levels "datasets\\MarioGPT_LevelsAndCaptions-regular.json" --training_levels "datasets\\Mar1and2_LevelsAndCaptions-regular.json" --output_dir "MarioGPT_metrics//short_levels"
+python calculate_gpt2_metrics.py --generated_levels "datasets\\MarioGPT_LevelsAndCaptions-regular.json" --training_levels "Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json" --output_dir "MarioGPT_metrics//short_levels"
