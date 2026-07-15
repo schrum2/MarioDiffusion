@@ -18,7 +18,11 @@ This will download the `MLM-regular` model from [this Hugging Face repo](https:/
 ```
 full floor. one enemy. a few question blocks. one platform. one pipe. one loose block.
 ```
-For the rest of the prompts, if you simply press enter, it will skip through the default values. Eventually, a level scene will pop up. Congratulations! You've generated your first Mario level scene with one of our diffusion models. You can exit the program by providing an input of 'q' to any of the prompts.
+For the rest of the prompts, if you simply press enter, it will skip through the default values. Eventually, a level scene will pop up. It should look like this:
+
+![Generated Mario scene](MarioExample.PNG)
+
+Congratulations! You've generated your first Mario level scene with one of our diffusion models. You can exit the program by providing an input of 'q' to any of the prompts.
 
 Note that if you use a model trained with absence captions, then more information will be expected in the input caption. For example, you can use the `MLM-absence` model with this command:
 ```
