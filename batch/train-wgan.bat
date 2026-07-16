@@ -26,7 +26,7 @@ if "%VALID%"=="false" (
 set DIFF_OUTPUT=%GAME%-%DATA%-wgan%SEED%
 set UNCOND_OUTPUT=%DIFF_OUTPUT%-samples
 
-set DATA_PATH=Game_%GAME%/DATA/%DATA%_LevelsAndCaptions-%TYPE%
+set DATA_PATH=Game_%GAME%/DATA/%DATA%_LevelsAndCaptions-regular
 set TRAIN_DATA=%DATA_PATH%-train.json
 
 python train_wgan.py --augment --game %GAME% --json %TRAIN_DATA% --num_epochs 5000 --nz 32 --output_dir "%DIFF_OUTPUT%" --seed %SEED% --save_image_epochs 10000
