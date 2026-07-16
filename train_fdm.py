@@ -172,7 +172,7 @@ def main():
 
     # Initialize dataset
     data_mode = "diff_text"
-    train_dataloader, val_dataloader = gen_train_help.create_dataloaders(json_path=args.json,
+    train_dataloader, val_dataloader, _ = gen_train_help.create_dataloaders(json_path=args.json,
                                         val_json=args.val_json, tokenizer=tokenizer, data_mode=data_mode,
                                         augment=args.augment, num_tiles=args.num_tiles,
                                         negative_prompt_training=False,

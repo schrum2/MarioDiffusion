@@ -128,7 +128,7 @@ def main():
     device = torch.device(args.device if torch.cuda.is_available() and args.device == "cuda" else "cpu")
     print(f"Using device: {device}")
     
-    train_dataloader, val_dataloader = gen_train_help.create_dataloaders(json_path=args.json,
+    train_dataloader, _, _ = gen_train_help.create_dataloaders(json_path=args.json,
                                         val_json=args.val_json, tokenizer=None, data_mode="diff_text",
                                         augment=args.augment, num_tiles=args.num_tiles,
                                         negative_prompt_training=None,
