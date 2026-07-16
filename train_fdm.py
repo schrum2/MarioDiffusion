@@ -93,20 +93,11 @@ class imageDataSet(Dataset):
 def main():
     args = parse_args()
 
-    if args.game == "Mario":
-        args.num_tiles = common_settings.MARIO_TILE_COUNT
-    elif args.game == "LR":
-        args.num_tiles = common_settings.LR_TILE_COUNT
-    elif args.game == "MM-Simple":
-        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
-    elif args.game == "MM-Full":
-        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
-    elif args.game == "MMLV":
-        args.num_tiles = common_settings.MMLV_TILE_COUNT
-    elif args.game == "MM2":
-        args.num_tiles = common_settings.MM2_TILE_COUNT
-    else:
-        raise ValueError(f"Unknown game: {args.game}")
+    game_config = common_settings.get_game_config(args.game)
+    args.num_tiles = game_config["tile_count"]
+    args.tileset = game_config["tileset"]
+    scene_height = game_config["height"]
+    scene_width = game_config["width"]
 
     # Check if config file is provided before training loop begins
     if hasattr(args, 'config') and args.config:
@@ -178,10 +169,8 @@ def main():
                                         negative_prompt_training=False,
                                         block_embeddings=block_embeddings, batch_size=args.batch_size)
 
-
     sample_captions, _ = gen_train_help.get_random_training_samples(train_dataloader, False, args.output_dir)
     
-
     #Create an instance of the model
     model = Gen(
         model_name="Five-Dollar-Model",
@@ -315,11 +304,11 @@ def main():
                 ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
-                # TODO: These should be argparse parameters
                 avg_caption_score, _, _, _ = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, None, None, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, 
-                    describe_absence=args.describe_absence, output=False, height=16, width=16
+                    describe_absence=args.describe_absence, output=False, 
+                    height=scene_height, width=scene_width, game=args.game
                 )
 
                 if avg_caption_score>best_caption_score:

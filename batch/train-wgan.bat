@@ -1,4 +1,4 @@
-REM @echo off
+@echo off
 REM Usage: train-wgan.bat <seed> <data> <game>
 REM <seed> is optional, defaults to 0
 REM <data> indicates source of data: SMB1, SMB2, etc.
