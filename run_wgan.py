@@ -36,8 +36,8 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
-        help="Which game to create a model for (affects sample style and tile count)"
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"],
+        help="Which game to use to interpret the output (affects sample style and tile count)"
     )
 
     return parser.parse_args()
@@ -57,6 +57,12 @@ def main():
     elif args.game == "MM-Full":
         args.num_tiles = common_settings.MM_FULL_TILE_COUNT
         isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+    elif args.game == "MMLV":
+        args.num_tiles = common_settings.MMLV_TILE_COUNT
+        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+    elif args.game == "MM2":
+        args.num_tiles = common_settings.MM2_TILE_COUNT
+        isize = common_settings.MM2_HEIGHT # Assuming square samples
     else:
         raise ValueError(f"Unknown game: {args.game}")
 

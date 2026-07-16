@@ -59,7 +59,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
@@ -77,8 +77,6 @@ def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
 
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
-
-
 def main():
     args = parse_args()
 
@@ -94,6 +92,12 @@ def main():
     elif args.game == "MM-Full":
         args.num_tiles = common_settings.MM_FULL_TILE_COUNT
         isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+    elif args.game == "MMLV":
+        args.num_tiles = common_settings.MMLV_TILE_COUNT
+        isize = common_settings.MEGAMAN_HEIGHT # Assuming square samples
+    elif args.game == "MM2":
+        args.num_tiles = common_settings.MM2_TILE_COUNT
+        isize = common_settings.MM2_HEIGHT # Assuming square samples
     else:
         raise ValueError(f"Unknown game: {args.game}")
     
@@ -124,7 +128,6 @@ def main():
     device = torch.device(args.device if torch.cuda.is_available() and args.device == "cuda" else "cpu")
     print(f"Using device: {device}")
     
-
     train_dataloader, val_dataloader = gen_train_help.create_dataloaders(json_path=args.json,
                                         val_json=args.val_json, tokenizer=None, data_mode="diff_text",
                                         augment=args.augment, num_tiles=args.num_tiles,
