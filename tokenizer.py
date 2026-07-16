@@ -4,6 +4,12 @@ from collections import Counter
 import pickle
 import argparse
 
+SILENT = 0
+WARNING = 1
+STOP = 2
+
+OUTPUT_LEVEL = 1
+
 class Tokenizer:
     def __init__(self):
         self.special_tokens = ["[PAD]", "[MASK]"]
@@ -57,8 +63,13 @@ class Tokenizer:
         encoded = []
         for tok in tokens:
             if tok not in self.token_to_id:
-                print(f"Warning: Unknown token skipped: {tok}")
-                continue
+                if OUTPUT_LEVEL == WARNING:
+                    print(f"Warning: Unknown token skipped: {tok}" + text)
+                elif OUTPUT_LEVEL == STOP:
+                    print(f"Unknown token skipped: {tok}" + text)
+                    import traceback
+                    traceback.print_stack()
+                    quit()
             encoded.append(self.token_to_id[tok])
         return encoded
 

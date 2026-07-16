@@ -5,7 +5,8 @@ import os
 import json
 import torch
 import gc
-from PIL import ImageTk, Image
+import tokenizer
+from PIL import ImageTk
 import sys
 from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
 from level_dataset import visualize_samples, convert_to_level_format, positive_negative_caption_split, mario_tiles, lr_tiles, mm_tiles
@@ -25,7 +26,6 @@ from util.sampler import scene_to_ascii
 from models.pipeline_loader import get_pipeline
 from level_dataset import append_absence_captions, remove_duplicate_phrases
 from captions.caption_match import TOPIC_KEYWORDS
-from ascii_data_browser import TileViewer
 from models.fdm_pipeline import FDMPipeline
 from MegaManLayoutEditor import LevelEditor, MegaManLayoutEditor
 
@@ -289,7 +289,9 @@ class CaptionBuilder(ParentBuilder):
             }
             generator = torch.Generator(self.device).manual_seed(1)
             # Try generating (do not display or store result)
+            tokenizer.OUTPUT_LEVEL = tokenizer.SILENT
             _ = self.pipe(generator=generator, **param_values)
+            tokenizer.OUTPUT_LEVEL = tokenizer.WARNING
             # If no exception, enable the checkbox
             self.automatic_absence_caption_checkbox.config(state=tk.NORMAL)
         except Exception as e:
