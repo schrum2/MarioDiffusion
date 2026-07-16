@@ -597,7 +597,7 @@ if __name__ == "__main__":
     """
     # Paths to the JSON files
     generated_file_path = "c:\\Users\\salas2\\Documents\\GitHub\\MarioDiffusion\\TESTING_Broken_Features.json"
-    game_levels_file_path = "c:\\Users\\salas2\\Documents\\GitHub\\MarioDiffusion\\datasets\\SMB1_LevelsAndCaptions-regular.json"
+    game_levels_file_path = "c:\\Users\\salas2\\Documents\\GitHub\\MarioDiffusion\\Game_Mario\\DATA\\SMB1_LevelsAndCaptions-regular.json"
 
     try:
         # Load the generated dataset

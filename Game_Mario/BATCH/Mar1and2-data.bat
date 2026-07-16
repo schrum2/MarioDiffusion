@@ -10,7 +10,7 @@ call SMB2-data.bat %WIDTH%
 set default_out=Game_Mario/DATA/Mar1and2%WIDTH_SUFFIX%_LevelsAndCaptions
 
 :: Merge SMB1 and SMB2 JSON datasets (assume SMB1 and SMB2 have already been processed)
-python combine_data.py Game_Mario/DATA/Mar1and2%WIDTH_SUFFIX%_Levels.json datasets\\SMB1%WIDTH_SUFFIX%_Levels.json datasets\\SMB2%WIDTH_SUFFIX%_Levels.json
+python combine_data.py Game_Mario/DATA/Mar1and2%WIDTH_SUFFIX%_Levels.json Game_Mario/DATA/SMB1%WIDTH_SUFFIX%_Levels.json Game_Mario/DATA/SMB2%WIDTH_SUFFIX%_Levels.json
 
 :: Generate captions for Mar1and2
 python create_ascii_captions.py --dataset Game_Mario/DATA/Mar1and2%WIDTH_SUFFIX%_Levels.json --output %default_out%-regular.json

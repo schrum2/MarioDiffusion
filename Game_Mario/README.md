@@ -79,17 +79,18 @@ Our code was developed on Windows machines, so we have made extensive use of bat
 
 ## Create datasets
 
-All the datasets you need are already in the directory named `datasets`, so you can feel free to skip this section. If you choose to go through these steps, then the content in the `datasets` directory should be overwritten with files that are identical to what is already there.
+All the datasets you need are already in the directory named `Game_Mario/DATA`, so you can feel free to skip this section. If you choose to go through these steps, then the content in the `Game_Mario/DATA` directory should be overwritten with files that are identical to what is already there.
 
 First, you will need to check out 
 [my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC). Note that the following command should be executed in the parent directory of the `MarioDiffusion` repository so that the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the same directory:
 ```
 git clone https://github.com/schrum2/TheVGLC.git
 ```
-Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `batch` sub-directory in the `MarioDiffusion` repo.
+Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `Game_Mario/BATCH` sub-directory in the `MarioDiffusion` repo.
 ```
 cd MarioDiffusion
-cd batch
+cd Game_Mario
+cd BATCH
 ```
 Next, run a batch file to create datasets from the VGLC data. This batch file call will create sets of 16x16 level scenes of both SMB1 and SMB2 (Japan), as well as a combination of both. Afterwards, it will create captions for all 3 datasets, tokenizers for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. These files will overwrite the files already in the repo, but they should be identical.
 Run this command:
@@ -474,9 +475,9 @@ batch\Mar1and2-unconditional-embedding.bat (embedding_dims)
 
 You can gain more control in the process and train a tile embedding model from 3x3 tile samples:
 ``` 
-python create_tile_level_json_data.py --output datasets\SMB1_3x3_tiles.json --tile_size 3
-python create_tile_level_json_data.py --output datasets\SMB2_3x3_tiles.json --tile_size 3 --levels "..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
-python combine_data.py Game_Mario/DATA/Mar1and2_3x3_tiles.json datasets\SMB1_3x3_tiles.json datasets\SMB2_3x3_tiles.json
+python create_tile_level_json_data.py --output Game_Mario/DATA/SMB1_3x3_tiles.json --tile_size 3
+python create_tile_level_json_data.py --output Game_Mario/DATA/SMB2_3x3_tiles.json --tile_size 3 --levels "..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
+python combine_data.py Game_Mario/DATA/Mar1and2_3x3_tiles.json Game_Mario/DATA/SMB1_3x3_tiles.json Game_Mario/DATA/SMB2_3x3_tiles.json
 
 python train_block2vec.py --json_file Game_Mario/DATA/Mar1and2_3x3_tiles.json --output_dir "Mar1and2-block2vec-embeddings" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
 ```

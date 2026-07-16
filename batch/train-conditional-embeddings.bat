@@ -23,8 +23,8 @@ if /I not "%METHOD%"=="skip" if /I not "%METHOD%"=="block2vec" (
     exit /b 1
 )
 
-set "SMB1_JSON=datasets\SMB1_3x3_tiles.json"
-set "SMB2_JSON=datasets\SMB2_3x3_tiles.json"
+set "SMB1_JSON=Game_Mario/DATA/SMB1_3x3_tiles.json"
+set "SMB2_JSON=Game_Mario/DATA/SMB2_3x3_tiles.json"
 set "MAR12_JSON=Game_Mario/DATA/Mar1and2_3x3_tiles.json"
 set "SMB1_LEVELS=..\TheVGLC\Super Mario Bros\Processed"
 set "SMB2_LEVELS=..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"

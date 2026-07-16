@@ -6,7 +6,7 @@ call SMB2-data.bat
 set default_out=datasets\Mario_LevelsAndCaptions
 
 :: Merge SMB1, SMB2, and SML JSON datasets (assume previous batch files have already been run)
-python combine_data.py datasets\\Mario_Levels.json datasets\\SMB1_Levels.json datasets\\SMB2_Levels.json datasets\\SML_Levels.json
+python combine_data.py datasets\\Mario_Levels.json Game_Mario/DATA/SMB1_Levels.json Game_Mario/DATA/SMB2_Levels.json datasets\\SML_Levels.json
 
 :: Generate captions for Mario
 python create_ascii_captions.py --dataset datasets\\Mario_Levels.json --output %default_out%-regular.json

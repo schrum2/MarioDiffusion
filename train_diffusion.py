@@ -84,7 +84,7 @@ def parse_args():
     
     # Dataset args
     parser.add_argument("--pkl", type=str, default=None, help="Path to tokenizer pkl file")
-    parser.add_argument("--json", type=str, default="datasets/SMB1_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
+    parser.add_argument("--json", type=str, default="Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json", help="Path to dataset json file")
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=None, help="Number of tile types. If omitted, defaults to the per-game value below.")
     parser.add_argument("--batch_size", type=int, default=32, help="Training batch size") # TODO: Consider reducing to 16 to help generalization
