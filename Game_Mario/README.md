@@ -125,46 +125,47 @@ cd batch
 ```
 Once here, you can train both a text encoder and its corresponding diffusion model back to back with a single command like this:
 ```
-train-conditional.bat 0 Mar1and2 regular 
+train-conditional.bat 0 Mar1and2 regular Mario
 ```
 The `0` is an experiment number which can be replaced with any integer. Both `Mar1and2` and `regular` are referring to portions of the dataset file names that will be used for training, though they also indicate some settings for the model. For example, you can switch `regular` to `absence` and a different style of captions will be used for training. If you switch it to `negative` then negative guidance will be used during training, allowing for negative prompts during inference. 
+The final parameter, `Mario`, makes it clear that we are training a model for standard Super Mario Bros.
 Note that immediately after training, this batch file will create various output samples and also evaluate the performance of the model in terms of caption adherence score, which takes a while extra.
 If you know you want to repeat an experiment multiple times and train multiple copies of the same model (and evaluate all of them), then you can use this command:
 ```
-batch_runner.bat train-conditional.bat 0 4 Mar1and2 regular
+batch_runner.bat train-conditional.bat 0 4 Mar1and2 regular Mario
 ```
 This trains models for experiment numbers 0 through 4 in sequence. Also, the primary focus of our work is on training diffusion models that use simple text encoders, but our paper also compares against models using pretrained sentence transformers. They are trained with a different batch file. Here is an example:
 ```
-train-conditional-pre.bat 0 Mar1and2 regular MiniLM split
+train-conditional-pre.bat 0 Mar1and2 regular Mario MiniLM split
 ```
 This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Mario captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE`, which is a larger embedding model. Note that the first time either `MiniLM` or `GTE` is used, the corresponding text embedding model will need to be downloaded from Hugging Face. The associated diffusion models also take longer to train, and it is not really worth the extra time, but you are welcome to experiment. The `train-conditional-pre.bat` file can also be used with `batch_runner.bat` in a similar way:
 ```
-batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular MiniLM split
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular Mario MiniLM split
 ```
 
 For the experiments in our paper, we trained different numbers of models with each configuration, based on how computationally intensive the training was. To create all of the models that we trained for the paper, you would need to run all of the following commands (we ran each command on a separate machine to distribute the training, and then combined the results later for processing):
 ```
-batch_runner.bat train-conditional.bat 0 9 Mar1and2 regular
-batch_runner.bat train-conditional.bat 0 9 Mar1and2 absence
-batch_runner.bat train-conditional.bat 0 9 Mar1and2 negative
-batch_runner.bat train-conditional-pre.bat 0 9 Mar1and2 regular MiniLM
-batch_runner.bat train-conditional-pre.bat 0 9 Mar1and2 absence MiniLM
-batch_runner.bat train-conditional-pre.bat 0 9 Mar1and2 negative MiniLM
-batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular MiniLM split
-batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 absence MiniLM split
-batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 negative MiniLM split
-batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular GTE
-batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 absence GTE
-batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 negative GTE
-train-conditional-pre.bat 0 Mar1and2 regular GTE split
-train-conditional-pre.bat 0 Mar1and2 absence GTE split
-train-conditional-pre.bat 0 Mar1and2 negative GTE split
-batch_runner.bat train-unconditional.bat 0 29 Mar1and2 
-batch_runner.bat train-wgan.bat 0 29 Mar1and2 
-batch_runner.bat train-fdm.bat 0 29 Mar1and2 regular MiniLM
-batch_runner.bat train-fdm.bat 0 29 Mar1and2 absence MiniLM
-batch_runner.bat train-fdm.bat 0 29 Mar1and2 regular GTE
-batch_runner.bat train-fdm.bat 0 29 Mar1and2 absence GTE
+batch_runner.bat train-conditional.bat 0 9 Mar1and2 regular Mario
+batch_runner.bat train-conditional.bat 0 9 Mar1and2 absence Mario
+batch_runner.bat train-conditional.bat 0 9 Mar1and2 negative Mario
+batch_runner.bat train-conditional-pre.bat 0 9 Mar1and2 regular Mario MiniLM
+batch_runner.bat train-conditional-pre.bat 0 9 Mar1and2 absence Mario MiniLM
+batch_runner.bat train-conditional-pre.bat 0 9 Mar1and2 negative Mario MiniLM
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular Mario MiniLM split
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 absence Mario MiniLM split
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 negative Mario MiniLM split
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 regular Mario GTE
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 absence Mario GTE
+batch_runner.bat train-conditional-pre.bat 0 4 Mar1and2 negative Mario GTE
+train-conditional-pre.bat 0 Mar1and2 regular Mario GTE split
+train-conditional-pre.bat 0 Mar1and2 absence Mario GTE split
+train-conditional-pre.bat 0 Mar1and2 negative Mario GTE split
+batch_runner.bat train-unconditional.bat 0 29 Mar1and2 Mario 
+batch_runner.bat train-wgan.bat 0 29 Mar1and2 Mario
+batch_runner.bat train-fdm.bat 0 29 Mar1and2 regular Mario MiniLM
+batch_runner.bat train-fdm.bat 0 29 Mar1and2 absence Mario MiniLM
+batch_runner.bat train-fdm.bat 0 29 Mar1and2 regular Mario GTE
+batch_runner.bat train-fdm.bat 0 29 Mar1and2 absence Mario GTE
 ```
 Note that the list above also mentions `train-unconditional.bat`, `train-fdm.bat`, and `train-wgan.bat`. These are used to train comparison models mentioned in the paper. Their usage is detailed further below.
 

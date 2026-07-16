@@ -65,7 +65,7 @@ python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
 call batch\run_diffusion_multi.bat %MODEL_DIR% %TYPE% %GAME%
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion samples"
 
-call batch\evaluate_caption_adherence_multi.bat %MODEL_DIR% %TYPE% %DATA%  %GAME%
+call batch\evaluate_caption_adherence_multi.bat %MODEL_DIR% %TYPE% %DATA% %GAME%
 python log_timestamp.py --log_file %TIMING_LOG% --event "caption adherence evaluation"
 
 REM move the timing log into the trained model's directory

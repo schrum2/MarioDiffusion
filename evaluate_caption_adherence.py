@@ -205,7 +205,7 @@ def main():
     scene_widths = {len(item["scene"][0]) for item in dataset.data if isinstance(item, dict) and item.get("scene") is not None}
 
     if args.match_scene_width and not scene_widths:
-        print(f"Error: --match_scene_width requires a scene-bearing dataset, but '{path_to_json}' has caption-only entries.")
+        print(f"Error: --match_scene_width requires a scene-bearing dataset, but '{args.json}' has caption-only entries.")
         exit(1)
 
     # Datasets with more than one scene shape default to recreating each caption at its source
