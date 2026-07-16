@@ -1,31 +1,45 @@
 @echo off
-REM Usage: train-ununconditional.bat <seed> <game>
+REM Usage: train-ununconditional.bat <seed> <data> <game>
 REM <seed> is optional, defaults to 0
-REM <game> indicates source of data: SMB1, SMB2, etc.
+REM <data> indicates source of data: SMB1, SMB2, etc.
+REM <game> game to train for
 cd ..
 
 set SEED=%1
 if "%SEED%"=="" set SEED=0
 
-set GAME=%2
+set DATA=%2
 
-set GAME_PLAYED=
-if /I "%GAME%"=="LR" set GAME_PLAYED=--game LR
+set GAME=%3
 
-set MODEL_DIR=%GAME%-unconditional%SEED%
+set "VALID=false"
+for %%G in (Mario LR MM-Simple MM-Full MMLV MM2) do (
+    if /I "%GAME%"=="%%~G" set "VALID=true"
+)
+
+REM Exit if the flag was never flipped to true
+if "%VALID%"=="false" (
+    echo Error: Invalid game selected.
+    exit /b 1
+)
+
+set MODEL_DIR=%GAME%-%DATA%-unconditional%SEED%
 set UNCOND_OUTPUT=%MODEL_DIR%-samples
+
+set DATA_PATH=Game_%GAME%/DATA/%DATA%_LevelsAndCaptions-regular
+set TRAIN_DATA=%DATA_PATH%-train.json
+set VAL_DATA=%DATA_PATH%-validate.json
 
 REM Per-execution timing log: each step appends a timestamped record. The log is
 REM staged under timing_logs\ during the run then moved into the trained model's directory at the end.
-set TIMING_LOG=timing_logs\train-unconditional-%SEED%.jsonl
+set TIMING_LOG=timing_logs\train-unconditional-%GAME%-%SEED%.jsonl
 if exist "%TIMING_LOG%" del "%TIMING_LOG%"
 python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train-unconditional start"
 
-python train_diffusion.py --augment --output_dir "%MODEL_DIR%" --num_epochs 500 --json datasets\%GAME%_LevelsAndCaptions-regular-train.json --val_json datasets\%GAME%_LevelsAndCaptions-regular-validate.json --seed %SEED% %GAME_PLAYED%
+python train_diffusion.py --augment --output_dir "%MODEL_DIR%" --num_epochs 500 --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME%
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
 
-
-call batch\run_diffusion_multi.bat %MODEL_DIR% %TYPE% %GAME%
+call batch\run_diffusion_multi.bat %MODEL_DIR% regular Mario
 python log_timestamp.py --log_file %TIMING_LOG% --event "unconditional samples"
 
 REM move the timing log into the trained model's directory
