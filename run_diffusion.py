@@ -61,7 +61,6 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for generation")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--visualize", action="store_true", help="Additionally save each generated sample with its A* path overlaid (filename tagged 'solved'/'unsolved')")
-    parser.add_argument("--text_conditional", action="store_true", help="Enable text conditioning")
     parser.add_argument("--level_width", type=int, default=None, help="Overrides width from unet if specified")
     parser.add_argument("--level_height", type=int, default=None, help="Overrides height from unet if specified (e.g. to request a specific complete-level bucket size)")
     parser.add_argument("--crop_null_border", action="store_true", help="After generation, strip whole rows/columns of the null/void pad tile from the bottom/right of each saved level (recovers the real extent of complete levels trained with null padding)")

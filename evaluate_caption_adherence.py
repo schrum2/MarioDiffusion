@@ -72,45 +72,18 @@ def parse_args():
 
     return parser.parse_args()
 
-# Per-game settings: (num_tiles, tileset, height, width). resolve_game() picks a game from --game
-# (primary) or, for older calls, from --num_tiles (+ --mm). The tileset must match the tile count
-# so the deterministic caption script can read every tile (MM-Full uses the 41-tile MM.json;
-# MMLV uses the 43-tile MMLV.json that adds the conveyor tiles).
-GAME_SETTINGS = {
-    "Mario":     (common_settings.MARIO_TILE_COUNT,     common_settings.MARIO_TILESET,     common_settings.MARIO_HEIGHT,   common_settings.MARIO_WIDTH),
-    "LR":        (common_settings.LR_TILE_COUNT,        common_settings.LR_TILESET,        common_settings.LR_HEIGHT,      common_settings.LR_WIDTH),
-    "MM-Simple": (common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MM_SIMPLE_TILESET, common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
-    "MM-Full":   (common_settings.MM_FULL_TILE_COUNT,   common_settings.MM_FULL_TILESET,   common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
-    "MMLV":      (common_settings.MMLV_TILE_COUNT,      common_settings.MMLV_TILESET,      common_settings.MEGAMAN_HEIGHT, common_settings.MEGAMAN_WIDTH),
-    "MM2":       (common_settings.MM2_TILE_COUNT,       common_settings.MM2_TILESET,       common_settings.MM2_HEIGHT,     common_settings.MM2_WIDTH),
- }
-
-# TODO: this game-resolution logic is duplicated across scripts and could move into a shared util.
 def resolve_game(args):
-    """Map the CLI args to (game, num_tiles, tileset, height, width, path_to_json).
-
-    --game is the primary selector and the main way to choose Mega Man. When it is omitted, the
-    game is derived from --num_tiles (+ --mm) so older calls keep working: 8 -> LR, 41 -> MM-Full,
-    43 -> MMLV, 13 -> Mario, or MM-Simple when --mm is set (Mario and MM-Simple share a 13-tile count).
     """
-    # MM2 must be selected explicitly via --game; it is never inferred from --num_tiles.
-    if args.game is not None:
-        game = args.game
-    elif args.num_tiles == common_settings.LR_TILE_COUNT:
-        game = "LR"
-    elif args.num_tiles == common_settings.MMLV_TILE_COUNT:
-        game = "MMLV"
-    elif args.num_tiles == common_settings.MM_FULL_TILE_COUNT:
-        game = "MM-Full"
-    elif args.mm: # Mega Man!
-        game = "MM-Simple"
-    else:
-        game = "Mario"
-    num_tiles, tileset, height, width = GAME_SETTINGS[game]
-    # Lode Runner has always evaluated against its regular caption set, ignoring --json.
-    path_to_json = "datasets/LR_LevelsAndCaptions-regular.json" if game == "LR" else args.json
-    # Returns only the game selection; callers load id_to_char/char_to_id from the tileset separately.
-    return game, num_tiles, tileset, height, width, path_to_json
+    Map the CLI args to (game, num_tiles, tileset, height, width, path_to_json).
+    """
+    config = common_settings.get_game_config(args.game)
+    
+    num_tiles = config["tile_count"] 
+    tileset = config["tileset"]
+    height = config["height"]
+    width = config["width"]
+    
+    return num_tiles, tileset, height, width
 
 def resolve_eval_width_range(args):
     """Resolve (min_width, max_width) for --random_width, or None when it is disabled.
@@ -155,9 +128,8 @@ def main():
     args = parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
-
-    game, num_tiles, tileset, height, width, path_to_json = resolve_game(args)
-
+    game = args.game
+    num_tiles, tileset, height, width = resolve_game(args)
 
     if not args.compare_checkpoints:
         args.output_dir = os.path.join(args.model_path, args.output_dir)
@@ -176,7 +148,6 @@ def main():
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
-
 
     # In --compare_checkpoints mode each checkpoint's pipeline is loaded inside
     # track_caption_adherence, so we must not load one from the top-level model dir here:
@@ -204,11 +175,11 @@ def main():
     if mm2 and not args.compare_checkpoints:
         # Generate straight from the dataset entries (not a LevelDataset) so each
         # output can be tagged with the source scene its caption came from.
-        with open(path_to_json, "r", encoding="utf-8") as f:
+        with open(args.json, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
         items = expand_mm2_caption_items(raw_data, args.all_captions)
         if not items:
-            print(f"Error: no captions found in {path_to_json}")
+            print(f"Error: no captions found in {args.json}")
             exit(1)
         print(f"Generating {len(items)} scenes from {len(raw_data)} dataset entries...")
         avg_score, results = mm2_caption_adherence(args, device, pipe, items, tileset)
@@ -223,7 +194,7 @@ def main():
     # Load once. LevelDataset.data holds the raw entries (scenes included) regardless of mode,
     # so we can inspect the set of scene widths here to decide how to generate.
     dataset = LevelDataset(
-        json_path=path_to_json,
+        json_path=args.json,
         tokenizer=None,
         shuffle=False,
         mode="text",
@@ -306,6 +277,7 @@ def main():
                         caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
                     else:  # Mario
                         caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+                    # TODO: No MM2 case?
                     paired.append({"prompt": prompt, "caption": caption, "scene": scene})
                 with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
                     json.dump(paired, f, indent=4)
@@ -429,7 +401,7 @@ def mm2_caption_adherence(args, device, pipe, items, tileset):
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True):
 
-    game, num_tiles, tileset, height, width, path_to_json = resolve_game(args)
+    _, tileset, height, width = resolve_game(args)
     
     # MM2 checkpoints need the MM2 tools, not the SMB defaults (as in main()).
     assign_caption_fn = compare_captions_fn = None
@@ -448,11 +420,11 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         checkpoint_dirs.append((checkpoint_dirs[-1][0] + 1, args.model_path))
 
     # Prepare output paths
-    scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_scores_by_epoch.jsonl")
-    plot_png_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_caption_scores_plot.png")
+    scores_jsonl_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_scores_by_epoch.jsonl")
+    plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_caption_scores_plot.png")
     # Companion plot: one caption-adherence line per scene width, so weaknesses at a particular
     # size are visible. Only meaningful when the eval set spans multiple widths.
-    width_plot_png_path = os.path.join(args.model_path, f"{os.path.basename(path_to_json).split('.')[0]}_caption_scores_by_width_plot.png")
+    width_plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_caption_scores_by_width_plot.png")
 
     # Handle file existence based on resume flag
     completed_epochs = set()
@@ -508,7 +480,9 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             # Pass the MM2 caption tools (None for other games) so MM2 scores with the MM2 captioner;
             # scene shape alone can't tell MM2 from Mario.
             avg_score, _, _, _ = calculate_caption_score_and_samples(
-                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, game=game,
+                device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, 
+                args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, 
+                width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, game=args.game,
                 assign_caption_fn=assign_caption_fn, compare_captions_fn=compare_captions_fn
             )
 
