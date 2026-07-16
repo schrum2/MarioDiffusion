@@ -64,6 +64,13 @@ def parse_args():
 
     parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
 
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
 
     return parser.parse_args()
 
@@ -85,6 +92,21 @@ class imageDataSet(Dataset):
 
 def main():
     args = parse_args()
+
+    if args.game == "Mario":
+        args.num_tiles = common_settings.MARIO_TILE_COUNT
+    elif args.game == "LR":
+        args.num_tiles = common_settings.LR_TILE_COUNT
+    elif args.game == "MM-Simple":
+        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
+    elif args.game == "MM-Full":
+        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
+    elif args.game == "MMLV":
+        args.num_tiles = common_settings.MMLV_TILE_COUNT
+    elif args.game == "MM2":
+        args.num_tiles = common_settings.MM2_TILE_COUNT
+    else:
+        raise ValueError(f"Unknown game: {args.game}")
 
     # Check if config file is provided before training loop begins
     if hasattr(args, 'config') and args.config:
@@ -220,11 +242,6 @@ def main():
 
     optimizer = torch.optim.Adam(model.parameters())
     
-
-
-
-
-
     formatted_date = datetime.now().strftime(r'%Y%m%d-%H%M%S')
     log_file = os.path.join(args.output_dir, f"training_log_{formatted_date}.jsonl")
     config_file = os.path.join(args.output_dir, f"hyperparams_{formatted_date}.json")
