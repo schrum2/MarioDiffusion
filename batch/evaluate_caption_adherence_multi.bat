@@ -1,4 +1,4 @@
-REM @echo off
+@echo off
 REM Usage: evaluate_caption_adherence_multi.bat <model_path> <type> <data> <game>
 REM <type> should be "regular" or "absence"
 REM <data> Dataset prefix: should be "SMB1", "SMB2", "Mar1and2", "LR", etc
