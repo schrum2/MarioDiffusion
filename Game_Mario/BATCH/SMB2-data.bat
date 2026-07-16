@@ -1,7 +1,7 @@
 @echo off
 cd ..
-
-if not exist "datasets" mkdir datasetset 
+if not exist "DATA" mkdir DATA
+cd .. 
 
 set WIDTH=%1
 set WIDTH_SUFFIX=

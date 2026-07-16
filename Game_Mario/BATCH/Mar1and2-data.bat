@@ -4,7 +4,7 @@ set WIDTH_SUFFIX=
 if not "%WIDTH%"=="" set WIDTH_SUFFIX=_%WIDTH%
 
 call SMB1-data.bat %WIDTH%
-cd batch
+cd Game_Mario/BATCH
 call SMB2-data.bat %WIDTH%
 
 set default_out=Game_Mario/DATA/Mar1and2%WIDTH_SUFFIX%_LevelsAndCaptions
@@ -25,5 +25,5 @@ python create_random_test_captions.py --save_file "Game_Mario/DATA/Mar1and2%WIDT
 python create_random_test_captions.py --save_file "Game_Mario/DATA/Mar1and2%WIDTH_SUFFIX%_RandomTest-absence.json" --json %default_out%-absence.json --seed 0 --describe_absence
 
 :: Split output files into train/val/test sets
-python split_data.py --json_file %default_out%-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 0 --game mario
-python split_data.py --json_file %default_out%-absence.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 0 --game mario
+python split_data.py --json_file %default_out%-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 0 --game Mario
+python split_data.py --json_file %default_out%-absence.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 0 --game Mario
