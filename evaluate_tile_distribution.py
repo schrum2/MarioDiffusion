@@ -14,15 +14,15 @@ from models.fdm_pipeline import FDMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from tqdm.auto import tqdm
 
-
+# TODO: Shouldn't this be moved to common_settings? Or is it basically already there?
 # Per-game (tileset, tile_count, width, height) defaults. Mirrors the --game
 # handling in train_diffusion.py so the two stay consistent.
 _GAME_SETTINGS = {
     "Mario":     (common_settings.MARIO_TILESET, common_settings.MARIO_TILE_COUNT, common_settings.MARIO_WIDTH, common_settings.MARIO_HEIGHT),
     "MM2":       (common_settings.MM2_TILESET, common_settings.MM2_TILE_COUNT, common_settings.MM2_WIDTH, common_settings.MM2_HEIGHT),
     "LR":        (common_settings.LR_TILESET, common_settings.LR_TILE_COUNT, common_settings.LR_WIDTH, common_settings.LR_HEIGHT),
-    "MM-Simple": ('datasets/MM-simple-tileset.json', common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
-    "MM-Full":   ('../TheVGLC/MegaMan/MM.json', common_settings.MM_FULL_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
+    "MM-Simple": (common_settings.MM_SIMPLE_TILESET, common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
+    "MM-Full":   (common_settings.MM_FULL_TILESET, common_settings.MM_FULL_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
     "MMLV":      (common_settings.MMLV_TILESET, common_settings.MMLV_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
 }
 
