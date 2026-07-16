@@ -109,16 +109,13 @@ To create larger datasets with custom level width, simply call the same batch fi
 ```
 Mar1and2-data.bat {width} 
 ```
-This will create the same group of datasets, but will append the width after Mar1and2, e.g., Mar1and2_32 for 32x16 levels. To train models with these larger datasets, simply modify the --game arg to contain the width when calling either training batch file:
-```
---game Mar1and2_{width}
-```  
+This will create the same group of datasets, but will append the width after `Mar1and2` in the name, as in `Mar1and2_32` for 32x16 levels. Although you can create datasets of any size, the diffusion model requires dimensions divisible by 4 to work.
 
-You can also create a single dataset that mixes several widths together. Running:
+You can also create a single dataset that mixes several widths together.
 ```
 Mar1and2Mixed-data.bat
 ```
-generates the datasets at widths 16, 32, 64, and 128 and combines all four into one mixed-width dataset named `Mar1and2_16-32-64-128` (along with its tokenizer and random-test captions). Note that the combined files are very large (hundreds of MB) and are not committed to the repo, so you must run this batch file yourself before training on the mixed dataset. See [Training on the large mixed-width dataset](#training-on-the-large-mixed-width-dataset) below for how to train on it.
+This command generates the datasets at widths 16, 32, 64, and 128 and combines all four into one mixed-width dataset named `Mar1and2_16-32-64-128` (along with its tokenizer and random-test captions). Note that the combined files are very large (hundreds of MB) and are not present in the repo, so you must run this batch file yourself before training on the mixed dataset. See [Training on the large mixed-width dataset](#training-on-the-large-mixed-width-dataset) below for how to train on it.
 
 ## Complete training and evaluation sequence
 
