@@ -1,4 +1,4 @@
-REM @echo off
+@echo off
 REM Usage: train-conditional-pre.bat <seed> <data> <type> <game> <model> [split]
 REM <seed> is optional, defaults to 0
 REM <data> indicates source of data: SMB1, SMB2, etc.

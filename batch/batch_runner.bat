@@ -1,4 +1,4 @@
-REM @echo off
+@echo off
 REM Usage: batch_runner.bat <job_batch_file> <seed_start> <seed_end> [extra_params...]
 REM Example: batch_runner.bat train-conditional.bat 0 4 Mar1and2 regular
 
