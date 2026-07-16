@@ -29,7 +29,6 @@ def parse_args():
     parser.add_argument("--val_json", type=str, default=None, help="Optional path to validation dataset json file")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
-    parser.add_argument('--split', action='store_true', help='Enable train/val/test split') # TODO: Allow SMB1 data to be split into groups for training and testing
     
     # New text conditioning args
     parser.add_argument("--pretrained_language_model", type=str, default=None, help="Link to a pre-trained language model, everything after huggingface.co/.")
@@ -87,9 +86,6 @@ class imageDataSet(Dataset):
     def __getitem__(self,idx):
         return self.data[0][idx], self.data[1][idx], self.data[2][idx]
 
-
-
-
 def main():
     args = parse_args()
 
@@ -123,7 +119,8 @@ def main():
     # Setup accelerator
     accelerator = Accelerator(
             mixed_precision=args.mixed_precision,
-        )
+    )
+    print(f"Using device: {accelerator.device}" + (" (GPU)" if accelerator.device.type == "cuda" else " (CPU)"))
 
     # Initialize tokenizer
     if args.pkl:
@@ -393,10 +390,6 @@ def main():
         #Copy the best model into the main directory
         shutil.copytree(os.path.join(args.output_dir, f"checkpoint-{best_model_epoch}"), args.output_dir, dirs_exist_ok=True)
 
-        
-
-
-
 def process_fdm_batch(args, model, batch, tokenizer, text_encoder, device):
     #Gets and returns the loss of the model for a given batch
     scenes, captions = batch
@@ -421,8 +414,6 @@ def prepare_conditioned_batch(tokenizer_hf, text_encoder, captions, device):
         combined_embeddings = combined_embeddings*6 #Multiply by a scaling factor, this helps prevent errors later
     return combined_embeddings
 
-
-
-
 if __name__ == "__main__":
     main()
+    print("Exit FDM training")
