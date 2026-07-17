@@ -333,7 +333,7 @@ python train_fdm.py --augment --output_dir Mar1and2-fdm-MiniLM-regular0 --num_ep
 
 Create samples from an FDM with this command
 ```
-python text_to_level_fdm.py --model_path Mar1and2-fdm-MiniLM-regular0
+python text_to_level_fdm.py --model_path Mar1and2-fdm-MiniLM-regular0 --game Mario
 ```
 
 ## Generating MarioGPT data for comparison

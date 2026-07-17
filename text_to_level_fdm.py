@@ -14,6 +14,13 @@ def parse_args():
     parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
     #parser.add_argument("--describe_locations", action="store_true", default=False, help="Include location descriptions in the captions")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
+    parser.add_argument(
+        "--game",
+        type=str,
+        default="Mario",
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"],
+        help="Which game to create a model for (affects sample style and tile count)"
+    )
 
     return parser.parse_args()
 
@@ -88,6 +95,11 @@ class InteractiveLevelGeneration(InteractiveGeneration):
 
 if __name__ == "__main__":
     args = parse_args()
+
+    config = common_settings.get_game_config(args.game)
+    #args.num_tiles = config["tile_count"]
+    args.tileset = config["tileset"]
+
     ig = InteractiveLevelGeneration(args)
     ig.start()
 
