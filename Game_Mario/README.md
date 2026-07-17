@@ -271,11 +271,11 @@ train-unconditional.bat 0 Mar1and2 Mario
 
 Just like with the text conditional model, you can get level samples from the batch file or a seperate command. The batch file still gets 2 sets of 100 samples, but the arguments are a little different
 ```
-batch\run_diffusion_multi.bat Mar1and2-unconditional0 regular Mar1and2
+batch\run_diffusion_multi.bat Mar1and2-unconditional0 regular Mario
 ```
 As before, to get more control, you can simply run this once from the command line
 ```
-python run_diffusion.py --model_path Mar1and2-unconditional0 --num_samples 100 --save_as_json --output_dir Mar1and2-unconditional0-unconditional-samples --level_width 16
+python run_diffusion.py --model_path Mar1and2-unconditional0 --num_samples 100 --save_as_json --output_dir Mar1and2-unconditional0-unconditional-samples --game Mario --level_width 16
 ```
 View the saved levels in the data browser
 ```
@@ -283,32 +283,30 @@ python ascii_data_browser.py Mar1and2-unconditional0-unconditional-samples\all_l
 ```
 Interactively evolve level scenes in the latent space of the unconditional model:
 ```
-python evolve_interactive_unconditional_diffusion.py --model_path Mar1and2-unconditional0
+python evolve_interactive_unconditional_diffusion.py --model_path Mar1and2-unconditional0 --game Mario
 ```
-
-
 
 ## Train Generative Adversarial Network (GAN) model
 
 GANs are an older technology, but they can also be trained to generate levels:
 ```
-python train_wgan.py --augment --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir Mar1and2-wgan0 --seed 0
+python train_wgan.py --augment --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir Mar1and2-wgan0 --seed 0 --game Mario
 ```
 Just like with the diffusion model, you can save a little bit of time by cutting out intermediate results like this
 ```
-python train_wgan.py --augment --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir Mar1and2-wgan0 --seed 0 --save_image_epochs 10000
+python train_wgan.py --augment --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --num_epochs 5000 --nz 32 --output_dir Mar1and2-wgan0 --seed 0 --game Mario --save_image_epochs 10000
 ```
 You can also use the batch file instead (this will also generate levels with the wgan):
 ```
 cd batch
-train-wgan.bat 0 Mar1and2
+train-wgan.bat 0 Mar1and2 Mario
 ```
 
 ## Generate levels from GAN
 
 Create samples from the final GAN with this command (assuming the batch file hasn't already)
 ```
-python run_wgan.py --model_path Mar1and2-wgan0\final_models\generator.pth" --num_samples 100 --output_dir Mar1and2-wgan0-samples --save_as_json
+python run_wgan.py --model_path Mar1and2-wgan0\final_models\generator.pth" --num_samples 100 --output_dir Mar1and2-wgan0-samples --save_as_json --game Mario
 ```
 View the saved levels in the data browser
 ```
