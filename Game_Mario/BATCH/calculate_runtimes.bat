@@ -1,6 +1,12 @@
+@echo off
+setlocal
+
 REM Training time evaluation and visualization
+:: Run the companion batch file and all Python tools from the repository root.
+pushd "%~dp0\..\.."
+
 :: Calculate total training time and best epoch training time for each model
-call calculate_times.bat
+call "%~dp0calculate_times.bat"
 :: Aggregate and format the output for visualization
 python evaluate_execution_time.py
 :: BAR plot for mean grouped runtimes for each model with standard error for individual times
@@ -21,3 +27,6 @@ python visualize_best_model_stats.py --input best_model_info_20250618_162147.jso
 python visualize_best_model_stats.py --input best_model_info_20250618_162147.json --output best_epoch_bar_plot.pdf --plot_type bar --y_axis "group" --x_axis "best_epoch" --x_axis_label "Best Epoch" --x_markers_on_bar_plot 
 :: SCATTER PLOT for best caption x best epoch
 python visualize_best_model_stats.py --input best_model_info_20250618_162147.json --output best_epoch_v_best_caption_score_scatter_plot.pdf --plot_type scatter --y_axis "best_caption_score" --x_axis "best_epoch" --y_axis_label "Best Caption Score" --x_axis_label "Best Epoch" 
+
+popd
+endlocal

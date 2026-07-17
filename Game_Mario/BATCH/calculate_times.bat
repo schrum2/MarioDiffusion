@@ -1,7 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
 
-cd ..
+:: Run all root-level tools and read/write model artifacts from the repository root.
+pushd "%~dp0\..\.."
 
 :: Mar1and2-conditional models (MLM)
 python calculate_execution_time.py Mar1and2-conditional-regular 0 9
@@ -51,3 +52,4 @@ REM TODO: FDM, WGAN
 
 echo All execution time calculations complete!
 pause
+popd

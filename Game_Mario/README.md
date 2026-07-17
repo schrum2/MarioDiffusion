@@ -367,8 +367,10 @@ python calculate_gpt2_metrics.py --generated_levels "Game_Mario/DATA/MarioGPT_Le
 
 ## Comparing model results
 
-Exploration of the time taken to train models, as well as the time to the best epoch can be accomplished by running the following batch file:
+Exploration of the time taken to train models, as well as the time to the best epoch can be accomplished by running the following batch file in `Game_Mario/BATCH`:
 ```
+cd Game_Mario
+cd BATCH
 calculate_runtimes.bat
 ```
 This batch file calls the following batch file to complete all time calculations on every model.
