@@ -221,17 +221,17 @@ python ascii_data_browser.py Mar1and2-conditional-regular0-unconditional-samples
 ```
 But to actually provide captions to guide the level generation, use this command
 ```
-python text_to_level_diffusion.py --model_path Mar1and2-conditional-regular0
+python text_to_level_diffusion.py --model_path Mar1and2-conditional-regular0 --game Mario
 ```
 This is the same command that was discussed in detail earlier with respect to pretrained models from Hugging Face, but now the locally trained model is being used. Similarly, the GUI described earlier in this README can also be used with locally trained models, like so:
 ```
-python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json
+python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --game Mario
 ```
 As indicated in the instructions earlier, additional settings are recommended when working with models trained on absence captions or negative captions.
 
 You can also interactively evolve level scenes in the latent space of the conditional model:
 ```
-python evolve_interactive_conditional_diffusion.py --model_path Mar1and2-conditional-regular0
+python evolve_interactive_conditional_diffusion.py --model_path Mar1and2-conditional-regular0 --game Mario
 ```
 This tool is a prototype that was not mentioned in the paper, but is another fun way to generate levels.
 
@@ -239,19 +239,19 @@ This tool is a prototype that was not mentioned in the paper, but is another fun
 
 You can evaluate the final model's ability to adhere to input captions with this command:
 ```
-python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --output_dir text-to-level-final
+python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --output_dir text-to-level-final --game Mario
 ```
 You can also evaluate how caption adherence changed during training with respect to the testing set:
 ```
-python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-test.json --compare_checkpoints 
+python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-test.json --compare_checkpoints --game Mario
 ```
 However, it is easy to match captions that are similar to real game captions. You can evaluate how caption adherence changed during training with respect to previously unseen randomly generated captions too:
 ```
-python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json Game_Mario/DATA/Mar1and2_RandomTest-regular.json --compare_checkpoints 
+python evaluate_caption_adherence.py --model_path Mar1and2-conditional-regular0 --save_as_json --json Game_Mario/DATA/Mar1and2_RandomTest-regular.json --compare_checkpoints --game Mario
 ```
 If you'd like to create all the generated data used to evaluate caption adherence, as in our paper, you can do so by running the batch file like this:
 ```
-batch\evaluate_caption_adherence_multi.bat Mar1and2-conditional-regular0 regular Mar1and2
+batch\evaluate_caption_adherence_multi.bat Mar1and2-conditional-regular0 regular Mar1and2 Mario
 ```
 If you used either `train-conditional.bat` or `train-conditional-pre.bat` to train models (mentioned earlier), then the caption adherence checked mentioned above were already carried out automatically after training.
 
@@ -259,12 +259,12 @@ If you used either `train-conditional.bat` or `train-conditional-pre.bat` to tra
 
 To train an unconditional diffusion model without any text embeddings, run this command:
 ```
-python train_diffusion.py --augment --output_dir Mar1and2-unconditional0 --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --seed 0 
+python train_diffusion.py --augment --output_dir Mar1and2-unconditional0 --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --seed 0 --game Mario
 ```
 You can also use this batch file:
 ```
 cd batch
-train-unconditional.bat 0 Mar1and2 
+train-unconditional.bat 0 Mar1and2 Mario
 ```
 
 ## Generate levels from unconditional model
