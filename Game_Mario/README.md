@@ -177,7 +177,7 @@ Masked language modeling is used to train the text embedding model. Use whatever
 ```
 python train_mlm.py --epochs 300 --save_checkpoints --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --test_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-test.json --pkl Game_Mario/DATA/Mar1and2_Tokenizer-regular.pkl --output_dir Mar1and2-MLM-regular0 --seed 0
 ```
-A report evaluating the accuracy of the final model on the training data is provided after training, but you can repeat a similar evaluation with this command:
+A report evaluating the accuracy of the final model on the training data can be produced with this command:
 ```
 python evaluate_masked_token_prediction.py --model_path Mar1and2-MLM-regular0 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json
 ```

@@ -245,6 +245,7 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=30, help="Number of epochs to wait for improvement in val loss before early stopping (default: 20)")
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument("--use_early_stopping", action="store_true", help="Stop training if validation/caption performance stagnate")
+    parser.add_argument("--eval_at_end", action="store_true", help="Give an evaluation report after training")
     
     global args
     args = parser.parse_args()
@@ -303,13 +304,14 @@ if __name__ == "__main__":
     model.save_pretrained(args.output_dir)
     print(f"Model saved in {args.output_dir}")
 
-    # Final evaluation on all splits
-    print("\nFinal evaluation:")
-    print("Train set:")
-    evaluate_model(model, tokenizer, train_loader, device)
-    if val_loader:
-        print("Validation set:")
-        evaluate_model(model, tokenizer, val_loader, device)
-    if test_loader:
-        print("Test set:")
-        evaluate_model(model, tokenizer, test_loader, device)
+    if args.eval_at_end:
+        # Final evaluation on all splits
+        print("\nFinal evaluation:")
+        print("Train set:")
+        evaluate_model(model, tokenizer, train_loader, device)
+        if val_loader:
+            print("Validation set:")
+            evaluate_model(model, tokenizer, val_loader, device)
+        if test_loader:
+            print("Test set:")
+            evaluate_model(model, tokenizer, test_loader, device)
