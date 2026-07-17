@@ -108,6 +108,7 @@ def get_game_config(game=None):
             "is_megaman": False,
             "supports_per_image_play": True,
             "is_composed_playable": True, 
+            "pixel_dim" : MARIO_TILE_PIXEL_DIM,
         }
     if game_name == "Lode Runner":
         return {
@@ -124,6 +125,7 @@ def get_game_config(game=None):
             "is_megaman": False,
             "supports_per_image_play": True,
             "is_composed_playable": False, 
+            "pixel_dim" : LR_TILE_PIXEL_DIM,
         }
     if game_name == "Mega Man (Simple)":
         return {
@@ -140,6 +142,7 @@ def get_game_config(game=None):
             "is_megaman": True,
             "supports_per_image_play": False,
             "is_composed_playable": False, 
+            "pixel_dim" : MM_TILE_PIXEL_DIM,
         }
     if game_name == "Mega Man (Full)":
         return {
@@ -156,6 +159,7 @@ def get_game_config(game=None):
             "is_megaman": True,
             "supports_per_image_play": False,
             "is_composed_playable": False, 
+            "pixel_dim" : MM_TILE_PIXEL_DIM,
         }
     if game_name == "Mega Man (Maker)":
         return {
@@ -172,6 +176,7 @@ def get_game_config(game=None):
             "is_megaman": True,
             "supports_per_image_play": False,
             "is_composed_playable": False, 
+            "pixel_dim" : MM_TILE_PIXEL_DIM,
         }
     if game_name == "Mario Maker 2":
         return {
@@ -188,5 +193,6 @@ def get_game_config(game=None):
             "is_megaman": False,
             "supports_per_image_play": False,
             "is_composed_playable": True, 
+            "pixel_dim" : MM2_TILE_PIXEL_DIM,
         }
     raise ValueError(f"Unsupported game selected: {game_name}")

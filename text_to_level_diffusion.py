@@ -277,56 +277,22 @@ class InteractiveLevelGeneration(InteractiveGeneration):
 
         param_values["output_type"] = "tensor"
 
-        # Lode Runner
-        if self.args.game == "LR":
-            param_values["height"] = common_settings.LR_HEIGHT
-            param_values["width"] = common_settings.LR_WIDTH
-        if self.args.game == "MM-Simple" or self.args.game == "MM-Full":
-            param_values["height"] = common_settings.MEGAMAN_HEIGHT
-            param_values["width"] = common_settings.MEGAMAN_WIDTH
-        if self.args.game == "MM2":
-            param_values["height"] = common_settings.MM2_HEIGHT
-            param_values["width"] = common_settings.MM2_WIDTH
+        config = common_settings.get_game_config(args.game)
+        param_values["height"] = config["height"]
+        param_values["width"] = config["width"]
 
         return dict()
 
 if __name__ == "__main__":
     args = parse_args()
 
-    if args.game == "Mario":
-        args.num_tiles = common_settings.MARIO_TILE_COUNT
-        height = common_settings.MARIO_HEIGHT
-        width = common_settings.MARIO_WIDTH
-        args.tile_size = common_settings.MARIO_TILE_PIXEL_DIM
-        args.tileset = common_settings.MARIO_TILESET
-    elif args.game == "LR":
-        args.num_tiles = common_settings.LR_TILE_COUNT
-        height = common_settings.LR_HEIGHT
-        width = common_settings.LR_WIDTH
-        args.tile_size = common_settings.LR_TILE_PIXEL_DIM
-        args.tileset = common_settings.LR_TILESET
-    elif args.game == "MM2":
-        args.num_tiles = common_settings.MM2_TILE_COUNT
-        height = common_settings.MM2_HEIGHT
-        width = common_settings.MM2_WIDTH
-        args.tile_size = common_settings.MM2_TILE_PIXEL_DIM
-        args.tileset = common_settings.MM2_TILESET
-    else:
-        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
-        height = common_settings.MEGAMAN_HEIGHT
-        width = common_settings.MEGAMAN_WIDTH
-        args.tile_size = common_settings.MM_TILE_PIXEL_DIM
-        if args.game == "MM-Simple":
-            args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
-            args.tileset = common_settings.MM_SIMPLE_TILESET
-        elif args.game == "MM-Full":
-            args.num_tiles = common_settings.MM_FULL_TILE_COUNT
-            args.tileset = common_settings.MM_FULL_TILESET
-        elif args.game == "MMLV":
-            args.num_tiles = common_settings.MMLV_TILE_COUNT
-            args.tileset = common_settings.MMLV_TILESET
-        else:
-            raise ValueError(f"Unknown game: {args.game}")
+    config = common_settings.get_game_config(args.game)
+    
+    args.num_tiles = config["tile_count"]
+    args.tileset = config["tileset"]
+    width = config["width"]
+    height = config["height"]
+    args.tile_size = config["pixel_dim"]
     
     ig = InteractiveLevelGeneration(args)
     ig.start()
