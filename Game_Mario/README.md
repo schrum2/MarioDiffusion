@@ -209,11 +209,11 @@ python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --
 
 To generate unconditional levels (not based on text embeddings), use this batch file:
 ```
-batch\run_diffusion_multi.bat Mar1and2-conditional-regular0 regular Mar1and2 text
+batch\run_diffusion_multi.bat Mar1and2-conditional-regular0 regular Mario
 ```
 This batch file automatically creates 2 different sets of 100 samples, one set that is 16 blocks wide, and another that is 128 blocks wide. If you'd like to run just one of these commands, or customize the output further, you can with this command:
 ```
-python run_diffusion.py --model_path Mar1and2-conditional-regular0 --num_samples 100 --text_conditional --save_as_json --output_dir Mar1and2-conditional-regular0-unconditional-samples --level_width 16
+python run_diffusion.py --model_path Mar1and2-conditional-regular0 --num_samples 100 --save_as_json --output_dir Mar1and2-conditional-regular0-unconditional-samples --level_width 16 --game Mario
 ```
 Captions will be automatically assigned to the levels, and you can browse that data with this command:
 ```
@@ -227,7 +227,7 @@ This is the same command that was discussed in detail earlier with respect to pr
 ```
 python interactive_tile_level_generator.py --model_path Mar1and2-conditional-regular0 --load_data Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json
 ```
-As indicated in the instructions earlier, additionaly settings are recommended when working with models trained on absence captions or negative captions.
+As indicated in the instructions earlier, additional settings are recommended when working with models trained on absence captions or negative captions.
 
 You can also interactively evolve level scenes in the latent space of the conditional model:
 ```
