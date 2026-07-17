@@ -306,7 +306,7 @@ train-wgan.bat 0 Mar1and2 Mario
 
 Create samples from the final GAN with this command (assuming the batch file hasn't already)
 ```
-python run_wgan.py --model_path Mar1and2-wgan0\final_models\generator.pth" --num_samples 100 --output_dir Mar1and2-wgan0-samples --save_as_json --game Mario
+python run_wgan.py --model_path Mar1and2-wgan0\final_models\generator.pth --num_samples 100 --output_dir Mar1and2-wgan0-samples --save_as_json --game Mario
 ```
 View the saved levels in the data browser
 ```

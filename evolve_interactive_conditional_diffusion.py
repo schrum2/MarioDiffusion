@@ -37,15 +37,10 @@ class TextDiffusionEvolver(Evolver):
 
     def random_latent(self, seed=1):
         # Create the initial noise latents (this is what the pipeline does internally)
-        if self.args.game == 'Mario':
-            height = common_settings.MARIO_HEIGHT
-            width = self.width
-        elif self.args.game == 'MM2':
-            height = common_settings.MM2_HEIGHT
-            width = self.width
-        elif self.args.game == 'LR':
-            height = common_settings.LR_HEIGHT
-            width = common_settings.LR_WIDTH
+        config = common_settings.get_game_config(self.args.game)
+        height = config["height"]
+        width = self.width
+
         num_channels_latents = self.pipe.unet.config.in_channels
         #print("num_channels_latents:", num_channels_latents)
         latents_shape = (1, num_channels_latents, height, width)
@@ -96,6 +91,7 @@ class TextDiffusionEvolver(Evolver):
             actual_caption = self.mm_assign_caption(scene)
         elif args.game == 'LR':
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        # TODO: Add Mega Man
         g.caption = actual_caption
 
         # Score how well the generated scene matches the prompt it was conditioned
@@ -107,6 +103,7 @@ class TextDiffusionEvolver(Evolver):
                 g.score = compare_captions(g.prompt, actual_caption)
             else:
                 g.score = None
+            # TODO: Add Mega Man
         else:
             g.score = None
         print(f"Caption adherence score: {g.score}")
@@ -118,6 +115,7 @@ class TextDiffusionEvolver(Evolver):
             samples = visualize_samples(images, game='MM2')
         elif args.game == 'LR':
             samples = visualize_samples(images, game='LR')
+        # TODO: Add Mega Man
         return samples
 
 def parse_args():
@@ -142,22 +140,10 @@ def parse_args():
 if __name__ == "__main__": 
     args = parse_args()
 
-    if args.game == "Mario":
-        args.tileset_path = common_settings.MARIO_TILESET
-    elif args.game == 'MM2':
-        # Mario Maker 2: mm2_tileset_we.json, 20x20 scenes
-        args.tileset_path = common_settings.MM2_TILESET
-        args.width = common_settings.MM2_WIDTH
-    elif args.game == 'LR':
-        args.tileset_path = common_settings.LR_TILESET
-        args.width = common_settings.LR_WIDTH
-    elif args.game == 'MM-Simple':
-        args.tileset_path = common_settings.MM_SIMPLE_TILESET
-    elif args.game == 'MM-Full':
-        args.tileset_path = common_settings.MM_FULL_TILESET
-
-    # TODO: Add full support for Mega Man, including width/height setting if needed
-    #       and inclusion of MMLV
+    config = common_settings.get_game_config(args.game)
+    
+    args.tileset_path = config["tileset"]
+    args.width = config["width"]
 
     evolver = TextDiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
     allow_negative_prompt = getattr(evolver.pipe, "supports_negative_prompt", False)
