@@ -7,7 +7,7 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description="Arguments for MarioGPT metrics")
 
-    parser.add_argument("--generated_levels", type=str, default="datasets/MarioGPT_LevelsAndCaptions-regular.json", help="The filepath of the LevelsAndCaptions format for MarioGPT generated data")
+    parser.add_argument("--generated_levels", type=str, default="Game_Mario/DATA/MarioGPT_LevelsAndCaptions-regular.json", help="The filepath of the LevelsAndCaptions format for MarioGPT generated data")
     parser.add_argument("--training_levels", type=str, default="Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json", help="The filepath of the LevelsAndCaptions format for default data")
 
     parser.add_argument("--output_dir", type=str, default="MarioGPT_metrics", help="The output directory for the created json data")
