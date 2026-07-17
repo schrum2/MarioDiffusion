@@ -314,7 +314,7 @@ python ascii_data_browser.py wgan_samples\all_levels.json
 ```
 Interactively evolve level scenes in the latent space of the GAN model:
 ```
-python evolve_interactive_wgan.py --model_path Mar1and2-wgan0\final_models\generator.pth
+python evolve_interactive_wgan.py --model_path Mar1and2-wgan0\final_models\generator.pth --game Mario
 ```
 
 ## Train Five Dollar Model (FDM)

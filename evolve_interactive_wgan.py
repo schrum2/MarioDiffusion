@@ -65,6 +65,7 @@ class WGANEvolver(Evolver):
             actual_caption = assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
         elif args.game == 'LR':
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        # TODO: Generalize
         g.caption = actual_caption
 
         #print(f"Describe resulting image: {actual_caption}")
@@ -75,6 +76,7 @@ class WGANEvolver(Evolver):
             samples = visualize_samples(samples_cpu)
         elif args.game == 'LR':
             samples = visualize_samples(samples_cpu, game='LR')
+        # TODO: Generalize
         return samples
 
 def parse_args():
@@ -99,7 +101,7 @@ def parse_args():
         "--game",
         type=str,
         default="Mario",
-        choices=["Mario", "LR", "MM-Simple", "MM-Full"],
+        choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
@@ -110,26 +112,12 @@ if __name__ == "__main__":
 
     disable_width_mutation()
 
-    if args.game == "Mario":
-        args.num_tiles = common_settings.MARIO_TILE_COUNT
-        isize = common_settings.MARIO_HEIGHT
-        args.width = common_settings.MARIO_WIDTH
-        args.tileset_path = common_settings.MARIO_TILESET
-    elif args.game == "LR":
-        args.num_tiles = common_settings.LR_TILE_COUNT
-        isize = common_settings.LR_HEIGHT
-        args.width = common_settings.LR_WIDTH
-        args.tileset_path = common_settings.LR_TILESET
-    elif args.game == "MM-Simple":
-        args.num_tiles = common_settings.MM_SIMPLE_TILE_COUNT
-        isize = common_settings.MEGAMAN_HEIGHT      # Assuming square samples
-        args.width = common_settings.MEGAMAN_WIDTH  # Assuming square samples
-    elif args.game == "MM-Full":
-        args.num_tiles = common_settings.MM_FULL_TILE_COUNT
-        isize = common_settings.MEGAMAN_HEIGHT      # Assuming square samples
-        args.width = common_settings.MEGAMAN_WIDTH  # Assuming square samples
-    else:
-        raise ValueError(f"Unknown game: {args.game}")
+    config = common_settings.get_game_config(args.game)
+    
+    args.num_tiles = config["tile_count"]
+    args.tileset_path = config["tileset"]
+    args.width = config["width"]
+    isize = config["height"]
     
     evolver = WGANEvolver(args)
     evolver.start_evolution()

@@ -28,26 +28,12 @@ class DiffusionEvolver(Evolver):
             self.mm_assign_caption, _ = mm2_caption_tools(tileset_path)
 
     def random_latent(self, seed=1):
-        if args.game == "Mario":
-            height = common_settings.MARIO_HEIGHT
-            width = common_settings.MARIO_WIDTH
-            num_channels_latents = common_settings.MARIO_TILE_COUNT
-        elif args.game == 'MM2':
-            height = common_settings.MM2_HEIGHT
-            width = common_settings.MM2_WIDTH
-            num_channels_latents = common_settings.MM2_TILE_COUNT
-        elif args.game == 'LR':
-            height = common_settings.LR_HEIGHT
-            width = common_settings.LR_WIDTH
-            num_channels_latents = common_settings.LR_TILE_COUNT
-        elif args.game == 'MM-Simple':
-            height = common_settings.MEGAMAN_HEIGHT
-            width = common_settings.MEGAMAN_WIDTH
-            num_channels_latents = common_settings.MM_SIMPLE_TILE_COUNT
-        elif args.game == 'MM-Full':
-            height = common_settings.MEGAMAN_HEIGHT
-            width = common_settings.MEGAMAN_WIDTH
-            num_channels_latents = common_settings.MM_FULL_TILE_COUNT
+
+        config = common_settings.get_game_config(self.args.game)
+        height = config["height"]
+        width = config["width"]
+        num_channels_latents = config["tile_count"]
+
         # Create the initial noise latents (this is what the pipeline does internally)
         latents_shape = (1, num_channels_latents, height, width)
         latents = torch.randn(
@@ -95,6 +81,7 @@ class DiffusionEvolver(Evolver):
             actual_caption = self.mm_assign_caption(scene)
         elif args.game == 'LR':
             actual_caption = lr_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+        # TODO: Generalize
         g.caption = actual_caption
 
         #print(f"Describe resulting image: {actual_caption}")
@@ -108,6 +95,7 @@ class DiffusionEvolver(Evolver):
             samples = visualize_samples(images, game='MM2')
         elif args.game == 'LR':
             samples = visualize_samples(images, game='LR')
+        # TODO: Generalize
         return samples
 
 
@@ -124,7 +112,7 @@ def parse_args():
         "--game",
         type=str,
         default="MM2",
-        choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full"],
+        choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full", "MMLV"],
         help="Which game to create a model for (affects sample style and tile count)"
     )
 
@@ -133,19 +121,10 @@ def parse_args():
 if __name__ == "__main__": 
     args = parse_args()
 
-    if args.game == "Mario":
-        args.tileset_path = common_settings.MARIO_TILESET
-    elif args.game == 'MM2':
-        # Mario Maker 2: mm2_tileset_we.json, 20x20 scenes
-        args.tileset_path = common_settings.MM2_TILESET
-        args.width = common_settings.MM2_WIDTH
-    elif args.game == 'LR':
-        args.tileset_path = common_settings.LR_TILESET
-        args.width = common_settings.LR_WIDTH
-    elif args.game == 'MM-Simple':
-        args.tileset_path = 'datasets/MM-simple-tileset.json'
-    elif args.game == 'MM-Full':
-        args.tileset_path = '../TheVGLC/MegaMan/MM.json'
+    config = common_settings.get_game_config(args.game)
+    
+    args.tileset_path = config["tileset"]
+    args.width = config["width"]
         
 
     evolver = DiffusionEvolver(args.model_path, args.width, args.tileset_path, args=args)
