@@ -435,7 +435,7 @@ This batch file will generate the following plots at once
 ```
 python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance_from_real --plot_label "Edit Distance" --save --output_name "AMED-REAL_real(full)_real(100)_random_unconditional" --loc "best" --legend_cols 1 --errorbar
 ```
-This saves an amed real plot between generated levels against the real dataset
+This saves an AMED(real) plot between generated levels against the real dataset
 ```
 python evaluate_metrics.py --real_data --model_path None
 ```
@@ -443,7 +443,7 @@ Resample the original dataset that levels were created on to 100 samples for a f
 ```
 python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance --plot_label "Edit Distance" --save --output_name "AMED-SELF_real(full)_real(100)_random_unconditional" --loc "lower right" --bbox 1.0 0.1 --errorbar
 ```
-Plots comparison of the amed between generated levels themselves against different models
+Plots comparison of the AMED between generated levels themselves against different models
 ```
 python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_pipes_percentage_in_dataset --plot_label "Percent Broken Pipes" --save --output_name "BPPDataset_real(full)_real(100)_random_unconditional" --loc "lower right" --legend_cols 2 --errorbar
 ```
@@ -460,6 +460,40 @@ Plots and compares broken cannons as a percentage of the full generated dataset
 python evaluate_models.py --modes real random short real_full --full_metrics --metric broken_cannons_percentage_of_cannons --plot_label "Percent Broken Cannons" --save --output_name "BCPCannons_real(full)_real(100)_random_unconditional" --loc "lower right" --errorbar
 ```
 Plots and compares broken cannons as a percentage of total cannon mentions
+
+## Citation
+
+The instructions above are all related to our AIIDE 2025 publication. If you make use of this code, please cite the following paper:
+[Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros](https://arxiv.org/abs/2507.00184)  
+
+```bibtex
+@article{schrum:aiide2025,
+  title={Text-to-Level Diffusion Models with Various Text Encoders for Super Mario Bros},
+  volume={21},
+  url={https://ojs.aaai.org/index.php/AIIDE/article/view/36815},
+  DOI={10.1609/aiide.v21i1.36815},
+  number={1},
+  journal={Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment},
+  author={Schrum, Jacob and Kilday, Olivia and Salas, Emilio and Hagan, Bess and Williams, Reid},
+  year={2025},
+  month={Nov.},
+  pages={110-120}
+}
+```
+
+More content related to this research is also available at this website:
+[https://people.southwestern.edu/~schrum2/mario.html](https://people.southwestern.edu/~schrum2/mario.html)
+
+However, much work has been done with this repo since publication. Further ways of experimenting with the Mario models are described below, and the [main README](../README.md) has links to information on other games that you can train models for.
+
+
+
+
+
+
+
+
+
 
 
 ## Train and generate levels from unconditional model with block2vec tile embedding model (experimental)
@@ -511,44 +545,7 @@ The diffusion training itself handles the variable widths by bucketing scenes of
 
 
 
-## Tile based games besides Mario
-
-We are trying to be able to expand these methods to other games such as Lode Runner and Mega Man,
-but these games are still in the preliminary. Nevertheless, if you wish to learn more about the 
-advancements made for these games, then follow the links below.
-
-For more information regarding Lode Runner, go to the file named `LR_README.md` 
-within the Mario Diffusion directory.
-
-[View LR_README.md](LR_README.md)
-
-For more information regarding Mega Man, go to the file named `MM_README.md` 
-within the Mario Diffusion directory.
-
-[View MM_README.md](MM_README.md)
 
 
 
 
-## Citation
-
-If you use this code, please cite our paper:  
-[Text-to-Level Diffusion Models With Various Text Encoders for Super Mario Bros](https://arxiv.org/abs/2507.00184)  
-
-```bibtex
-@article{schrum:aiide2025,
-  title={Text-to-Level Diffusion Models with Various Text Encoders for Super Mario Bros},
-  volume={21},
-  url={https://ojs.aaai.org/index.php/AIIDE/article/view/36815},
-  DOI={10.1609/aiide.v21i1.36815},
-  number={1},
-  journal={Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment},
-  author={Schrum, Jacob and Kilday, Olivia and Salas, Emilio and Hagan, Bess and Williams, Reid},
-  year={2025},
-  month={Nov.},
-  pages={110-120}
-}
-```
-
-More content related to this research is also available at this website:
-[https://people.southwestern.edu/~schrum2/mario.html](https://people.southwestern.edu/~schrum2/mario.html)
