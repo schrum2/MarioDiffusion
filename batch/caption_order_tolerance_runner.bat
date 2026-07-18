@@ -4,8 +4,8 @@ set max_run = 5
 :loop_start
 if !run! GEQ %max_run% goto end
 
-REM Loop through all directories starting with Mar1and2-conditional and ending in 0
-for /D %%D in ("Mar1and2-conditional*0") do (
+REM Loop through all Mario directories starting with Mar1and2-conditional and ending in 0
+for /D %%D in ("Mario-Mar1and2-conditional*0") do (
     set "DIR=%%~nxD"
     call :processDir "%%D" "%%~nxD"
 )

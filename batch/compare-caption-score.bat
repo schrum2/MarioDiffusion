@@ -1,6 +1,7 @@
 cd ..
 
 setlocal enabledelayedexpansion
+set MODEL_PREFIX=Mario-Mar1and2
 
 REM Compare all
 for %%d in (LevelsAndCaptions RandomTest test) do (
@@ -22,25 +23,25 @@ for %%d in (LevelsAndCaptions RandomTest test) do (
   )
 
   python plot_average_caption_score.py ^
-    "Mar1and2-conditional-regular:0-9:!REGULAR_FILE!:MLM-regular:0" ^
-    "Mar1and2-conditional-absence:0-9:!ABSENCE_FILE!:MLM-absence:1" ^
-    "Mar1and2-conditional-negative:0-9:!REGULAR_FILE!:MLM-negative:2" ^
-    "Mar1and2-conditional-MiniLM-regular:0-9:!REGULAR_FILE!:MiniLM-single-regular:3" ^
-    "Mar1and2-conditional-MiniLM-absence:0-9:!ABSENCE_FILE!:MiniLM-single-absence:4" ^
-    "Mar1and2-conditional-MiniLM-negative:0-9:!REGULAR_FILE!:MiniLM-single-negative:5" ^
-    "Mar1and2-conditional-MiniLMsplit-regular:0-4:!REGULAR_FILE!:MiniLM-multiple-regular:6" ^
-    "Mar1and2-conditional-MiniLMsplit-absence:0-4:!ABSENCE_FILE!:MiniLM-multiple-absence:7" ^
-    "Mar1and2-conditional-MiniLMsplit-negative:0-4:!REGULAR_FILE!:MiniLM-multiple-negative:8" ^
-    "Mar1and2-conditional-GTE-regular:0-4:!REGULAR_FILE!:GTE-single-regular:9" ^
-    "Mar1and2-conditional-GTE-absence:0-4:!ABSENCE_FILE!:GTE-single-absence:10" ^
-    "Mar1and2-conditional-GTE-negative:0-4:!REGULAR_FILE!:GTE-single-negative:11" ^
-    "Mar1and2-conditional-GTEsplit-regular:0:!REGULAR_FILE!:GTE-multiple-regular:12" ^
-    "Mar1and2-conditional-GTEsplit-absence:0:!ABSENCE_FILE!:GTE-multiple-absence:13" ^
-    "Mar1and2-conditional-GTEsplit-negative:0:!REGULAR_FILE!:GTE-multiple-negative:14" ^
-    "Mar1and2-fdm-MiniLM-regular:0-29:!REGULAR_FILE!:FDM-MiniLM-regular:15" ^
-    "Mar1and2-fdm-MiniLM-absence:0-29:!ABSENCE_FILE!:FDM-MiniLM-absence:16" ^
-    "Mar1and2-fdm-GTE-regular:0-29:!REGULAR_FILE!:FDM-GTE-regular:17" ^
-    "Mar1and2-fdm-GTE-absence:0-29:!ABSENCE_FILE!:FDM-GTE-absence:18" ^
+    "!MODEL_PREFIX!-conditional-regular:0-9:!REGULAR_FILE!:MLM-regular:0" ^
+    "!MODEL_PREFIX!-conditional-absence:0-9:!ABSENCE_FILE!:MLM-absence:1" ^
+    "!MODEL_PREFIX!-conditional-negative:0-9:!REGULAR_FILE!:MLM-negative:2" ^
+    "!MODEL_PREFIX!-conditional-MiniLM-regular:0-9:!REGULAR_FILE!:MiniLM-single-regular:3" ^
+    "!MODEL_PREFIX!-conditional-MiniLM-absence:0-9:!ABSENCE_FILE!:MiniLM-single-absence:4" ^
+    "!MODEL_PREFIX!-conditional-MiniLM-negative:0-9:!REGULAR_FILE!:MiniLM-single-negative:5" ^
+    "!MODEL_PREFIX!-conditional-MiniLMsplit-regular:0-4:!REGULAR_FILE!:MiniLM-multiple-regular:6" ^
+    "!MODEL_PREFIX!-conditional-MiniLMsplit-absence:0-4:!ABSENCE_FILE!:MiniLM-multiple-absence:7" ^
+    "!MODEL_PREFIX!-conditional-MiniLMsplit-negative:0-4:!REGULAR_FILE!:MiniLM-multiple-negative:8" ^
+    "!MODEL_PREFIX!-conditional-GTE-regular:0-4:!REGULAR_FILE!:GTE-single-regular:9" ^
+    "!MODEL_PREFIX!-conditional-GTE-absence:0-4:!ABSENCE_FILE!:GTE-single-absence:10" ^
+    "!MODEL_PREFIX!-conditional-GTE-negative:0-4:!REGULAR_FILE!:GTE-single-negative:11" ^
+    "!MODEL_PREFIX!-conditional-GTEsplit-regular:0:!REGULAR_FILE!:GTE-multiple-regular:12" ^
+    "!MODEL_PREFIX!-conditional-GTEsplit-absence:0:!ABSENCE_FILE!:GTE-multiple-absence:13" ^
+    "!MODEL_PREFIX!-conditional-GTEsplit-negative:0:!REGULAR_FILE!:GTE-multiple-negative:14" ^
+    "!MODEL_PREFIX!-fdm-MiniLM-regular:0-29:!REGULAR_FILE!:FDM-MiniLM-regular:15" ^
+    "!MODEL_PREFIX!-fdm-MiniLM-absence:0-29:!ABSENCE_FILE!:FDM-MiniLM-absence:16" ^
+    "!MODEL_PREFIX!-fdm-GTE-regular:0-29:!REGULAR_FILE!:FDM-GTE-regular:17" ^
+    "!MODEL_PREFIX!-fdm-GTE-absence:0-29:!ABSENCE_FILE!:FDM-GTE-absence:18" ^
     --ci --pdf "CaptionAdherence-%%d.pdf" --ymin !YMIN! --ymax !YMAX!
 )
 
@@ -81,14 +82,14 @@ for %%d in (LevelsAndCaptions RandomTest test) do (
 
     REM Conditionally set FDM_ARGS only if %%t is not negative
     set FDM_ARGS=
-    if /I "%%t" NEQ "negative" set FDM_ARGS="Mar1and2-fdm-MiniLM-!DATA!:0-29:!DATA_FILE!:FDM-MiniLM-!DATA!:!FDM_MINILN_STYLE!"  "Mar1and2-fdm-GTE-!DATA!:0-29:!DATA_FILE!:FDM-GTE-!DATA!:!FDM_GTE_STYLE!" 
+    if /I "%%t" NEQ "negative" set FDM_ARGS="!MODEL_PREFIX!-fdm-MiniLM-!DATA!:0-29:!DATA_FILE!:FDM-MiniLM-!DATA!:!FDM_MINILN_STYLE!"  "!MODEL_PREFIX!-fdm-GTE-!DATA!:0-29:!DATA_FILE!:FDM-GTE-!DATA!:!FDM_GTE_STYLE!"
 
     python plot_average_caption_score.py ^
-        "Mar1and2-conditional-%%t:0-9:!DATA_FILE!:MLM-%%t:!MLM_STYLE!" ^
-        "Mar1and2-conditional-MiniLM-%%t:0-9:!DATA_FILE!:MiniLM-single-%%t:!MINILN_SINGLE_STYLE!" ^
-        "Mar1and2-conditional-MiniLMsplit-%%t:0-4:!DATA_FILE!:MiniLM-multiple-%%t:!MINILN_MULTI_STYLE!" ^
-        "Mar1and2-conditional-GTE-%%t:0-4:!DATA_FILE!:GTE-single-%%t:!GTE_SINGLE_STYLE!" ^
-        "Mar1and2-conditional-GTEsplit-%%t:0:!DATA_FILE!:GTE-multiple-%%t:!GTE_MULTI_STYLE!" ^
+        "!MODEL_PREFIX!-conditional-%%t:0-9:!DATA_FILE!:MLM-%%t:!MLM_STYLE!" ^
+        "!MODEL_PREFIX!-conditional-MiniLM-%%t:0-9:!DATA_FILE!:MiniLM-single-%%t:!MINILN_SINGLE_STYLE!" ^
+        "!MODEL_PREFIX!-conditional-MiniLMsplit-%%t:0-4:!DATA_FILE!:MiniLM-multiple-%%t:!MINILN_MULTI_STYLE!" ^
+        "!MODEL_PREFIX!-conditional-GTE-%%t:0-4:!DATA_FILE!:GTE-single-%%t:!GTE_SINGLE_STYLE!" ^
+        "!MODEL_PREFIX!-conditional-GTEsplit-%%t:0:!DATA_FILE!:GTE-multiple-%%t:!GTE_MULTI_STYLE!" ^
         !FDM_ARGS! --ci --pdf "CaptionAdherence-%%d-%%t.pdf" --ymin !YMIN! --ymax !YMAX!
   )
 )
