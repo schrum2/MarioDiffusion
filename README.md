@@ -55,7 +55,7 @@ After setting up the repo with the instructions above, follow one of the links b
 - Mega Man using VGLC Data
 - Enhanced Mario Levels using Mario Maker 2 Data
 - Enhanced Mega Man Levels using Mega Man Maker Data
-- Lode Runner using VGLC Data
+- [Lode Runner using VGLC Data](Game_LodeRunner/README.md)
 
 
 
@@ -70,18 +70,6 @@ After setting up the repo with the instructions above, follow one of the links b
 
 
 REMOVE BELOW
-
-
-## Tile based games besides Mario
-
-We are trying to be able to expand these methods to other games such as Lode Runner and Mega Man,
-but these games are still in the preliminary. Nevertheless, if you wish to learn more about the 
-advancements made for these games, then follow the links below.
-
-For more information regarding Lode Runner, go to the file named `LR_README.md` 
-within the Mario Diffusion directory.
-
-[View LR_README.md](LR_README.md)
 
 For more information regarding Mega Man, go to the file named `MM_README.md` 
 within the Mario Diffusion directory.

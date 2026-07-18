@@ -46,7 +46,7 @@ LR-data.bat
 
 Now you can browse level scenes and their captions with a command like this (the first json file can be replaced by any levels and captions json file in datasets):
 ```
-python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
+python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json Game_LodeRunner/LodeRunner.json
 ```
 
 ## Complete training and evaluation sequence
@@ -77,7 +77,7 @@ All of the levels should be playable and beatable with how Lode Runner is curren
 If the user wishes to quit playing a level, they can use the 'q' key which should close the current game window
 allowing them to reuse the data browser again:
 ```
-python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json datasets\Loderunner.json
+python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json Game_LodeRunner/LodeRunner.json
 ```
 
 If the user wanted to play the levels without seeing the captions or level makeup, use the following command line. 
