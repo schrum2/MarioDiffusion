@@ -1,8 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog, messagebox  # Add messagebox for feedback
-from PIL import Image  # Ensure PIL.Image is imported
-import PIL.ImageTk  # Ensure PIL.ImageTk is imported
+from PIL import Image
+import PIL.ImageTk
 import json
 import sys
 import os
@@ -20,7 +20,6 @@ import colorsys
 from util.sampler import scene_to_ascii
 from util.sampler import SampleOutput
 from MegaManLayoutEditor import LevelEditor, MegaManLayoutEditor
-#from LodeRunner.loderunner.graphics import *
 import webbrowser
 
 
@@ -28,7 +27,7 @@ class TileViewer(tk.Tk):
     # keys we don't want in the dropdown (handled elsewhere)
     RESERVED_ATTRS = {"scene", "details", "data"}
 
-    def __init__(self, dataset_path=None, tileset_path=None):
+    def __init__(self, dataset_path=None, game=None):
         super().__init__()
         self.title("Tile Dataset Viewer")
         self.added_sample_indexes = []
@@ -55,10 +54,14 @@ class TileViewer(tk.Tk):
         self.show_filter_reason = False # show each entry's 'filter_reason' field (from *-filtered datasets)
 
         # UI
-        self.create_widgets()
+        self.create_widgets(game)
         self.bind_keys()
 
         self.dataset_path = dataset_path
+    
+        config = common_settings.get_game_config(game)    
+        tileset_path = config["tileset"]
+
         self.tileset_path = tileset_path
 
         # Optional initial load from command-line
@@ -140,7 +143,6 @@ class TileViewer(tk.Tk):
                 debug=True,
                 return_details=True
             )
-        # If not Lode Runner or Mega Man than Mario
         elif self.game.get()=="Mario":
             caption, details = assign_caption(
                 sample['scene'],
@@ -152,7 +154,7 @@ class TileViewer(tk.Tk):
                 debug=True,
                 return_details=True
             )
-        elif self.game.get()=="MM2" or self.game.get()=="MM":
+        elif self.game.get()=="MM2":
             # Code from interactive_tile_level_generator
             _, _, ground_chars = get_tile_categories(self.tileset_path)
             char_names = get_char_names(self.tileset_path)
@@ -283,15 +285,9 @@ class TileViewer(tk.Tk):
         """Render a tile-ID scene to a PIL image for the currently selected game."""
         from level_dataset import visualize_samples
         game = self.game.get()
-        game_to_num_classes = {
-            "LR": common_settings.LR_TILE_COUNT,
-            "MM-Simple": common_settings.MM_SIMPLE_TILE_COUNT,
-            "MM-Full": common_settings.MM_FULL_TILE_COUNT,
-            "MMLV": common_settings.MMLV_TILE_COUNT,
-            "MM2": common_settings.MM2_TILE_COUNT,
-            "Mario": common_settings.MARIO_TILE_COUNT,
-        }
-        num_classes = game_to_num_classes.get(game, len(self.id_to_char))
+
+        config = common_settings.get_game_config(game)    
+        num_classes = config["tile_count"]
         one_hot = torch.nn.functional.one_hot(
             torch.tensor(scene, dtype=torch.long),
             num_classes=num_classes
@@ -458,7 +454,7 @@ class TileViewer(tk.Tk):
         self.photo_image = photo_image  # Keep a reference to avoid GC.
         return True
 
-    def create_widgets(self):
+    def create_widgets(self, game):
         frame = tk.Frame(self)
         frame.pack(pady=2)  # Reduced padding for tighter vertical spacing
 
@@ -663,36 +659,16 @@ class TileViewer(tk.Tk):
         self.composed_thumb_frame = tk.Frame(self)
         self.composed_thumb_frame.pack(fill=tk.X)
 
-
-        
         # Game selection
-        # Mapping from the game on the display, to the actual internal names of each game
-        self.game_display_to_real_mapping = {
-            "Mario": "Mario",
-            "Lode Runner": "LR",
-            "Mega Man (Simple)": "MM-Simple",
-            "Mega Man (Full)": "MM-Full",
-            "Mega Man (Maker)": "MMLV",
-            "Mario Maker 2": "MM2"
-        }
 
         #Method called every time the dropdown is updated to use the mapping, and putting it in self.game
         def on_game_select(Event=None):
             game_display_var = self.game_display_var.get()
-            self.game.set(self.game_display_to_real_mapping.get(game_display_var, game_display_var))
+            self.game.set(common_settings.GAME_DISPLAY_MAPPING.get(game_display_var, game_display_var))
 
-            # Auto-switch tileset AND dataset to match the newly selected game, so we don't
-            # end up applying e.g. the MM-Simple tileset to an MM-Full dataset (and vice versa).
-            game_to_tileset = {
-                "Mario": common_settings.MARIO_TILESET,
-                "LR": common_settings.LR_TILESET,
-                "MM-Simple": common_settings.MM_SIMPLE_TILESET,
-                "MM-Full": common_settings.MM_FULL_TILESET,
-                "MMLV": common_settings.MMLV_TILESET,
-                "MM2": common_settings.MM2_TILESET
-            }
+            config = common_settings.get_game_config(self.game.get())
 
-            new_tileset_path = game_to_tileset.get(self.game.get())
+            new_tileset_path = config["tileset"]
 
             tileset_changed = (new_tileset_path and os.path.isfile(new_tileset_path)
                                 and new_tileset_path != self.tileset_path)
@@ -705,12 +681,14 @@ class TileViewer(tk.Tk):
             if tileset_changed and self.dataset_path and self.tileset_path:
                 self.load_files_from_paths(self.dataset_path, self.tileset_path)
 
+        game_display = common_settings.GAME_ALIASES[game]
+
         #Creating the game dropdown
-        self.game_display_var = tk.StringVar(value="Mario")
-        self.game = tk.StringVar(value=self.game_display_to_real_mapping[self.game_display_var.get()])
+        self.game_display_var = tk.StringVar(value=game_display)
+        self.game = tk.StringVar(value=common_settings.GAME_DISPLAY_MAPPING[self.game_display_var.get()])
         self.game_label = ttk.Label(self.composed_frame, text="Select Game:", style="TLabel")
         self.game_label.pack()
-        self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=["Mario", "Lode Runner", "Mega Man (Simple)", "Mega Man (Full)", "Mega Man (Maker)", "Mario Maker 2"], state="readonly")
+        self.game_dropdown = ttk.Combobox(self.composed_frame, textvariable=self.game_display_var, values=common_settings.GAME_DISPLAY_NAMES, state="readonly")
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", on_game_select)
         self._update_game_specific_controls()
@@ -1659,20 +1637,14 @@ if __name__ == "__main__":
     tileset_path = None
     if len(sys.argv) >= 2:
         dataset_path = sys.argv[1]
-
-    tileset_path = sys.argv[2] if len(sys.argv) == 3 else common_settings.MARIO_TILESET
         
     if dataset_path and not os.path.isfile(dataset_path):
         print("Invalid dataset path provided.")
         dataset_path = None
 
-    if tileset_path and not os.path.isfile(tileset_path):
-        print("Invalid tileset path provided.")
-        tileset_path = None
+    game = sys.argv[2] if len(sys.argv) == 3 else "Mario"
+    print(f"Game is {game}")
 
-    # Debugging
-    #print("dataset_path", dataset_path)
-    #print("tileset_path", tileset_path)
-    app = TileViewer(dataset_path, tileset_path)
+    app = TileViewer(dataset_path, game)
     app.protocol("WM_DELETE_WINDOW", app.on_close)
     app.mainloop()

@@ -68,6 +68,14 @@ GAME_DISPLAY_NAMES = [
     "Mega Man (Maker)",
     "Mario Maker 2",
 ]
+GAME_DISPLAY_MAPPING = {
+    "Mario": "Mario",
+    "Lode Runner": "LR",
+    "Mega Man (Simple)": "MM-Simple",
+    "Mega Man (Full)": "MM-Full",
+    "Mega Man (Maker)": "MMLV",
+    "Mario Maker 2": "MM2"
+}
 GAME_CLI_CHOICES = ["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"]
 GAME_ALIASES = {
     "Mario": "Mario",

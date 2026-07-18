@@ -103,7 +103,6 @@ python ascii_data_browser.py Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.
 ```
 This is not required, but will give you insight into the data.
 
-
 ### Datasets with longer levels
 To create larger datasets with custom level width, simply call the same batch file above with an additional integer width argument:
 ```

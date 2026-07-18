@@ -1,53 +1,66 @@
-# Lode Runner Generation
+# Lode Runner Diffusion
 
-Generate Lode Runner level scenes with a diffusion model conditioned on text input.
-This Lode Runner data is still experimental and on-going and the current results are not as good as the Mario levels and outputs. The main therory as to why is a small dataset with only 150 samples.
-Due to having significantly less samples, most of the training models need to train for much longer periods of time
-to match the efficientness of the Mario trained models.
+Generate Lode Runner levels with a diffusion model conditioned on text input.
+The Lode Runner models produced by this code are not as impressive as the Mario Diffusion models.
+Our main therory as to why is that Lode Runner has a much smaller dataset with only 150 samples.
+The samples also contain more diversity than the Mario data,
+and the game itself involves more complex functional
+requirements in order for levels to be beatable.
+Still, you can train diffusion models that generate
+Lode Runner levels, and play the generated levels.
+These instructions assume you have followed the basic setup instructions in the main [README](../README.md) first.
 
-## Set up the repository
+## Batch Files
 
-Everything needed for playing Lode Runner can be accessed be rerunning the `requirements.txt` file:
-```
-pip install -r requirements.txt
-pip uninstall loderunner
-```
-Before running any code, install all requirements with pip:
-```
-pip install -r requirements.txt
-```
-Before being able to play some Lode Runner levels, you must create a dataset which happens below.
+Our code was developed on Windows machines, so we have made extensive use of batch files for convenience. However, these will not work on Linux/Mac systems. The Python scripts that are called from these batch files should work on any system, though this has not been fully tested. The instructions below describe how to use the batch files and certain Python scripts, but you can look in the batch files to execute individual commands as needed.
+
 ## Create datasets
 
-Data used for training our models already exists in the `datasets` directory of this repo,
-but you can recreate the data using these commands. First, you will need to check out 
-[my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC). Note that the following
+Data for training Lode Runner models 
+is not in the repo, but it can easily be constructed using
+data from [my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC).
+Note that the following
 command should be executed in the parent directory of the `MarioDiffusion` repository so that
 the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the same directory:
 ```
 git clone https://github.com/schrum2/TheVGLC.git
 ```
-Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `LR_batch` sub-directory in the
+Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `Game_LodeRunner/BATCH` sub-directory in the
 `MarioDiffusion` repo for Lode Runner batch files.
 ```
 cd MarioDiffusion
-cd LR_batch
+cd Game_LodeRunner
+cd BATCH
 ```
 Next, run a batch file to create datasets from the VGLC data. This batch file call will create
-a json data set of 32 by 32 level scenes from the VGLC data for Lode Runner with a command like this 
-(top 10 rows are filled with blank space to make a perfect square).
+a json data set of 32x32 levels from the VGLC data for Lode Runner. Note that the  
+top 10 rows are filled with blank space to extend
+the height to 32, which is suitable for the diffusion
+models we train.
 Afterwards, it will create captions for the dataset, tokenizers for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. 
-These files will overwrite the files already in the repo, but they should be identical.
-The data made from the following command is required to use any of the following information!
 Run this command:
 ```
 LR-data.bat
 ```
-
 Now you can browse level scenes and their captions with a command like this (the first json file can be replaced by any levels and captions json file in datasets):
 ```
-python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json Game_LodeRunner/LodeRunner.json
+python ascii_data_browser.py Game_LodeRunner/DATA/LR_LevelsAndCaptions-regular.json Game_LodeRunner/LodeRunner.json
 ```
+
+This is not required, but will give you insight into the data.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Complete training and evaluation sequence
 
