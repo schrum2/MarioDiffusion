@@ -49,20 +49,21 @@ python ascii_data_browser.py Game_LodeRunner/DATA/LR_LevelsAndCaptions-regular.j
 
 This is not required, but will give you insight into the data.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## Complete training and evaluation sequence
+
+
+
+
+TODO
+```
+train-conditional.bat 0 LR regular LodeRunner
+```
+
+
+
+
+
+
 
 To train and run an unconditional diffusion model without any text embeddings, go within the 
 `LR_batch` sub-directory:
