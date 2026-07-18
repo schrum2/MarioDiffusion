@@ -1,6 +1,7 @@
-cd ..
-
+@echo off
 setlocal enabledelayedexpansion
+pushd "%~dp0\..\.."
+
 set MODEL_PREFIX=Mario-Mar1and2
 
 REM Compare all
@@ -94,4 +95,6 @@ for %%d in (LevelsAndCaptions RandomTest test) do (
   )
 )
 
+popd
+endlocal
 

@@ -1,6 +1,9 @@
-cd ..
-set run = 0
-set max_run = 5
+@echo off
+setlocal EnableDelayedExpansion
+pushd "%~dp0\..\.."
+
+set /a run=0
+set /a max_run=5
 :loop_start
 if !run! GEQ %max_run% goto end
 
@@ -14,6 +17,8 @@ set /a run+=1
 goto loop_start
 
 :end
+popd
+endlocal
 exit /b
 
 :processDir

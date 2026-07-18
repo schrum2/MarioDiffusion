@@ -1,4 +1,7 @@
-cd ..
+@echo off
+setlocal
+pushd "%~dp0\..\.."
+
 
 REM Loop through all Mario directories starting with Mar1and2-conditional in the current directory
 for /D %%D in ("Mario-Mar1and2-conditional*0") do (
@@ -21,3 +24,6 @@ python evaluate_solvability.py --num_runs 1 --model_path "Mario-Mar1and2-wgan0"
 
 :: MarioGPT Models
 python calculate_gpt2_metrics.py --generated_levels "Game_Mario/DATA/MarioGPT_LevelsAndCaptions-regular.json" --training_levels "Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json" --output_dir "MarioGPT_metrics//short_levels"
+
+popd
+endlocal
