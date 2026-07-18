@@ -14,8 +14,8 @@ if "%SEED%"=="" set SEED=0
 set DATA=Mar1and2_16-32-64-128
 set LABEL=Mar1and2Mixed
 
-set MLM_OUTPUT=%LABEL%-MLM-regular%SEED%
-set DIFF_OUTPUT=%LABEL%-conditional-regular%SEED%
+set MLM_OUTPUT=Mario-%LABEL%-MLM-regular%SEED%
+set DIFF_OUTPUT=Mario-%LABEL%-conditional-regular%SEED%
 
 
 python train_mlm.py --epochs 300 --save_checkpoints --json datasets\%DATA%_LevelsAndCaptions-regular-train.json --val_json datasets\%DATA%_LevelsAndCaptions-regular-validate.json --test_json datasets\%DATA%_LevelsAndCaptions-regular-test.json --pkl datasets\%LABEL%_Tokenizer-regular.pkl --output_dir %MLM_OUTPUT% --seed %SEED%

@@ -26,9 +26,9 @@ if /I not "%METHOD%"=="skip" if /I not "%METHOD%"=="block2vec" (
 set "SMB1_JSON=Game_Mario/DATA/SMB1_3x3_tiles.json"
 set "SMB2_JSON=Game_Mario/DATA/SMB2_3x3_tiles.json"
 set "MAR12_JSON=Game_Mario/DATA/Mar1and2_3x3_tiles.json"
-set "EMBEDDING_DIR=Mar1and2-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%"
-set "MODEL_PATH=Mar1and2-%METHOD%%EMBEDDING_DIM%-unconditional%SEED%"
-set "SAMPLES_DIR=Mar1and2-%METHOD%%EMBEDDING_DIM%-unconditional%SEED%-samples"
+set "EMBEDDING_DIR=Mario-Mar1and2-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%"
+set "MODEL_PATH=Mario-Mar1and2-%METHOD%%EMBEDDING_DIM%-unconditional%SEED%"
+set "SAMPLES_DIR=Mario-Mar1and2-%METHOD%%EMBEDDING_DIM%-unconditional%SEED%-samples"
 
 if not exist "%MAR12_JSON%" (
     python create_tile_level_json_data.py --output "%SMB1_JSON%" --tile_size 3 --levels "..\TheVGLC\Super Mario Bros\Processed"

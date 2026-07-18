@@ -35,10 +35,10 @@ if not exist "%MAR12_JSON%" (
     python combine_data.py "%MAR12_JSON%" "%SMB1_JSON%" "%SMB2_JSON%"
 )
 
-set "EMBEDDING_DIR=Mar1and2-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%"
-set "MODEL_PATH=Mar1and2-%METHOD%%EMBEDDING_DIM%-conditional%SEED%"
-set "MLM_DIR=Mar1and2-MLM-regular%SEED%"
-set "SAMPLES_DIR=Mar1and2-%METHOD%%EMBEDDING_DIM%-conditional%SEED%-samples"
+set "EMBEDDING_DIR=Mario-Mar1and2-%METHOD%%EMBEDDING_DIM%-embeddings%SEED%"
+set "MODEL_PATH=Mario-Mar1and2-%METHOD%%EMBEDDING_DIM%-conditional%SEED%"
+set "MLM_DIR=Mario-Mar1and2-MLM-regular%SEED%"
+set "SAMPLES_DIR=Mario-Mar1and2-%METHOD%%EMBEDDING_DIM%-conditional%SEED%-samples"
 set "EVAL_ARGS=--model_path %MODEL_PATH% --save_as_json --json Game_Mario/DATA/Mar1and2_RandomTest-regular.json --random_width --width_range_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json --num_tiles=13"
 
 if not exist "%MLM_DIR%" (
