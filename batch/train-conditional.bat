@@ -17,7 +17,7 @@ if "%TYPE%"=="" set TYPE=regular
 set GAME=%4
 
 set "VALID=false"
-for %%G in (Mario LR MM-Simple MM-Full MMLV MM2 LodeRunner) do (
+for %%G in (Mario LR MM-Simple MM-Full MMLV MM2) do (
     if /I "%GAME%"=="%%~G" set "VALID=true"
 )
 
@@ -26,9 +26,6 @@ if "%VALID%"=="false" (
     echo Error: Invalid game selected.
     exit /b 1
 )
-
-REM LR easier to type, but LodeRunner reads clearer
-if "%GAME%"=="LR" set GAME=LodeRunner
 
 REM Add --describe_absence flag if TYPE is absence
 set DESCRIBE_ABSENCE_FLAG=
@@ -60,13 +57,21 @@ if exist "%TIMING_LOG%" del "%TIMING_LOG%"
 python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train-conditional start"
 
 set MLM_EPOCHS=300
-if "%GAME%"=="LodeRunner" set MLM_EPOCHS=80000
+set MLM_CHECKPOINT=20
+if "%GAME%"=="LR" (
+    REM Is 80,000 really correct?
+    set MLM_EPOCHS=80000
+    set MLM_CHECKPOINT=1000
+)
 
-python train_mlm.py --epochs %MLM_EPOCHS% --save_checkpoints --json %TRAIN_DATA% --val_json %VAL_DATA% --test_json %TEST_DATA% --pkl %TOKENIZER% --output_dir %MLM_OUTPUT% --seed %SEED%
+python train_mlm.py --epochs %MLM_EPOCHS% --checkpoint_freq %MLM_CHECKPOINT% --save_checkpoints --json %TRAIN_DATA% --val_json %VAL_DATA% --test_json %TEST_DATA% --pkl %TOKENIZER% --output_dir %MLM_OUTPUT% --seed %SEED%
 python log_timestamp.py --log_file %TIMING_LOG% --event "MLM training"
 
 set DIFFUSION_EPOCHS=500
-if "%GAME%"=="LodeRunner" set DIFFUSION_EPOCHS=3000
+if "%GAME%"=="LR" (
+    set GAME=LR
+    set DIFFUSION_EPOCHS=3000
+)
 
 python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT% --plot_validation_caption_score --seed %SEED% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --game %GAME%
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
