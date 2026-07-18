@@ -55,7 +55,7 @@ After setting up the repo with the instructions above, follow one of the links b
 - Mega Man using VGLC Data
 - Enhanced Mario Levels using Mario Maker 2 Data
 - Enhanced Mega Man Levels using Mega Man Maker Data
-- [Lode Runner using VGLC Data](Game_LodeRunner/README.md)
+- [Lode Runner using VGLC Data](Game_LR/README.md)
 
 
 

@@ -31,7 +31,7 @@ LR_WIDTH = 32
 LR_TILE_PIXEL_DIM = 8
 LR_TILE_COUNT = 8
 
-LR_TILESET = 'Game_LodeRunner/LodeRunner.json'
+LR_TILESET = 'Game_LR/LodeRunner.json'
 
 # Mega Man
 

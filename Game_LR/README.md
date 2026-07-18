@@ -25,11 +25,11 @@ the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the
 ```
 git clone https://github.com/schrum2/TheVGLC.git
 ```
-Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `Game_LodeRunner/BATCH` sub-directory in the
+Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `Game_LR/BATCH` sub-directory in the
 `MarioDiffusion` repo for Lode Runner batch files.
 ```
 cd MarioDiffusion
-cd Game_LodeRunner
+cd Game_LR
 cd BATCH
 ```
 Next, run a batch file to create datasets from the VGLC data. This batch file call will create
@@ -44,7 +44,7 @@ LR-data.bat
 ```
 Now you can browse level scenes and their captions with a command like this (the first json file can be replaced by any levels and captions json file in datasets):
 ```
-python ascii_data_browser.py Game_LodeRunner/DATA/LR_LevelsAndCaptions-regular.json LR
+python ascii_data_browser.py Game_LR/DATA/LR_LevelsAndCaptions-regular.json LR
 ```
 
 This is not required, but will give you insight into the data.
@@ -121,7 +121,7 @@ All of the levels should be playable and beatable with how Lode Runner is curren
 If the user wishes to quit playing a level, they can use the 'q' key which should close the current game window
 allowing them to reuse the data browser again:
 ```
-python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json Game_LodeRunner/LodeRunner.json
+python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json Game_LR/LodeRunner.json
 ```
 
 If the user wanted to play the levels without seeing the captions or level makeup, use the following command line. 
