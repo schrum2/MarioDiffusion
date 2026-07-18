@@ -21,6 +21,6 @@ if /I "%TYPE%"=="absence" set DESCRIBE_ABSENCE_FLAG=--describe_absence
 set UNCOND_OUTPUT=%MODEL_PATH%-unconditional-samples
 
 python run_diffusion.py --model_path %MODEL_PATH% --num_samples 100 --save_as_json --output_dir "%UNCOND_OUTPUT%-short" %DESCRIBE_ABSENCE_FLAG% --game %GAME%
-if not "%GAME%"=="LodeRunner" (
+if not "%GAME%"=="LR" (
     python run_diffusion.py --model_path %MODEL_PATH% --num_samples 100 --save_as_json --output_dir "%UNCOND_OUTPUT%-long" %DESCRIBE_ABSENCE_FLAG% --game %GAME% --level_width 128
 )
