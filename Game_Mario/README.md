@@ -385,7 +385,7 @@ The aggregated results are used to plot the following two figures:
 
 1. A bar plot of mean grouped runtimes for each model with standard error from its individual times:
 ```
-python visualize_best_model_stats.py --input training_runtimes\\mean_grouped_runtimes_plus_best.json --output total_time_with_std_err.pdf --plot_type bar --y_axis "group" --x_axis "mean" --x_axis_label "Hours to Train" --convert_time_to_hours --stacked_bar_for_mlm 
+python visualize_best_model_stats.py --input training_runtimes/mean_grouped_runtimes_plus_best.json --output total_time_with_std_err.pdf --plot_type bar --y_axis "group" --x_axis "mean" --x_axis_label "Hours to Train" --convert_time_to_hours --stacked_bar_for_mlm 
 ```
 2. A box plot of individual times by each model:
 ```
@@ -413,7 +413,7 @@ python visualize_best_model_stats.py --input best_model_info_20250618_162147.jso
 python visualize_best_model_stats.py --input best_model_info_20250618_162147.json --output best_epoch_v_best_caption_score_scatter_plot.pdf --plot_type scatter --y_axis "best_caption_score" --x_axis "best_epoch" --y_axis_label "Best Caption Score" --x_axis_label "Best Epoch" 
 ```
 
-Evaluating A* Solvability for each model using up to 100 samples from all_levels.json from each model. This returns astar_result_overall_averages.json, the average across all averages of metrics returned from all A* runs on tested levels. Returns from the following batch file are automatically plotted in plot_metrics.bat (described in the next section.)
+Evaluating A* Solvability (via simulation of the full game) for each model using up to 100 samples from all_levels.json from each model. This returns astar_result_overall_averages.json, the average across all averages of metrics returned from all A* runs on tested levels. Returns from the following batch file are automatically plotted in plot_metrics.bat (described in the next section.)
 ```
 evaluate-solvability.bat
 ```
@@ -423,15 +423,15 @@ After running this batch file, you can plot these results on their own with the 
 python evaluate_models.py --plot_file astar_result_overall_averages.json --modes real random short --metric "beaten" --plot_label "Percent Beatable Levels" --save
 ```
 
-Average minimum edit distance (amed) calculates the edit distance for each level in a levelset against a levelset. We calculate amed self, where the min edit distance is calculated for each level against the remaining levels in the set, and amed real, where the min edit distance is calculated for each level in a levelset against the entire real levelset that was used to generate the level.
+Average minimum edit distance (AMED) calculates the edit distance for each level in a level set against a level set. We calculate AMED(self), where the min edit distance is calculated for each level against the remaining levels in the set, and AMED(real), where the min edit distance is calculated for each level in a level set against the entire real level set taken from the VGLC.
 
-All amed plots and calculations - as well as broken feature generation plots - can be run like this
+All AMED plots and calculations - as well as broken feature generation plots - can be run from `Game_Mario/BATCH`:
 ```
-cd batch
+cd Game_Mario
+cd BATCH
 plot_metrics.bat
 ```
 This batch file will generate the following plots at once
-
 ```
 python evaluate_models.py --modes real random short real_full --full_metrics --metric average_min_edit_distance_from_real --plot_label "Edit Distance" --save --output_name "AMED-REAL_real(full)_real(100)_random_unconditional" --loc "best" --legend_cols 1 --errorbar
 ```
