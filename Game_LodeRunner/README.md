@@ -51,18 +51,48 @@ This is not required, but will give you insight into the data.
 
 ## Complete training and evaluation sequence
 
-
-
-
-TODO
+To train a text conditional diffusion model for Lode Runner, you should go to the batch directory first:
+```
+cd batch
+```
+Once here, you can train both a text encoder and its corresponding diffusion model back to back with a single command like this:
 ```
 train-conditional.bat 0 LR regular LodeRunner
 ```
+This is the exact same batch file used to train models for Mario, and there are only a few minor differences in the process when training a model for Lode Runner. For more details, see the batch file's contents.
+You'll see that after training, extra evaluation of the produced model is carried out.
+
+You can also train a Lode Runner model using a pre-trained text encoder instead of training your own MLM transformer.
+Here is an example:
+```
+train-conditional-pre.bat 0 LR regular LodeRunner MiniLM split
+```
+This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Lode Runner captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE` or other models mentioned in the batch file.
+
+## Generate levels from text-conditional diffusion model
+
+
+
+
+## Train unconditional diffusion models
+
+
+
+## Generate levels from unconditional model
+
+
+
+## Train Generative Adversarial Network (GAN) model
+
+
+## Generate levels from GAN
 
 
 
 
 
+
+OLD CHANGE
 
 
 To train and run an unconditional diffusion model without any text embeddings, go within the 
