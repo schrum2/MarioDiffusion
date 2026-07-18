@@ -44,7 +44,7 @@ LR-data.bat
 ```
 Now you can browse level scenes and their captions with a command like this (the first json file can be replaced by any levels and captions json file in datasets):
 ```
-python ascii_data_browser.py Game_LodeRunner/DATA/LR_LevelsAndCaptions-regular.json Game_LodeRunner/LodeRunner.json
+python ascii_data_browser.py Game_LodeRunner/DATA/LR_LevelsAndCaptions-regular.json LR
 ```
 
 This is not required, but will give you insight into the data.
