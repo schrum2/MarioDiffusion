@@ -71,7 +71,7 @@ This command trains one diffusion model that uses `MiniLM` as its text model, an
 
 ## Generate levels from text-conditional diffusion model
 
-BEFORE GOING FURTHER: Need to find out why RandomTest data contains "loose" but real data does not
+BEFORE GOING FURTHER: test out MiniLM
 
 
 ## Train unconditional diffusion models
