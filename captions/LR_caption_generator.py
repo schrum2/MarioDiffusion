@@ -48,7 +48,8 @@ class GrammarGenerator:
             #"platform": "no platforms",
             "rectangular": "no rectangular block clusters",
             "irregular": "no irregular block clusters",
-            "loose block": "no loose blocks",
+            # Not in real captions
+            #"loose block": "no loose blocks",
             "diggable ground": "no diggable ground",
             "solid ground": "no solid ground",
             "background area": "no background area",
@@ -66,7 +67,7 @@ class GrammarGenerator:
             #"platform",
             "rectangular",
             "irregular", 
-            "loose block",
+            #"loose block",
             "diggable ground",
             "solid ground",
             "background area", 
