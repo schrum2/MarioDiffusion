@@ -25,7 +25,8 @@ class GrammarGenerator:
             "rope": ["one rope", "two ropes", "several ropes", "a few ropes", "many ropes"],
             "rectangular": ["one rectangular block cluster", "two rectangular block clusters", "a few rectangular block clusters"],
             "irregular": ["one irregular block cluster", "two irregular block clusters", "a few irregular block clusters"],
-            "loose block": ["one loose block", "two loose blocks", "several loose blocks", "a few loose blocks", "many loose blocks"],
+            # Loose block detection is absent from captioning of real scenes
+            #"loose block": ["one loose block", "two loose blocks", "several loose blocks", "a few loose blocks", "many loose blocks"],
             "diggable ground": ["one diggable ground", "two diggable ground", "several diggable ground", "a few diggable ground", "many diggable ground"],
             "solid ground": ["one solid ground", "two solid ground", "several solid ground", "a few solid ground", "many solid ground"],
             "background area": ["one background area", "two background areas", "several background areas", "a few background areas", "many background areas"],
