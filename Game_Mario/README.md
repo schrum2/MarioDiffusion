@@ -268,7 +268,7 @@ train-unconditional.bat 0 Mar1and2 Mario
 
 ## Generate levels from unconditional model
 
-Just like with the text conditional model, you can get level samples from the batch file or a seperate command. The batch file still gets 2 sets of 100 samples, but the arguments are a little different
+Just like with the text conditional model, you can get level samples from the batch file or a seperate command. The batch file still generates 2 sets of 100 samples, but the arguments are a little different
 ```
 batch\run_diffusion_multi.bat Mario-Mar1and2-unconditional0 regular Mario
 ```
@@ -309,7 +309,7 @@ python run_wgan.py --model_path Mario-Mar1and2-wgan0\final_models\generator.pth 
 ```
 View the saved levels in the data browser
 ```
-python ascii_data_browser.py wgan_samples\all_levels.json
+python ascii_data_browser.py Mario-Mar1and2-wgan0-samples\all_levels.json
 ```
 Interactively evolve level scenes in the latent space of the GAN model:
 ```

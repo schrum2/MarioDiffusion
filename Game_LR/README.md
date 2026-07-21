@@ -71,21 +71,88 @@ This command trains one diffusion model that uses `MiniLM` as its text model, an
 
 ## Generate levels from text-conditional diffusion model
 
-BEFORE GOING FURTHER: test out MiniLM
+BELOW THIS NOT VERIFIED YET
 
+These options are similar to what you can do with Mario levels.
+To generate unconditional levels (not based on text embeddings), use this batch file:
+```
+batch\run_diffusion_multi.bat LR-LR-conditional-regular0 regular LR
+```
+When used with Lode Runner, this batch file makes one set of 100 samples. It is essentially just running this command:
+```
+python run_diffusion.py --model_path LR-LR-conditional-regular0 --num_samples 100 --save_as_json --output_dir LR-LR-conditional-regular0-unconditional-samples --game LR
+```
+Captions will be automatically assigned to the levels, and you can browse that data with this command:
+```
+python ascii_data_browser.py LR-LR-conditional-regular0-unconditional-samples\all_levels.json
+```
+But to actually provide captions to guide the level generation, use this command
+```
+python text_to_level_diffusion.py --model_path LR-LR-conditional-regular0 --game LR
+```
+Similarly, the GUI used with Mario can also be used with Lode Runner, like so:
+```
+python interactive_tile_level_generator.py --model_path LR-LR-conditional-regular0 --load_data Game_LR/DATA/LR_LevelsAndCaptions-regular.json --game LR
+```
+As with Mario, additional settings are recommended when working with models trained on absence captions.
+
+You can also interactively evolve level scenes in the latent space of the conditional model:
+```
+python evolve_interactive_conditional_diffusion.py --model_path LR-LR-conditional-regular0 --game LR
+```
 
 ## Train unconditional diffusion models
 
-
+To train an unconditional diffusion model without any text embeddings, run this batch file:
+```
+cd batch
+train-unconditional.bat 0 LR LR
+```
 
 ## Generate levels from unconditional model
 
-
+Just like with the text conditional model, you can get level samples from the batch file or a seperate command.
+```
+batch\run_diffusion_multi.bat LR-LR-unconditional0 regular LR
+```
+As before, to get more control, you can simply run this from the command line
+```
+python run_diffusion.py --model_path LR-LR-unconditional0 --num_samples 100 --save_as_json --output_dir LR-LR-unconditional0-unconditional-samples --game LR
+```
+View the saved levels in the data browser
+```
+python ascii_data_browser.py LR-LR-unconditional0-unconditional-samples\all_levels.json
+```
+Interactively evolve level scenes in the latent space of the unconditional model:
+```
+python evolve_interactive_unconditional_diffusion.py --model_path LR-LR-unconditional0 --game LR
+```
 
 ## Train Generative Adversarial Network (GAN) model
 
+GANs can also be trained for Lode Runner. Just use this batch file:
+```
+cd batch
+train-wgan.bat 0 LR LR
+```
 
 ## Generate levels from GAN
+
+Create samples from the final GAN with this command (assuming the batch file hasn't already)
+```
+python run_wgan.py --model_path LR-LR-wgan0\final_models\generator.pth --num_samples 100 --output_dir LR-LR-wgan0-samples --save_as_json --game LR
+```
+View the saved levels in the data browser
+```
+python ascii_data_browser.py LR-LR-wgan0-samples\all_levels.json
+```
+Interactively evolve level scenes in the latent space of the GAN model:
+```
+python evolve_interactive_wgan.py --model_path LR-LR-wgan0\final_models\generator.pth --game LR
+```
+
+## Conclusion
+
 
 
 
