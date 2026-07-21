@@ -159,29 +159,17 @@ python evolve_interactive_wgan.py --model_path LR-LR-wgan0\final_models\generato
 
 
 
-OLD CHANGE
 
 
-To train and run an unconditional diffusion model without any text embeddings, go within the 
-`LR_batch` sub-directory:
-```
-cd LR_batch
-```
-The following command trains and runs a unconditional diffusion model:
-```
-LR-unconditional.bat 0 regular
-```
 
-To train and run a conditional diffusion model without any text embeddings, go within the 
-`LR_batch` sub-directory:
-```
-cd LR_batch
-```
-The following command trains an MLM model on the Lode Runner data, trains a conditional diffusion model,
-runs the diffusion model, and evaluates the caption adherence based on the generated levels and captions:
-```
-LR-conditional.bat 0 regular
-```
+Actually, incorporate some of the instructions below into those above
+
+
+
+
+
+
+
 ## Generating and playing Lode Runner levels
 If the user wants to see the captions and play all of the original levels, use the following command line.
 All of the levels should be playable and beatable with how Lode Runner is currently played. 
