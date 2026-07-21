@@ -57,7 +57,7 @@ cd batch
 ```
 Once here, you can train both a text encoder and its corresponding diffusion model back to back with a single command like this:
 ```
-train-conditional.bat 0 LR regular LodeRunner
+train-conditional.bat 0 LR regular LR
 ```
 This is the exact same batch file used to train models for Mario, and there are only a few minor differences in the process when training a model for Lode Runner. For more details, see the batch file's contents.
 You'll see that after training, extra evaluation of the produced model is carried out.
@@ -65,7 +65,7 @@ You'll see that after training, extra evaluation of the produced model is carrie
 You can also train a Lode Runner model using a pre-trained text encoder instead of training your own MLM transformer.
 Here is an example:
 ```
-train-conditional-pre.bat 0 LR regular LodeRunner MiniLM split
+train-conditional-pre.bat 0 LR regular LR MiniLM split
 ```
 This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Lode Runner captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE` or other models mentioned in the batch file.
 
