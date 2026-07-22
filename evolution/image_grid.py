@@ -106,7 +106,7 @@ class ImageGridViewer:
         )
         self.close_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        config = get_game_config(self.args["game"])
+        config = get_game_config(self.args.game)
         if config["is_composed_playable"]:
             self.play_composed_button = tk.Button(
                 self.button_frame,
@@ -653,7 +653,7 @@ class ImageGridViewer:
             thumbnail_size = self._calculate_thumbnail_size()
             thumbnail_size = (max(100,thumbnail_size[0]), max(100,thumbnail_size[1]))
 
-            config = get_game_config(self.args["game"])
+            config = get_game_config(self.args.game)
 
             for idx, img in enumerate(self.images):
                 # Create a copy and resize for thumbnail
