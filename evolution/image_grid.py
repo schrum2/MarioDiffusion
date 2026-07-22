@@ -7,6 +7,7 @@ from util.sampler import SampleOutput
 import os
 from tkinter import filedialog
 from util.sampler import scene_to_ascii
+from util.common_settings import get_game_config
 
 """
 Handles evolution in the latent space for generating level scenes.
@@ -104,22 +105,25 @@ class ImageGridViewer:
             width=20
         )
         self.close_button.pack(side=tk.LEFT, padx=5, pady=5)
-        
-        self.play_composed_button = tk.Button(
-            self.button_frame,
-            text="Play Composed Level",
-            command=self._play_composed_level,
-            width=20
-        )
-        self.play_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.astar_composed_button = tk.Button(
-            self.button_frame,
-            text="A* Composed Level",
-            command=self._astar_composed_level,
-            width=20
-        )
-        self.astar_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
+        config = get_game_config(self.args["game"])
+        if config["is_composed_playable"]:
+            self.play_composed_button = tk.Button(
+                self.button_frame,
+                text="Play Composed Level",
+                command=self._play_composed_level,
+                width=20
+            )
+            self.play_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+            if config["is_mario"]:
+                self.astar_composed_button = tk.Button(
+                    self.button_frame,
+                    text="A* Composed Level",
+                    command=self._astar_composed_level,
+                    width=20
+                )
+                self.astar_composed_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.save_composed_button = tk.Button(
             self.button_frame,
@@ -163,13 +167,14 @@ class ImageGridViewer:
         self.move_right_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         # toggle checkbox for SNES graphics
-        self.use_snes_graphics = tk.BooleanVar(value=False)
-        self.snes_checkbox = tk.Checkbutton(
-            self.control_frame,
-            text="Use SNES Graphics",
-            variable=self.use_snes_graphics
-        )
-        self.snes_checkbox.pack(side=tk.LEFT, padx=5, pady=5)
+        if config["is_mario"]:
+            self.use_snes_graphics = tk.BooleanVar(value=False)
+            self.snes_checkbox = tk.Checkbutton(
+                self.control_frame,
+                text="Use SNES Graphics",
+                variable=self.use_snes_graphics
+            )
+            self.snes_checkbox.pack(side=tk.LEFT, padx=5, pady=5)
         
         self.allow_prompt = allow_prompt
         self.allow_negative_prompt = allow_negative_prompt
@@ -648,6 +653,8 @@ class ImageGridViewer:
             thumbnail_size = self._calculate_thumbnail_size()
             thumbnail_size = (max(100,thumbnail_size[0]), max(100,thumbnail_size[1]))
 
+            config = get_game_config(self.args["game"])
+
             for idx, img in enumerate(self.images):
                 # Create a copy and resize for thumbnail
                 thumb = img.copy()
@@ -691,21 +698,23 @@ class ImageGridViewer:
                 button_row = tk.Frame(frame)
                 button_row.pack(pady=(2, 2))
 
-                # "Play" button
-                play_button = tk.Button(
-                    button_row,
-                    text="Play",
-                    command=lambda g=self.genomes[idx]: self._play_genome(g)
-                )
-                play_button.pack(side='left', padx=(0, 5))
+                if config["supports_per_image_play"]:
+                    # "Play" button
+                    play_button = tk.Button(
+                        button_row,
+                        text="Play",
+                        command=lambda g=self.genomes[idx]: self._play_genome(g)
+                    )
+                    play_button.pack(side='left', padx=(0, 5))
 
-                # "A* Agent" button
-                astar_button = tk.Button(
-                    button_row,
-                    text="A* Agent",
-                    command=lambda g=self.genomes[idx]: self._run_astar_agent(g)
-                )
-                astar_button.pack(side='left')
+                    if config["is_mario"]:
+                        # "A* Agent" button
+                        astar_button = tk.Button(
+                            button_row,
+                            text="A* Agent",
+                            command=lambda g=self.genomes[idx]: self._run_astar_agent(g)
+                        )
+                        astar_button.pack(side='left')
 
                 # "Add To Level" button
                 add_button = tk.Button(
