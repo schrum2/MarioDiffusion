@@ -777,8 +777,7 @@ class ImageGridViewer:
     def _play_genome(self, genome):
         # level = self.get_sample_output(genome.scene)
         if self.args.game == "LR":
-            import tempfile, json
-            level = self.get_sample_output(genome.scene, use_snes_graphics=self.use_snes_graphics.get())
+            level = self.get_sample_output(genome.scene)
             #print("Level to play:", level)
             level.play(game="loderunner", level_idx=1)
         else:
