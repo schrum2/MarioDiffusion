@@ -71,8 +71,6 @@ This command trains one diffusion model that uses `MiniLM` as its text model, an
 
 ## Generate levels from text-conditional diffusion model
 
-BELOW THIS NOT VERIFIED YET
-
 These options are similar to what you can do with Mario levels.
 To generate unconditional levels (not based on text embeddings), use this batch file:
 ```
@@ -84,7 +82,7 @@ python run_diffusion.py --model_path LR-LR-conditional-regular0 --num_samples 10
 ```
 Captions will be automatically assigned to the levels, and you can browse that data with this command:
 ```
-python ascii_data_browser.py LR-LR-conditional-regular0-unconditional-samples\all_levels.json
+python ascii_data_browser.py LR-LR-conditional-regular0-unconditional-samples\all_levels.json LR
 ```
 But to actually provide captions to guide the level generation, use this command
 ```
