@@ -407,11 +407,19 @@ class TileViewer(tk.Tk):
         self.bind("<Up>", lambda e: self.prev_caption())
         self.bind("<Down>", lambda e: self.next_caption())
 
+    def _game_config(self, game=None):
+        """The common_settings config dict (tile_count, is_mario, is_megaman,
+        is_composed_playable, ...) for `game`, defaulting to the currently
+        selected game. Centralizing this means game-specific behavior below
+        reads off common_settings' flags instead of re-listing game names."""
+        return common_settings.get_game_config(game if game is not None else self.game.get())
+
     def _update_game_specific_controls(self):
         """Enable/disable UI controls that only make sense for certain games."""
-        is_mm2 = self.game.get() == "MM2"
-        is_mario = self.game.get() == "Mario"
-        is_megaman = self.game.get() in ("MM-Simple", "MM-Full", "MMLV")
+        config = self._game_config()
+        is_mario = config["is_mario"]
+        is_mm2 = config["is_mario_maker_2"]
+        is_megaman = config["is_megaman"]
 
         self.show_real_image_button.config(state=tk.NORMAL if is_mm2 else tk.DISABLED)
         if not is_mm2:
@@ -422,8 +430,9 @@ class TileViewer(tk.Tk):
         if not is_mario:
             self.use_snes_graphics.set(False)
 
-        # Mario uses the Java sim; MM2 uses the Python A* check in astar_composed_level.
-        self.astar_composed_button.config(state=tk.NORMAL if (is_mario or is_mm2) else tk.DISABLED)
+        # Mario and MM2 are the two games with a composed-level A* checker
+        # (Mario via the Java sim, MM2 via the Python astar/ check).
+        self.astar_composed_button.config(state=tk.NORMAL if config["is_composed_playable"] else tk.DISABLED)
         self.build_mm_level_button.config(state=tk.NORMAL if is_megaman else tk.DISABLED)
 
     # -----------------------------------------------------------------
@@ -597,14 +606,10 @@ class TileViewer(tk.Tk):
             image = self._astar_overlay_image(sample['scene'])
 
         if image is None:
-            num_classes = {
-                "Mario": common_settings.MARIO_TILE_COUNT,
-                "LR": common_settings.LR_TILE_COUNT,
-                "MM-Simple": common_settings.MM_SIMPLE_TILE_COUNT,
-                "MMLV": common_settings.MMLV_TILE_COUNT,
-                "MM-Full": common_settings.MM_FULL_TILE_COUNT,
-                "MM2": common_settings.MM2_TILE_COUNT,
-            }.get(self.game.get(), len(self.id_to_char))  # fallback: size from the tileset
+            try:
+                num_classes = self._game_config()["tile_count"]
+            except ValueError:
+                num_classes = len(self.id_to_char)  # fallback: size from the tileset
 
             one_hot_scene = torch.nn.functional.one_hot(
                 torch.tensor(sample['scene'], dtype=torch.long), num_classes=num_classes
@@ -843,11 +848,10 @@ class TileViewer(tk.Tk):
             print(f"Could not import A* path tools: {e}")
             return None
 
-        game = self.game.get()   # "Mario" / "MM2" / "LR" / "MM-Simple" / "MM-Full"
-        trav_game = {"Mario": "Mario", "MM2": "MM2", "LR": "LR",
-                     "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MM"}.get(game)
-        if trav_game is None:
-            return None
+        # All three Mega Man variants (Simple/Full/Maker) share one traversability
+        # target name, "MM"; every other game uses its own render_name as-is.
+        config = self._game_config()
+        trav_game = "MM" if config["is_megaman"] else config["render_name"]
         try:
             ok, stats, info = evaluate(trav_game, scene, self.id_to_char,
                                        self.tile_descriptors, 100000, False, visualize=True)
@@ -871,7 +875,7 @@ class TileViewer(tk.Tk):
         from astar_traversability_check import astar_path_image
 
         game_name = self.game.get()
-        if game_name not in ("Mario", "LR", "MM-Simple", "MM-Full", "MMLV"):
+        if self._game_config(game_name)["is_mario_maker_2"]:  # astar_path_image has no MM2 support
             return None, False, {}
         return astar_path_image(scene, game_name, self.id_to_char, self.tile_descriptors, spawn=spawn, orb=orb)
 
@@ -958,14 +962,15 @@ class TileViewer(tk.Tk):
         if not self.dataset:
             return
         sample = self.dataset[self.current_sample_idx]
+        config = self._game_config()
 
-        if self.game.get() == "LR":
+        if config["is_lode_runner"]:
             caption, details = lr_assign_caption(
                 sample['scene'], self.id_to_char, self.char_to_id, self.tile_descriptors,
                 describe_locations=False, describe_absence=self.describe_absence.get(),
                 debug=True, return_details=True
             )
-        elif self.game.get() in ("MM-Full", "MM-Simple", "MMLV"):
+        elif config["is_megaman"]:
             # Use the entrance/exit direction data baked into the sample itself
             # (populated by create_megaman_json_data.py when run with
             # --direction_captions), instead of parsing it back out of the
@@ -976,13 +981,13 @@ class TileViewer(tk.Tk):
                 describe_locations=False, describe_absence=self.describe_absence.get(),
                 data=data, debug=True, return_details=True
             )
-        elif self.game.get() == "Mario":
+        elif config["is_mario"]:
             caption, details = assign_caption(
                 sample['scene'], self.id_to_char, self.char_to_id, self.tile_descriptors,
                 describe_locations=False, describe_absence=self.describe_absence.get(),
                 debug=True, return_details=True
             )
-        elif self.game.get() == "MM2":
+        elif config["is_mario_maker_2"]:
             # Code from interactive_tile_level_generator.
             _, _, ground_chars = get_tile_categories(self.tileset_path)
             char_names = get_char_names(self.tileset_path)
@@ -1104,7 +1109,7 @@ class TileViewer(tk.Tk):
     def _update_mmlv_button(self, sample):
         """Show the 'Play in Mega Man Maker' button only when the current game
         is a Mega Man variant and the current sample carries an 'mmlvID' field."""
-        is_mm_game = self.game.get() in ("MM-Simple", "MM-Full", "MMLV")
+        is_mm_game = self._game_config()["is_megaman"]
         mmlv_id = sample.get('mmlvID') if isinstance(sample, dict) else None
         if is_mm_game and mmlv_id is not None:
             if not self.play_mmlv_button.winfo_ismapped():
@@ -1250,7 +1255,7 @@ class TileViewer(tk.Tk):
         )
 
     def open_megaman_layout_editor(self):
-        if self.game.get() not in ("MM-Simple", "MM-Full", "MMLV"):
+        if not self._game_config()["is_megaman"]:
             messagebox.showinfo("Mega Man only", "Switch the game dropdown to a Mega Man mode to use this tool.")
             return
         if not self.added_sample_indexes:
@@ -1308,16 +1313,17 @@ class TileViewer(tk.Tk):
     # 10. Playback & export
     # -----------------------------------------------------------------
     def get_sample_output(self, scene, use_snes_graphics=False):
-        if self.game.get() == 'LR':
+        config = self._game_config()
+        if not config["supports_per_image_play"]:
+            # No Java simulator for MM2 or the Mega Man variants (they use the Python A* path).
+            raise ValueError(f"get_sample_output: no simulator for game {self.game.get()!r}")
+        if config["is_lode_runner"]:
             level = SampleOutput(level=scene, use_snes_graphics=use_snes_graphics)
-        elif self.game.get() == 'Mario':
+        else:  # Mario, the only other supports_per_image_play game
             if use_snes_graphics is None:
                 use_snes_graphics = self.use_snes_graphics.get()
             char_grid = scene_to_ascii(scene, self.id_to_char)
             level = SampleOutput(level=char_grid, use_snes_graphics=use_snes_graphics)
-        else:
-            # No Java simulator for MM2 or the Mega Man variants (they use the Python A* path).
-            raise ValueError(f"get_sample_output: no simulator for game {self.game.get()!r}")
         return level
 
     def play_composed_level(self):
