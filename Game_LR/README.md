@@ -62,12 +62,23 @@ train-conditional.bat 0 LR regular LR
 This is the exact same batch file used to train models for Mario, and there are only a few minor differences in the process when training a model for Lode Runner. For more details, see the batch file's contents.
 You'll see that after training, extra evaluation of the produced model is carried out.
 
+The core training steps that occur in the batch file are the training of the text encoder and the diffusion model.
+Masked language modeling is used to train the text embedding model. 
+The following command line will train a text embedding model based on the Lode Runner data created before:
+```
+python train_mlm.py --epochs 80000 --save_checkpoints --json Game_LR\DATA\LR_LevelsAndCaptions-regular-train.json --val_json Game_LR\DATA\LR_LevelsAndCaptions-regular-validate.json --test_json Game_LR\DATA\LR_LevelsAndCaptions-regular-test.json --pkl Game_LR\DATA\LR_Tokenizer-regular.pkl --output_dir LR-LR-MLM-regular0 --seed 0
+```
+After training the text embedding model, you can train a diffusion model conditioned on text embeddings from the descriptive captions:
+```
+python train_diffusion.py --augment --text_conditional --output_dir "LR-LR-conditional-regular0" --num_epochs 3000 --json Game_LR\DATA\LR_LevelsAndCaptions-regular-train.json --val_json Game_LR\DATA\LR_LevelsAndCaptions-regular-validate.json --pkl Game_LR\DATA\LR_Tokenizer-regular.pkl --mlm_model_dir LR-LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
+```
 You can also train a Lode Runner model using a pre-trained text encoder instead of training your own MLM transformer.
-Here is an example:
+Here is the easy way to launch the training and evaluation with a batch file:
 ```
 train-conditional-pre.bat 0 LR regular LR MiniLM split
 ```
 This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Lode Runner captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE` or other models mentioned in the batch file.
+You can also use the `train_diffusion.py` script directly to train a model however you like.
 
 ## Generate levels from text-conditional diffusion model
 
@@ -119,7 +130,7 @@ python run_diffusion.py --model_path LR-LR-unconditional0 --num_samples 100 --sa
 ```
 View the saved levels in the data browser
 ```
-python ascii_data_browser.py LR-LR-unconditional0-unconditional-samples\all_levels.json
+python ascii_data_browser.py LR-LR-unconditional0-unconditional-samples\all_levels.json LR
 ```
 Interactively evolve level scenes in the latent space of the unconditional model:
 ```
@@ -142,204 +153,24 @@ python run_wgan.py --model_path LR-LR-wgan0\final_models\generator.pth --num_sam
 ```
 View the saved levels in the data browser
 ```
-python ascii_data_browser.py LR-LR-wgan0-samples\all_levels.json
+python ascii_data_browser.py LR-LR-wgan0-samples\all_levels.json LR
 ```
 Interactively evolve level scenes in the latent space of the GAN model:
 ```
 python evolve_interactive_wgan.py --model_path LR-LR-wgan0\final_models\generator.pth --game LR
 ```
 
-## Conclusion
+## Citation
 
+The results with Lode Runner are admittedly less impressive than our results in Mario, which is part of the reason they have not yet appeared in any of our publications. The Lode Runner dataset is smaller, more varied, and harder to adequately describe with deterministically assigned captions. Still, if our code is in some way useful to you, then you could still cite this repo:
 
-
-
-
-
-
-
-
-
-Actually, incorporate some of the instructions below into those above
-
-
-
-
-
-
-
-## Generating and playing Lode Runner levels
-If the user wants to see the captions and play all of the original levels, use the following command line.
-All of the levels should be playable and beatable with how Lode Runner is currently played. 
-If the user wishes to quit playing a level, they can use the 'q' key which should close the current game window
-allowing them to reuse the data browser again:
-```
-python ascii_data_browser.py datasets\LR_LevelsAndCaptions-regular.json Game_LR/LodeRunner.json
-```
-
-If the user wanted to play the levels without seeing the captions or level makeup, use the following command line. 
-The following line allows the user to play the first level. If the user wants to play a different level, change the 1 to the level they wish to play. Must be in the MarioDiffusion directory to play:
-```
-python -m loderunner.main datasets\LR_LevelsAndCaptions-regular.json 1
-```
-
-But to actually provide captions to guide the level generation, use this command:
-```
-python text_to_level_diffusion.py --model_path LR-conditional-regular0 --game LR
-```
-
-An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on:
-```
-python interactive_tile_level_generator.py --load_data datasets\LR_LevelsAndCaptions-regular.json --model_path LR-conditional-regular0 --game LR 
-```
-
-## Train text encoder
-
-Masked language modeling is used to train the text embedding model. Use whatever dataset you like with an appropriate tokenizer. It is recommended to supply the validation and test datasets of the same type as well, though it is optional, and only used for evaluation.
-
-The following command line will train a text embedding model based on the Lode Runner data created before:
-```
-python train_mlm.py --epochs 80000 --save_checkpoints --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --test_json datasets\LR_LevelsAndCaptions-regular-test.json --pkl datasets\LR_Tokenizer-regular.pkl --output_dir LR-MLM-regular0 --seed 0
-```
-A report evaluating the accuracy of the final model on the training data is provided after training, but you can repeat a similar evaluation with this command:
-```
-python evaluate_masked_token_prediction.py --model_path LR-MLM-regular0 --json datasets\LR_LevelsAndCaptions-regular-train.json
-```
-You can also see how the accuracy on the training set changes throughout training by evaluating all checkpoints with this command:
-```
-python evaluate_masked_token_prediction.py --model_path LR-MLM-regular0 --json datasets\LR_LevelsAndCaptions-regular-train.json --compare_checkpoints
-```
-To see accuracy on the validation set over time instead, run this command:
-```
-python evaluate_masked_token_prediction.py --model_path LR-MLM-regular0 --compare_checkpoints --json datasets\LR_LevelsAndCaptions-regular-validate.json
-```
-
-## Train text-conditional diffusion model
-
-Now that the text embedding model is ready, train a diffusion model conditioned on text embeddings from the descriptive captions. Note that this can take a while:
-```
-python train_diffusion.py --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 3000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
-```
-Another trick if you care more about speed than seeing intermediate results is to set `--save_image_epochs` to a large number (larger than the number of epochs), like this
-```
-python train_diffusion.py --save_image_epochs 10000 --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 3000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
-```
-You can also train with negative prompting by adding an additional flag like this
-```
-python train_diffusion.py --save_image_epochs 20 --augment --text_conditional --output_dir "LR-conditional-regular0" --num_epochs 3000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --pkl datasets\LR_Tokenizer-regular.pkl --mlm_model_dir LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR --negative_prompt_training
-```
-You can also use this batch file which will train the text embedding model, train a conditional diffusion model,
-and generate unconditional levels not based on text embeddings:
-```
-cd LR-batch
-LR-train-conditional.bat 0  
-```
-
-## Generate levels from text-conditional diffusion model
-
-To generate unconditional levels (not based on text embeddings), use this command line:
-```
-python run_diffusion.py --model_path LR-conditional-regular0 --num_samples 100 --text_conditional --save_as_json --output_dir "LR-conditional-regular0-unconditional-samples" --game LR
-```
-Captions will be automatically assigned to the levels, and you can browse that data with this command:
-```
-python ascii_data_browser.py LR-conditional-regular0-unconditional-samples\all_levels.json
-```
-But to actually provide captions to guide the level generation, use this command
-```
-python text_to_level_diffusion.py --model_path LR-conditional-regular0 --game LR
-```
-An easier-to-use GUI interface will let you select and combine known caption phrases to send to the model. Note that the selection of known phrases needs to come from the dataset you trained on.
-```
-python interactive_tile_level_generator.py --model_path LR-conditional-regular0 --load_data datasets/LR_LevelsAndCaptions-regular.json --game LR
-```
-Interactively evolve level scenes in the latent space of the conditional model:
-```
-python evolve_interactive_conditional_diffusion.py --model_path LR-conditional-regular0 --game LR
-```
-
-## Train unconditional diffusion model
-
-To train an unconditional diffusion model without any text embeddings, run this command:
-```
-python train_diffusion.py --augment --output_dir "LR-unconditional0" --num_epochs 3000 --json datasets\LR_LevelsAndCaptions-regular-train.json --val_json datasets\LR_LevelsAndCaptions-regular-validate.json --seed 0 --game LR
-```
-You can also use this batch file which will train an unconditional diffusion model and generate unconditional 
-levels not based on text embeddings:
-```
-cd LR-batch
-LR-train-unconditional.bat 0  
-```
-
-## Generate levels from unconditional model
-
-To generate 100 unseen Lode Runner samples, you can simply run this once from the command line:
-```
-python run_diffusion.py --model_path LR-unconditional0 --num_samples 100 --save_as_json --output_dir LR-unconditional0-unconditional-samples
-```
-View the saved levels in the data browser:
-```
-python ascii_data_browser.py LR-unconditional0-unconditional-samples\all_levels.json
-```
-Interactively evolve level scenes in the latent space of the unconditional model:
-```
-python evolve_interactive_unconditional_diffusion.py --model_path LR-unconditional0 --game LR
-```
-
-## Train Generative Adversarial Network (GAN) model
-
-GANs are an older technology, but they can also be trained to generate levels:
-```
-python train_wgan.py --augment --json datasets\LR_LevelsAndCaptions-regular.json --num_epochs 20000 --nz 10 --output_dir "LR-wgan0" --seed 0 --save_image_epochs 20 --game LR
-```
-Just like with the diffusion model, you can save a little bit of time by cutting out intermediate results like this
-```
-python train_wgan.py --augment --json datasets\LR_LevelsAndCaptions-regular.json --num_epochs 20000 --nz 10 --output_dir "LR-wgan0" --seed 0 --save_image_epochs 100000 --game LR
-
-```
-You can also use the batch file instead (this will also generate levels with the wgan):
-```
-cd LR-batch
-train-wgan.bat 0 
-```
-
-## Generate levels from GAN
-
-Create samples from the final GAN with this command (assuming the batch file hasn't already)
-```
-python run_wgan.py --model_path "LR-wgan0\final_models\generator.pth" --num_samples 100 --output_dir "LR-wgan0-samples" --save_as_json --game LR --nz 10
-```
-View the saved levels in the data browser
-```
-python ascii_data_browser.py LR-wgan_samples\all_levels.json
-```
-Interactively evolve level scenes in the latent space of the GAN model:
-```
-python evolve_interactive_wgan.py --model_path LR-wgan0\final_models\generator.pth --game LR --nz 10
-```
-
-## Batch folder and files with Lode Runner
-Batch folder that contains all batch files associated with Lode Runner:
-```
-cd LR_batch
-```
-
-Batch file that created regular and absence data associated with Lode Runner:
-```
-LR-data.bat
-```
-
-Batch file that fully trains and runs a unconditional diffusion model for Lode Runner (as long as the file do not exist):
-```
-LR-unconditional.bat
-```
-
-Batch file that fully trains and runs a conditional diffusion model for Lode Runner (as long as the file do not exist):
-```
-LR-conditional.bat
-```
-
-Batch file that fully trains and runs a wgan model for Lode Runner (as long as the file do not exist):
-```
-LR-train-wgan.bat
+```bibtex
+@misc{schrum:loderunnerdiffusion,
+  author       = {Schrum, Jacob and Williams, Reid},
+  title        = {Lode Runner Diffusion},
+  year         = {2025},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\url{https://github.com/schrum2/MarioDiffusion/tree/main/Game_LR}}
+}
 ```
