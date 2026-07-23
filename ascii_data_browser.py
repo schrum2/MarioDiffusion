@@ -506,58 +506,6 @@ class TileViewer(tk.Tk):
             color_map[tile_id] = color
         return color_map
 
-    # Model loading / scene-regeneration never worked reliably; kept commented in case it's revived.
-    # def load_model(self):
-    #     """Load a trained diffusion model."""
-    #     model_path = filedialog.askdirectory(title="Select Model Directory")
-    #     if model_path:
-    #         try:
-    #             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #             self.pipeline = get_pipeline(model_path).to(self.device)
-    #             print(f"Model loaded from {model_path}")
-    #             self.generate_button.config(state=tk.NORMAL)  # Enable the generate button
-    #             self.steps_entry.config(state=tk.NORMAL)  # Enable the steps entry
-    #         except Exception as e:
-    #             print(f"Error loading model: {e}")
-    #             self.generate_button.config(state=tk.DISABLED)
-    #             self.steps_entry.config(state=tk.DISABLED)
-    #
-    # def generate_from_scene(self):
-    #     """Generate a new level from the current scene using the loaded model."""
-    #     if not hasattr(self, 'pipeline') or not self.pipeline:
-    #         print("No model loaded.")
-    #         return
-    #     if not self.dataset:
-    #         print("No dataset loaded.")
-    #         return
-    #     try:
-    #         num_steps = int(self.steps_entry.get())
-    #         if num_steps <= 0:
-    #             raise ValueError("Steps must be positive")
-    #     except ValueError as e:
-    #         print(f"Invalid step count: {e}")
-    #         self.steps_entry.delete(0, tk.END)
-    #         self.steps_entry.insert(0, "50")
-    #         num_steps = common_settings.NUM_INFERENCE_STEPS
-    #     sample = self.dataset[self.current_sample_idx]
-    #     input_scene = torch.tensor(sample['scene'], device=self.device)
-    #     try:
-    #         output = self.pipeline(
-    #             batch_size=1,
-    #             input_scene=input_scene,
-    #             num_inference_steps=num_steps,
-    #             guidance_scale=common_settings.GUIDANCE_SCALE,
-    #             height=len(input_scene),
-    #             width=len(input_scene[0])
-    #         )
-    #         print(f"Generated new level from scene using {num_steps} steps.")
-    #         generated_image = visualize_samples(output.images, game=self.game.get())
-    #         if isinstance(generated_image, list):
-    #             generated_image = generated_image[0]
-    #         generated_image.show()
-    #     except Exception as e:
-    #         print(f"Error during generation: {e}")
-
     # -----------------------------------------------------------------
     # 5. Rendering (main canvas)
     # -----------------------------------------------------------------
