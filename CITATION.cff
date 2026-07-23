@@ -1,4 +1,6 @@
 cff-version: 1.2.0
+version: 1.0.0-arXiv-july2025
+date-released: 2025-07-12
 title: MarioDiffusion
 message: >
   If you use this software, please cite the accompanying AIIDE 2025 paper.
