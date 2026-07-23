@@ -170,7 +170,7 @@ The results with Lode Runner are admittedly less impressive than our results in 
   title        = {Lode Runner Diffusion},
   year         = {2025},
   publisher    = {GitHub},
-  journal      = {GitHub repository},
-  howpublished = {\url{https://github.com/schrum2/MarioDiffusion/tree/main/Game_LR}}
+  howpublished = {\url{https://github.com/schrum2/MarioDiffusion}},
+  note         = {Lode Runner code in the MarioDiffusion repository}
 }
 ```

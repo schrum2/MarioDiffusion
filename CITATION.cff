@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+title: MarioDiffusion
+message: >
+  If you use this software, please cite the accompanying AIIDE 2025 paper.
+type: software
+
+authors:
+  - family-names: Schrum
+    given-names: Jacob
+    orcid: "https://orcid.org/0000-0002-7315-0515"
+  - family-names: Kilday
+    given-names: Olivia
+  - family-names: Salas
+    given-names: Emilio
+  - family-names: Hagan
+    given-names: Bess
+  - family-names: Williams
+    given-names: Reid
+
+repository-code: https://github.com/schrum2/MarioDiffusion
+
+preferred-citation:
+  type: article
+  title: Text-to-Level Diffusion Models with Various Text Encoders for Super Mario Bros
+  authors:
+    - family-names: Schrum
+      given-names: Jacob
+      orcid: "https://orcid.org/0000-0002-7315-0515"
+    - family-names: Kilday
+      given-names: Olivia
+    - family-names: Salas
+      given-names: Emilio
+    - family-names: Hagan
+      given-names: Bess
+    - family-names: Williams
+      given-names: Reid
+  journal: Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment
+  year: 2025
+  volume: 21
+  issue: 1
+  start: 110
+  end: 120
+  doi: 10.1609/aiide.v21i1.36815
+  url: https://ojs.aaai.org/index.php/AIIDE/article/view/36815
