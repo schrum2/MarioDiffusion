@@ -1,10 +1,11 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 from PIL import Image, ImageTk, PngImagePlugin
 from math import ceil, sqrt
 import re
 from util.sampler import SampleOutput
 import os
+import sys
 from tkinter import filedialog
 from util.sampler import scene_to_ascii
 from util.common_settings import get_game_config
@@ -35,8 +36,10 @@ class ImageGridViewer:
         self.selected_composed_index = None
 
         self.args = args
-        
-        self.id_to_char = None # Will come later
+
+        self.id_to_char = None  # Will come later
+        self.char_to_id = None  # Will come later
+        self.tile_descriptors = None  # Will come later
 
         # Initial window sizing
         screen_width = root.winfo_screenwidth()
@@ -165,6 +168,18 @@ class ImageGridViewer:
             width=12
         )
         self.move_right_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # "Build Mega Man Level" opens the free-form MegaManLayoutEditor on the scenes
+        # accumulated via "Add To Level". Only meaningful for the Mega Man variants,
+        # same gating TileViewer uses (config["is_megaman"]) in ascii_data_browser.py.
+        if config["is_megaman"]:
+            self.build_mm_level_button = tk.Button(
+                self.button_frame,
+                text="Build Mega Man Level",
+                command=self._open_megaman_layout_editor,
+                width=20
+            )
+            self.build_mm_level_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         # toggle checkbox for SNES graphics
         if config["is_mario"]:
@@ -869,3 +884,89 @@ class ImageGridViewer:
             self.back_fn()
 
         self.update_back_button_status()
+
+    # ------------------------------------------------------------------
+    # Mega Man layout editor support
+    #
+    # MegaManLayoutEditor's docstring specifies the "app" object it needs:
+    # composed_scenes, composed_thumbnails, _render_scene_image(scene),
+    # edit_composed_scene(idx, extra_on_save=None), _astar_path_for_scene(...),
+    # id_to_char, char_to_id. composed_scenes/composed_thumbnails already exist
+    # above; the rest is added here, mirroring ascii_data_browser.py's TileViewer.
+    # ------------------------------------------------------------------
+
+    def _render_scene_image(self, scene):
+        """Render a tile-ID scene to a PIL image for the currently selected game."""
+        import torch
+        from level_dataset import visualize_samples
+
+        config = get_game_config(self.args.game)
+        num_classes = config["tile_count"]
+        one_hot = torch.nn.functional.one_hot(
+            torch.tensor(scene, dtype=torch.long), num_classes=num_classes
+        ).float().permute(2, 0, 1).unsqueeze(0)
+        pil_img = visualize_samples(one_hot, game=self.args.game)
+        return pil_img[0] if isinstance(pil_img, list) else pil_img
+
+    def edit_composed_scene(self, idx, extra_on_save=None):
+        """Open the LevelEditor for a scene in the composed-level strip.
+
+        Writes the edit back into self.composed_scenes[idx] directly (unlike
+        TileViewer, this viewer stores composed scenes as actual scene grids
+        rather than dataset indexes) and refreshes that thumbnail in place.
+        extra_on_save, if given, is called with the updated scene afterward --
+        used by MegaManLayoutEditor to refresh its own grid render."""
+        from MegaManLayoutEditor import LevelEditor
+
+        scene = self.composed_scenes[idx]
+        editor_window = tk.Toplevel(self.root)
+        editor_window.title("Level Editor")
+
+        def on_save(updated_scene):
+            self.composed_scenes[idx] = updated_scene
+
+            img = self._render_scene_image(updated_scene)
+            thumb = img.copy()
+            thumb.thumbnail((64, 64), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(thumb)
+            self.composed_thumbnails[idx] = photo  # prevent GC
+            label = self.composed_thumbnail_labels[idx]
+            label.config(image=photo)
+            label.image = photo
+
+            if extra_on_save:
+                extra_on_save(updated_scene)
+
+        LevelEditor(
+            editor_window, scene, self.id_to_char, self.char_to_id,
+            self.tile_descriptors, self.args.game, on_save=on_save
+        )
+
+    def _astar_path_for_scene(self, scene, spawn=None, orb=None):
+        """Run A* on a single scene and return (pil_image_or_None, solved, stats).
+        Shared by MegaManLayoutEditor's 'Show A* Path' button. spawn/orb are MM-only
+        optional (x, y) cells (the user's placed spawn/exit markers)."""
+        # This file lives in evolution/, one level below the repo root where the
+        # astar/ package sits -- go up one directory from ascii_data_browser.py's
+        # equivalent lookup.
+        astar_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "astar"
+        )
+        if astar_dir not in sys.path:
+            sys.path.insert(0, astar_dir)
+        from astar_traversability_check import astar_path_image
+
+        if get_game_config(self.args.game)["is_mario_maker_2"]:  # astar_path_image has no MM2 support
+            return None, False, {}
+        return astar_path_image(scene, self.args.game, self.id_to_char, self.tile_descriptors, spawn=spawn, orb=orb)
+
+    def _open_megaman_layout_editor(self):
+        from MegaManLayoutEditor import MegaManLayoutEditor
+
+        if not self.composed_scenes:
+            messagebox.showinfo(
+                "No scenes yet",
+                "Use 'Add To Level' on one or more images first, then open this tool to arrange them."
+            )
+            return
+        MegaManLayoutEditor(self.root, self)
