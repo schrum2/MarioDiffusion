@@ -520,41 +520,86 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
 
-def detect_edge_walls(scene, wall_ids, ceiling_row=2, floor_row=15, max_passable_gap=1):
+def detect_edge_walls(scene, wall_ids, ladder_ids=None, enemy_ids=None, ceiling_row=2, floor_row=15):
     """
-    Detects if there is an effective 'left wall' or 'right wall' blocking horizontal travel.
+    Detects 'left wall', 'perforated left wall', 'right wall', or 'perforated right wall'.
     
-    A wall exists along an edge if, across the 3 outermost columns on that side,
-    there are no contiguous vertical gaps taller than `max_passable_gap` (default 1 tile)
-    between `ceiling_row` and `floor_row`.
-    
-    Returns a tuple of (has_left_wall, left_coords, has_right_wall, right_coords).
+    1. Solid Wall: A single flood-filled component of solid blocks confined to the 
+       3 outermost columns spans continuously from `ceiling_row` to `floor_row`.
+    2. Perforated Wall: The 3-column boundary cannot complete a continuous flood fill,
+       but contains NO contiguous vertical gaps >= 2 tiles tall.
+    3. Not a wall: Any vertical gap >= 2 tiles tall exists in the boundary zone.
     """
+    if ladder_ids is None:
+        ladder_ids = []
+    if enemy_ids is None:
+        enemy_ids = []
+
     height = len(scene)
     width = len(scene[0]) if height > 0 else 0
-    
-    # We evaluate from the top of the playable area to the floor
-    start_y = ceiling_row
-    end_y = floor_row
+    wall_set = set(wall_ids)
 
-    def check_side_wall(col_indices):
-        """
-        Checks if a set of columns (e.g., [0, 1, 2]) collectively forms 
-        an impassable vertical barrier without gaps > max_passable_gap.
-        """
-        collected_coords = set()
+    def evaluate_side(col_indices):
+        valid_cols = set(col_indices)
         
-        # Track for each row in the playable span whether ANY tile in col_indices is solid
-        row_has_solid = []
-        for y in range(start_y, end_y + 1):
-            solid_in_row = False
-            for x in col_indices:
-                if scene[y][x] in wall_ids:
-                    solid_in_row = True
-                    collected_coords.add((y, x))
-            row_has_solid.append(solid_in_row)
+        # --- Pass 1: Flood Fill Check for Solid Wall ---
+        # Collect all solid blocks in the 3-column boundary strip within playable rows
+        solid_nodes = {
+            (r, c) for r in range(ceiling_row, floor_row + 1)
+            for c in col_indices if scene[r][c] in wall_set
+        }
 
-        # Count max contiguous non-solid rows across this boundary strip
+        visited = set()
+        solid_wall_coords = set()
+        is_solid_wall = False
+
+        for start_node in solid_nodes:
+            if start_node in visited or start_node[0] != ceiling_row:
+                continue
+
+            # BFS / Flood fill confined to valid_cols and playable row range
+            queue = [start_node]
+            component = {start_node}
+            visited.add(start_node)
+            reaches_bottom = False
+
+            while queue:
+                curr_r, curr_c = queue.pop(0)
+                if curr_r == floor_row:
+                    reaches_bottom = True
+
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nr, nc = curr_r + dr, curr_c + dc
+                    neighbor = (nr, nc)
+                    if (ceiling_row <= nr <= floor_row and 
+                        nc in valid_cols and 
+                        neighbor in solid_nodes and 
+                        neighbor not in visited):
+                        
+                        visited.add(neighbor)
+                        component.add(neighbor)
+                        queue.append(neighbor)
+
+            if reaches_bottom:
+                is_solid_wall = True
+                solid_wall_coords.update(component)
+
+        if is_solid_wall:
+            return "solid", solid_wall_coords
+
+        # --- Pass 2: Perforated Wall Check ---
+        # Scan row-by-row to ensure max gap height <= 1 tile
+        perforated_coords = set()
+        row_has_solid = []
+
+        for r in range(ceiling_row, floor_row + 1):
+            has_solid = False
+            for c in col_indices:
+                if scene[r][c] in wall_set:
+                    has_solid = True
+                    perforated_coords.add((r, c))
+            row_has_solid.append(has_solid)
+
         max_gap = 0
         current_gap = 0
         for has_solid in row_has_solid:
@@ -564,17 +609,19 @@ def detect_edge_walls(scene, wall_ids, ceiling_row=2, floor_row=15, max_passable
             else:
                 current_gap = 0
 
-        # If the largest gap is <= max_passable_gap (e.g. 1 tile high), it's effectively a wall
-        is_wall = (max_gap <= max_passable_gap)
-        return is_wall, collected_coords
+        # Gaps of 1 are perforated walls; gaps >= 2 mean Mega Man can walk through (no wall)
+        if max_gap <= 1:
+            return "perforated", perforated_coords
+
+        return "none", set()
 
     left_cols = [0, 1, 2]
-    right_cols = [width - 3, width - 2, width - 1]
+    right_cols = [width - 1, width - 2, width - 3]
 
-    has_left, left_coords = check_side_wall(left_cols)
-    has_right, right_coords = check_side_wall(right_cols)
+    left_type, left_coords = evaluate_side(left_cols)
+    right_type, right_coords = evaluate_side(right_cols)
 
-    return has_left, left_coords, has_right, right_coords
+    return left_type, left_coords, right_type, right_coords
 
 def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, data=None, debug=False, return_details=False):
     """Assigns a caption to a level scene based on its contents."""
@@ -678,17 +725,28 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # --- Edge Wall Detection ---
     # Assumes the ceiling is on row 2, which works for 16x16 scenes but not for larger ones.
-    has_left_wall, left_wall_coords, has_right_wall, right_wall_coords = detect_edge_walls(
-        scene, wall_ids, ceiling_row=ceiling_row if ceiling_row else 2, floor_row=floor_row, max_passable_gap=1
+    left_type, left_wall_coords, right_type, right_wall_coords = detect_edge_walls(
+        scene,
+        wall_ids,
+        ladder_ids=ladder_ids,
+        enemy_ids=enemy_ids,
+        ceiling_row=ceiling_row if ceiling_row else 2, # TODO: Generalize
+        floor_row=floor_row
     )
 
-    if has_left_wall:
+    # Format Left Wall Caption
+    if left_type == "solid":
         add_to_caption(" left wall.", list(left_wall_coords))
+    elif left_type == "perforated":
+        add_to_caption(" perforated left wall.", list(left_wall_coords))
     elif describe_absence:
         add_to_caption(" no left wall.", [])
-    
-    if has_right_wall:
+
+    # Format Right Wall Caption
+    if right_type == "solid":
         add_to_caption(" right wall.", list(right_wall_coords))
+    elif right_type == "perforated":
+        add_to_caption(" perforated right wall.", list(right_wall_coords))
     elif describe_absence:
         add_to_caption(" no right wall.", [])
         
