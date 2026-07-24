@@ -90,6 +90,69 @@ You can also use the `train_diffusion.py` script directly to train a model howev
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+## Generate levels from text-conditional diffusion model
+
+These options are similar to what you can do with Mario levels.
+To generate unconditional levels (not based on text embeddings), use this batch file:
+```
+batch\run_diffusion_multi.bat MM-Simple-MM-Simple-conditional-regular0 regular MM-Simple
+```
+This creates both small and long level samples. Creating small unconditional level scenes can be done with this command:
+```
+python run_diffusion.py --model_path MM-Simple-MM-Simple-conditional-regular0 --num_samples 100 --save_as_json --output_dir MM-Simple-MM-Simple-conditional-regular0-unconditional-samples --game MM-Simple
+```
+Captions will be automatically assigned to the levels, and you can browse that data with this command:
+```
+python ascii_data_browser.py MM-Simple-MM-Simple-conditional-regular0-unconditional-samples\all_levels.json MM-Simple
+```
+But to actually provide captions to guide the level generation, use this command
+```
+python text_to_level_diffusion.py --model_path MM-Simple-MM-Simple-conditional-regular0 --game MM-Simple
+```
+Similarly, the GUI used with Mario can also be used with Mega Man, like so:
+```
+python interactive_tile_level_generator.py --model_path MM-Simple-MM-Simple-conditional-regular0 --load_data Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular.json --game MM-Simple
+```
+However, there are some new options here that are specific to Mega Man. If you add several generated level scenes
+to a constructed level, you can then click the button to Arrange a Mega Man level, which will bring up a 2D grid
+layout where you can layout the scenes into a complete level. 
+
+![ArrangeMegaManMap.png](Building Mega Man Level)
+
+You can even choose to play this constructed level
+in [Mega Man Maker](https://megamanmaker.com/) if you have it installed.
+
+You can also interactively evolve level scenes in the latent space of the conditional model:
+```
+python evolve_interactive_conditional_diffusion.py --model_path MM-Simple-MM-Simple-conditional-regular0 --game MM-Simple
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 CHANGE BELOW THIS
 
 
