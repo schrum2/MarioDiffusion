@@ -15,10 +15,6 @@ from models.pipeline_loader import get_pipeline
 class TextDiffusionEvolver(Evolver):
     def __init__(self, model_path, width, tileset_path=common_settings.MARIO_TILESET, args = None):
         Evolver.__init__(self, args)
-        # args = parse_args()
-        # if args.tileset_path != "":
-        #     tileset_path = args.tileset_path
-        #print("tile path:", tileset_path)
         self.args = args
         self.width = width
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
