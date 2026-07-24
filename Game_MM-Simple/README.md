@@ -77,13 +77,12 @@ CHANGE BELOW THIS
 
 
 
-## Set up the repository
 
-```
-git clone https://github.com/schrum2/MarioDiffusion.git
-cd MarioDiffusion
-pip install -r requirements.txt
-```
+
+
+
+
+
 
 ## Automatic Single-Level Download
 
@@ -242,50 +241,22 @@ MegaManMaker.bat
 
 ## Alternate workflow: full dataset from TheVGLC
 
-You will need to check out [my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC), cloned next to `MarioDiffusion`:
-```
-cd ..
-git clone https://github.com/schrum2/TheVGLC.git
-cd MarioDiffusion
-```
 
-Create the raw 16x16 level samples, captions, and tokenizers for both sub-games:
-```
-python create_megaman_json_data.py --output datasets\MM_Levels-full.json
-python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --group_encodings
 
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-full.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-full-regular.json
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset Game_MM-Simple/MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
 
-python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-full-regular.json --pkl_file datasets\MM_Tokenizer-full-regular.pkl
-python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
-```
-```
-python create_random_test_captions.py --save_file datasets\MM_RandomTest-full-regular.json --json datasets\MM_LevelsAndCaptions-full-regular.json --seed 0 --game MM-Full
-```
 
-```
-python create_random_test_captions.py --save_file datasets\MM_RandomTest-simple-regular.json --json datasets\MM_LevelsAndCaptions-simple-regular.json --seed 0 --game MM-Simple
-```
 
-```
-python split_data.py --json_file datasets\MM_LevelsAndCaptions-full-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game mm-full
-```
 
-```
-python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game mm-simple
-```
 
-All of this can be done with this batch file:
-```
-cd MM_Batch
-MM-data.bat
-```
 
-Browse level scenes and their captions:
-```
-python ascii_data_browser.py datasets\MM_LevelsAndCaptions-full-regular.json datasets\MM.json
-```
+
+
+
+
+
+
+
+
 
 Train an unconditional diffusion model without any text embeddings:
 
