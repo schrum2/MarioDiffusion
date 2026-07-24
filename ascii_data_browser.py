@@ -104,6 +104,10 @@ class TileViewer(tk.Tk):
         self.selected_thumb_idx = None
         self.current_pil_image = None   # last-rendered PIL image, for "Save Image As"
 
+        # --- filter state ---------------------------------------------
+        self.filter_text = ""
+        self.filtered_indexes = None    # None = no filter active; else list of matching dataset indices
+
         # --- sizing: everything below is derived from screen size so the
         # window (and the grid inside it) scales sensibly on any monitor,
         # and _fit_window_to_screen (called at the end of __init__) makes
@@ -248,14 +252,18 @@ class TileViewer(tk.Tk):
         self.next_caption_button = tk.Button(caption_nav_frame, text="Next >>", command=self.next_caption)
         self.next_caption_button.pack(side=tk.LEFT, padx=2)
 
+        # --- Row holding the caption text box and the substring filter -----
+        caption_row_frame = tk.Frame(caption_area)
+        caption_row_frame.pack(pady=2)
+
         # insertontime=0 hides the blinking caret so clicking looks like
         # selecting text rather than entering an edit field; takefocus=0
         # keeps it out of Tab traversal.
         self.caption_text = tk.Text(
-            caption_area, height=3, width=int(self.window_size / 8), wrap=tk.WORD,
+            caption_row_frame, height=3, width=int(self.window_size / 8), wrap=tk.WORD,
             insertontime=0, takefocus=0
         )
-        self.caption_text.pack(pady=2)
+        self.caption_text.pack(side=tk.LEFT, pady=2)
         self.caption_text.tag_configure("center", justify="center")
         # Read-only but still selectable/copyable: block edits, not selection/copy.
         self.caption_text.bind("<Key>", lambda e: "break")
@@ -276,6 +284,19 @@ class TileViewer(tk.Tk):
         self.caption_context_menu.add_command(label="Copy", command=self.copy_caption_text)
         self.caption_text.bind("<Button-3>", self.show_caption_context_menu)
         self.caption_text.bind("<Control-Button-1>", self.show_caption_context_menu)  # macOS
+
+        # --- Substring filter: restricts navigation to samples whose displayed
+        # caption/attribute text contains this text. Sits to the right of the
+        # caption box.
+        filter_frame = tk.Frame(caption_row_frame)
+        filter_frame.pack(side=tk.LEFT, padx=(10, 0), anchor="n")
+        tk.Label(filter_frame, text="Filter").pack(anchor=tk.W)
+        self.filter_var = tk.StringVar()
+        self.filter_entry = tk.Entry(filter_frame, textvariable=self.filter_var, width=18)
+        self.filter_entry.pack(anchor=tk.W)
+        self.filter_entry.bind("<Return>", self.apply_filter)
+        self.clear_filter_button = tk.Button(filter_frame, text="Clear", command=self.clear_filter)
+        self.clear_filter_button.pack(anchor=tk.W, pady=(2, 0))
 
         # Holds the prompt/caption toggle button below the caption box.
         self.caption_cycle_frame = tk.Frame(root)
@@ -367,6 +388,49 @@ class TileViewer(tk.Tk):
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", on_game_select)
         self._update_game_specific_controls()
+
+    def apply_filter(self, event=None):
+        """Restrict sample navigation to samples whose currently-displayed
+        caption/attribute text contains the filter text as a substring."""
+        filter_text = self.filter_var.get().strip()
+        self.filter_text = filter_text
+
+        if not filter_text:
+            self.filtered_indexes = None
+            self.redraw()
+            return
+
+        needle = filter_text.lower()
+        self.filtered_indexes = [
+            i for i, sample in enumerate(self.dataset)
+            if needle in self._get_sample_display_text(sample).lower()
+        ]
+
+        if not self.filtered_indexes:
+            messagebox.showinfo("No matches", f"No samples match filter: {filter_text!r}")
+            self.filtered_indexes = None
+            return
+
+        if self.current_sample_idx not in self.filtered_indexes:
+            self.current_sample_idx = self.filtered_indexes[0]
+        self.current_caption_idx = 0
+        self.redraw()
+
+    def clear_filter(self):
+        self.filter_var.set("")
+        self.filter_text = ""
+        self.filtered_indexes = None
+        self.redraw()
+
+    def _get_sample_display_text(self, sample):
+        """The text that would appear in self.caption_text for `sample`, using
+        the currently-selected attribute at its first value (index 0) -- this
+        mirrors current_caption_idx being reset to 0 whenever a sample is
+        navigated to, so filtering matches what the user would actually see."""
+        if isinstance(sample, list):
+            sample = {"scene": sample, "caption": "No caption available."}
+        values = self._selected_values(sample)
+        return str(values[0]) if values else ""
 
     def _on_mousewheel(self, event):
         """Scroll the outer container. Handles Windows/macOS (<MouseWheel>,
@@ -497,6 +561,10 @@ class TileViewer(tk.Tk):
             # Start the new dataset at the first sample and its first caption.
             self.current_sample_idx = 0
             self.current_caption_idx = 0
+            self.filter_text = ""
+            self.filtered_indexes = None
+            if hasattr(self, "filter_var"):
+                self.filter_var.set("")
             self.redraw()
         except Exception as e:
             print(f"Error loading files: {e}")
@@ -558,7 +626,15 @@ class TileViewer(tk.Tk):
 
         self._draw_caption_box(sample, phrase_colors)
 
-        self.sample_label.config(text=f"Sample: {self.current_sample_idx + 1} / {len(self.dataset)}")
+        if self.filtered_indexes is not None:
+            pos = (self.filtered_indexes.index(self.current_sample_idx) + 1
+                   if self.current_sample_idx in self.filtered_indexes else 0)
+            self.sample_label.config(
+                text=f"Sample: {pos} / {len(self.filtered_indexes)} (filtered, {len(self.dataset)} total)"
+            )
+        else:
+            self.sample_label.config(text=f"Sample: {self.current_sample_idx + 1} / {len(self.dataset)}")
+
         self.title(f"Tile Dataset Viewer - Sample {self.current_sample_idx + 1} / {len(self.dataset)}")
 
     def _build_phrase_colors(self, sample):
@@ -1023,13 +1099,31 @@ class TileViewer(tk.Tk):
     # 7. Sample navigation
     # -----------------------------------------------------------------
     def prev_sample(self):
-        if self.current_sample_idx > 0:
+        if self.filtered_indexes is not None:
+            if self.current_sample_idx in self.filtered_indexes:
+                pos = self.filtered_indexes.index(self.current_sample_idx)
+            else:
+                pos = 0
+            if pos > 0:
+                self.current_sample_idx = self.filtered_indexes[pos - 1]
+                self.current_caption_idx = 0
+                self.redraw()
+        elif self.current_sample_idx > 0:
             self.current_sample_idx -= 1
             self.current_caption_idx = 0
             self.redraw()
 
     def next_sample(self):
-        if self.current_sample_idx < len(self.dataset) - 1:
+        if self.filtered_indexes is not None:
+            if self.current_sample_idx in self.filtered_indexes:
+                pos = self.filtered_indexes.index(self.current_sample_idx)
+            else:
+                pos = -1
+            if pos < len(self.filtered_indexes) - 1:
+                self.current_sample_idx = self.filtered_indexes[pos + 1]
+                self.current_caption_idx = 0
+                self.redraw()
+        elif self.current_sample_idx < len(self.dataset) - 1:
             self.current_sample_idx += 1
             self.current_caption_idx = 0
             self.redraw()
