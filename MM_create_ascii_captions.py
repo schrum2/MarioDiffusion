@@ -520,33 +520,61 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
 
-def find_walls(scene, wall_ids, min_height=4):
+def detect_edge_walls(scene, wall_ids, ceiling_row=2, floor_row=15, max_passable_gap=1):
+    """
+    Detects if there is an effective 'left wall' or 'right wall' blocking horizontal travel.
+    
+    A wall exists along an edge if, across the 3 outermost columns on that side,
+    there are no contiguous vertical gaps taller than `max_passable_gap` (default 1 tile)
+    between `ceiling_row` and `floor_row`.
+    
+    Returns a tuple of (has_left_wall, left_coords, has_right_wall, right_coords).
+    """
     height = len(scene)
-    width = len(scene[0])
-    wall_coords = set()
+    width = len(scene[0]) if height > 0 else 0
+    
+    # We evaluate from the top of the playable area to the floor
+    start_y = ceiling_row
+    end_y = floor_row
 
-    for x in range(width):
-        # First collect ALL solid tiles in this column
-        full_col_coords = []
-        max_run = 0
-        run = 0
+    def check_side_wall(col_indices):
+        """
+        Checks if a set of columns (e.g., [0, 1, 2]) collectively forms 
+        an impassable vertical barrier without gaps > max_passable_gap.
+        """
+        collected_coords = set()
+        
+        # Track for each row in the playable span whether ANY tile in col_indices is solid
+        row_has_solid = []
+        for y in range(start_y, end_y + 1):
+            solid_in_row = False
+            for x in col_indices:
+                if scene[y][x] in wall_ids:
+                    solid_in_row = True
+                    collected_coords.add((y, x))
+            row_has_solid.append(solid_in_row)
 
-        for y in range(height):
-            if scene[y][x] in wall_ids:
-                run += 1
-                full_col_coords.append((y, x))
+        # Count max contiguous non-solid rows across this boundary strip
+        max_gap = 0
+        current_gap = 0
+        for has_solid in row_has_solid:
+            if not has_solid:
+                current_gap += 1
+                max_gap = max(max_gap, current_gap)
             else:
-                run = 0
-            max_run = max(max_run, run)
+                current_gap = 0
 
-        if max_run >= min_height:
-            left_solid = x > 0 and any(scene[r][x-1] in wall_ids for r, c in full_col_coords)
-            right_solid = x < width - 1 and any(scene[r][x+1] in wall_ids for r, c in full_col_coords)
+        # If the largest gap is <= max_passable_gap (e.g. 1 tile high), it's effectively a wall
+        is_wall = (max_gap <= max_passable_gap)
+        return is_wall, collected_coords
 
-            if not left_solid and not right_solid:
-                wall_coords.update(full_col_coords)
+    left_cols = [0, 1, 2]
+    right_cols = [width - 3, width - 2, width - 1]
 
-    return wall_coords
+    has_left, left_coords = check_side_wall(left_cols)
+    has_right, right_coords = check_side_wall(right_cols)
+
+    return has_left, left_coords, has_right, right_coords
 
 def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence, data=None, debug=False, return_details=False):
     """Assigns a caption to a level scene based on its contents."""
@@ -647,15 +675,23 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     )
     already_accounted.update(floor_tiles)
     add_to_caption(floor_phrase, floor_tiles)
-    wall_coords = find_walls(scene, wall_ids)
-    wall_count = len({x for _, x in wall_coords})  # count distinct columns
 
-    if wall_count > 0:
-        add_to_caption(
-            f" {describe_quantity(wall_count) if coarse_counts else wall_count} wall{'s' if wall_count != 1 else ''}.",
-            list(wall_coords) 
-        )
+    # --- Edge Wall Detection ---
+    # Assumes the ceiling is on row 2, which works for 16x16 scenes but not for larger ones.
+    has_left_wall, left_wall_coords, has_right_wall, right_wall_coords = detect_edge_walls(
+        scene, wall_ids, ceiling_row=ceiling_row if ceiling_row else 2, floor_row=floor_row, max_passable_gap=1
+    )
 
+    if has_left_wall:
+        add_to_caption(" left wall.", list(left_wall_coords))
+    elif describe_absence:
+        add_to_caption(" no left wall.", [])
+    
+    if has_right_wall:
+        add_to_caption(" right wall.", list(right_wall_coords))
+    elif describe_absence:
+        add_to_caption(" no right wall.", [])
+        
     # Platforms
     # Count moving platforms
     moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="moving", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[ceiling_row, floor_row])
