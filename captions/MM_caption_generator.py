@@ -29,11 +29,13 @@ class GrammarGenerator:
                 "ceiling with two gaps",
                 "ceiling with a few gaps",
             ],
-            "wall": [
-                "one wall",
-                "two walls",
-                "a few walls",
-                "several walls",
+            "left wall": [
+                "left wall",
+                "perforated left wall",
+            ],
+            "right wall": [
+                "right wall",
+                "perforated right wall",
             ],
             "enem": [
                 "one enemy",
@@ -136,7 +138,8 @@ class GrammarGenerator:
         self.absence_phrases = {
             "floor": "no floor",
             "ceiling": "no ceiling",
-            "wall": "no walls",
+            "left wall": "no left wall",
+            "right wall": "no right wall",
             "enem": "no enemies",
             "powerup": "no powerups",
             "hazard": "no hazards",
@@ -156,7 +159,8 @@ class GrammarGenerator:
         self.topic_keywords = [
             "floor",
             "ceiling",
-            "wall",
+            "left wall",
+            "right wall",
             "enem",
             "powerup",
             "hazard",
