@@ -520,17 +520,16 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
 
-def detect_edge_walls(scene, wall_ids, ladder_ids, enemy_ids, ceiling_row=2, floor_row=15):
+def detect_edge_walls(scene, wall_ids, ceiling_row=2, floor_row=15):
     """
     Detects 'left wall', 'perforated left wall', 'right wall', or 'perforated right wall'.
     
-    1. Solid Wall: A single flood-filled component of solid blocks confined to the 
+    1. Solid Wall: A SINGLE flood-filled component of solid blocks within the 
        3 outermost columns spans continuously from `ceiling_row` to `floor_row`.
-    2. Perforated Wall: The 3-column boundary cannot complete a continuous flood fill,
-       but contains NO contiguous vertical gaps >= 2 tiles tall.
-    3. Not a wall: Any vertical gap >= 2 tiles tall exists in the boundary zone.
+    2. Perforated Wall: No single flood-filled shape spans top-to-bottom, but 
+       there are NO contiguous vertical gaps >= 2 tiles tall across the 3 boundary columns.
+    3. None: Any vertical gap >= 2 tiles tall exists across all 3 columns.
     """
-
     height = len(scene)
     width = len(scene[0]) if height > 0 else 0
     wall_set = set(wall_ids)
@@ -538,29 +537,30 @@ def detect_edge_walls(scene, wall_ids, ladder_ids, enemy_ids, ceiling_row=2, flo
     def evaluate_side(col_indices):
         valid_cols = set(col_indices)
         
-        # --- Pass 1: Flood Fill Check for Solid Wall ---
         # Collect all solid blocks in the 3-column boundary strip within playable rows
         solid_nodes = {
             (r, c) for r in range(ceiling_row, floor_row + 1)
             for c in col_indices if scene[r][c] in wall_set
         }
 
+        # --- Pass 1: Check for a SINGLE Flood-Filled Shape from Top to Bottom ---
         visited = set()
-        solid_wall_coords = set()
-        is_solid_wall = False
-
         for start_node in solid_nodes:
-            if start_node in visited or start_node[0] != ceiling_row:
+            if start_node in visited:
                 continue
 
-            # BFS / Flood fill confined to valid_cols and playable row range
+            # BFS / Flood Fill for a SINGLE component
             queue = [start_node]
             component = {start_node}
             visited.add(start_node)
+            
+            reaches_top = False
             reaches_bottom = False
 
             while queue:
                 curr_r, curr_c = queue.pop(0)
+                if curr_r == ceiling_row:
+                    reaches_top = True
                 if curr_r == floor_row:
                     reaches_bottom = True
 
@@ -576,15 +576,12 @@ def detect_edge_walls(scene, wall_ids, ladder_ids, enemy_ids, ceiling_row=2, flo
                         component.add(neighbor)
                         queue.append(neighbor)
 
-            if reaches_bottom:
-                is_solid_wall = True
-                solid_wall_coords.update(component)
-
-        if is_solid_wall:
-            return "solid", solid_wall_coords
+            # If this SINGLE connected component spans from top to bottom, it's a solid wall
+            if reaches_top and reaches_bottom:
+                return "solid", component
 
         # --- Pass 2: Perforated Wall Check ---
-        # Scan row-by-row to ensure max gap height <= 1 tile
+        # If no single connected shape spans top-to-bottom, evaluate vertical gaps row-by-row
         perforated_coords = set()
         row_has_solid = []
 
@@ -596,6 +593,7 @@ def detect_edge_walls(scene, wall_ids, ladder_ids, enemy_ids, ceiling_row=2, flo
                     perforated_coords.add((r, c))
             row_has_solid.append(has_solid)
 
+        # Calculate max contiguous vertical gap (rows without any solid tile)
         max_gap = 0
         current_gap = 0
         for has_solid in row_has_solid:
@@ -605,7 +603,7 @@ def detect_edge_walls(scene, wall_ids, ladder_ids, enemy_ids, ceiling_row=2, flo
             else:
                 current_gap = 0
 
-        # Gaps of 1 are perforated walls; gaps >= 2 mean Mega Man can walk through (no wall)
+        # Gaps <= 1 tile qualify as a perforated wall; gaps >= 2 tiles allow passage (no wall)
         if max_gap <= 1:
             return "perforated", perforated_coords
 
@@ -724,8 +722,6 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     left_type, left_wall_coords, right_type, right_wall_coords = detect_edge_walls(
         scene,
         wall_ids,
-        ladder_ids=ladder_ids,
-        enemy_ids=enemy_ids,
         ceiling_row=ceiling_row if ceiling_row else 2, # TODO: Generalize
         floor_row=floor_row
     )
@@ -745,7 +741,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         add_to_caption(" perforated right wall.", list(right_wall_coords))
     elif describe_absence:
         add_to_caption(" no right wall.", [])
-        
+
     # Platforms
     # Count moving platforms
     moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="moving", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[ceiling_row, floor_row])
