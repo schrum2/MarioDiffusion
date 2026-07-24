@@ -46,7 +46,6 @@ Now you can browse level scenes and their captions with a command like this (the
 ```
 python ascii_data_browser.py Game_LR/DATA/LR_LevelsAndCaptions-regular.json LR
 ```
-
 This is not required, but will give you insight into the data.
 
 ## Complete training and evaluation sequence

@@ -1,7 +1,81 @@
-# Mega Man Generation
+# Mega Man Diffusion
 
 Generate Mega Man level scenes with a diffusion model conditioned on text input.
-This Mega Man data is still experimental and on-going and the current results are not as good as the Mario levels and outputs. This mostly has to do with a smaller, more complex dataset, as well as incomplete code. Many features present in other games have not yet been implemented, but the core of the training and level generation works as intended.
+These instructions focus on using VGLC data to train a diffusion model to create Mega Man levels. The tileset used is simplified in a manner similar to the Mario Diffusion results, where all enemies map to a single common tile. Therefore, the complexity of the tileset is comparable to Mario, but Mega Man levels are a bit more complex because they progress not only from left to right, but sometimes vertically as well.
+This code will allow you to train a diffusion model that generates Mega Man scenes, and combine them into levels that are playable in [Mega Man Maker](https://megamanmaker.com/).
+These instructions assume you have followed the basic setup instructions in the main [README](../README.md) first.
+
+## Batch Files
+
+Our code was developed on Windows machines, so we have made extensive use of batch files for convenience. However, these will not work on Linux/Mac systems. The Python scripts that are called from these batch files should work on any system, though this has not been fully tested. The instructions below describe how to use the batch files and certain Python scripts, but you can look in the batch files to execute individual commands as needed.
+
+## Create datasets
+
+Data for training Mega Man models 
+is not in the repo, but it can easily be constructed using
+data from [my forked copy of TheVGLC](https://github.com/schrum2/TheVGLC).
+Note that the following
+command should be executed in the parent directory of the `MarioDiffusion` repository so that
+the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the same directory:
+```
+git clone https://github.com/schrum2/TheVGLC.git
+```
+Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `Game_MM-Simple/BATCH` sub-directory in the
+`MarioDiffusion` repo for Lode Runner batch files.
+```
+cd MarioDiffusion
+cd Game_MM-Simple
+cd BATCH
+```
+Next, run a batch file to create datasets from the VGLC data. This batch file call will create
+a json data set of level scenes from Mega Man 1 levels in the VGLC data. Note that the  
+top 2 rows of each scene are filled with blank space to extend
+the height from 14 to 16, which is suitable for the diffusion
+models we train.
+Afterwards, the batch file will create captions for the dataset, a tokenizer for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. 
+Run this command:
+```
+MM-Simple-data.bat
+```
+Now you can browse level scenes and their captions with a command like this (the first json file can be replaced by any levels and captions json file in datasets):
+```
+python ascii_data_browser.py Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular.json MM-Simple
+```
+This is not required, but will give you insight into the data.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CHANGE BELOW THIS
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Set up the repository
 
