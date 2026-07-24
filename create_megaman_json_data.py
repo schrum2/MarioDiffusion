@@ -433,7 +433,7 @@ def main():
     wall_chars = [key for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
     
     if args.group_encodings:
-        tile_to_id, id_to_char = create_tile_to_id(args.tileset, tile_descriptors, new_tileset_dir=os.path.dirname(args.output))
+        tile_to_id, id_to_char = create_tile_to_id(args.tileset, tile_descriptors)
 
     # Strip the spawn/exit markers, and remap their chars to the air id unless --keep_spawn_exit
     # find_start still scans the raw 'P' char, so spawn detection is unaffected
