@@ -520,7 +520,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations, desc
     with open(output_path, "w") as f:
         json.dump(captioned_dataset, f, indent=4)
 
-def detect_edge_walls(scene, wall_ids, ladder_ids=None, enemy_ids=None, ceiling_row=2, floor_row=15):
+def detect_edge_walls(scene, wall_ids, ladder_ids, enemy_ids, ceiling_row=2, floor_row=15):
     """
     Detects 'left wall', 'perforated left wall', 'right wall', or 'perforated right wall'.
     
@@ -530,10 +530,6 @@ def detect_edge_walls(scene, wall_ids, ladder_ids=None, enemy_ids=None, ceiling_
        but contains NO contiguous vertical gaps >= 2 tiles tall.
     3. Not a wall: Any vertical gap >= 2 tiles tall exists in the boundary zone.
     """
-    if ladder_ids is None:
-        ladder_ids = []
-    if enemy_ids is None:
-        enemy_ids = []
 
     height = len(scene)
     width = len(scene[0]) if height > 0 else 0
