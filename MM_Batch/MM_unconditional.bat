@@ -22,7 +22,7 @@ python log_timestamp.py --log_file %TIMING_LOG% --status start --event "MM_uncon
 python create_megaman_json_data.py --output datasets\MM-simple_Levels%width_suffix%.json --target_height %height% --target_width %width% --group_encodings
 python log_timestamp.py --log_file %TIMING_LOG% --event "raw level sampling to JSON"
 
-python MM_create_ascii_captions.py --dataset datasets\MM-simple_Levels%width_suffix%.json --tileset Game_MM-Simple/MM-simple-tileset.json --output datasets\MM-simple_LevelsAndCaptions%width_suffix%-regular.json
+python MM_create_ascii_captions.py --dataset datasets\MM-simple_Levels%width_suffix%.json --tileset Game_MM-Simple/MM-Simple-tileset.json --output datasets\MM-simple_LevelsAndCaptions%width_suffix%-regular.json
 python log_timestamp.py --log_file %TIMING_LOG% --event "ASCII captioning"
 
 python tokenizer.py save --json_file datasets\MM-simple_LevelsAndCaptions%width_suffix%-regular.json --pkl_file datasets\MM_Tokenizer-simple%width_suffix%-regular.pkl

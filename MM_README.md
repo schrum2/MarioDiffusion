@@ -181,7 +181,7 @@ python create_megaman_json_data.py --output datasets\MM_Levels-full.json
 python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --group_encodings
 
 python MM_create_ascii_captions.py --dataset datasets\MM_Levels-full.json --tileset datasets\MM.json --output datasets\MM_LevelsAndCaptions-full-regular.json
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset Game_MM-Simple/MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset Game_MM-Simple/MM-Simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
 
 python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-full-regular.json --pkl_file datasets\MM_Tokenizer-full-regular.pkl
 python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
@@ -275,7 +275,7 @@ python run_diffusion.py --model_path MM_conditional_simple_regular0 --num_sample
 
 Browse:
 ```
-python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.json Game_MM-Simple/MM-simple-tileset.json
+python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.json Game_MM-Simple/MM-Simple-tileset.json
 ```
 
 For the full tileset, swap `MM-Simple` with `MM-Full` and point to the appropriate model and tileset.
@@ -294,7 +294,7 @@ Manual steps:
 
 Slice the VGLC levels into 3x3 tile windows for embedding training:
 ```
-python create_tile_level_json_data.py --tileset Game_MM-Simple/MM-simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
+python create_tile_level_json_data.py --tileset Game_MM-Simple/MM-Simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
 ```
 
 Train the block2vec embedding model on those windows:
@@ -327,7 +327,7 @@ python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --gro
 
 Generate captions for those samples:
 ```
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset Game_MM-Simple/MM-simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
+python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset Game_MM-Simple/MM-Simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
 ```
 
 Build the tokenizer:
@@ -352,7 +352,7 @@ python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAnd
 
 Slice the VGLC levels into 3x3 tile windows for embedding training:
 ```
-python create_tile_level_json_data.py --tileset Game_MM-Simple/MM-simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
+python create_tile_level_json_data.py --tileset Game_MM-Simple/MM-Simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
 ```
 
 Train the block2vec embedding model on those windows:

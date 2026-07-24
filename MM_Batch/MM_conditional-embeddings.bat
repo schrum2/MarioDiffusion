@@ -22,7 +22,7 @@ if "%WINDOW_SIZE%"=="" set WINDOW_SIZE=3
 if /I "%VARIANT%"=="simple" (
     set "DATASET_INFIX=simple"
     set "GAME=MM-Simple"
-    set "MM_TILESET=Game_MM-Simple/MM-simple-tileset.json"
+    set "MM_TILESET=Game_MM-Simple/MM-Simple-tileset.json"
     set "MM_LEVELS=..\TheVGLC\MegaMan\Enhanced"
     set "MM_CHAR_MAP=datasets\MM-VGLC-to-simple.json"
     set "NUM_TILES=13"

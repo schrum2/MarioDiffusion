@@ -9,7 +9,7 @@ set default_out=Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions
 python create_megaman_json_data.py --output Game_MM-Simple/DATA/MM-Simple_Levels.json --group_encodings --direction_captions --no_filter
 
 :: Generate captions for Mega Man
-python MM_create_ascii_captions.py --dataset Game_MM-Simple/DATA/MM-Simple_Levels.json --tileset Game_MM-Simple/MM-simple-tileset.json --output %default_out%-regular.json
+python MM_create_ascii_captions.py --dataset Game_MM-Simple/DATA/MM-Simple_Levels.json --tileset Game_MM-Simple/MM-Simple-tileset.json --output %default_out%-regular.json
 
 :: Tokenize Mega Man data
 python tokenizer.py save --json_file %default_out%-regular.json --pkl_file Game_MM-Simple/DATA/MM-Simple_Tokenizer-regular.pkl

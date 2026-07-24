@@ -229,8 +229,8 @@ GAME_SETTINGS = {
         "tileset_we": os.path.join(_DATASETS_DIR, "MM.json"),
     },
     "MM-simple": {
-        "tileset": os.path.join(_DATASETS_DIR, "MM-simple-tileset.json"),
-        "tileset_we": os.path.join(_DATASETS_DIR, "MM-simple-tileset.json"),
+        "tileset": os.path.join(_DATASETS_DIR, "MM-Simple-tileset.json"),
+        "tileset_we": os.path.join(_DATASETS_DIR, "MM-Simple-tileset.json"),
     },
     "MMLV": {
         "tileset": os.path.join(_DATASETS_DIR, "MMLV.json"),

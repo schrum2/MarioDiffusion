@@ -177,7 +177,7 @@ def extract_tileset(tileset_path):
         #print(f"tileset: {tileset}")
 
         #If the tileset file carries an explicit tile_to_id mapping (written by
-        #create_tile_to_id for grouped/simplified tilesets like MM-simple-tileset.json),
+        #create_tile_to_id for grouped/simplified tilesets like MM-Simple-tileset.json),
         #use it directly. Those ids come from a custom grouping+append order that does NOT
         #match alphabetical/insertion order of the "tiles" keys, so re-deriving ids by
         #enumerating tile_chars would silently produce a different (wrong) mapping than the

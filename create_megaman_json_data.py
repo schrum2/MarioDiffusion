@@ -108,7 +108,11 @@ class Direction(Enum):
         
         return True #Base case, fires if we're not out of bounds, there's no null ahead, and optionally there's no wall blocking us
 
-def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'datasets', group_enemies = True, group_powerups = True, group_empty_tiles = True):
+# I'm a bit annoyed that this is called every time. It seems to filter down
+# the full tileset to a simplified one, but I already have the simplified tileset
+# saved. However, the VGLC data uses the full tileset, so some parts of this
+# might still be needed? Note sure.
+def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'Game_MM-Simple', group_enemies = True, group_powerups = True, group_empty_tiles = True):
     with open(tileset_path, "r") as f:
         tileset = json.load(f)
         tile_chars = sorted(tileset['tiles'].keys())
@@ -153,7 +157,7 @@ def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'dataset
         #Create a new tileset to match these tiles. We also persist the *actual* id
         #assignment order used to encode scene data, since sort_keys=True below alphabetizes
         #the "tiles" section for human readability and no longer reflects the real ids.
-        output = os.path.join(new_tileset_dir, "MM-simple-tileset.json")
+        output = os.path.join(new_tileset_dir, "MM-Simple-tileset.json")
         tile_dict = {tile: sorted(list(tile_descriptors.get(tile))) for tile in tile_to_id}
         tile_dict = {"tiles" : tile_dict, "tile_to_id": dict(tile_to_id)}
         with open(output, 'w') as f:
