@@ -35,11 +35,17 @@ if /I "%TYPE%"=="absence" set DESCRIBE_ABSENCE_FLAG=--describe_absence
 
 REM Accept model type as argument (MiniLM or GTE)
 set MODEL=%5
+set MODEL_NAME=
 if /I "%MODEL%"=="" set MODEL=MiniLM
 if /I "%MODEL%"=="MiniLM" set MODEL_NAME=sentence-transformers/multi-qa-MiniLM-L6-cos-v1
 if /I "%MODEL%"=="GTE" set MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
 if /I "%MODEL%"=="CLIP" set MODEL_NAME=sentence-transformers/clip-ViT-L-14
 if /I "%MODEL%"=="T5" set MODEL_NAME=google/t5-v1_1-base
+
+if "%MODEL_NAME%"=="" (
+    echo Error: Unrecognized model '%MODEL%'.
+    exit /b 1
+)
 
 set SPLIT=%6
 
