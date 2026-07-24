@@ -6,7 +6,7 @@ cd ..
 set default_out=Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions
 
 :: Convert Mega Man raw level data to JSON
-python create_megaman_json_data.py --output Game_MM-Simple/DATA/MM-Simple_Levels.json --group_encodings --direction_captions --include_moving_ground
+python create_megaman_json_data.py --output Game_MM-Simple/DATA/MM-Simple_Levels.json --group_encodings --direction_captions --no_filter
 
 :: Generate captions for Mega Man
 python MM_create_ascii_captions.py --dataset Game_MM-Simple/DATA/MM-Simple_Levels.json --tileset Game_MM-Simple/MM-simple-tileset.json --output %default_out%-regular.json
