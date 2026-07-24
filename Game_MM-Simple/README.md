@@ -43,6 +43,38 @@ python ascii_data_browser.py Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-reg
 ```
 This is not required, but will give you insight into the data.
 
+## Complete training and evaluation sequence
+
+To train a text conditional diffusion model for the simplified Mega Man tileset, you should go to the batch directory first:
+```
+cd batch
+```
+Once here, you can train both a text encoder and its corresponding diffusion model back to back with a single command like this:
+```
+train-conditional.bat 0 MM-Simple regular MM-Simple
+```
+This is the exact same batch file used to train models for Mario.
+You'll see that after training, extra evaluation of the produced model is carried out.
+
+The core training steps that occur in the batch file are the training of the text encoder and the diffusion model.
+Masked language modeling is used to train the text embedding model. 
+The following command line will train a text embedding model based on the Lode Runner data created before:
+```
+python train_mlm.py --epochs 300 --save_checkpoints --json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-train.json --val_json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-validate.json --test_json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-test.json --pkl Game_MM-Simple/DATA/MM-Simple_Tokenizer-regular.pkl --output_dir MM-Simple-MM-Simple-MLM-regular0 --seed 0
+```
+After training the text embedding model, you can train a diffusion model conditioned on text embeddings from the descriptive captions:
+```
+python train_diffusion.py --save_image_epochs 20 --text_conditional --output_dir MM-Simple-MM-Simple-conditional-regular0 --num_epochs 500 --json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-train.json --val_json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-validate.json --pkl Game_MM-Simple/DATA/MM-Simple_Tokenizer-regular.pkl --mlm_model_dir MM-Simple-MM-Simple-MLM-regular0 --plot_validation_caption_score --seed 0
+```
+You can also train a Mega Man model using a pre-trained text encoder instead of training your own MLM transformer.
+Here is the easy way to launch the training and evaluation with a batch file:
+```
+train-conditional-pre.bat 0 MM-Simple regular MM-Simple MiniLM split
+```
+This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Mega Man captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE` or other models mentioned in the batch file.
+You can also use the `train_diffusion.py` script directly to train a model however you like.
+
+
 
 
 
