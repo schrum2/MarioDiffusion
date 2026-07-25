@@ -39,7 +39,7 @@ python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train-un
 python train_diffusion.py --augment --output_dir "%MODEL_DIR%" --num_epochs 500 --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME%
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
 
-call batch\run_diffusion_multi.bat %MODEL_DIR% regular Mario
+call batch\run_diffusion_multi.bat %MODEL_DIR% regular %GAME%
 python log_timestamp.py --log_file %TIMING_LOG% --event "unconditional samples"
 
 REM move the timing log into the trained model's directory
