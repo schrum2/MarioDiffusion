@@ -60,7 +60,7 @@ set MLM_EPOCHS=300
 set MLM_CHECKPOINT=20
 if "%GAME%"=="LR" (
     REM Is 80,000 really correct?
-    set MLM_EPOCHS=80000
+    set MLM_EPOCHS=60000
     set MLM_CHECKPOINT=1000
 )
 
@@ -70,7 +70,7 @@ python log_timestamp.py --log_file %TIMING_LOG% --event "MLM training"
 set DIFFUSION_EPOCHS=500
 if "%GAME%"=="LR" (
     set GAME=LR
-    set DIFFUSION_EPOCHS=3000
+    set DIFFUSION_EPOCHS=1000
 )
 
 python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT% --plot_validation_caption_score --seed %SEED% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --game %GAME%

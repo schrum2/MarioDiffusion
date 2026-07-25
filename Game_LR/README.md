@@ -65,11 +65,11 @@ The core training steps that occur in the batch file are the training of the tex
 Masked language modeling is used to train the text embedding model. 
 The following command line will train a text embedding model based on the Lode Runner data created before:
 ```
-python train_mlm.py --epochs 80000 --save_checkpoints --json Game_LR\DATA\LR_LevelsAndCaptions-regular-train.json --val_json Game_LR\DATA\LR_LevelsAndCaptions-regular-validate.json --test_json Game_LR\DATA\LR_LevelsAndCaptions-regular-test.json --pkl Game_LR\DATA\LR_Tokenizer-regular.pkl --output_dir LR-LR-MLM-regular0 --seed 0
+python train_mlm.py --epochs 60000 --save_checkpoints --json Game_LR\DATA\LR_LevelsAndCaptions-regular-train.json --val_json Game_LR\DATA\LR_LevelsAndCaptions-regular-validate.json --test_json Game_LR\DATA\LR_LevelsAndCaptions-regular-test.json --pkl Game_LR\DATA\LR_Tokenizer-regular.pkl --output_dir LR-LR-MLM-regular0 --seed 0
 ```
 After training the text embedding model, you can train a diffusion model conditioned on text embeddings from the descriptive captions:
 ```
-python train_diffusion.py --augment --text_conditional --output_dir "LR-LR-conditional-regular0" --num_epochs 3000 --json Game_LR\DATA\LR_LevelsAndCaptions-regular-train.json --val_json Game_LR\DATA\LR_LevelsAndCaptions-regular-validate.json --pkl Game_LR\DATA\LR_Tokenizer-regular.pkl --mlm_model_dir LR-LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
+python train_diffusion.py --augment --text_conditional --output_dir "LR-LR-conditional-regular0" --num_epochs 1000 --json Game_LR\DATA\LR_LevelsAndCaptions-regular-train.json --val_json Game_LR\DATA\LR_LevelsAndCaptions-regular-validate.json --pkl Game_LR\DATA\LR_Tokenizer-regular.pkl --mlm_model_dir LR-LR-MLM-regular0 --plot_validation_caption_score --seed 0 --game LR
 ```
 You can also train a Lode Runner model using a pre-trained text encoder instead of training your own MLM transformer.
 Here is the easy way to launch the training and evaluation with a batch file:

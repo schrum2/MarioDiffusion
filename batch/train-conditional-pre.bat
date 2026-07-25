@@ -78,7 +78,7 @@ if exist "%TIMING_LOG%" del "%TIMING_LOG%"
 python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train-conditional-pre start"
 
 set DIFFUSION_EPOCHS=500
-if "%GAME%"=="LR" set DIFFUSION_EPOCHS=3000
+if "%GAME%"=="LR" set DIFFUSION_EPOCHS=1000
 
 python train_diffusion.py --save_image_epochs 1000 --augment --text_conditional --output_dir "%DIFF_OUTPUT%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --pretrained_language_model "%MODEL_NAME%" --plot_validation_caption_score --game %GAME% --seed %SEED% %DIFF_FLAGS% %SPLIT_FLAG% %DESCRIBE_ABSENCE_FLAG% 
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
