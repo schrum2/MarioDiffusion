@@ -454,7 +454,8 @@ def main():
     overrides_1_7 = [120, 121, 122, 123, 182] #Needed to avoid an early turn leading to a split path, and to prevent the level from turning back around to go back to the start
 
     nav_width = common_settings.MEGAMAN_WIDTH
-    nav_height = common_settings.MEGAMAN_HEIGHT
+    # This has to be 14, the perceived height, rather than 16 (which includes void rows) in order to work
+    nav_height = 14 # common_settings.MEGAMAN_HEIGHT
 
     faithful_vertical = args.faithful_vertical or (args.target_height > nav_width)
 

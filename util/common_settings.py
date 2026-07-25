@@ -34,8 +34,9 @@ LR_TILE_COUNT = 8
 LR_TILESET = 'Game_LR/LodeRunner.json'
 
 # Mega Man
-
-MEGAMAN_HEIGHT = 14
+# A note in a commit from Fletcher said that setting the height to 16 broke something, but setting it to 14 is inconsistent.
+# The true Mario height is also 14, but we set it to 16 and then compensate, and that is what should be done with Mega Man as well.
+MEGAMAN_HEIGHT = 16 # 14
 MEGAMAN_WIDTH = 16
 
 MM_TILE_PIXEL_DIM = 16

@@ -10,7 +10,7 @@ import util.common_settings as common_settings
 
 # The floor is the last row of the scene (0-indexed)
 FLOOR = common_settings.MEGAMAN_HEIGHT - 1
-CEILING = common_settings.MEGAMAN_HEIGHT - 12 #  2
+CEILING = common_settings.MEGAMAN_HEIGHT - 14 # 2
 
 # This is used for describing locations, but it doesn't work well
 STANDARD_WIDTH = common_settings.MEGAMAN_WIDTH
