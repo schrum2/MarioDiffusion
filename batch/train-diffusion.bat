@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 REM ============================================================================
 REM train-diffusion.bat - unified training entry point
 REM
-REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split]
+REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile_embed_method] [tile_embed_dim]
 REM
 REM   <seed>   optional, defaults to 0
 REM   <data>   source of data: SMB1, SMB2, Mar1and2, LR, etc.
@@ -24,6 +24,17 @@ REM              Only meaningful when using a pretrained text encoder (i.e.
 REM              [model] is not "MLM" and <type> is not "none"). "multiple"
 REM              means each caption phrase is encoded separately; "single" 
 REM              encodes the whole caption with one vector
+REM   [tile_embed_method] optional, defaults to "none". One of:
+REM              none      - no tile embedding model; tiles use the default
+REM                          one-hot encoding
+REM              block2vec - train (or reuse) a block2vec tile embedding model
+REM              skip      - train (or reuse) a skip-gram tile embedding model
+REM              Can be combined with any of the text-encoder options above
+REM              (MLM or any pretrained model), or used with unconditional
+REM              training.
+REM   [tile_embed_dim] optional, defaults to 16. Embedding dimension used when
+REM              [tile_embed_method] is not "none". Ignored otherwise.
+REM
 REM ============================================================================
 cd ..
 
@@ -66,7 +77,7 @@ if "%TYPE_VALID%"=="false" (
 
 REM --- Read MODEL / SPLIT ---------------------------------------------------
 set MODEL=%5
-if "%MODEL%"=="" set MODEL=MLM
+if "%MODEL%"=="" set MODEL=MiniLM
 
 set SPLIT=%6
 if "%SPLIT%"=="" set SPLIT=single
@@ -75,7 +86,26 @@ if /I not "%SPLIT%"=="single" if /I not "%SPLIT%"=="multiple" (
     exit /b 1
 )
 
-REM --- Decide which pipeline this run is ------------------------------------
+REM --- Read tile embedding options --------------------------------------
+set TILE_METHOD=%7
+if "%TILE_METHOD%"=="" set TILE_METHOD=none
+
+set TILE_DIM=%8
+if "%TILE_DIM%"=="" set TILE_DIM=16
+
+set "TILE_VALID=false"
+for %%E in (none block2vec skip) do (
+    if /I "%TILE_METHOD%"=="%%~E" set "TILE_VALID=true"
+)
+if "%TILE_VALID%"=="false" (
+    echo Error: Invalid tile embedding method '%TILE_METHOD%'. Must be none, block2vec, or skip.
+    exit /b 1
+)
+
+set USE_TILE_EMBED=false
+if /I not "%TILE_METHOD%"=="none" set USE_TILE_EMBED=true
+
+REM --- Decide which text-conditioning pipeline this run is -----------------
 REM UNCONDITIONAL = true  -> type is "none", no captions/text encoder at all
 REM USE_MLM       = true  -> train our own MLM transformer text encoder
 REM otherwise             -> use a pretrained text embedding model
@@ -120,8 +150,23 @@ if /I "%UNCONDITIONAL%"=="false" (
     )
 )
 
+REM --- Tile embedding dataset / output dir / naming tag -----------------
+set TILE_JSON=
+set EMBEDDING_DIR=
+set BLOCK_EMBED_FLAG=
+set TILE_TAG=
+if /I "%USE_TILE_EMBED%"=="true" (
+    set TILE_JSON=Game_%GAME%/DATA/%DATA%_3x3_tiles.json
+    if not exist "!TILE_JSON!" (
+        echo Error: Tile-level dataset "!TILE_JSON!" does not exist. Is needed to train tile-embedding model.
+        exit /b 1
+    )
+    set EMBEDDING_DIR=%GAME%-%DATA%-%TILE_METHOD%%TILE_DIM%-embeddings%SEED%
+    set BLOCK_EMBED_FLAG=--block_embedding_model_path "!EMBEDDING_DIR!"
+    set TILE_TAG=%TILE_METHOD%%TILE_DIM%
+)
+
 REM --- Data paths --------------------------------------------------------
-REM TODO: Are the "AndCaptions" even needed in the unconditional case?
 if /I "%UNCONDITIONAL%"=="true" (
     set DATA_PATH=Game_%GAME%/DATA/%DATA%_LevelsAndCaptions-regular
 ) else (
@@ -135,14 +180,27 @@ REM --- Output directory naming ------------------------------------------
 set MLM_OUTPUT=
 set TOKENIZER=
 if /I "%UNCONDITIONAL%"=="true" (
-    set MODEL_DIR=%GAME%-%DATA%-unconditional%SEED%
+    if /I "%USE_TILE_EMBED%"=="true" (
+        set MODEL_DIR=%GAME%-%DATA%-unconditional-%TILE_TAG%%SEED%
+    ) else (
+        set MODEL_DIR=%GAME%-%DATA%-unconditional%SEED%
+    )
 ) else (
     if /I "%USE_MLM%"=="true" (
-        set MODEL_DIR=%GAME%-%DATA%-conditional-%TYPE%%SEED%
         set MLM_OUTPUT=%GAME%-%DATA%-MLM-%TYPE%%SEED%
         set TOKENIZER=Game_%GAME%/DATA/%DATA%_Tokenizer-%TYPE%.pkl
+        if /I "%USE_TILE_EMBED%"=="true" (
+            set MODEL_DIR=%GAME%-%DATA%-conditional-%TILE_TAG%-%TYPE%%SEED%
+        ) else (
+            set MODEL_DIR=%GAME%-%DATA%-conditional-%TYPE%%SEED%
+        )
     ) else (
-        set MODEL_DIR=%GAME%-%DATA%-conditional-%MODEL%%SPLIT%-%TYPE%%SEED%
+        set MODEL_TAG=%MODEL%%SPLIT%
+        if /I "%USE_TILE_EMBED%"=="true" (
+            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TILE_TAG%-%TYPE%%SEED%
+        ) else (
+            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TYPE%%SEED%
+        )
     )
 )
 
@@ -167,6 +225,21 @@ if /I "%GAME%"=="LR" (
 )
 
 REM ===========================================================================
+REM Step 0: train (or reuse) a tile embedding model, if requested.
+REM Unlike the other steps below, an existing directory here means the
+REM existing embedding model is reused rather than retrained.
+REM ===========================================================================
+if /I "%USE_TILE_EMBED%"=="true" (
+    call :check_dir_exists "%EMBEDDING_DIR%"
+    if /I "%TILE_METHOD%"=="block2vec" (
+        python train_block2vec.py --json_file "%TILE_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %TILE_DIM% --epochs 200 --batch_size 32
+    ) else (
+        python train_skipgram.py --json_file "%TILE_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %TILE_DIM% --epochs 200 --batch_size 32
+    )
+    python log_timestamp.py --log_file %TIMING_LOG% --event "tile embedding training"
+)
+
+REM ===========================================================================
 REM Step 1: train our own MLM text encoder (only when USE_MLM is true)
 REM ===========================================================================
 if /I "%USE_MLM%"=="true" (
@@ -181,12 +254,12 @@ REM ===========================================================================
 call :check_dir_exists "%MODEL_DIR%"
 
 if /I "%UNCONDITIONAL%"=="true" (
-    python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME%
+    python train_diffusion.py     --save_image_epochs %DIFFUSION_EPOCHS% --augment                    --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG%
 ) else (
     if /I "%USE_MLM%"=="true" (
-        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT% --plot_validation_caption_score --game %GAME% --seed %SEED% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG%
+        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
     ) else (
-        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --pretrained_language_model "%MODEL_NAME%" --plot_validation_caption_score --game %GAME% --seed %SEED% %DIFF_FLAGS% %SPLIT_FLAG% %DESCRIBE_ABSENCE_FLAG%
+        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG% 
     )
 )
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
