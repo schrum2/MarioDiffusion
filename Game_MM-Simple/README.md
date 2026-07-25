@@ -111,7 +111,32 @@ You can also interactively evolve level scenes in the latent space of the condit
 python evolve_interactive_conditional_diffusion.py --model_path MM-Simple-MM-Simple-conditional-regular0 --game MM-Simple
 ```
 
+## Train unconditional diffusion models
 
+To train an unconditional diffusion model without any text embeddings, run this batch file:
+```
+cd batch
+train-unconditional.bat 0 MM-Simple MM-Simple
+```
+
+## Generate levels from unconditional model
+
+Just like with the text conditional model, you can get level samples from the batch file or a seperate command.
+```
+batch\run_diffusion_multi.bat MM-Simple-MM-Simple-unconditional0 regular LR
+```
+As before, to get more control, you can simply run this from the command line
+```
+python run_diffusion.py --model_path MM-Simple-MM-Simple-unconditional0 --num_samples 100 --save_as_json --output_dir MM-Simple-MM-Simple-unconditional0-unconditional-samples --game MM-Simple
+```
+View the saved levels in the data browser
+```
+python ascii_data_browser.py MM-Simple-MM-Simple-unconditional0-unconditional-samples\all_levels.json MM-Simple
+```
+Interactively evolve level scenes in the latent space of the unconditional model:
+```
+python evolve_interactive_unconditional_diffusion.py --model_path MM-Simple-MM-Simple-unconditional0 --game MM-Simple
+```
 
 
 
