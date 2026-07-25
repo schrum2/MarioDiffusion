@@ -3,38 +3,27 @@ from level_dataset import visualize_samples, convert_to_level_format
 from create_ascii_captions import extract_tileset
 import argparse
 import torch
-from evolution.genome import LatentGenome
+from evolution.genome import LatentGenome, disable_width_mutation
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from captions.caption_match import compare_captions
 from captions.MM2_caption_match import caption_tools as mm2_caption_tools
+from MM_create_ascii_captions import assign_caption as mm_assign_caption
 import util.common_settings as common_settings
 from models.pipeline_loader import get_pipeline
 
-# NOTE: I couldn't find an existing Mega Man captioner in the files shown to me, so this
-# follows the same naming convention as LR_create_ascii_captions.py (Lode Runner). If your
-# Mega Man caption module has a different name/location, update this import accordingly --
-# everything else in this file is written against the generic (scene, id_to_char, char_to_id,
-# tile_descriptors, describe_locations, describe_absence) signature shared by the Mario/LR
-# captioners, so it should just be a matter of pointing the import at the right place.
-try:
-    from MM_create_ascii_captions import assign_caption as mm_assign_caption
-    _MEGAMAN_CAPTIONS_AVAILABLE = True
-except ImportError:
-    _MEGAMAN_CAPTIONS_AVAILABLE = False
-
 # Games whose caption/compare tools follow the simple (scene, id_to_char, char_to_id,
 # tile_descriptors, describe_locations, describe_absence) -> caption shape, keyed by
-# common_settings cli_name. MM2 is handled separately since it builds its own tools from
-# the tileset file (captions.MM2_caption_match.caption_tools) rather than sharing the
-# Mario tag-table based captioner.
+# common_settings cli_name -- matches how CaptionBuilder._prepare_scene_output calls
+# assign_caption/lr_assign_caption/mm_assign_caption. MM2 is handled separately since it
+# builds its own tools from the tileset file (captions.MM2_caption_match.caption_tools)
+# rather than sharing the Mario tag-table based captioner.
 _SIMPLE_CAPTION_FNS = {
     "Mario": assign_caption,
     "LR": lr_assign_caption,
+    "MM-Simple": mm_assign_caption,
+    "MM-Full": mm_assign_caption,
 }
-if _MEGAMAN_CAPTIONS_AVAILABLE:
-    _SIMPLE_CAPTION_FNS["MM-Simple"] = mm_assign_caption
-    _SIMPLE_CAPTION_FNS["MM-Full"] = mm_assign_caption
 
 # Only Mario and MM2 currently have a caption-adherence scorer; everything else scores None.
 _COMPARE_FNS = {
@@ -56,6 +45,9 @@ class TextDiffusionEvolver(Evolver):
         _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
         self.config = common_settings.get_game_config(args.game) if args is not None else None
+        if self.config["is_megaman"]:
+            # Mega Man requires widths (and heights) that fit in a grid in a particular way.
+            disable_width_mutation()
         self.caption_fn, self.compare_fn = self._build_caption_tools()
         # visualize_samples(images) defaults to Mario-style rendering, so only pass an
         # explicit game kwarg for everything else.
@@ -83,13 +75,6 @@ class TextDiffusionEvolver(Evolver):
             )
             compare_fn = _COMPARE_FNS.get(game)
             return caption_fn, compare_fn
-
-        if game in ("MM-Simple", "MM-Full") and not _MEGAMAN_CAPTIONS_AVAILABLE:
-            raise ImportError(
-                "Mega Man caption support requires an 'assign_caption' function, but "
-                "'MM_create_ascii_captions' could not be imported. Update the import near "
-                "the top of this file to point at your actual Mega Man captioning module."
-            )
 
         raise ValueError(f"No caption tools configured for game: {game}")
 
@@ -140,6 +125,15 @@ class TextDiffusionEvolver(Evolver):
             **settings
         ).images
         g.latents.to("cpu")
+
+        # Mega Man scenes reserve void rows at the top that scale with the requested
+        # height, chopped off before conversion to tile indices -- same chop_rows
+        # formula as CaptionBuilder.generate_image (interactive_tile_level_generator.py).
+        if self.config["is_megaman"]:
+            chop_rows = (self.config["height"] // 16) * 2
+            if chop_rows > 0:
+                images = images[:, :, chop_rows:, :]
+
         # Convert to indices
         sample_indices = convert_to_level_format(images)
 
