@@ -22,7 +22,7 @@ REM            Ignored (and meaningless) when <type> is "none".
 REM   [split]  optional, defaults to "single". One of "single" or "multiple".
 REM              Only meaningful when using a pretrained text encoder (i.e.
 REM              [model] is not "MLM" and <type> is not "none"). "multiple"
-REM              means each caption phrase is encoded separately; "single" 
+REM              means each caption phrase is encoded separately; "single"
 REM              encodes the whole caption with one vector
 REM   [tile_embed_method] optional, defaults to "none". One of:
 REM              none      - no tile embedding model; tiles use the default
@@ -226,40 +226,50 @@ if /I "%GAME%"=="LR" (
 
 REM ===========================================================================
 REM Step 0: train (or reuse) a tile embedding model, if requested.
-REM Unlike the other steps below, an existing directory here means the
-REM existing embedding model is reused rather than retrained.
+REM If EMBEDDING_DIR already exists, training is skipped and the existing
+REM model is reused as-is.
 REM ===========================================================================
 if /I "%USE_TILE_EMBED%"=="true" (
     call :check_dir_exists "%EMBEDDING_DIR%"
-    if /I "%TILE_METHOD%"=="block2vec" (
-        python train_block2vec.py --json_file "%TILE_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %TILE_DIM% --epochs 200 --batch_size 32
-    ) else (
-        python train_skipgram.py --json_file "%TILE_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %TILE_DIM% --epochs 200 --batch_size 32
+    if /I "!DIR_EXISTS!"=="false" (
+        if /I "%TILE_METHOD%"=="block2vec" (
+            python train_block2vec.py --json_file "%TILE_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %TILE_DIM% --epochs 200 --batch_size 32
+        ) else (
+            python train_skipgram.py --json_file "%TILE_JSON%" --output_dir "%EMBEDDING_DIR%" --embedding_dim %TILE_DIM% --epochs 200 --batch_size 32
+        )
     )
     python log_timestamp.py --log_file %TIMING_LOG% --event "tile embedding training"
 )
 
 REM ===========================================================================
-REM Step 1: train our own MLM text encoder (only when USE_MLM is true)
+REM Step 1: train our own MLM text encoder (only when USE_MLM is true).
+REM If MLM_OUTPUT already exists, training is skipped and the existing
+REM model is reused as-is.
 REM ===========================================================================
 if /I "%USE_MLM%"=="true" (
     call :check_dir_exists "%MLM_OUTPUT%"
-    python train_mlm.py --epochs %MLM_EPOCHS% --checkpoint_freq %MLM_CHECKPOINT% --save_checkpoints --json %TRAIN_DATA% --val_json %VAL_DATA% --test_json %TEST_DATA% --pkl %TOKENIZER% --output_dir %MLM_OUTPUT% --seed %SEED%
+    if /I "!DIR_EXISTS!"=="false" (
+        python train_mlm.py --epochs %MLM_EPOCHS% --checkpoint_freq %MLM_CHECKPOINT% --save_checkpoints --json %TRAIN_DATA% --val_json %VAL_DATA% --test_json %TEST_DATA% --pkl %TOKENIZER% --output_dir %MLM_OUTPUT% --seed %SEED%
+    )
     python log_timestamp.py --log_file %TIMING_LOG% --event "MLM training"
 )
 
 REM ===========================================================================
-REM Step 2: diffusion model training
+REM Step 2: diffusion model training.
+REM If MODEL_DIR already exists, training is skipped and the existing model
+REM is reused as-is; sample generation and evaluation below still run
+REM against it.
 REM ===========================================================================
 call :check_dir_exists "%MODEL_DIR%"
-
-if /I "%UNCONDITIONAL%"=="true" (
-    python train_diffusion.py     --save_image_epochs %DIFFUSION_EPOCHS% --augment                    --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG%
-) else (
-    if /I "%USE_MLM%"=="true" (
-        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
+if /I "!DIR_EXISTS!"=="false" (
+    if /I "%UNCONDITIONAL%"=="true" (
+        python train_diffusion.py     --save_image_epochs %DIFFUSION_EPOCHS% --augment                    --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG%
     ) else (
-        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG% 
+        if /I "%USE_MLM%"=="true" (
+            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
+        ) else (
+            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
+        )
     )
 )
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
@@ -289,11 +299,14 @@ exit /b 0
 
 REM ===========================================================================
 REM Subroutine: check_dir_exists <dir>
-REM Prints a notice if the given output directory already exists, but does
-REM NOT stop execution - training is allowed to proceed regardless.
+REM Sets DIR_EXISTS to "true" and prints a notice if the given output
+REM directory already exists, or "false" otherwise. Callers use DIR_EXISTS
+REM to decide whether to skip the corresponding training step.
 REM ===========================================================================
 :check_dir_exists
+set DIR_EXISTS=false
 if exist "%~1" (
-    echo Notice: Output directory "%~1" already exists. Continuing anyway...
+    echo Notice: Output directory "%~1" already exists. Skipping this training step.
+    set DIR_EXISTS=true
 )
 exit /b 0
