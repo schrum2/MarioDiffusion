@@ -485,8 +485,40 @@ More content related to this research is also available at this website:
 
 However, much work has been done with this repo since publication. Further ways of experimenting with the Mario models are described below, and the [main README](../README.md) has links to information on other games that you can train models for.
 
+## Training with Tile Embedding Models
+
+The default manner in which we convert a tile into a form for training is with a one-hot encoding. This means that the channel size of training data has to match the number of tile types, and that the representation of each tile type is disconnected from what it represents. An alternative to this is to train a set of vectors corresponding to each tile type that captions some form of meaningful information about the tile type and its relation to other tile types. This works and has been used by several others in the literature, though in our case it does not seem to result in any meaningful advantage, and in some cases leads to extra complications. Still, please experiment with our code.
+
+First you need a dataset to train the tile embedding model on. We choose to train a model that learns to predict a given tile based on its surrounding tiles, using 3x3 windows on levels from the original VGLC data, so you will actually need to checkout my forked VGLC repo as described earlier in these instructions (the necessary data is not already in the repo). If you have my VGLC repo, then you can create training data for tile embeddings with these commands.
+```
+python create_tile_level_json_data.py --output "Game_Mario/DATA/SMB1_3x3_tiles.json" --tile_size 3 --levels "..\TheVGLC\Super Mario Bros\Processed"
+python create_tile_level_json_data.py --output "Game_Mario/DATA/SMB2_3x3_tiles.json" --tile_size 3 --levels "..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
+python combine_data.py "Game_Mario/DATA/Mar1and2_3x3_tiles.json" "Game_Mario/DATA/SMB1_3x3_tiles.json" "Game_Mario/DATA/SMB2_3x3_tiles.json"
+```
+Or, instead of running these commands individually, you could just run the following batch file from `Game_Mario/BATCH`:
+```
+cd Game_Mario
+cd BATCH
+Mar1and2-tile3x3-data.bat
+```
+Once the data exists in the `Game_Mario/DATA` directory, you can train a tile embedding model in one of two ways. Train a block2vec model with this command, which uses an embedding dimension of 8:
+```
+python train_block2vec.py --json_file "Game_Mario/DATA/Mar1and2_3x3_tiles.json" --output_dir "Mario-Mar1and2-block2vec8-embeddings0" --embedding_dim 8 --epochs 200 --batch_size 32
+```
+The 8 appears in both the output directory and as the parameter to `--embedding_dim`. This parameter sets the length of the embedding vectors. You can set any length you want, but using a value equal to or greater than the number of tile types doesn't serve much purpose, since you could use one-hot encoding instead. The other type of embedding model is based on skipgrams, and can be trained with a command like this:
+```
+python train_skipgram.py --json_file "Game_Mario/DATA/Mar1and2_3x3_tiles.json" --output_dir "Mario-Mar1and2-skipgram8-embeddings0" --embedding_dim 8 --epochs 200 --batch_size 32
+```
+If you want the final diffusion model to also be text conditional, then you will need to either train your own MLM model or use a pre-trained text encoder as described above. Diffusion models that use tile embeddings can be trained with text conditioning or without. The `train_diffusion.py` script is used as before, with the only addition being the use of the `--block_embedding_model_path` parameter to specify the save directory of the trained embedding model. This works for block2vec and skipgram. Here is an example using block2vec (which assumes the existance of a previously trained MLM model):
+```
+python train_diffusion.py --augment --text_conditional --output_dir "Mario-Mar1and2-block2vec8-conditional0" --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --mlm_model_dir "Mario-Mar1and2-MLM-regular0" --block_embedding_model_path "Mario-Mar1and2-block2vec8-embeddings0" --plot_validation_caption_score
+```
+Once you train a diffusion model, a copy of the tile embedding model is saved in the diffusion model directory and automatically loaded as needed whenever the diffusion model is loaded, which means that all downstream Python scripts used to generate level scenes from models can be used as normal without the need for any additional parameters related to the use of the tile embedding model.
 
 
+
+
+MORE? Batch file?
 
 
 
@@ -497,7 +529,6 @@ However, much work has been done with this repo since publication. Further ways 
 
 ## Train and generate levels from unconditional model with block2vec tile embedding model (experimental)
 
-By default, unconditional diffusion models represent each tile as a one-hot vector. Block2Vec replaces this representation with learned embedding vectors for each tile type. It is trained on 3×3 tile windows so that tiles that are contextually similar in the game end up with similar vectors. 
 
 To train and run an unconditional model with tile embeddings, you can run this batch file
 and opt to include an argument for the size of the latent embedding space by including an integer for the number of embedding dimensions (default 16)
@@ -505,22 +536,16 @@ and opt to include an argument for the size of the latent embedding space by inc
 batch\Mar1and2-unconditional-embedding.bat (embedding_dims)
 ```
 
-You can gain more control in the process and train a tile embedding model from 3x3 tile samples:
-``` 
-python create_tile_level_json_data.py --output Game_Mario/DATA/SMB1_3x3_tiles.json --tile_size 3
-python create_tile_level_json_data.py --output Game_Mario/DATA/SMB2_3x3_tiles.json --tile_size 3 --levels "..\TheVGLC\Super Mario Bros 2 (Japan)\Processed"
-python combine_data.py Game_Mario/DATA/Mar1and2_3x3_tiles.json Game_Mario/DATA/SMB1_3x3_tiles.json Game_Mario/DATA/SMB2_3x3_tiles.json
 
-python train_block2vec.py --json_file Game_Mario/DATA/Mar1and2_3x3_tiles.json --output_dir "Mario-Mar1and2-block2vec-embeddings" --embedding_dim %EMBEDDING_DIM% --epochs 200 --batch_size 32
-```
-Training diffusion model with block2vec tile embeddings instead of one-hot encoding
-``` 
-python train_diffusion.py --augment --output_dir "Mario-Mar1and2-unconditional-block2vec" --num_epochs 500 --json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-train.json --val_json Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular-validate.json --block_embedding_model_path "Mario-Mar1and2-block2vec-embeddings"
-```
-Generating levels
-``` 
-python run_diffusion.py --model_path "Mario-Mar1and2-unconditional-block2vec" --num_samples 100 --save_as_json --output_dir "Mario-Mar1and2-unconditional-block2vec-samples"
-```
+
+
+
+
+
+
+
+
+
 
 
 
