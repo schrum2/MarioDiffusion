@@ -137,7 +137,7 @@ Interactively evolve level scenes in the latent space of the unconditional model
 ```
 python evolve_interactive_unconditional_diffusion.py --model_path MM-Simple-MM-Simple-unconditional0 --game MM-Simple
 ```
-
+Note that the Mega Man Level editor can also be invoked from the interactive evolution interface.
 
 
 
