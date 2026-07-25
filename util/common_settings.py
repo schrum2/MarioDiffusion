@@ -204,3 +204,64 @@ def get_game_config(game=None):
             "pixel_dim" : MM2_TILE_PIXEL_DIM,
         }
     raise ValueError(f"Unsupported game selected: {game_name}")
+
+
+def get_caption_tools(game, id_to_char=None, char_to_id=None, tile_descriptors=None,
+                       describe_absence=False, tileset_path=None):
+    """Returns (caption_fn, compare_fn) for `game`.
+
+    caption_fn: scene -> caption string.
+    compare_fn: (prompt, actual_caption, **kwargs) -> score, or
+    (score, exact_matches, partial_matches, excess_phrases) when called with
+    return_matches=True -- see captions.caption_match.compare_captions and its
+    per-game equivalents for the exact keyword arguments each accepts.
+
+    Every game has both an assign_caption and a compare_captions:
+    interactive_tile_level_generator.py's CaptionBuilder dispatches every game
+    (Mario, Lode Runner, MM2, and all three Mega Man variants) through one or the
+    other, so there is no "no comparator" case to handle here.
+
+    Imports are local to this function (rather than at module level) because the
+    per-game caption modules import common_settings themselves for tile counts and
+    tileset paths; importing them at module level here would be circular.
+    """
+    from create_ascii_captions import assign_caption
+    from LR_create_ascii_captions import assign_caption as lr_assign_caption
+    from MM_create_ascii_captions import assign_caption as mm_assign_caption
+    from captions.caption_match import compare_captions
+    from captions.LR_caption_match import compare_captions as lr_compare_captions
+    from captions.MM_caption_match import compare_captions as mm_compare_captions
+    from captions.MM2_caption_match import caption_tools as mm2_caption_tools
+
+    config = get_game_config(game)
+    cli = config["cli_name"]
+
+    if cli == "MM2":
+        # MM2 builds its own captioner + comparator straight from the tileset,
+        # rather than sharing the Mario tag-table based captioner.
+        mm2_assign, mm2_compare = mm2_caption_tools(tileset_path or config["tileset"])
+        return (lambda scene: mm2_assign(scene)), mm2_compare
+
+    assign_fns = {
+        "Mario": assign_caption,
+        "LR": lr_assign_caption,
+        "MM-Simple": mm_assign_caption,
+        "MM-Full": mm_assign_caption,
+        "MMLV": mm_assign_caption,
+    }
+    compare_fns = {
+        "Mario": compare_captions,
+        "LR": lr_compare_captions,
+        "MM-Simple": mm_compare_captions,
+        "MM-Full": mm_compare_captions,
+        "MMLV": mm_compare_captions,
+    }
+
+    if cli not in assign_fns:
+        raise ValueError(f"No caption tools configured for game: {game}")
+
+    base_assign = assign_fns[cli]
+    caption_fn = lambda scene: base_assign(
+        scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence
+    )
+    return caption_fn, compare_fns[cli]

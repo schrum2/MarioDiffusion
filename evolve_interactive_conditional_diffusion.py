@@ -4,31 +4,8 @@ from create_ascii_captions import extract_tileset
 import argparse
 import torch
 from evolution.genome import LatentGenome, disable_width_mutation
-from create_ascii_captions import assign_caption
-from LR_create_ascii_captions import assign_caption as lr_assign_caption
-from captions.caption_match import compare_captions
-from captions.MM2_caption_match import caption_tools as mm2_caption_tools
-from MM_create_ascii_captions import assign_caption as mm_assign_caption
 import util.common_settings as common_settings
 from models.pipeline_loader import get_pipeline
-
-# Games whose caption/compare tools follow the simple (scene, id_to_char, char_to_id,
-# tile_descriptors, describe_locations, describe_absence) -> caption shape, keyed by
-# common_settings cli_name -- matches how CaptionBuilder._prepare_scene_output calls
-# assign_caption/lr_assign_caption/mm_assign_caption. MM2 is handled separately since it
-# builds its own tools from the tileset file (captions.MM2_caption_match.caption_tools)
-# rather than sharing the Mario tag-table based captioner.
-_SIMPLE_CAPTION_FNS = {
-    "Mario": assign_caption,
-    "LR": lr_assign_caption,
-    "MM-Simple": mm_assign_caption,
-    "MM-Full": mm_assign_caption,
-}
-
-# Only Mario and MM2 currently have a caption-adherence scorer; everything else scores None.
-_COMPARE_FNS = {
-    "Mario": compare_captions,
-}
 
 
 class TextDiffusionEvolver(Evolver):
@@ -54,29 +31,19 @@ class TextDiffusionEvolver(Evolver):
         self.render_kwargs = {} if self.config["cli_name"] == "Mario" else {"game": self.config["render_name"]}
 
     def _build_caption_tools(self):
-        """Returns (caption_fn, compare_fn) for the current game.
-
-        caption_fn: scene -> caption string
-        compare_fn: (prompt, caption) -> score, or None if this game has no scorer
-        """
-        game = self.args.game
-
-        if game == "MM2":
-            # MM2 builds its own captioner + comparator straight from the tileset, matching
-            # run_diffusion / evaluate_caption_adherence.
-            mm2_assign, mm2_compare = mm2_caption_tools(self.tileset_path)
-            return (lambda scene: mm2_assign(scene)), mm2_compare
-
-        if game in _SIMPLE_CAPTION_FNS:
-            base_fn = _SIMPLE_CAPTION_FNS[game]
-            caption_fn = lambda scene: base_fn(
-                scene, self.id_to_char, self.char_to_id, self.tile_descriptors,
-                False, self.args.describe_absence
-            )
-            compare_fn = _COMPARE_FNS.get(game)
-            return caption_fn, compare_fn
-
-        raise ValueError(f"No caption tools configured for game: {game}")
+        """Returns (caption_fn, compare_fn) for the current game, built centrally in
+        common_settings.get_caption_tools (shared with ascii_data_browser.py's
+        TileViewer and interactive_tile_level_generator.py's CaptionBuilder) so the
+        per-game assign_caption/compare_captions wiring lives in one place instead
+        of being re-listed in every script that needs it."""
+        return common_settings.get_caption_tools(
+            self.args.game,
+            id_to_char=self.id_to_char,
+            char_to_id=self.char_to_id,
+            tile_descriptors=self.tile_descriptors,
+            describe_absence=self.args.describe_absence,
+            tileset_path=self.tileset_path,
+        )
 
     def random_latent(self, seed=1):
         # Create the initial noise latents (this is what the pipeline does internally)
