@@ -139,6 +139,28 @@ python evolve_interactive_unconditional_diffusion.py --model_path MM-Simple-MM-S
 ```
 Note that the Mega Man Level editor can also be invoked from the interactive evolution interface.
 
+## Train Generative Adversarial Network (GAN) model
+
+GANs can also be trained for Mega Man. Just use this batch file:
+```
+cd batch
+train-wgan.bat 0 MM-Simple MM-Simple
+```
+
+## Generate levels from GAN
+
+Create samples from the final GAN with this command (assuming the batch file hasn't already)
+```
+python run_wgan.py --model_path MM-Simple-MM-Simple-wgan0\final_models\generator.pth --num_samples 100 --output_dir MM-Simple-MM-Simple-wgan0-samples --save_as_json --game MM-Simple
+```
+View the saved levels in the data browser
+```
+python ascii_data_browser.py MM-Simple-MM-Simple-wgan0-samples\all_levels.json MM-Simple
+```
+Interactively evolve level scenes in the latent space of the GAN model:
+```
+python evolve_interactive_wgan.py --model_path MM-Simple-MM-Simple-wgan0\final_models\generator.pth --game MM-Simple
+```
 
 
 
@@ -177,54 +199,24 @@ python train_diffusion.py --json datasets\MM_LevelsAndCaptions-simple-regular.js
 ```
 
 
-## Train local text encoder
-
-```
-python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple-regular --seed 0
-```
-
-## Train text-conditional diffusion model
-
-```
-python train_diffusion.py --pkl datasets\MM_Tokenizer-simple-regular.pkl --json datasets\MM_LevelsAndCaptions-simple-regular.json --augment --mlm_model_dir MM-MLM-simple-regular --text_conditional --output_dir MM_conditional_simple_regular0 --seed 0 --game MM-Simple
-```
-
-Speed trick — set `--save_image_epochs` larger than your epoch count to skip intermediate sample images:
-```
-python train_diffusion.py --pkl datasets\MM_Tokenizer-simple-regular.pkl --json datasets\MM_LevelsAndCaptions-simple-regular.json --augment --mlm_model_dir MM-MLM-simple-regular --text_conditional --output_dir MM_conditional_simple_regular0 --seed 0 --game MM-Simple --save_image_epochs 100000
-```
-
-This whole process (Simple version only) can be done with:
-```
-cd MM_Batch
-MM_conditional.bat
-```
-
-## Train unconditional model
-Train an unconditional diffusion model without any text conditioning:
-```
-python train_diffusion.py --json datasets\MM_LevelsAndCaptions-simple-regular.json --augment --output_dir MM_unconditional_simple0 --seed 0 --game MM-Simple
-```
 
 
-## Generate levels in batch with run_diffusion.py
 
-Unconditional model:
-```
-python run_diffusion.py --model_path MM_unconditional_simple0 --num_samples 100 --save_as_json --output_dir MM_unconditional_simple0-samples --level_width 16 --game MM-Simple
-```
 
-Text-conditional model:
-```
-python run_diffusion.py --model_path MM_conditional_simple_regular0 --num_samples 100 --text_conditional --save_as_json --output_dir MM_conditional_simple_regular0-samples --level_width 16 --game MM-Simple
-```
 
-Browse:
-```
-python ascii_data_browser.py MM_conditional_simple_regular0-samples\all_levels.json Game_MM-Simple/MM-Simple-tileset.json
-```
 
-For the full tileset, swap `MM-Simple` with `MM-Full` and point to the appropriate model and tileset.
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Train and generate levels with block2vec tile embeddings (experimental)
 
@@ -264,37 +256,26 @@ cd MM_Batch
 MM_conditional-embeddings.bat {embedding_dims}
 ```
 
-## Manual steps for more control:
 
-Create the raw level samples (grouped/simple encoding):
-```
-python create_megaman_json_data.py --output datasets\MM_Levels-simple.json --group_encodings
-```
 
-Generate captions for those samples:
-```
-python MM_create_ascii_captions.py --dataset datasets\MM_Levels-simple.json --tileset Game_MM-Simple/MM-Simple-tileset.json --output datasets\MM_LevelsAndCaptions-simple-regular.json
-```
 
-Build the tokenizer:
-```
-python tokenizer.py save --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --pkl_file datasets\MM_Tokenizer-simple-regular.pkl
-```
 
-Create a set of random test captions for evaluation:
-```
-python create_random_test_captions.py --save_file datasets\MM_RandomTest_simple-regular.json --json datasets\MM_LevelsAndCaptions-simple-regular.json --seed 0 --game MM-Simple
-```
 
-Split the dataset into train/validate/test sets:
-```
-python split_data.py --json_file datasets\MM_LevelsAndCaptions-simple-regular.json --train_pct .9 --val_pct .05 --test_pct .05 --seed 0 --game MM-Simple
-```
 
-Train the text encoder (MLM) on the full dataset:
-```
-python train_mlm.py --epochs 300 --save_checkpoints --json datasets\MM_LevelsAndCaptions-simple-regular.json --pkl datasets\MM_Tokenizer-simple-regular.pkl --output_dir MM-MLM-simple0 --seed 0
-```
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Embedding
 
 Slice the VGLC levels into 3x3 tile windows for embedding training:
 ```
@@ -332,20 +313,12 @@ train-conditional-llm.bat 0 MiniLM [split]
 
 It takes an optional seed (defaults to `0`), a pretrained text encoder (`MiniLM`, `GTE`, `CLIP`, or `T5`, defaults to `MiniLM`), and an optional `split` flag that gives each caption sentence its own embedding vector.
 
-## Timing the pipeline
 
-The training-pipeline batch files (`MM_conditional*.bat`, `MM_unconditional*.bat`, `train-conditional-llm.bat`) record how long each stage takes. After every major step (dataset creation, captioning, MLM training, etc.) the batch file appends a timestamp to a per-run log via `log_timestamp.py`. When the run finishes, the log is moved into the trained model's directory as `pipeline_timing.jsonl` (next to `training_log_.jsonl`).
 
-A log entry looks like the following:
-```json
-{"timestamp": "2026-06-29 14:03:12", "event": "diffusion training", "status": "complete", "elapsed_seconds_since_prev": 8421.0, "prev_event": "MLM training"}
-```
 
-You can also log steps from your own custom training pipelines like so:
-```bash
-python log_timestamp.py --log_file timing_logs\my-run.jsonl --status start --event "pipeline start"
-python log_timestamp.py --log_file timing_logs\my-run.jsonl --event "MMLV download"
-```
+
+
+
 
 
 
@@ -354,28 +327,4 @@ python log_timestamp.py --log_file timing_logs\my-run.jsonl --event "MMLV downlo
 [Mega Man Maker](https://github.com/schrum2/MarioDiffusion/tree/dev_alaaAlmzayen/megaman)
 
 
-## Evaluate caption adherence of text-conditional diffusion model
 
-You can evaluate the final model's ability to adhere to input captions with this command:
-
-```
-python evaluate_caption_adherence.py --model_path MM_conditional_full_regular0 --save_as_json --json datasets\MMLV_LevelsAndCaptions-regular.json --output_dir text-to-level-final --game MM-Full
-```
-You can also evaluate how caption adherence changed during training with respect to the testing set:
-
-```
-python evaluate_caption_adherence.py --model_path MM_conditional_full_regular0 --save_as_json --json datasets\MMLV_LevelsAndCaptions-regular-test.json --compare_checkpoints --game MM-Full
-```
-However, it is easy to match captions that are similar to real game captions. You can evaluate how caption adherence changed during training with respect to previously unseen randomly generated captions too:
-
-```
-python evaluate_caption_adherence.py --model_path MM_conditional_full_regular0 --save_as_json --json datasets\MMLV_RandomTest-regular.json --compare_checkpoints --game MM-Full
-```
-
-Entrance/exit direction captions (added via `--direction_captions` earlier in the pipeline) are automatically excluded from caption-adherence scoring, so no extra flags are needed here to account for them.
-
-If you'd like to create all the generated data used to evaluate caption adherence in one step, you can do so by running the batch file like this:
-
-```
-batch\evaluate_caption_adherence_multi.bat MM_conditional_full_regular0 regular MMLV
-```
