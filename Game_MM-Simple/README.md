@@ -74,34 +74,6 @@ train-conditional-pre.bat 0 MM-Simple regular MM-Simple MiniLM split
 This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Mega Man captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE` or other models mentioned in the batch file.
 You can also use the `train_diffusion.py` script directly to train a model however you like.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## Generate levels from text-conditional diffusion model
 
 These options are similar to what you can do with Mario levels.
@@ -126,7 +98,7 @@ Similarly, the GUI used with Mario can also be used with Mega Man, like so:
 python interactive_tile_level_generator.py --model_path MM-Simple-MM-Simple-conditional-regular0 --load_data Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular.json --game MM-Simple
 ```
 However, there are some new options here that are specific to Mega Man. If you add several generated level scenes
-to a constructed level, you can then click the button to Arrange a Mega Man level, which will bring up a 2D grid
+to a constructed level, you can then click the button to Build a Mega Man level, which will bring up a 2D grid
 layout where you can layout the scenes into a complete level. 
 
 ![ArrangeMegaManMap.png](Building Mega Man Level)

@@ -180,7 +180,7 @@ def parse_args():
     parser.add_argument('--levels', default='../TheVGLC/MegaMan/Enhanced', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output directory')
     parser.add_argument('--no_filter', action='store_true', help='Disable all quality/playable-area filtering (including the A* traversability filter); write every extracted scene to --output.')
-    parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene height (e.g., 16 or 32). Navigation still uses the screen height for path mode.')
+    parser.add_argument('--target_height', type=int, default=common_settings.MEGAMAN_HEIGHT, help='Output scene height (e.g., 16 or 32). Navigation still uses the screen height for path mode.')
     parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width for path mode.')
     parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')

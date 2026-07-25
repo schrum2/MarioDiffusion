@@ -225,7 +225,7 @@ class CaptionBuilder(ParentBuilder):
         self.graphics_checkbox = ttk.Checkbutton(row1, text="Use SNES Graphics", variable=self.use_snes_graphics, style="TCheckbutton")
         self.graphics_checkbox.pack(side=tk.LEFT, padx=5)
 
-        self.mm_layout_button = ttk.Button(row1, text="Arrange Mega Man Level", command=self.open_megaman_layout_editor, style="TButton")
+        self.mm_layout_button = ttk.Button(row1, text="Build Mega Man Level", command=self.open_megaman_layout_editor, style="TButton")
         self.mm_layout_button.pack(side=tk.LEFT, padx=5)
 
         self.delete_image_button = ttk.Button(row2, text="Delete Selected Image", command=self.delete_selected_composed_image, style="TButton")
