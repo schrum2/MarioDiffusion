@@ -114,7 +114,7 @@ You can also create a single dataset that mixes several widths together.
 ```
 Mar1and2Mixed-data.bat
 ```
-This command generates the datasets at widths 16, 32, 64, and 128 and combines all four into one mixed-width dataset named `Mar1and2_16-32-64-128` (along with its tokenizer and random-test captions). Note that the combined files are very large (hundreds of MB) and are not present in the repo, so you must run this batch file yourself before training on the mixed dataset. See [Training on the large mixed-width dataset](#training-on-the-large-mixed-width-dataset) below for how to train on it.
+This command generates the datasets at widths 16, 32, 64, and 128 and combines all four into one mixed-width dataset named `Mar1and2_16-32-64-128` (along with its tokenizer and random-test captions). Note that the combined files are very large (hundreds of MB) and are not present in the repo, so you must run this batch file yourself before training on the mixed dataset.
 
 ## Complete training and evaluation sequence
 
@@ -512,61 +512,15 @@ python train_diffusion.py --augment --text_conditional --output_dir "Mario-Mar1a
 ```
 Once you train a diffusion model, a copy of the tile embedding model is saved in the diffusion model directory and automatically loaded as needed whenever the diffusion model is loaded, which means that all downstream Python scripts used to generate level scenes from models can be used as normal without the need for any additional parameters related to the use of the tile embedding model.
 
-
-
-
-MORE? Batch file?
-
-
-
-
-
-
-
-
-## Train and generate levels from unconditional model with block2vec tile embedding model (experimental)
-
-
-To train and run an unconditional model with tile embeddings, you can run this batch file
-and opt to include an argument for the size of the latent embedding space by including an integer for the number of embedding dimensions (default 16)
+Note that `train-diffusion.bat` also supports training sequences that involve tile embedding models. When left out, the tile embedding model type defaults to none, but you can designate either `block2vec` or `skip` followed by the length of the embedding vector, as in these examples:
 ```
-batch\Mar1and2-unconditional-embedding.bat (embedding_dims)
+train-diffusion.bat 0 Mar1and2 regular Mario MLM single block2vec 8
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Training on the large mixed-width dataset
-
- **Experimental.** Training a single conditional model on level scenes of mixed widths (16, 32, 64, and 128) is a work in progress. The combined dataset is roughly an order of magnitude larger than a single-width set, so training is slow and VRAM-hungry.
-
-First build the mixed dataset as described under [Datasets with longer levels](#datasets-with-longer-levels):
+That command trains a `block2vec` tile embedding in addition to an MLM model. Note that `single` is needed, even though it is ignored by the MLM model. In contrast, the following command uses multiple text embedding vectors with a GTE model after training a tile embedding model using the skipgram approach:
 ```
-cd batch
-Mar1and2Mixed-data.bat
+train-diffusion.bat 0 Mar1and2 absence Mario GTE multiple skip 8
 ```
-This produces `Mar1and2_16-32-64-128_LevelsAndCaptions-regular.json` (split into train/validate/test), the `Mar1and2Mixed_Tokenizer-regular.pkl` tokenizer, and matching random-test captions. These files are large and are not in the repo, so you have to generate them yourself.
-
-To then train a conditional model on this mixed dataset, call the following batch file: 
+You can also train unconditional models with tile embeddings, though some dummy parameters are once again needed:
 ```
-cd batch
-train-conditional-mixed.bat 
+train-diffusion.bat 0 Mar1and2 none Mario none single block2vec 8
 ```
-The diffusion training itself handles the variable widths by bucketing scenes of the same width into each batch. 
-
-
-
-
-
-
-

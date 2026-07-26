@@ -1,6 +1,6 @@
 @echo off
 REM Usage: Mar1and2Mixed-data.bat
-REM Builds the large EXPERIMENTAL mixed-width Mario dataset by generating the SMB1+SMB2
+REM Builds the large mixed-width Mario dataset by generating the SMB1+SMB2
 REM data at widths 16, 32, 64, and 128 and combining all of them into one dataset.
 
 call Mar1and2-data.bat 16
