@@ -162,41 +162,19 @@ Interactively evolve level scenes in the latent space of the GAN model:
 python evolve_interactive_wgan.py --model_path MM-Simple-MM-Simple-wgan0\final_models\generator.pth --game MM-Simple
 ```
 
+## Training with Tile Embedding Models
 
-
-
-
-
-
-
-
-
-
-CHANGE BELOW THIS
-
-
-
-
-
-
-
-
-Train an unconditional diffusion model without any text embeddings:
-
-This entire process — from creating the level sample files, through captioning,
-tokenizing, splitting, and training — can be done with this batch file:
-
+As with Mario, we also experimented with tile embedding models in Mega Man. The process is similar to Mario, and thus the description here is simpler. The main thing you need to do first is create the training set by running the right batch file:
 ```
-cd MM_Batch
-MM_unconditional.bat [size]
+cd Game_MM-Simple
+cd BATCH
+MM-Simple-tile3x3-data.bat
 ```
-`size` is optional and sets both the scene width and height (default 16 wide,
-14 tall if omitted; passing e.g. `32` makes both dimensions 32). Output model
-directory is named `MM-simple{size}-unconditional0`.
-
+Once this dataset exists, along with the datasets defined above, you can train a diffusion model that uses tile embeddings. As with Mario, the `train-diffusion.bat` file will train the embedding model first if invoked properly. Here is an example:
 ```
-python train_diffusion.py --json datasets\MM_LevelsAndCaptions-simple-regular.json --augment --output_dir MM_unconditional_simple0 --seed 0 --game MM-Simple
+train-diffusion.bat 0 MM-Simple regular MM-Simple MLM single block2vec 8
 ```
+See the Mario README for more.
 
 
 
@@ -213,48 +191,7 @@ python train_diffusion.py --json datasets\MM_LevelsAndCaptions-simple-regular.js
 
 
 
-
-
-
-
-
-## Train and generate levels with block2vec tile embeddings (experimental)
-
-By default, unconditional diffusion models represent each tile as a one-hot vector. Block2Vec replaces this with learned embedding vectors trained on 3x3 tile windows, so contextually similar tiles end up with similar vectors.
-
-```
-MM_Batch\MM_unconditional-embedding.bat {embedding_dims}
-```
-
-(`embedding_dims` is optional, default 16.)
-
-Manual steps:
-
-Slice the VGLC levels into 3x3 tile windows for embedding training:
-```
-python create_tile_level_json_data.py --tileset Game_MM-Simple/MM-Simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
-```
-
-Train the block2vec embedding model on those windows:
-```
-python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
-```
-
-Train the unconditional diffusion model using the learned embeddings instead of one-hot tiles:
-```
-python train_diffusion.py --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0
-```
-
-Generate levels from the trained block2vec model:
-```
-python run_diffusion.py --model_path MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_samples 100 --save_as_json --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM%-samples --game MM-Simple
-```
-
-Train a conditional model with block2vec tile embeddings:
-```
-cd MM_Batch
-MM_conditional-embeddings.bat {embedding_dims}
-```
+DO I MENTION LLM CAPTIONS HERE?
 
 
 
@@ -268,29 +205,6 @@ MM_conditional-embeddings.bat {embedding_dims}
 
 
 
-
-
-
-
-
-
-
-## Embedding
-
-Slice the VGLC levels into 3x3 tile windows for embedding training:
-```
-python create_tile_level_json_data.py --tileset Game_MM-Simple/MM-Simple-tileset.json --levels ..\TheVGLC\MegaMan\Enhanced --output datasets\MM_3x3_Tiles-simple.json --tile_size 3 --char_map datasets\MM-VGLC-to-simple.json
-```
-
-Train the block2vec embedding model on those windows:
-```
-python train_block2vec.py --json_file datasets\MM_3x3_Tiles-simple.json --output_dir MM-simple-block2vec%EMBEDDING_DIM%-embeddings --embedding_dim %EMBEDDING_DIM% --epochs 300
-```
-
-Train the text-conditional diffusion model on the train/validate split, using both the text encoder and the block2vec embeddings:
-```
-python train_diffusion.py --text_conditional --mlm_model_dir MM-MLM-simple0 --game MM-Simple --augment --block_embedding_model_path MM-simple-block2vec%EMBEDDING_DIM%-embeddings --output_dir MM-simple-conditional0-block2vec%EMBEDDING_DIM% --num_epochs 500 --json datasets\MM_LevelsAndCaptions-simple-regular-train.json --val_json datasets\MM_LevelsAndCaptions-simple-regular-validate.json --seed 0
-```
 
 
 
