@@ -35,6 +35,11 @@ REM              training.
 REM   [tile_embed_dim] optional, defaults to 16. Embedding dimension used when
 REM              [tile_embed_method] is not "none". Ignored otherwise.
 REM
+REM Special case: if <data> contains the substring "128", DIFFUSION_EPOCHS is
+REM forced to 100 and train_diffusion.py is called with --batch_size 16,
+REM since "128" data sources use larger training samples that need a smaller
+REM batch size to fit in VRAM (on this hardware).
+REM
 REM ============================================================================
 cd ..
 
@@ -224,6 +229,17 @@ if /I "%GAME%"=="LR" (
     set MLM_CHECKPOINT=1000
 )
 
+REM --- 128-size data special case ---------------------------------------
+REM Data sources with "128" in the name use larger training samples, which
+REM need a smaller batch size to fit in VRAM (on this hardware, anyway) and
+REM correspondingly fewer epochs.
+set BATCH_SIZE_FLAG=
+echo %DATA%| findstr /C:"128" >nul
+if %ERRORLEVEL% EQU 0 (
+    set DIFFUSION_EPOCHS=100
+    set BATCH_SIZE_FLAG=--batch_size 16
+)
+
 REM ===========================================================================
 REM Step 0: train (or reuse) a tile embedding model, if requested.
 REM If EMBEDDING_DIR already exists, training is skipped and the existing
@@ -263,12 +279,12 @@ REM ===========================================================================
 call :check_dir_exists "%MODEL_DIR%"
 if /I "!DIR_EXISTS!"=="false" (
     if /I "%UNCONDITIONAL%"=="true" (
-        python train_diffusion.py     --save_image_epochs %DIFFUSION_EPOCHS% --augment                    --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG%
+        python train_diffusion.py     --save_image_epochs %DIFFUSION_EPOCHS% --augment                    --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG%
     ) else (
         if /I "%USE_MLM%"=="true" (
-            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
+            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
         ) else (
-            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
+            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
         )
     )
 )

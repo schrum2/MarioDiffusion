@@ -20,5 +20,5 @@ REM Split the combined dataset into train/val/test sets
 python split_data.py --json_file Game_Mario/DATA/Mar1and2_16-32-64-128_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 0 --game Mario
 
 REM Build the tokenizer and random-test captions for the mixed dataset
-python tokenizer.py save --json_file Game_Mario/DATA/Mar1and2_16-32-64-128_LevelsAndCaptions-regular.json --pkl_file Game_Mario/DATA/Mar1and2Mixed_Tokenizer-regular.pkl
+python tokenizer.py save --json_file Game_Mario/DATA/Mar1and2_16-32-64-128_LevelsAndCaptions-regular.json --pkl_file Game_Mario/DATA/Mar1and2_16-32-64-128_Tokenizer-regular.pkl
 python create_random_test_captions.py --save_file "Game_Mario/DATA/Mar1and2_16-32-64-128_RandomTest-regular.json" --json Game_Mario/DATA/Mar1and2_16-32-64-128_LevelsAndCaptions-regular.json --seed 0
