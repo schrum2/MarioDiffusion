@@ -51,7 +51,7 @@ cd batch
 ```
 Once here, you can train both a text encoder and its corresponding diffusion model back to back with a single command like this:
 ```
-train-conditional.bat 0 MM-Simple regular MM-Simple
+train-diffusion.bat 0 MM-Simple regular MM-Simple MLM
 ```
 This is the exact same batch file used to train models for Mario.
 You'll see that after training, extra evaluation of the produced model is carried out.
@@ -69,9 +69,9 @@ python train_diffusion.py --save_image_epochs 20 --text_conditional --output_dir
 You can also train a Mega Man model using a pre-trained text encoder instead of training your own MLM transformer.
 Here is the easy way to launch the training and evaluation with a batch file:
 ```
-train-conditional-pre.bat 0 MM-Simple regular MM-Simple MiniLM split
+train-diffusion.bat 0 MM-Simple regular MM-Simple MiniLM multiple
 ```
-This command trains one diffusion model that uses `MiniLM` as its text model, and the `split` parameter means that individual phrases from the Mega Man captions each get their own embedding vector. You can simply leave the `split` out to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE` or other models mentioned in the batch file.
+This command trains one diffusion model that uses `MiniLM` as its text model, and the `multiple` parameter means that individual phrases from the Mega Man captions each get their own embedding vector. You can replace this with `single` to embed each caption with a single vector, and you can also swap `MiniLM` with `GTE` or other models mentioned in the batch file.
 You can also use the `train_diffusion.py` script directly to train a model however you like.
 
 ## Generate levels from text-conditional diffusion model
@@ -116,7 +116,7 @@ python evolve_interactive_conditional_diffusion.py --model_path MM-Simple-MM-Sim
 To train an unconditional diffusion model without any text embeddings, run this batch file:
 ```
 cd batch
-train-unconditional.bat 0 MM-Simple MM-Simple
+train-diffusion.bat 0 MM-Simple none MM-Simple
 ```
 
 ## Generate levels from unconditional model
