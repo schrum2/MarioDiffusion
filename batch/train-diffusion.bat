@@ -161,7 +161,7 @@ if /I "%USE_TILE_EMBED%"=="true" (
         echo Error: Tile-level dataset "!TILE_JSON!" does not exist. Is needed to train tile-embedding model.
         exit /b 1
     )
-    set EMBEDDING_DIR=%GAME%-%DATA%-%TILE_METHOD%%TILE_DIM%-embeddings%SEED%
+    set EMBEDDING_DIR=%GAME%-%DATA%-%TILE_METHOD%%TILE_DIM%-embeddings-seed%SEED%
     set BLOCK_EMBED_FLAG=--block_embedding_model_path "!EMBEDDING_DIR!"
     set TILE_TAG=%TILE_METHOD%%TILE_DIM%
 )
@@ -181,25 +181,25 @@ set MLM_OUTPUT=
 set TOKENIZER=
 if /I "%UNCONDITIONAL%"=="true" (
     if /I "%USE_TILE_EMBED%"=="true" (
-        set MODEL_DIR=%GAME%-%DATA%-unconditional-%TILE_TAG%%SEED%
+        set MODEL_DIR=%GAME%-%DATA%-unconditional-%TILE_TAG%-seed%SEED%
     ) else (
-        set MODEL_DIR=%GAME%-%DATA%-unconditional%SEED%
+        set MODEL_DIR=%GAME%-%DATA%-unconditional-seed%SEED%
     )
 ) else (
     if /I "%USE_MLM%"=="true" (
-        set MLM_OUTPUT=%GAME%-%DATA%-MLM-%TYPE%%SEED%
+        set MLM_OUTPUT=%GAME%-%DATA%-MLM-%TYPE%-seed%SEED%
         set TOKENIZER=Game_%GAME%/DATA/%DATA%_Tokenizer-%TYPE%.pkl
         if /I "%USE_TILE_EMBED%"=="true" (
-            set MODEL_DIR=%GAME%-%DATA%-conditional-%TILE_TAG%-%TYPE%%SEED%
+            set MODEL_DIR=%GAME%-%DATA%-conditional-%TILE_TAG%-%TYPE%-seed%SEED%
         ) else (
-            set MODEL_DIR=%GAME%-%DATA%-conditional-%TYPE%%SEED%
+            set MODEL_DIR=%GAME%-%DATA%-conditional-%TYPE%-seed%SEED%
         )
     ) else (
         set MODEL_TAG=%MODEL%%SPLIT%
         if /I "%USE_TILE_EMBED%"=="true" (
-            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TILE_TAG%-%TYPE%%SEED%
+            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TILE_TAG%-%TYPE%-seed%SEED%
         ) else (
-            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TYPE%%SEED%
+            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TYPE%-seed%SEED%
         )
     )
 )
@@ -208,7 +208,7 @@ REM --- Per-execution timing log -------------------------------------------
 REM Each step appends a timestamped record. The log is staged under
 REM timing_logs\ during the run then moved into the trained model's
 REM directory at the end.
-set TIMING_LOG=timing_logs\train-%GAME%-%DATA%-%TYPE%%SEED%.jsonl
+set TIMING_LOG=timing_logs\train-%GAME%-%DATA%-%TYPE%-seed%SEED%.jsonl
 if exist "%TIMING_LOG%" del "%TIMING_LOG%"
 python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train start"
 
