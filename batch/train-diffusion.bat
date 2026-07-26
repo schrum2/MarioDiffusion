@@ -200,7 +200,7 @@ if /I "%UNCONDITIONAL%"=="true" (
             set MODEL_DIR=%GAME%-%DATA%-conditional-%TYPE%-seed%SEED%
         )
     ) else (
-        set MODEL_TAG=%MODEL%%SPLIT%
+        set MODEL_TAG=%MODEL%-%SPLIT%
         if /I "%USE_TILE_EMBED%"=="true" (
             set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TILE_TAG%-%TYPE%-seed%SEED%
         ) else (
