@@ -191,7 +191,7 @@ See the Mario README for more.
 
 
 
-DO I MENTION LLM CAPTIONS HERE?
+DO I MENTION LLM CAPTIONS HERE? TODO
 
 
 
@@ -242,3 +242,35 @@ It takes an optional seed (defaults to `0`), a pretrained text encoder (`MiniLM`
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LAST CITATION
+
+
+## Citation
+
+Our work with Mega Man is not yet published and is ongoing, but if you use this code in the meantime, please cite this repo like so:
+
+```bibtex
+@misc{schrum:megamandiffusion,
+  author       = {Schrum, Jacob and Kilday, Olivia and Wilson, Fletcher and Almzayen, Alaa},
+  title        = {Mega Man Diffusion},
+  year         = {2026},
+  publisher    = {GitHub},
+  howpublished = {\url{https://github.com/schrum2/MarioDiffusion}},
+  note         = {Mega Man code in the MarioDiffusion repository}
+}
+```
