@@ -176,22 +176,12 @@ train-diffusion.bat 0 MM-Simple regular MM-Simple MLM single block2vec 8
 ```
 See the Mario README for more.
 
+## LLM-Generated Captions
+
+TODO
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-DO I MENTION LLM CAPTIONS HERE? TODO
 
 
 
@@ -208,9 +198,25 @@ DO I MENTION LLM CAPTIONS HERE? TODO
 
 
 
-## LLM captions (experimental)
 
-Instead of the deterministic captions from `MM_create_ascii_captions.py`, you can choose to caption levels with an LLM. This produces five diverse natural-language captions per scene, grounded on pre-computed structural metadata about the scene. `--llm` picks the inference source: `ollama` runs a local model (default), while `claude` and `openai` call their respective APIs and require an API key in `.env`. `--levels` accepts either a JSON dataset from `create_megaman_json_data.py` or a directory of VGLC-ASCII `.txt` files. `--model` overrides the per-source default model (qwen3.5:9b for Ollama, Sonnet 4.6 for Claude, GPT-5.1 for OpenAI), and `--limit` caps how many scenes are captioned.
+
+
+
+
+Instead of the deterministic captions from `MM_create_ascii_captions.py`, you can choose to caption levels with an LLM. This process produces multiple diverse natural-language captions per scene, grounded on pre-computed structural metadata about the scene. The `--llm` parameter picks the LLM source: `ollama` runs a local model (default), while `claude`, 
+
+
+`gemini`,    (TODO)
+
+
+
+and `openai` call their respective APIs and require an API key 
+
+
+in `.env`. (WHAT?)
+
+
+`--levels` accepts either a JSON dataset from `create_megaman_json_data.py` or a directory of VGLC-ASCII `.txt` files. `--model` overrides the per-source default model (qwen3.5:9b for Ollama, Sonnet 4.6 for Claude, GPT-5.1 for OpenAI), and `--limit` caps how many scenes are captioned.
 
 Example usage that captions the complete levels in the VGLC:
 ```bash
