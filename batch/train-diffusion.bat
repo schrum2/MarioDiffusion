@@ -70,6 +70,15 @@ if "%VALID%"=="false" (
     exit /b 1
 )
 
+REM --- Resolve game-specific data directory --------------------------------
+REM Mega Man variants share the same dataset layout and README, but they may
+REM use different tilesets at runtime. Keep the game alias for scripts and
+REM training names, but point data lookups at the shared Mega Man directory.
+set GAME_DIR=Game_%GAME%
+if /I "%GAME%"=="MM-Simple" set GAME_DIR=Game_MM-Simple
+if /I "%GAME%"=="MM-Full" set GAME_DIR=Game_MM-Simple
+if /I "%GAME%"=="MMLV" set GAME_DIR=Game_MM-Simple
+
 REM --- Validate TYPE -------------------------------------------------------
 set "TYPE_VALID=false"
 for %%T in (regular absence negative none) do (
@@ -161,7 +170,7 @@ set EMBEDDING_DIR=
 set BLOCK_EMBED_FLAG=
 set TILE_TAG=
 if /I "%USE_TILE_EMBED%"=="true" (
-    set TILE_JSON=Game_%GAME%/DATA/%DATA%_3x3_tiles.json
+    set TILE_JSON=%GAME_DIR%/DATA/%DATA%_3x3_tiles.json
     if not exist "!TILE_JSON!" (
         echo Error: Tile-level dataset "!TILE_JSON!" does not exist. Is needed to train tile-embedding model.
         exit /b 1
@@ -173,9 +182,9 @@ if /I "%USE_TILE_EMBED%"=="true" (
 
 REM --- Data paths --------------------------------------------------------
 if /I "%UNCONDITIONAL%"=="true" (
-    set DATA_PATH=Game_%GAME%/DATA/%DATA%_LevelsAndCaptions-regular
+    set DATA_PATH=%GAME_DIR%/DATA/%DATA%_LevelsAndCaptions-regular
 ) else (
-    set DATA_PATH=Game_%GAME%/DATA/%DATA%_LevelsAndCaptions-%TYPE%
+    set DATA_PATH=%GAME_DIR%/DATA/%DATA%_LevelsAndCaptions-%TYPE%
 )
 set TRAIN_DATA=%DATA_PATH%-train.json
 set VAL_DATA=%DATA_PATH%-validate.json
@@ -193,7 +202,7 @@ if /I "%UNCONDITIONAL%"=="true" (
 ) else (
     if /I "%USE_MLM%"=="true" (
         set MLM_OUTPUT=%GAME%-%DATA%-MLM-%TYPE%-seed%SEED%
-        set TOKENIZER=Game_%GAME%/DATA/%DATA%_Tokenizer-%TYPE%.pkl
+        set TOKENIZER=%GAME_DIR%/DATA/%DATA%_Tokenizer-%TYPE%.pkl
         if /I "%USE_TILE_EMBED%"=="true" (
             set MODEL_DIR=%GAME%-%DATA%-conditional-%TILE_TAG%-%TYPE%-seed%SEED%
         ) else (

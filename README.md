@@ -52,7 +52,7 @@ pip install -r requirements.txt
 After setting up the repo with the instructions above, follow one of the links below for more details about whatever game you are interested in.
 
 - [Mario 1 and Mario 2 using VGLC Data](Game_Mario/README.md) (Original work from AIIDE 2025 paper)
-- Mega Man using VGLC Data
+- [Mega Man using VGLC Data](Game_MM-Simple/README.md) (shared workflow for MM-Simple and MM-Full)
 - Enhanced Mario Levels using Mario Maker 2 Data
 - Enhanced Mega Man Levels using Mega Man Maker Data
 - [Lode Runner using VGLC Data](Game_LR/README.md)

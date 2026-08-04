@@ -1,7 +1,7 @@
 # Mega Man Diffusion
 
 Generate Mega Man level scenes with a diffusion model conditioned on text input.
-These instructions focus on using VGLC data to train a diffusion model to create Mega Man levels. The tileset used is simplified in a manner similar to the Mario Diffusion results, where all enemies map to a single common tile. Therefore, the complexity of the tileset is comparable to Mario, but Mega Man levels are a bit more complex because they progress not only from left to right, but sometimes vertically as well.
+These instructions focus on using VGLC data to train a diffusion model to create Mega Man levels. The same workflow applies to both the simplified Mega Man tileset (`MM-Simple`) and the fuller tileset (`MM-Full`), which share the same dataset structure and training pipeline. The simplified tileset groups enemies into a single common tile, making it comparable in complexity to Mario, while the full tileset preserves the richer Mega Man tile variety. Mega Man levels are also a bit more complex because they progress not only from left to right, but sometimes vertically as well.
 This code will allow you to train a diffusion model that generates Mega Man scenes, and combine them into levels that are playable in [Mega Man Maker](https://megamanmaker.com/).
 These instructions assume you have followed the basic setup instructions in the main [README](../README.md) first.
 
