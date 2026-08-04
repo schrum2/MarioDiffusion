@@ -75,9 +75,8 @@ REM Mega Man variants share the same dataset layout and README, but they may
 REM use different tilesets at runtime. Keep the game alias for scripts and
 REM training names, but point data lookups at the shared Mega Man directory.
 set GAME_DIR=Game_%GAME%
-if /I "%GAME%"=="MM-Simple" set GAME_DIR=Game_MM-Simple
-if /I "%GAME%"=="MM-Full" set GAME_DIR=Game_MM-Simple
-if /I "%GAME%"=="MMLV" set GAME_DIR=Game_MM-Simple
+if /I "%GAME%"=="MM-Simple" set GAME_DIR=Game_MM
+if /I "%GAME%"=="MM-Full" set GAME_DIR=Game_MM
 
 REM --- Validate TYPE -------------------------------------------------------
 set "TYPE_VALID=false"

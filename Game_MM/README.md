@@ -20,11 +20,11 @@ the directories for `MarioDiffusion` and `TheVGLC` are next to each other in the
 ```
 git clone https://github.com/schrum2/TheVGLC.git
 ```
-Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `Game_MM-Simple/BATCH` sub-directory in the
-`MarioDiffusion` repo for Lode Runner batch files.
+Once you have my version of `TheVGLC` and `MarioDiffusion`, go into the `Game_MM/BATCH` sub-directory in the
+`MarioDiffusion` repo for Mega Man batch files.
 ```
 cd MarioDiffusion
-cd Game_MM-Simple
+cd Game_MM
 cd BATCH
 ```
 Next, run a batch file to create datasets from the VGLC data. This batch file call will create
@@ -39,13 +39,13 @@ MM-Simple-data.bat
 ```
 Now you can browse level scenes and their captions with a command like this (the first json file can be replaced by any levels and captions json file in datasets):
 ```
-python ascii_data_browser.py Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular.json MM-Simple
+python ascii_data_browser.py Game_MM/DATA/MM-Simple_LevelsAndCaptions-regular.json MM-Simple
 ```
 This is not required, but will give you insight into the data.
 
 ## Complete training and evaluation sequence
 
-To train a text conditional diffusion model for the simplified Mega Man tileset, you should go to the batch directory first:
+To train a text conditional diffusion model for the Mega Man tileset workflow, you should go to the batch directory first. The same commands work for both `MM-Simple` and `MM-Full`; simply swap the game argument to use the desired tileset.
 ```
 cd batch
 ```
@@ -58,13 +58,13 @@ You'll see that after training, extra evaluation of the produced model is carrie
 
 The core training steps that occur in the batch file are the training of the text encoder and the diffusion model.
 Masked language modeling is used to train the text embedding model. 
-The following command line will train a text embedding model based on the Lode Runner data created before:
+The following command line will train a text embedding model based on the Mega Man data created before:
 ```
-python train_mlm.py --epochs 300 --save_checkpoints --json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-train.json --val_json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-validate.json --test_json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-test.json --pkl Game_MM-Simple/DATA/MM-Simple_Tokenizer-regular.pkl --output_dir MM-Simple-MM-Simple-MLM-regular0 --seed 0
+python train_mlm.py --epochs 300 --save_checkpoints --json Game_MM/DATA/MM-Simple_LevelsAndCaptions-regular-train.json --val_json Game_MM/DATA/MM-Simple_LevelsAndCaptions-regular-validate.json --test_json Game_MM/DATA/MM-Simple_LevelsAndCaptions-regular-test.json --pkl Game_MM/DATA/MM-Simple_Tokenizer-regular.pkl --output_dir MM-Simple-MM-Simple-MLM-regular0 --seed 0
 ```
 After training the text embedding model, you can train a diffusion model conditioned on text embeddings from the descriptive captions:
 ```
-python train_diffusion.py --save_image_epochs 20 --text_conditional --output_dir MM-Simple-MM-Simple-conditional-regular0 --num_epochs 500 --json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-train.json --val_json Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular-validate.json --pkl Game_MM-Simple/DATA/MM-Simple_Tokenizer-regular.pkl --mlm_model_dir MM-Simple-MM-Simple-MLM-regular0 --plot_validation_caption_score --seed 0
+python train_diffusion.py --save_image_epochs 20 --text_conditional --output_dir MM-Simple-MM-Simple-conditional-regular0 --num_epochs 500 --json Game_MM/DATA/MM-Simple_LevelsAndCaptions-regular-train.json --val_json Game_MM/DATA/MM-Simple_LevelsAndCaptions-regular-validate.json --pkl Game_MM/DATA/MM-Simple_Tokenizer-regular.pkl --mlm_model_dir MM-Simple-MM-Simple-MLM-regular0 --plot_validation_caption_score --seed 0
 ```
 You can also train a Mega Man model using a pre-trained text encoder instead of training your own MLM transformer.
 Here is the easy way to launch the training and evaluation with a batch file:
@@ -95,7 +95,7 @@ python text_to_level_diffusion.py --model_path MM-Simple-MM-Simple-conditional-r
 ```
 Similarly, the GUI used with Mario can also be used with Mega Man, like so:
 ```
-python interactive_tile_level_generator.py --model_path MM-Simple-MM-Simple-conditional-regular0 --load_data Game_MM-Simple/DATA/MM-Simple_LevelsAndCaptions-regular.json --game MM-Simple
+python interactive_tile_level_generator.py --model_path MM-Simple-MM-Simple-conditional-regular0 --load_data Game_MM/DATA/MM-Simple_LevelsAndCaptions-regular.json --game MM-Simple
 ```
 However, there are some new options here that are specific to Mega Man. If you add several generated level scenes
 to a constructed level, you can then click the button to Build a Mega Man level, which will bring up a 2D grid
@@ -123,7 +123,7 @@ train-diffusion.bat 0 MM-Simple none MM-Simple
 
 Just like with the text conditional model, you can get level samples from the batch file or a seperate command.
 ```
-batch\run_diffusion_multi.bat MM-Simple-MM-Simple-unconditional0 regular LR
+batch\run_diffusion_multi.bat MM-Simple-MM-Simple-unconditional0 regular MM-Simple
 ```
 As before, to get more control, you can simply run this from the command line
 ```
@@ -166,7 +166,7 @@ python evolve_interactive_wgan.py --model_path MM-Simple-MM-Simple-wgan0\final_m
 
 As with Mario, we also experimented with tile embedding models in Mega Man. The process is similar to Mario, and thus the description here is simpler. The main thing you need to do first is create the training set by running the right batch file:
 ```
-cd Game_MM-Simple
+cd Game_MM
 cd BATCH
 MM-Simple-tile3x3-data.bat
 ```

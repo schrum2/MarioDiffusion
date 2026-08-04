@@ -32,6 +32,12 @@ if "%VALID%"=="false" (
     exit /b 1
 )
 
+REM Mega Man variants share the same data directory, while keeping the
+REM runtime game alias for the training scripts.
+set GAME_DIR=Game_%GAME%
+if /I "%GAME%"=="MM-Simple" set GAME_DIR=Game_MM
+if /I "%GAME%"=="MM-Full" set GAME_DIR=Game_MM
+
 set MODEL=%5
 if /I "%MODEL%"=="" set MODEL=MiniLM
 if /I "%MODEL%"=="MiniLM" (
@@ -46,7 +52,7 @@ if /I "%MODEL%"=="GTE" (
 REM Default values for fdm model output and extra flags
 set DIFF_OUTPUT=%GAME%-%DATA%-fdm-%MODEL%-%TYPE%%SEED%
 
-set DATA_PATH=Game_%GAME%/DATA/%DATA%_LevelsAndCaptions-%TYPE%
+set DATA_PATH=%GAME_DIR%/DATA/%DATA%_LevelsAndCaptions-%TYPE%
 set TRAIN_DATA=%DATA_PATH%-train.json
 set VAL_DATA=%DATA_PATH%-validate.json
 
