@@ -112,7 +112,7 @@ class Direction(Enum):
 # the full tileset to a simplified one, but I already have the simplified tileset
 # saved. However, the VGLC data uses the full tileset, so some parts of this
 # might still be needed? Note sure.
-def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'Game_MM-Simple', group_enemies = True, group_powerups = True, group_empty_tiles = True):
+def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'Game_MM', group_enemies = True, group_powerups = True, group_empty_tiles = True):
     with open(tileset_path, "r") as f:
         tileset = json.load(f)
         tile_chars = sorted(tileset['tiles'].keys())
