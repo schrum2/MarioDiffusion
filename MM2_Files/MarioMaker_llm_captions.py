@@ -225,16 +225,16 @@ GAME_SETTINGS = {
         "tileset_we": os.path.join(_REPO_ROOT, *common_settings.MM2_TILESET.split("/")),
     },
     "MM": {
-        "tileset": os.path.join(_DATASETS_DIR, "MM.json"),
-        "tileset_we": os.path.join(_DATASETS_DIR, "MM.json"),
+        "tileset": common_settings.MM_FULL_TILESET,
+        "tileset_we": common_settings.MM_FULL_TILESET,
     },
     "MM-simple": {
-        "tileset": os.path.join(_DATASETS_DIR, "MM-Simple-tileset.json"),
-        "tileset_we": os.path.join(_DATASETS_DIR, "MM-Simple-tileset.json"),
+        "tileset": common_settings.MM_SIMPLE_TILESET,
+        "tileset_we": common_settings.MM_SIMPLE_TILESET,
     },
     "MMLV": {
-        "tileset": os.path.join(_DATASETS_DIR, "MMLV.json"),
-        "tileset_we": os.path.join(_DATASETS_DIR, "MMLV.json"),
+        "tileset": common_settings.MMLV_TILESET,
+        "tileset_we": common_settings.MMLV_TILESET,
     },
 }
 

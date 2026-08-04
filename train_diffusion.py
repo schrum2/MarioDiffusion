@@ -317,7 +317,7 @@ def main():
     # Was a hand-rolled if-elif chain duplicating common_settings.get_game_config(), which
     # already maps each --game choice to its tile count and tileset path. Note the previous
     # MM-Full branch pointed at '../TheVGLC/MegaMan/MM.json', which was confirmed incorrect;
-    # get_game_config() resolves MM-Full to MM_FULL_TILESET ('datasets/MM.json') instead.
+    # get_game_config() resolves MM-Full to MM_FULL_TILESET instead.
     game_config = common_settings.get_game_config(args.game)
     args.num_tiles = game_config["tile_count"]
     args.tileset = game_config["tileset"]

@@ -46,7 +46,7 @@ REM Split the captioned dataset into train/validate/test sets
 python split_data.py --json_file %DATA%.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM-Full
 python log_timestamp.py --log_file %TIMING_LOG% --event "split data"
 
-python train_diffusion.py --text_conditional --game MM-Full --tileset datasets\MM.json --json %DATA%-train.json --val_json %DATA%-validate.json --multiple_captions --pretrained_language_model "%MODEL_NAME%" --num_epochs 500 --output_dir "%DIFF_OUTPUT%" --seed %SEED% %SPLIT_FLAG%
+python train_diffusion.py --text_conditional --game MM-Full --tileset Game_MM\MM.json --json %DATA%-train.json --val_json %DATA%-validate.json --multiple_captions --pretrained_language_model "%MODEL_NAME%" --num_epochs 500 --output_dir "%DIFF_OUTPUT%" --seed %SEED% %SPLIT_FLAG%
 python log_timestamp.py --log_file %TIMING_LOG% --event "diffusion training"
 
 REM Post-training evaluation

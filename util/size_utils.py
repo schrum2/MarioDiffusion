@@ -141,7 +141,7 @@ def level_content_box(rows, empty_chars="-@", fill=None):
     the first empty char) so every returned row is exactly the box width. Returns
     [] for a level with no content at all.
 
-    In datasets/MM.json the air tile is - and @ is the out-of-bounds
+    In Game_MM/MM.json the air tile is - and @ is the out-of-bounds
     null, so the default treats both as empty.
     """
     rows = [r.rstrip("\r\n") for r in rows]

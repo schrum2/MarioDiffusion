@@ -779,7 +779,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate captions for Mega Man screenshots")
     parser.add_argument("--dataset", required=True, help="json with level scenes")
     
-    parser.add_argument("--tileset", default='datasets/MM.json', help="Descriptions of individual tile types")
+    parser.add_argument("--tileset", default=common_settings.MM_FULL_TILESET, help="Descriptions of individual tile types")
     parser.add_argument("--output", required=True, help="Output JSON file path")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--caption-mode", choices=["legacy", "keyed"], default="legacy",

@@ -220,7 +220,7 @@ in `.env`. (WHAT?)
 
 Example usage that captions the complete levels in the VGLC:
 ```bash
-python llm_ascii_to_caption.py --levels ..\TheVGLC\MegaMan\Enhanced --tileset datasets\MM.json --llm ollama --output datasets\MM_LevelsAndLLMCaptions-full.json
+python llm_ascii_to_caption.py --levels ..\TheVGLC\MegaMan\Enhanced --tileset Game_MM\MM.json --llm ollama --output datasets\MM_LevelsAndLLMCaptions-full.json
 ```
 
 ### Training Models with LLM Captions

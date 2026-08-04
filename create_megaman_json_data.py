@@ -176,7 +176,7 @@ def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'Game_MM
 def parse_args():
     parser = argparse.ArgumentParser(description="Create level json files for megaman")
     
-    parser.add_argument('--tileset', default='datasets/MM.json', help='Path to the tile set JSON')
+    parser.add_argument('--tileset', default=common_settings.MM_FULL_TILESET, help='Path to the tile set JSON')
     parser.add_argument('--levels', default='../TheVGLC/MegaMan/Enhanced', help='Directory containing level text files')
     parser.add_argument('--output', required=True, help='Path to the output directory')
     parser.add_argument('--no_filter', action='store_true', help='Disable all quality/playable-area filtering (including the A* traversability filter); write every extracted scene to --output.')

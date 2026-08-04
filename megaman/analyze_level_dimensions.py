@@ -24,7 +24,7 @@ its real tiles, trimming sky here is normally a no-op on the file dimensions;
 it just makes the measurement robust and identical in spirit to the Mario
 version.
 
-Sky (empty) characters for Mega Man VGLC -- see datasets/MM.json:
+Sky (empty) characters for Mega Man VGLC -- see Game_MM/MM.json:
     '-'  passable / empty (air)
     '@'  null (outside the level bounds)
 Everything else (#, H, |, P, Z, a, M, ...) is a real placed tile and counts as
