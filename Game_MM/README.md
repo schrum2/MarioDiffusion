@@ -27,7 +27,8 @@ cd MarioDiffusion
 cd Game_MM
 cd BATCH
 ```
-Next, run a batch file to create datasets from the VGLC data. This batch file call will create
+Next, run a batch file to create datasets from the VGLC data using both the Full and Simple tileset. 
+For each tileset, this batch file call will create
 a json data set of level scenes from Mega Man 1 levels in the VGLC data. Note that the  
 top 2 rows of each scene are filled with blank space to extend
 the height from 14 to 16, which is suitable for the diffusion
@@ -35,13 +36,14 @@ models we train.
 Afterwards, the batch file will create captions for the dataset, a tokenizer for the data, random test captions for later evaluation, and finally splits the data into training, validation, and testing json files. 
 Run this command:
 ```
-MM-Simple-data.bat
+MM-data.bat
 ```
 Now you can browse level scenes and their captions with a command like this (the first json file can be replaced by any levels and captions json file in datasets):
 ```
 python ascii_data_browser.py Game_MM/DATA/MM-Simple_LevelsAndCaptions-regular.json MM-Simple
 ```
-This is not required, but will give you insight into the data.
+This is not required, but will give you insight into the data. Any reference to MM-Simple 
+can be replaced with MM-Full to use the full tileset data instead.
 
 ## Complete training and evaluation sequence
 

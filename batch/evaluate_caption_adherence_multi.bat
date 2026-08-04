@@ -10,6 +10,10 @@ set TYPE=%2
 set DATA=%3
 set GAME=%4
 
+set GAME_DIR=Game_%GAME%
+if /I "%GAME%"=="MM-Simple" set GAME_DIR=Game_MM
+if /I "%GAME%"=="MM-Full" set GAME_DIR=Game_MM
+
 if "%MODEL_PATH%"=="" (
     echo ERROR: Must provide model_path as first argument.
     exit /b 1
@@ -20,10 +24,10 @@ REM Add --describe_absence flag if TYPE is absence
 set DESCRIBE_ABSENCE_FLAG=
 if /I "%TYPE%"=="absence" set DESCRIBE_ABSENCE_FLAG=--describe_absence
 
-set DATA_PREFIX=Game_%GAME%/DATA/%DATA%
+set DATA_PREFIX=%GAME_DIR%/DATA/%DATA%
 set DATA_PATH=%DATA_PREFIX%_LevelsAndCaptions-%TYPE%
 set TEST_DATA=%DATA_PATH%-test.json
-set TOKENIZER=Game_%GAME%/DATA/%DATA%_Tokenizer-%TYPE%.pkl
+set TOKENIZER=%GAME_DIR%/DATA/%DATA%_Tokenizer-%TYPE%.pkl
 
 REM RandomTest captions have no source scene, so randomize the generated width across the
 REM training width range. --width_range_json supplies that range for models trained before
