@@ -221,9 +221,23 @@ in `.env`. (WHAT?)
 `--levels` accepts either a JSON dataset from `create_megaman_json_data.py` or a directory of VGLC-ASCII `.txt` files. `--model` overrides the per-source default model (qwen3.5:9b for Ollama, Sonnet 4.6 for Claude, GPT-5.1 for OpenAI), and `--limit` caps how many scenes are captioned.
 
 Example usage that captions the complete levels in the VGLC:
-```bash
-python llm_ascii_to_caption.py --levels ..\TheVGLC\MegaMan\Enhanced --tileset Game_MM\MM.json --llm ollama --output datasets\MM_LevelsAndLLMCaptions-full.json
+
+(THIS COMMAND CAPTIONS ENTIRE LEVELS, NOT SCENES)
 ```
+python llm_ascii_to_caption.py --levels ..\TheVGLC\MegaMan\Enhanced --game megaman --llm ollama --output datasets\MM_LevelsAndLLMCaptions-full.json
+```
+
+
+python llm_ascii_to_caption.py --levels ..\TheVGLC\MegaMan\Enhanced --game megaman --llm ollama --output datasets\MM_LevelsAndLLMCaptions-full.json
+
+
+```
+python llm_ascii_to_caption.py --levels Game_MM\DATA\MM-Full_LevelsAndCaptions-regular.json --game megaman --llm ollama --output datasets\SCENES_MM_ScenesAndLLMCaptions-full.json
+```
+
+
+
+
 
 ### Training Models with LLM Captions
  
