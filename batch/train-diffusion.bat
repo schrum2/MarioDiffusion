@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 REM ============================================================================
 REM train-diffusion.bat - unified training entry point
 REM
-REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile_embed_method] [tile_embed_dim]
+REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile_embed_method] [tile_embed_dim] [extra args...]
 REM
 REM   <seed>   optional, defaults to 0
 REM   <data>   source of data: SMB1, SMB2, Mar1and2, LR, etc.
@@ -34,6 +34,12 @@ REM              (MLM or any pretrained model), or used with unconditional
 REM              training.
 REM   [tile_embed_dim] optional, defaults to 16. Embedding dimension used when
 REM              [tile_embed_method] is not "none". Ignored otherwise.
+REM   [extra args...] optional. Any additional arguments are treated as
+REM              caption_source_keys values and forwarded to train_diffusion.py
+REM              as --caption_source_keys <key1> <key2> ... . If supplied,
+REM              the run must use a non-MLM, non-unconditional training setup.
+REM              These runs also skip caption-adherence evaluation and use
+REM              doubled diffusion epochs to account for the wider caption mix.
 REM
 REM Special case: if <data> contains the substring "128", DIFFUSION_EPOCHS is
 REM forced to 100 and train_diffusion.py is called with --batch_size 16,
@@ -106,6 +112,31 @@ if "%TILE_METHOD%"=="" set TILE_METHOD=none
 set TILE_DIM=%8
 if "%TILE_DIM%"=="" set TILE_DIM=16
 
+REM --- Read caption_source_key values from any extra parameters ---------
+set "CAPTION_SOURCE_KEYS="
+set "CAPTION_SOURCE_KEYS_ARG="
+shift
+shift
+shift
+shift
+shift
+shift
+shift
+shift
+:parse_caption_source_keys
+if "%~1"=="" goto end_parse_caption_source_keys
+if /I "%~1"=="--caption_source_keys" (
+    shift
+    if "%~1"=="" goto end_parse_caption_source_keys
+)
+set "CAPTION_SOURCE_KEYS=!CAPTION_SOURCE_KEYS! %~1"
+shift
+goto parse_caption_source_keys
+:end_parse_caption_source_keys
+if defined CAPTION_SOURCE_KEYS (
+    set "CAPTION_SOURCE_KEYS_ARG=--caption_source_keys!CAPTION_SOURCE_KEYS!"
+)
+
 set "TILE_VALID=false"
 for %%E in (none block2vec skip) do (
     if /I "%TILE_METHOD%"=="%%~E" set "TILE_VALID=true"
@@ -139,6 +170,17 @@ if /I "%UNCONDITIONAL%"=="false" (
             echo Error: Unrecognized model '%MODEL%'.
             exit /b 1
         )
+    )
+)
+
+if defined CAPTION_SOURCE_KEYS (
+    if /I "%UNCONDITIONAL%"=="true" (
+        echo Error: caption_source_keys cannot be used with unconditional training (type none).
+        exit /b 1
+    )
+    if /I "%USE_MLM%"=="true" (
+        echo Error: caption_source_keys cannot be used with model MLM.
+        exit /b 1
     )
 )
 
@@ -229,10 +271,16 @@ REM --- Epoch counts ---------------------------------------------------------
 set DIFFUSION_EPOCHS=500
 if /I "%GAME%"=="LR" set DIFFUSION_EPOCHS=1000
 
+REM Diverse caption sources require more training iterations for stable
+REM convergence, so double the diffusion epochs when they are supplied.
+if defined CAPTION_SOURCE_KEYS (
+    set /A DIFFUSION_EPOCHS=!DIFFUSION_EPOCHS! * 2
+)
+
 set MLM_EPOCHS=300
 set MLM_CHECKPOINT=20
 if /I "%GAME%"=="LR" (
-    REM Is 80,000 really correct?
+    REM Is 60,000 really correct?
     set MLM_EPOCHS=60000
     set MLM_CHECKPOINT=1000
 )
@@ -287,12 +335,12 @@ REM ===========================================================================
 call :check_dir_exists "%MODEL_DIR%"
 if /I "!DIR_EXISTS!"=="false" (
     if /I "%UNCONDITIONAL%"=="true" (
-        python train_diffusion.py     --save_image_epochs %DIFFUSION_EPOCHS% --augment                    --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG%
+        python train_diffusion.py     --save_image_epochs %DIFFUSION_EPOCHS% --augment                    --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG%
     ) else (
         if /I "%USE_MLM%"=="true" (
-            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
+            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
         ) else (
-            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
+            python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
         )
     )
 )
@@ -312,8 +360,12 @@ REM ===========================================================================
 REM Step 4: evaluate caption adherence (conditional models only)
 REM ===========================================================================
 if /I "%UNCONDITIONAL%"=="false" (
-    call batch\evaluate_caption_adherence_multi.bat %MODEL_DIR% %TYPE% %DATA% %GAME%
-    python log_timestamp.py --log_file %TIMING_LOG% --event "caption adherence evaluation"
+    if defined CAPTION_SOURCE_KEYS (
+        echo Notice: Caption adherence cannot be calculated with multiple caption varieties; skipping evaluation.
+    ) else (
+        call batch\evaluate_caption_adherence_multi.bat %MODEL_DIR% %TYPE% %DATA% %GAME%
+        python log_timestamp.py --log_file %TIMING_LOG% --event "caption adherence evaluation"
+    )
 )
 
 REM move the timing log into the trained model's directory
