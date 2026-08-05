@@ -90,7 +90,7 @@ if "%TYPE_VALID%"=="false" (
 
 REM --- Read MODEL / SPLIT ---------------------------------------------------
 set MODEL=%5
-if "%MODEL%"=="" set MODEL=MiniLM
+if "%MODEL%"=="" set MODEL=MLM
 
 set SPLIT=%6
 if "%SPLIT%"=="" set SPLIT=single
