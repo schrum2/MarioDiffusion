@@ -197,6 +197,38 @@ Once these datasets are made, you can train diffusion models with them. Note tha
 
 
 
+
+
+
+
+
+
+
+```
+python split_data.py --json_file Game_MM\DATA\MM-Full_LLMLevel_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM-Full
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+python split_data.py --json_file datasets\SCENES2_MM_ScenesAndLLMCaptions-full.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM-Full
+
+
+
+
+
+
+
 (BELOW NEEDS MULTI CAPTION AND PRE_TRAINED TEXT ENCODER. NOT DONE!)
 ```
 python train_diffusion.py --save_image_epochs 20 --text_conditional --output_dir MM-Simple-MM-Simple_LLM-conditional-regular0 --num_epochs 500 --json Game_MM/DATA/MM-Simple_LLM_LevelsAndCaptions-regular.json --val_json Game_MM/DATA/MM-Simple_LLM_LevelsAndCaptions-regular-validate.json --plot_validation_caption_score --seed 0 --game MM-Full --pretrained_language_model "sentence-transformers/clip-ViT-L-14" --caption_source_keys gemma4:12b_captions qwen3.5:9b_captions
