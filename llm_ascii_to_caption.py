@@ -15,6 +15,8 @@ import os
 import json
 import time
 import argparse
+import urllib.request
+import urllib.error
 
 import ollama
 from tqdm import tqdm
@@ -48,6 +50,7 @@ def num_word(n: int) -> str:
 DEFAULT_MODELS = {
     "claude": "claude-haiku-4-5",
     "openai": "gpt-5.1",
+    "gemini": "gemini-2.5-flash",
     "ollama": "qwen3.5:9b",
 }
 
@@ -440,9 +443,7 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
         """
         from openai import OpenAI
         OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-        client2 = OpenAI(api_key= OPENAI_API_KEY)
-
-
+        client2 = OpenAI(api_key=OPENAI_API_KEY)
 
         tileset_str = json.dumps(tileset, indent=2)
 
@@ -454,17 +455,60 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
             {"role": "user", "content": caption_reminder},
         ]
 
-        # sup mr. altman
         completion = client2.chat.completions.create(
-        model=model,
-        messages=context,
+            model=model,
+            messages=context,
         )
         message = completion.choices[0].message.content
-        
         captions = [line.strip() for line in message.split("\n") if line.strip()]
-
-        # print(f"[{len(captions)} captions detected]\n")
         return captions
+
+    # gemini branch
+    elif llm == "gemini":
+        """
+        Prompt Google Gemini via the Google Generative Language API and return the caption(s) it generates
+        """
+        GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+        if not GOOGLE_API_KEY:
+            raise RuntimeError("GOOGLE_API_KEY is required for Gemini inference")
+
+        tileset_str = json.dumps(tileset, indent=2)
+        prompt = (
+            f"{system_prompt}\n\n"
+            f"Here is the tile set for {game}:\n{tileset_str}\n\n"
+            f"Level Scene:\n{scene}\n\n"
+            f"{deterministic_msg}\n\n"
+            f"{caption_reminder}"
+        )
+
+        payload = json.dumps({
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0,
+                "maxOutputTokens": 1024,
+            },
+        }).encode("utf-8")
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": GOOGLE_API_KEY,
+            },
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            candidates = result.get("candidates", [])
+            if not candidates:
+                return []
+            parts = candidates[0].get("content", {}).get("parts", [])
+            message = "".join(p.get("text", "") for p in parts).strip()
+            captions = [line.strip() for line in message.split("\n") if line.strip()]
+            return captions
 
     # local branch
     elif llm == "ollama":
@@ -526,11 +570,11 @@ def parse_args():
                            help="Which Mega Man game/tileset to caption for. Selects the descriptive "
                                 "tileset (from util/descriptive_tilesets.py), the prompt game name, and "
                                 "the tileset JSON used to decode integer scenes to ASCII")
-    argparser.add_argument("--llm", choices=["claude", "openai", "ollama"], default="ollama",
-                           help="The source of the LLM inference used to caption the provided level scenes. The openai and claude choices use APIs, while ollama runs a local model")
+    argparser.add_argument("--llm", choices=["claude", "openai", "gemini", "ollama"], default="ollama",
+                           help="The source of the LLM inference used to caption the provided level scenes. The openai, claude, and gemini choices use APIs, while ollama runs a local model")
     argparser.add_argument("--model", default=None,
                            help="Model to prompt for captions. When omitted, defaults per --llm branch: "
-                                "claude -> claude-haiku-4-5, openai -> gpt-5.1, ollama -> qwen3.5:9b")
+                                "claude -> claude-haiku-4-5, openai -> gpt-5.1, gemini -> gemini-2.5-flash, ollama -> qwen3.5:9b")
     argparser.add_argument("--output", default=None,
                            help="Optional path to write the captioned [{scene, caption}] list as JSON")
     argparser.add_argument("--limit", type=int, default=None,

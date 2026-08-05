@@ -111,7 +111,56 @@ MMLV_TILESET_DICT = {
 }
 
 
-from util.common_settings import MM_FULL_TILESET, MMLV_TILESET
+from util.common_settings import MM_FULL_TILESET, MMLV_TILESET, MM_SIMPLE_TILESET
+
+# Built-in simple Mega Man tileset: same scene encoding as the full game, but all enemies
+# are described generically. This lets the captions focus on structural features while
+# treating all combatants as one generic enemy type.
+MM_SIMPLE_TILESET_DICT = {
+    "tiles": {
+        "P": "Mega Man's starting spawn point",
+        "Z": "Level exit point/final goal",
+        "@": "Out of bounds, inaccessible null space",
+        "-": "Air",
+        "~": "Water (slows movement)",
+        "#": "Solid blocks representing ground or walls",
+        "|": "Climbable ladders",
+        "B": "Solid but breakable blocks",
+        "L": "Large Life Energy power-up",
+        "H": "Deadly solid hazard",
+        "t": "Secret transparent blocks (looks like regular blocks, but Mega Man can phase through them)",
+        "A": "Disappearing/Reappearing blocks (fades in and out)",
+        "M": "Moving Platform blocks",
+        "D": "Passable Door blocks",
+        "W": "Large Weapon Energy power-up",
+        "w": "Small Weapon Energy power-up",
+        "l": "Small Life Energy power-up",
+        "+": "Collectible 1-UP Extra Life Power-up",
+        "*": "Collectible Yashichi Power-up",
+        "U": "Collectible Magnet Beam Power-up",
+        "C": "Hazard Blocks: extends a temporary passable but damaging hazard outward",
+        "q": "Enemy",
+        "o": "Enemy",
+        "j": "Enemy",
+        "c": "Enemy",
+        "^": "Enemy",
+        "<": "Enemy",
+        "f": "Enemy",
+        "p": "Enemy",
+        "r": "Enemy",
+        "k": "Enemy",
+        "g": "Enemy",
+        "e": "Enemy",
+        "m": "Enemy",
+        "i": "Enemy",
+        "b": "Enemy",
+        "a": "Enemy",
+        "d": "Enemy",
+        "h": "Enemy",
+        "n": "Enemy",
+        "I": "Enemy",
+    }
+}
 
 # Registry of captionable Mega Man games, keyed by the --game CLI value. Each entry carries:
 #   name:    human-readable game name injected into the LLM captioning prompt for context
@@ -119,13 +168,21 @@ from util.common_settings import MM_FULL_TILESET, MMLV_TILESET
 #            prompt's tile-set key and the object-count names in the deterministic metadata
 #   tileset: default tileset JSON (structural descriptors + id<->char maps) matching that
 #            game's encoded scenes; overridable via --tileset
+MM_FULL_GAME = {
+    "name": "Mega Man",
+    "tiles": MM_FULL_TILESET_DICT,
+    "tileset": MM_FULL_TILESET,
+}
+
 GAMES = {
-    "megaman": {
-        "name": "Mega Man",
-        "tiles": MM_FULL_TILESET_DICT,
-        "tileset": MM_FULL_TILESET,
+    "megaman": MM_FULL_GAME,
+    "MM-Full": MM_FULL_GAME,
+    "MM-Simple": {
+        "name": "Mega Man (Simple)",
+        "tiles": MM_SIMPLE_TILESET_DICT,
+        "tileset": MM_SIMPLE_TILESET,
     },
-    "mmlv": {
+    "MMLV": {
         "name": "Mega Man Maker",
         "tiles": MMLV_TILESET_DICT,
         "tileset": MMLV_TILESET,

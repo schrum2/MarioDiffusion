@@ -180,7 +180,22 @@ See the Mario README for more.
 
 ## LLM-Generated Captions
 
-TODO
+
+
+
+
+
+
+
+Instead of the deterministic captions from `MM_create_ascii_captions.py`, you can choose to caption levels or scenes with an LLM. This process produces multiple diverse natural-language captions per sample, grounded on pre-computed structural metadata about the scene.  
+
+
+
+
+
+```
+python llm_ascii_to_caption.py --levels Game_MM\DATA\MM-Full_LevelsAndCaptions-regular.json --game megaman --llm ollama --output datasets\SCENES_MM_ScenesAndLLMCaptions-full.json
+```
 
 
 
@@ -197,15 +212,7 @@ TODO
 
 
 
-
-
-
-
-
-
-
-
-Instead of the deterministic captions from `MM_create_ascii_captions.py`, you can choose to caption levels with an LLM. This process produces multiple diverse natural-language captions per scene, grounded on pre-computed structural metadata about the scene. The `--llm` parameter picks the LLM source: `ollama` runs a local model (default), while `claude`, 
+The `--llm` parameter picks the LLM source: `ollama` runs a local model (default), while `claude`, 
 
 
 `gemini`,    (TODO)
