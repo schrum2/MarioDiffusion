@@ -566,7 +566,7 @@ def parse_args():
     argparser.add_argument("--levels", default="../TheVGLC/MegaMan/Enhanced",
                            help="JSON dataset of integer tile-id scenes from create_megaman_json_data.py, "
                                 "or a directory of VGLC-ASCII level .txt files")
-    argparser.add_argument("--game", default="megaman", choices=list(GAMES),
+    argparser.add_argument("--game", default="MM-Full", choices=list(GAMES),
                            help="Which Mega Man game/tileset to caption for. Selects the descriptive "
                                 "tileset (from util/descriptive_tilesets.py), the prompt game name, and "
                                 "the tileset JSON used to decode integer scenes to ASCII")
