@@ -39,6 +39,7 @@ def parse_args():
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--all_captions", action="store_true", help="Generate a scene for EVERY stored caption of each entry (caption, caption1, caption2, ...), not just the first. Output entries carry source_index/source_name/caption_index so scenes generated from the same source scene can be grouped. Mario Maker only")
+    parser.add_argument("--caption_source_keys", nargs="+", type=str, default=None, help="Generate one scene per caption stored under the listed source keys in the dataset JSON. Each output entry is tagged with the source entry, caption key, and caption index so prompt/scene pairs from the same input scene can be grouped.")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps") # Large reduction from the 500 used during training
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
@@ -71,6 +72,20 @@ def parse_args():
     parser.add_argument("--compare_checkpoints", action="store_true", default=False, help="Run comparison across all model checkpoints")
 
     return parser.parse_args()
+
+class PromptListDataset(torch.utils.data.Dataset):
+    def __init__(self, items):
+        self.items = items
+        self.mode = "text"
+        self.negative_captions = False
+        self.data = items
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, idx):
+        return self.items[idx]["prompt"]
+
 
 def resolve_game(args):
     """
@@ -193,45 +208,68 @@ def main():
 
     # Load once. LevelDataset.data holds the raw entries (scenes included) regardless of mode,
     # so we can inspect the set of scene widths here to decide how to generate.
-    dataset = LevelDataset(
-        json_path=args.json,
-        tokenizer=None,
-        shuffle=False,
-        mode="text",
-        augment=False,
-        # num_tiles comes from resolve_game so it always matches the selected game's tileset.
-        num_tiles=num_tiles,
-    )
-    scene_widths = {len(item["scene"][0]) for item in dataset.data if isinstance(item, dict) and item.get("scene") is not None}
-
-    if args.match_scene_width and not scene_widths:
-        print(f"Error: --match_scene_width requires a scene-bearing dataset, but '{args.json}' has caption-only entries.")
-        exit(1)
-
-    # Datasets with more than one scene shape default to recreating each caption at its source
-    # scene's width. Homogeneous datasets (one width) and caption-only sets are left on the old
-    # fixed-width path. --match_scene_width forces it on; --random_width opts out.
-    if len(scene_widths) > 1 and not args.random_width and not args.match_scene_width:
-        print(f"Detected {len(scene_widths)} scene widths {sorted(scene_widths)} in {os.path.basename(path_to_json)}; matching generation width to each source scene.")
-        args.match_scene_width = True
-
-    # --match_scene_width needs the scenes, so switch to diff_text mode and bucket batches by
-    # width (each batch must be a single width). Otherwise captions-only "text" mode is enough.
-    if args.match_scene_width:
-        dataset.mode = "diff_text"
+    if args.caption_source_keys:
+        with open(args.json, "r", encoding="utf-8") as f:
+            raw_data = json.load(f)
+        prompt_items = expand_caption_items(raw_data, args.caption_source_keys)
+        if not prompt_items:
+            print(f"Error: no captions found under the requested caption_source_keys in {args.json}")
+            exit(1)
+        prompt_dataset = PromptListDataset(prompt_items)
         dataloader = DataLoader(
-            dataset,
-            batch_sampler=BucketBatchSampler(dataset, args.batch_size, drop_last=False, shuffle=False),
-            num_workers=4
-        )
-    else:
-        dataloader = DataLoader(
-            dataset,
+            prompt_dataset,
             batch_size=args.batch_size,
             shuffle=False,
             num_workers=4,
             drop_last=False
         )
+        prompt_metadata = [item["metadata"] for item in prompt_items]
+        scene_widths = {
+            len(item["scene"][0])
+            for item in raw_data
+            if isinstance(item, dict) and item.get("scene") is not None
+        }
+    else:
+        dataset = LevelDataset(
+            json_path=args.json,
+            tokenizer=None,
+            shuffle=False,
+            mode="text",
+            augment=False,
+            # num_tiles comes from resolve_game so it always matches the selected game's tileset.
+            num_tiles=num_tiles,
+        )
+        prompt_metadata = None
+        scene_widths = {len(item["scene"][0]) for item in dataset.data if isinstance(item, dict) and item.get("scene") is not None}
+
+        if args.match_scene_width and not scene_widths:
+            print(f"Error: --match_scene_width requires a scene-bearing dataset, but '{args.json}' has caption-only entries.")
+            exit(1)
+
+        # Datasets with more than one scene shape default to recreating each caption at its source
+        # scene's width. Homogeneous datasets (one width) and caption-only sets are left on the old
+        # fixed-width path. --match_scene_width forces it on; --random_width opts out.
+        if len(scene_widths) > 1 and not args.random_width and not args.match_scene_width:
+            print(f"Detected {len(scene_widths)} scene widths {sorted(scene_widths)} in {os.path.basename(args.json)}; matching generation width to each source scene.")
+            args.match_scene_width = True
+
+        # --match_scene_width needs the scenes, so switch to diff_text mode and bucket batches by
+        # width (each batch must be a single width). Otherwise captions-only "text" mode is enough.
+        if args.match_scene_width:
+            dataset.mode = "diff_text"
+            dataloader = DataLoader(
+                dataset,
+                batch_sampler=BucketBatchSampler(dataset, args.batch_size, drop_last=False, shuffle=False),
+                num_workers=4
+            )
+        else:
+            dataloader = DataLoader(
+                dataset,
+                batch_size=args.batch_size,
+                shuffle=False,
+                num_workers=4,
+                drop_last=False
+            )
 
     if args.compare_checkpoints:
         scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors)
@@ -240,7 +278,7 @@ def main():
         # Just run on one model and get samples as well
         width_range = resolve_eval_width_range(args)
         per_width_scores = {}
-        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score, game=game)
+        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score, game=game, prompt_metadata=prompt_metadata)
 
         if avg_score is not None:
             print(f"Average caption adherence score: {avg_score:.4f}")
@@ -263,43 +301,69 @@ def main():
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
-            if args.no_caption_score:
-                # These prompts are LLM/natural-language, so no adherence score is computed. Keep the
-                # original input in "prompt", and also attach a deterministic "caption" derived from
-                # the generated scene by the per-game caption script. The "caption" field is what lets
-                # the json open in ascii_data_browser.py (which reads sample["caption"]).
-                paired = []
-                for prompt, scene in zip(all_prompts, scenes):
-                    if game == "LR":
-                        capt_scene = [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
-                        caption = lr_assign_caption(capt_scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
-                    elif game in ("MM-Simple", "MM-Full", "MMLV"):
-                        caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
-                    else:  # Mario
-                        caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
-                    # TODO: No MM2 case?
-                    paired.append({"prompt": prompt, "caption": caption, "scene": scene})
-                with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
-                    json.dump(paired, f, indent=4)
-            # MM2 returns earlier (it writes its own json), so only Mario reaches this branch.
-            elif game == "Mario":
-                save_level_data(scenes, args.tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence, exclude_broken=False, prompts=all_prompts)
-            elif game in ("MM-Simple", "MM-Full", "MMLV"):
-                # Same output shape as the no_caption_score MM2 path: keep the input prompt and a
-                # deterministic caption derived from the generated scene so the json opens in
-                # ascii_data_browser.py. Without this branch MM2 writes nothing when scoring is on.
-                paired = []
-                for prompt, scene in zip(all_prompts, scenes):
+            paired = []
+            for prompt, scene, metadata in zip(all_prompts, scenes, prompt_metadata or [None] * len(scenes)):
+                if game == "LR":
+                    capt_scene = [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
+                    caption = lr_assign_caption(capt_scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+                elif game in ("MM-Simple", "MM-Full", "MMLV"):
                     caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
-                    paired.append({"prompt": prompt, "caption": caption, "scene": scene})
-                with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
-                    json.dump(paired, f, indent=4)
-            elif game == "LR":
-                scenes = [
-                            [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
-                            for scene in scenes
-                        ]
-                lr_save_level_data(scenes, tileset, os.path.join(args.output_dir, "all_levels.json"), False, args.describe_absence)
+                else:  # Mario
+                    caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
+                entry = {"prompt": prompt, "caption": caption, "scene": scene}
+                if metadata:
+                    entry.update(metadata)
+                paired.append(entry)
+            with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
+                json.dump(paired, f, indent=4)
+
+
+def expand_caption_items(data, caption_source_keys=None):
+    """Create one generation item per caption pulled from the requested source keys."""
+    items = []
+    for idx, entry in enumerate(data):
+        if not isinstance(entry, dict):
+            continue
+
+        source_name = entry.get("name") or entry.get("id") or f"entry_{idx}"
+        source_group_id = f"{idx}:{source_name}"
+        if caption_source_keys:
+            for key in caption_source_keys:
+                value = entry.get(key)
+                if isinstance(value, list):
+                    captions = [c for c in value if c]
+                elif isinstance(value, str) and value:
+                    captions = [value]
+                else:
+                    continue
+
+                for cidx, caption in enumerate(captions):
+                    items.append({
+                        "prompt": caption,
+                        "metadata": {
+                            "caption": caption,
+                            "caption_source_key": key,
+                            "caption_index": cidx,
+                            "source_index": idx,
+                            "source_id": source_name,
+                            "source_name": source_name,
+                            "source_group_id": source_group_id,
+                        },
+                    })
+        elif entry.get("caption"):
+            items.append({
+                "prompt": entry["caption"],
+                "metadata": {
+                    "caption": entry["caption"],
+                    "caption_source_key": "caption",
+                    "caption_index": 0,
+                    "source_index": idx,
+                    "source_id": source_name,
+                    "source_name": source_name,
+                    "source_group_id": source_group_id,
+                },
+            })
+    return items
 
 
 def expand_mm2_caption_items(data, all_captions):
@@ -510,7 +574,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None, compute_score=True, game=None, assign_caption_fn=None, compare_captions_fn=None):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None, compute_score=True, game=None, assign_caption_fn=None, compare_captions_fn=None, prompt_metadata=None):
     # compute_score=False skips deriving a structured caption from each generated scene and scoring
     # it against the prompt. Use it for natural-language (LLM) captions, where that comparison is
     # meaningless. Samples and prompts are still collected; avg_score is returned as None.
@@ -546,7 +610,13 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     all_samples = []
     all_prompts = []
     compare_all_scores = []
+    prompt_index = 0
     for batch_idx, batch in enumerate(dataloader):
+
+        batch_metadata = None
+        if prompt_metadata is not None:
+            batch_metadata = prompt_metadata[prompt_index:prompt_index + len(batch)]
+            prompt_index += len(batch)
 
         # Capture the source scene width before the scene is pruned out of the batch below.
         # The batch is bucketed to one width, so the first scene's width covers the whole batch.
