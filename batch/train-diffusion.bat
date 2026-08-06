@@ -362,12 +362,8 @@ REM ===========================================================================
 REM Step 4: evaluate caption adherence (conditional models only)
 REM ===========================================================================
 if /I "%UNCONDITIONAL%"=="false" (
-    if defined CAPTION_SOURCE_KEYS (
-        echo Notice: Caption adherence cannot be calculated with multiple caption varieties; skipping evaluation.
-    ) else (
-        call batch\evaluate_caption_adherence_multi.bat %MODEL_DIR% %TYPE% %DATA% %GAME%
-        python log_timestamp.py --log_file %TIMING_LOG% --event "caption adherence evaluation"
-    )
+    call batch\evaluate_caption_adherence_multi.bat %MODEL_DIR% %TYPE% %DATA% %GAME%
+    python log_timestamp.py --log_file %TIMING_LOG% --event "caption adherence evaluation"
 )
 
 REM move the timing log into the trained model's directory
