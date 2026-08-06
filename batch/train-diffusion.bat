@@ -169,7 +169,7 @@ if /I "%UNCONDITIONAL%"=="false" (
         if /I "%MODEL%"=="CLIP" set MODEL_NAME=sentence-transformers/clip-ViT-L-14
         if /I "%MODEL%"=="T5" set MODEL_NAME=google/t5-v1_1-base
         if "!MODEL_NAME!"=="" (
-            echo Error: Unrecognized model '%MODEL%'.
+            echo "Error: Unrecognized model '%MODEL%'."
             exit /b 1
         )
     )
@@ -177,11 +177,11 @@ if /I "%UNCONDITIONAL%"=="false" (
 
 if defined CAPTION_SOURCE_KEYS (
     if /I "%UNCONDITIONAL%"=="true" (
-        echo Error: caption_source_keys cannot be used with unconditional training (type none).
+        echo "Error: caption_source_keys cannot be used with unconditional training (type none)."
         exit /b 1
     )
     if /I "%USE_MLM%"=="true" (
-        echo Error: caption_source_keys cannot be used with model MLM.
+        echo "Error: caption_source_keys cannot be used with model MLM."
         exit /b 1
     )
 )
