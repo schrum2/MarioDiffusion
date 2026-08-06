@@ -7,10 +7,12 @@ REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile
 REM
 REM   <seed>   optional, defaults to 0
 REM   <data>   source of data: SMB1, SMB2, Mar1and2, LR, etc.
-REM   <type>   "regular", "absence", "negative", or "none"
+REM   <type>   "regular", "absence", "negative", "llm", or "none"
 REM              - "none" trains an UNCONDITIONAL model (no captions at all)
 REM              - "negative" trains a regular conditional model with
 REM                --negative_prompt_training enabled
+REM              - "llm" should be combined with [extra args...] to 
+REM                identify caption sources
 REM   <game>   Mario, LR, MM-Simple, MM-Full, MMLV, MM2
 REM   [model]  optional, defaults to "MLM". One of:
 REM              MLM     - trains its own MLM transformer text encoder
@@ -60,7 +62,7 @@ if "%DATA%"=="" (
 
 set TYPE=%3
 if "%TYPE%"=="" (
-    echo Error: No caption type selected. Choose: "regular", "absence", "negative", or "none"
+    echo Error: No caption type selected. Choose: "regular", "absence", "negative", "llm", or "none"
     exit /b 1
 )
 
@@ -86,11 +88,11 @@ if /I "%GAME%"=="MM-Full" set GAME_DIR=Game_MM
 
 REM --- Validate TYPE -------------------------------------------------------
 set "TYPE_VALID=false"
-for %%T in (regular absence negative none) do (
+for %%T in (regular absence negative llm none) do (
     if /I "%TYPE%"=="%%~T" set "TYPE_VALID=true"
 )
 if "%TYPE_VALID%"=="false" (
-    echo Error: Invalid type selected. Must be regular, absence, negative, or none.
+    echo Error: Invalid type selected. Must be regular, absence, negative, llm, or none.
     exit /b 1
 )
 
