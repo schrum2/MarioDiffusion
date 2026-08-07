@@ -653,7 +653,8 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     width_plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_caption_scores_by_width_plot.png")
     # CLIP-score companion plot (only produced when --use_clip_score is set). Derived from the
     # same scores_jsonl_path file as the caption-adherence plot above, just a different key.
-    clip_plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_clip_scores_plot.png")
+    clip_plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_text_clip_scores_plot.png")
+    scene_clip_plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_scene_clip_scores_plot.png")
 
     # Handle file existence based on resume flag
     completed_epochs = set()
@@ -692,15 +693,25 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     # Only created when --use_clip_score is set, since the jsonl rows otherwise have no
     # "clip_score" field to plot.
     clip_plotter = None
+    scene_clip_plotter = None
     if args.use_clip_score:
         clip_plotter = Plotter(
             log_file=scores_jsonl_path,
             update_interval=0.1,
-            left_key="clip_score",
+            left_key="text_clip_score",
             right_key=None,
             left_label="CLIP Score",
             right_label=None,
             output_png=clip_plot_png_path
+        )
+        scene_clip_plotter = Plotter(
+            log_file=scores_jsonl_path,
+            update_interval=0.1,
+            left_key="scene_clip_score",
+            right_key=None,
+            left_label="Scene CLIP Score",
+            right_label=None,
+            output_png=scene_clip_plot_png_path
         )
 
     # Start plotting in a background thread
@@ -717,6 +728,13 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         clip_plotter.running = True
         clip_plot_thread.start()
 
+    scene_clip_plot_thread = None
+    if scene_clip_plotter is not None:
+        scene_clip_plot_thread = threading.Thread(target=scene_clip_plotter.start_plotting)
+        scene_clip_plot_thread.daemon = True
+        scene_clip_plotter.running = True
+        scene_clip_plot_thread.start()
+
     scores_by_epoch = []
     with open(scores_jsonl_path, "a") as f:
         for epoch, checkpoint_dir in tqdm(checkpoint_dirs, desc="Evaluating Checkpoints"):
@@ -729,24 +747,28 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             pipe = get_pipeline(checkpoint_dir).to(device)
 
             per_width_scores = {}
-            clip_all_scores = [] if args.use_clip_score else None
-            scene_clip_all_scores = [] if args.use_clip_score else None
+            #clip_all_scores = [] if args.use_clip_score else None
+            #scene_clip_all_scores = [] if args.use_clip_score else None
             # Pass the MM2 caption tools (None for other games) so MM2 scores with the MM2 captioner;
             # scene shape alone can't tell MM2 from Mario.
-            avg_score = calculate_caption_score_and_samples(
+            result = calculate_caption_score_and_samples(
                 device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, 
                 args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, 
                 width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, game=args.game,
                 assign_caption_fn=assign_caption_fn, compare_captions_fn=compare_captions_fn,
                 compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor
-            )["avg_score"]
+            )
+
+            avg_score = result["avg_score"]
+            avg_clip_score = result["avg_clip_score"]
+            avg_scene_clip_score = result["avg_scene_clip_score"]
 
             # Collapse the per-width score lists into mean scores for this checkpoint.
             width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
 
-            avg_clip_score = (sum(clip_all_scores) / len(clip_all_scores)) if clip_all_scores else None
-            scene_clip_values = [score for score in scene_clip_all_scores if score is not None] if scene_clip_all_scores is not None else []
-            avg_scene_clip_score = (sum(scene_clip_values) / len(scene_clip_values)) if scene_clip_values else None
+            #avg_clip_score = (sum(clip_all_scores) / len(clip_all_scores)) if clip_all_scores else None
+            #scene_clip_values = [score for score in scene_clip_all_scores if score is not None] if scene_clip_all_scores is not None else []
+            #avg_scene_clip_score = (sum(scene_clip_values) / len(scene_clip_values)) if scene_clip_values else None
 
             print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
             if avg_clip_score is not None:
@@ -755,7 +777,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
                 print(f"Checkpoint {checkpoint_dir} - Average scene CLIP score: {avg_scene_clip_score:.4f}")
             if len(width_scores) > 1:
                 print("  By scene width: " + ", ".join(f"{w}:{width_scores[w]:.4f}" for w in sorted(width_scores)))
-            result = {"epoch": epoch, "score": avg_score, "checkpoint_dir": checkpoint_dir, "width_scores": width_scores}
+            result = {"epoch": epoch, "score": avg_score, "checkpoint_dir": checkpoint_dir, "width_scores": width_scores, "text_clip_score" : avg_clip_score, "scene_clip_score": avg_scene_clip_score}
             if avg_clip_score is not None:
                 result["clip_score"] = avg_clip_score
             if avg_scene_clip_score is not None:
@@ -770,12 +792,17 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             plot_scores_by_width(scores_jsonl_path, width_plot_png_path)
             if clip_plotter is not None:
                 clip_plotter.update_plot()
+            if scene_clip_plotter is not None:
+                scene_clip_plotter.update_plot()
 
     plotter.stop_plotting()
     plot_thread.join(timeout=1)
     if clip_plotter is not None:
         clip_plotter.stop_plotting()
         clip_plot_thread.join(timeout=1)
+    if scene_clip_plotter is not None:
+        scene_clip_plotter.stop_plotting()
+        scene_clip_plot_thread.join(timeout=1)
 
     # Final redraw (covers the resume case where every checkpoint was already evaluated).
     plot_scores_by_width(scores_jsonl_path, width_plot_png_path)
