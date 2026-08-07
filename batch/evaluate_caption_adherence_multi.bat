@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 REM Usage: evaluate_caption_adherence_multi.bat <model_path> <type> <data> <game> [caption_source_key ...]
 REM <type> should be "regular" or "absence"
 REM <data> Dataset prefix: should be "SMB1", "SMB2", "Mar1and2", "LR", etc
@@ -35,7 +36,7 @@ goto collect_caption_source_keys
 
 :collect_caption_source_keys_done
 if defined CAPTION_SOURCE_KEYS (
-    set "CAPTION_SOURCE_KEYS_ARG=--caption_source_keys!CAPTION_SOURCE_KEYS!"
+    set "CAPTION_SOURCE_KEYS_ARG=--caption_source_keys !CAPTION_SOURCE_KEYS:~1!"
 )
 
 set GAME_DIR=Game_%GAME%

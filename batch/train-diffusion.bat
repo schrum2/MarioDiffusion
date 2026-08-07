@@ -136,7 +136,7 @@ shift
 goto parse_caption_source_keys
 :end_parse_caption_source_keys
 if defined CAPTION_SOURCE_KEYS (
-    set "CAPTION_SOURCE_KEYS_ARG=--caption_source_keys!CAPTION_SOURCE_KEYS!"
+    set "CAPTION_SOURCE_KEYS_ARG=--caption_source_keys !CAPTION_SOURCE_KEYS:~1!"
 )
 
 set "TILE_VALID=false"
