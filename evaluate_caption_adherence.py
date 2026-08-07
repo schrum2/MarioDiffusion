@@ -822,18 +822,29 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     all_samples = []
     all_prompts = []
     compare_all_scores = []
+    clip_all_scores = []         
+    scene_clip_all_scores = []  
     prompt_index = 0
     scene_embedding_cache = {}
     for batch_idx, batch in enumerate(dataloader):
 
+        # The raw collated `batch` from the DataLoader doesn't reliably reflect the number of
+        # samples: in "diff_text" mode it's a 2-tuple (scenes, captions), not a per-sample list.
+        if original_mode == "diff_text":
+            actual_batch_size = len(batch[1]) if len(batch) > 1 else len(batch[0])
+        else:
+            actual_batch_size = len(batch)
+
         batch_metadata = None
         batch_source_scenes = None
         if prompt_metadata is not None:
-            batch_metadata = prompt_metadata[prompt_index:prompt_index + len(batch)]
-        scene_clip_all_scores = []
+            batch_metadata = prompt_metadata[prompt_index:prompt_index + actual_batch_size]
         if compute_clip:
-            batch_source_scenes = dataloader.dataset.data[prompt_index:prompt_index + len(batch)] if hasattr(dataloader.dataset, "scene") else None
-        prompt_index += len(batch)
+            batch_source_scenes = (
+                dataloader.dataset.data[prompt_index:prompt_index + actual_batch_size]
+                if hasattr(dataloader.dataset, "data") else None
+            )
+        prompt_index += actual_batch_size
 
         # Capture the source scene width before the scene is pruned out of the batch below.
         # The batch is bucketed to one width, so the first scene's width covers the whole batch.
@@ -897,7 +908,6 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
                 # CLIP scoring is independent of compute_score (works for LLM captions too),
                 # so it runs here before the compute_score early-continue below.
-                clip_all_scores = []
                 if compute_clip:
                     sample_image = render_scene_image(samples[i], game)
                     sample_image_embed = compute_clip_image_embedding(sample_image, clip_model, clip_processor, device)
