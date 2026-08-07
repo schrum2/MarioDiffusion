@@ -61,14 +61,12 @@ REM RandomTest captions have no source scene, so randomize the generated width a
 REM training width range. --width_range_json supplies that range for models trained before
 REM training_widths.json existed; newer models also carry it in the model directory.
 if "%TYPE%" NEQ "llm" (
-    python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json %DATA_PREFIX%_RandomTest-%TYPE%.json --output_dir samples-from-random-%DATA%-captions --random_width --width_range_json %DATA_PREFIX%_LevelsAndCaptions-%TYPE%.json --game %GAME% %DESCRIBE_ABSENCE_FLAG%
-    python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json %DATA_PREFIX%_RandomTest-%TYPE%.json --compare_checkpoints --random_width --width_range_json %DATA_PREFIX%_LevelsAndCaptions-%TYPE%.json --game %GAME% %DESCRIBE_ABSENCE_FLAG%
+    python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --use_clip_score --json %DATA_PREFIX%_RandomTest-%TYPE%.json --output_dir samples-from-random-%DATA%-captions --random_width --width_range_json %DATA_PREFIX%_LevelsAndCaptions-%TYPE%.json --game %GAME% %DESCRIBE_ABSENCE_FLAG%
+    python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --use_clip_score --json %DATA_PREFIX%_RandomTest-%TYPE%.json --compare_checkpoints --random_width --width_range_json %DATA_PREFIX%_LevelsAndCaptions-%TYPE%.json --game %GAME% %DESCRIBE_ABSENCE_FLAG%
 )
 
 REM LevelsAndCaptions captions come from real scenes. Multi-width datasets automatically recreate
 REM each caption at its source scene's width; single-width datasets keep the old fixed width.
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json %DATA_PATH%.json --output_dir samples-from-real-%DATA%-captions --game %GAME% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SOURCE_KEYS_ARG%
-if "%TYPE%" NEQ "llm" (
-    python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json %DATA_PATH%.json --compare_checkpoints --game %GAME% %DESCRIBE_ABSENCE_FLAG%
-    python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json %TEST_DATA% --compare_checkpoints --game %GAME% %DESCRIBE_ABSENCE_FLAG%
-)
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --use_clip_score --json %DATA_PATH%.json --output_dir samples-from-real-%DATA%-captions --game %GAME% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SOURCE_KEYS_ARG%
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --use_clip_score --json %DATA_PATH%.json --compare_checkpoints --game %GAME% %DESCRIBE_ABSENCE_FLAG%
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --use_clip_score --json %TEST_DATA% --compare_checkpoints --game %GAME% %DESCRIBE_ABSENCE_FLAG%
