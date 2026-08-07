@@ -381,6 +381,8 @@ def main():
         all_samples = result["all_samples"]
         all_prompts = result["all_prompts"]
         compare_all_scores = result["compare_all_scores"]
+        clip_all_scores = result["clip_all_scores"]
+        scene_clip_all_scores = result["scene_clip_all_scores"]
 
         if avg_score is not None:
             print(f"Average caption adherence score: {avg_score:.4f}")
