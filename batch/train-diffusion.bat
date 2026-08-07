@@ -338,11 +338,23 @@ call :check_dir_exists "%MODEL_DIR%"
 if /I "!DIR_EXISTS!"=="false" (
     if /I "%UNCONDITIONAL%"=="true" (
         python train_diffusion.py     --save_image_epochs %DIFFUSION_EPOCHS% --augment                    --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG%
+        if errorlevel 1 (
+            echo Error: train_diffusion.py failed.
+            exit /b 1
+        )
     ) else (
         if /I "%USE_MLM%"=="true" (
             python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
+            if errorlevel 1 (
+                echo Error: train_diffusion.py failed.
+                exit /b 1
+            )
         ) else (
             python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
+            if errorlevel 1 (
+                echo Error: train_diffusion.py failed.
+                exit /b 1
+            )
         )
     )
 )
