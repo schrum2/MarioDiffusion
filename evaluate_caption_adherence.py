@@ -130,7 +130,7 @@ def parse_args():
     # CLIP-based alignment scoring (off by default). Complements the deterministic
     # caption-adherence score above and, unlike it, works for free-form LLM captions since it
     # doesn't rely on parsing the caption back into structured claims.
-    parser.add_argument("--use_clip_score", action="store_true", help="Additionally score each generated scene with CLIPScore-style cosine similarity between a pretrained CLIP model's image embedding of the rendered scene and text embedding of the caption. Off by default.")
+    parser.add_argument("--no_clip_score", action="store_false", dest="use_clip_score", help="Disable CLIP scoring (enabled by default).")
     parser.add_argument("--clip_model_name", type=str, default="openai/clip-vit-base-patch32", help="Hugging Face CLIP model to use when --use_clip_score is set.")
 
     # Used to generate captions when generating images
