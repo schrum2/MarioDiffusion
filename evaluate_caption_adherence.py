@@ -52,8 +52,7 @@ def compute_clip_image_embedding(image, clip_model, clip_processor, device):
     inputs = clip_processor(images=image, return_tensors="pt")
     inputs = {k: v.to(device) for k, v in inputs.items()}
     with torch.no_grad():
-        outputs = clip_model(**inputs)
-    image_embeds = outputs.image_embeds
+        image_embeds = clip_model.get_image_features(**inputs)
     image_embeds = image_embeds / image_embeds.norm(p=2, dim=-1, keepdim=True)
     return image_embeds
 
@@ -63,8 +62,7 @@ def compute_clip_text_embedding(text, clip_model, clip_processor, device):
     inputs = clip_processor(text=[text], return_tensors="pt", padding=True, truncation=True)
     inputs = {k: v.to(device) for k, v in inputs.items()}
     with torch.no_grad():
-        outputs = clip_model(**inputs)
-    text_embeds = outputs.text_embeds
+        text_embeds = clip_model.get_text_features(**inputs)
     text_embeds = text_embeds / text_embeds.norm(p=2, dim=-1, keepdim=True)
     return text_embeds
 
@@ -833,8 +831,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
         if prompt_metadata is not None:
             batch_metadata = prompt_metadata[prompt_index:prompt_index + len(batch)]
         scene_clip_all_scores = []
-        if compute_clip and original_mode == "diff_text":
-            batch_source_scenes = dataloader.dataset.data[prompt_index:prompt_index + len(batch)] if hasattr(dataloader.dataset, "data") else None
+        if compute_clip:
+            batch_source_scenes = dataloader.dataset.data[prompt_index:prompt_index + len(batch)] if hasattr(dataloader.dataset, "scene") else None
         prompt_index += len(batch)
 
         # Capture the source scene width before the scene is pruned out of the batch below.

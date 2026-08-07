@@ -162,10 +162,10 @@ def parse_args():
     parser.add_argument("--auto_augment_json", type=str, default="augmented_dataset.json", help="Path (relative to output_dir if not absolute) to save the augmented training dataset JSON. Accumulates samples across epochs unless --auto_augment_save_checkpoints_dataset is enabled for per-epoch files.")
     parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
 
-    # CLIP-based alignment scoring (off by default). Complements the deterministic
+    # CLIP-based alignment scoring. Complements the deterministic
     # caption-adherence score above and, unlike it, works for free-form LLM captions since it
     # doesn't rely on parsing the caption back into structured claims.
-    parser.add_argument("--use_clip_score", action="store_true", help="Additionally score each generated scene with CLIPScore-style cosine similarity between a pretrained CLIP model's image embedding of the rendered scene and text embedding of the caption. Off by default.")
+    parser.add_argument("--no_clip_score", action="store_false", dest="use_clip_score", help="Disable CLIP scoring (enabled by default).")
     parser.add_argument("--clip_model_name", type=str, default="openai/clip-vit-base-patch32", help="Hugging Face CLIP model to use when --use_clip_score is set.")
 
     # For block2vec embedding model
@@ -701,6 +701,7 @@ def main():
 
                 device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
                 clip_model, clip_processor = load_clip_model(args.clip_model_name, device)
+                print(f"Loaded CLIP model {args.clip_model_name} for scoring generated samples.")
             
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
         
