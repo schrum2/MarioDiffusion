@@ -378,9 +378,7 @@ def main():
         # Just run on one model and get samples as well
         width_range = resolve_eval_width_range(args)
         per_width_scores = {}
-        clip_all_scores = [] if args.use_clip_score else None
-        scene_clip_all_scores = [] if args.use_clip_score else None
-        result = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score, game=game, prompt_metadata=prompt_metadata, compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor, clip_all_scores=clip_all_scores, scene_clip_all_scores=scene_clip_all_scores)
+        result = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score, game=game, prompt_metadata=prompt_metadata, compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor)
         avg_score = result["avg_score"]
         all_samples = result["all_samples"]
         all_prompts = result["all_prompts"]
@@ -784,15 +782,13 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None, compute_score=True, game=None, assign_caption_fn=None, compare_captions_fn=None, prompt_metadata=None, compute_clip=False, clip_model=None, clip_processor=None, clip_all_scores=None, scene_clip_all_scores=None):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None, compute_score=True, game=None, assign_caption_fn=None, compare_captions_fn=None, prompt_metadata=None, compute_clip=False, clip_model=None, clip_processor=None):
     # compute_clip=True additionally renders each generated sample to an image (via the same
     # tile-based visualizer used for saving PNGs) and scores it against the prompt used to
     # generate it with CLIPScore-style cosine similarity. This is independent of compute_score:
     # it works for both structured and free-form (LLM) captions, since it doesn't rely on
     # deriving a structured caption from the generated scene. Per-sample scores are appended,
-    # in generation order, to the caller-provided clip_all_scores list (mirroring the
-    # per_width_scores out-parameter pattern below) rather than added to this function's return
-    # tuple, since several callers depend on that tuple always having exactly 4 values.
+    # in generation order, to clip_all_scores list.
     # compute_score=False skips deriving a structured caption from each generated scene and scoring
     # it against the prompt. Use it for natural-language (LLM) captions, where that comparison is
     # meaningless. Samples and prompts are still collected; avg_score is returned as None.
@@ -836,7 +832,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
         batch_source_scenes = None
         if prompt_metadata is not None:
             batch_metadata = prompt_metadata[prompt_index:prompt_index + len(batch)]
-        if scene_clip_all_scores is not None:
+        scene_clip_all_scores = []
+        if compute_clip and original_mode == "diff_text":
             batch_source_scenes = dataloader.dataset.data[prompt_index:prompt_index + len(batch)] if hasattr(dataloader.dataset, "data") else None
         prompt_index += len(batch)
 
@@ -902,13 +899,13 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
                 # CLIP scoring is independent of compute_score (works for LLM captions too),
                 # so it runs here before the compute_score early-continue below.
+                clip_all_scores = []
                 if compute_clip:
                     sample_image = render_scene_image(samples[i], game)
                     sample_image_embed = compute_clip_image_embedding(sample_image, clip_model, clip_processor, device)
                     text_embed = compute_clip_text_embedding(caption, clip_model, clip_processor, device)
                     clip_score = (sample_image_embed * text_embed).sum(dim=-1).item()
-                    if clip_all_scores is not None:
-                        clip_all_scores.append(clip_score)
+                    clip_all_scores.append(clip_score)
 
                     scene_clip_score = None
                     if batch_source_scenes is not None:
@@ -919,8 +916,8 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                                 scene_reference_image = render_scene_image_from_scene(source_scene, game)
                                 scene_embedding_cache[scene_key] = compute_clip_image_embedding(scene_reference_image, clip_model, clip_processor, device)
                             scene_clip_score = (sample_image_embed * scene_embedding_cache[scene_key]).sum(dim=-1).item()
-                    if scene_clip_all_scores is not None:
-                        scene_clip_all_scores.append(scene_clip_score)
+
+                    scene_clip_all_scores.append(scene_clip_score)
 
                 # For LLM/natural-language prompts there is no structured caption to derive or
                 # compare, so just keep the generated sample and move on.

@@ -14,7 +14,7 @@ from datetime import datetime
 from models.text_model import TransformerModel
 from models.text_diffusion_pipeline import TextConditionalDDPMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
-from evaluate_caption_adherence import calculate_caption_score_and_samples
+from evaluate_caption_adherence import calculate_caption_score_and_samples, load_clip_model
 from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
 from captions.util import extract_tileset
@@ -156,12 +156,17 @@ def parse_args():
     parser.add_argument("--auto_augment_threshold", type=float, default=0.8, help="Validation caption score threshold to begin dataset augmentation")
     parser.add_argument("--no_traversability_check", dest="traversability_check", action="store_false", default=True, help="Disable the level traversability check before adding generated samples to the training set")
 
-    # figure these out later
     parser.add_argument("--auto_augment_max_new_samples", type=int, default=10, help="Max new samples to add per augmentation run")    
     parser.add_argument("--auto_augment_max_dataset_size",type=int,default=7000,help="Maximum total size the training dataset is allowed to grow to")
     parser.add_argument("--auto_augment_save_images", action="store_true", help="Save images for newly added augmented samples")
     parser.add_argument("--auto_augment_json", type=str, default="augmented_dataset.json", help="Path (relative to output_dir if not absolute) to save the augmented training dataset JSON. Accumulates samples across epochs unless --auto_augment_save_checkpoints_dataset is enabled for per-epoch files.")
     parser.add_argument("--auto_augment_save_checkpoints_dataset", action="store_true", help="Save a checkpoint of the training dataset along with the augmented JSON after each augmentation run")
+
+    # CLIP-based alignment scoring (off by default). Complements the deterministic
+    # caption-adherence score above and, unlike it, works for free-form LLM captions since it
+    # doesn't rely on parsing the caption back into structured claims.
+    parser.add_argument("--use_clip_score", action="store_true", help="Additionally score each generated scene with CLIPScore-style cosine similarity between a pretrained CLIP model's image embedding of the rendered scene and text embedding of the caption. Off by default.")
+    parser.add_argument("--clip_model_name", type=str, default="openai/clip-vit-base-patch32", help="Hugging Face CLIP model to use when --use_clip_score is set.")
 
     # For block2vec embedding model
     parser.add_argument("--block_embedding_model_path", type=str, default=None, help="Path to trained block embedding model (.pt)")
@@ -665,6 +670,7 @@ def main():
     text_clip_score_plotter, text_clip_score_plot_thread = None, None
     scene_clip_score_plotter, scene_clip_score_plot_thread = None, None
     dataset_growth_plotter, dataset_growth_plot_thread = None, None
+    clip_model, clip_processor = None, None
     
     caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
     caption_score_by_width_png = os.path.join(args.output_dir, f"caption_score_by_width_{formatted_date}.png")
@@ -681,16 +687,20 @@ def main():
                                             log_file=caption_score_log_file, output_dir=args.output_dir,
                                             left_key='caption_score', right_key=None, left_label='Caption Match Score', 
                                             right_label=None, png_name='caption_score')
-            
-            text_clip_score_plotter, text_clip_score_plot_thread = gen_train_help.start_plotter(
-                                            log_file=caption_score_log_file, output_dir=args.output_dir,
-                                            left_key='text_clip_score', right_key=None, left_label='Text-Image CLIP Score', 
-                                            right_label=None, png_name='text_clip_score')
 
-            scene_clip_score_plotter, scene_clip_score_plot_thread = gen_train_help.start_plotter(
-                                            log_file=caption_score_log_file, output_dir=args.output_dir,
-                                            left_key='scene_clip_score', right_key=None, left_label='Scene-Image CLIP Score', 
-                                            right_label=None, png_name='scene_clip_score')
+            if args.use_clip_score:
+                text_clip_score_plotter, text_clip_score_plot_thread = gen_train_help.start_plotter(
+                                                log_file=caption_score_log_file, output_dir=args.output_dir,
+                                                left_key='text_clip_score', right_key=None, left_label='Text-Image CLIP Score', 
+                                                right_label=None, png_name='text_clip_score')
+
+                scene_clip_score_plotter, scene_clip_score_plot_thread = gen_train_help.start_plotter(
+                                                log_file=caption_score_log_file, output_dir=args.output_dir,
+                                                left_key='scene_clip_score', right_key=None, left_label='Scene-Image CLIP Score', 
+                                                right_label=None, png_name='scene_clip_score')
+
+                device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
+                clip_model, clip_processor = load_clip_model(args.clip_model_name, device)
             
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
         
@@ -905,7 +915,9 @@ def main():
                     match_scene_width=True, per_width_scores=per_width_scores,
                     game=args.game,
                     # MM2 caption tools (set just above); None for other games.
-                    assign_caption_fn=mm2_assign_fn, compare_captions_fn=mm2_compare_fn
+                    assign_caption_fn=mm2_assign_fn, compare_captions_fn=mm2_compare_fn,
+                    # CLIP scores
+                    compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor
                 )
                 # Standard, part of old MarioDiffusion, used in AIIDE 2025
                 avg_caption_score, all_samples, all_prompts, compare_all_scores = result["avg_score"], result["all_samples"], result["all_prompts"], result["compare_all_scores"]
