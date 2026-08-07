@@ -983,6 +983,23 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
         if output: print(f"Batch {batch_idx+1}/{len(dataloader)}:")
 
     avg_score = (score_sum / total_count) if compute_score and total_count else None
+
+    # CLIP averages are independent of compute_score/game.
+    valid_clip_scores = clip_all_scores if clip_all_scores is not None else []
+    avg_clip_score = (
+        sum(valid_clip_scores) / len(valid_clip_scores)
+        if len(valid_clip_scores) > 0 else None
+    )
+
+    valid_scene_clip_scores = (
+        [s for s in scene_clip_all_scores if s is not None]
+        if scene_clip_all_scores is not None else []
+    )
+    avg_scene_clip_score = (
+        sum(valid_scene_clip_scores) / len(valid_scene_clip_scores)
+        if len(valid_scene_clip_scores) > 0 else None
+    )
+
     # Stack all per-sample (C,H,W) tensors into one (N,C,H,W) batch. With random_width the
     # widths differ across batches and can't be stacked, so keep a list of (C,H,W) tensors;
     # downstream samples_to_scenes / per-sample visualization handle either form.
@@ -991,9 +1008,12 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     else:
         all_samples = all_samples[:total_count]
 
-    dataloader.dataset.mode=original_mode
+    dataloader.dataset.mode = original_mode
+
     result = dict()
     result["avg_score"] = avg_score
+    result["avg_clip_score"] = avg_clip_score
+    result["avg_scene_clip_score"] = avg_scene_clip_score
     result["all_samples"] = all_samples
     result["all_prompts"] = all_prompts
     result["compare_all_scores"] = compare_all_scores

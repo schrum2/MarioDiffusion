@@ -662,6 +662,8 @@ def main():
     plotter, plot_thread = None, None
 
     caption_score_plotter, caption_score_plot_thread = None, None
+    text_clip_score_plotter, text_clip_score_plot_thread = None, None
+    scene_clip_score_plotter, scene_clip_score_plot_thread = None, None
     dataset_growth_plotter, dataset_growth_plot_thread = None, None
     
     caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
@@ -679,6 +681,16 @@ def main():
                                             log_file=caption_score_log_file, output_dir=args.output_dir,
                                             left_key='caption_score', right_key=None, left_label='Caption Match Score', 
                                             right_label=None, png_name='caption_score')
+            
+            text_clip_score_plotter, text_clip_score_plot_thread = gen_train_help.start_plotter(
+                                            log_file=caption_score_log_file, output_dir=args.output_dir,
+                                            left_key='text_clip_score', right_key=None, left_label='Text-Image CLIP Score', 
+                                            right_label=None, png_name='text_clip_score')
+
+            scene_clip_score_plotter, scene_clip_score_plot_thread = gen_train_help.start_plotter(
+                                            log_file=caption_score_log_file, output_dir=args.output_dir,
+                                            left_key='scene_clip_score', right_key=None, left_label='Scene-Image CLIP Score', 
+                                            right_label=None, png_name='scene_clip_score')
             
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
         
@@ -895,7 +907,12 @@ def main():
                     # MM2 caption tools (set just above); None for other games.
                     assign_caption_fn=mm2_assign_fn, compare_captions_fn=mm2_compare_fn
                 )
+                # Standard, part of old MarioDiffusion, used in AIIDE 2025
                 avg_caption_score, all_samples, all_prompts, compare_all_scores = result["avg_score"], result["all_samples"], result["all_prompts"], result["compare_all_scores"]
+                # New CLIP scores
+                avg_clip_score = result.get("avg_clip_score", None)
+                avg_scene_clip_score = result.get("avg_scene_clip_score", None)
+
                 # Collapse the per-width score lists into a mean score per width for this epoch.
                 width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
                 
@@ -1107,13 +1124,17 @@ def main():
                         "caption_score": avg_caption_score,
                         "width_scores": width_scores,
                         "step": global_step,
+                        "text_clip_score": avg_clip_score,
+                        "scene_clip_score": avg_scene_clip_score,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     f.write(json.dumps(log_entry) + '\n')
                 # Redraw the per-width adherence plot (one line per scene width). No-ops when there
                 # is no per-width data, so it is safe on single-width runs.
+                # TODO: Do width-based CLIP scores?
                 plot_scores_by_width(caption_score_log_file, caption_score_by_width_png)
 
+            # TODO: Option to base early stopping and best model on CLIP scores?
             # Early stopping logic: check if EITHER metric improved in the epoch
             val_loss_improved = val_loss is not None and val_loss < best_val_loss
             caption_score_improved = avg_caption_score is not None and avg_caption_score > best_caption_score
@@ -1314,6 +1335,8 @@ def main():
             gen_train_help.kill_plotter(plotter, plot_thread)
 
             gen_train_help.kill_plotter(caption_score_plotter, caption_score_plot_thread)
+            gen_train_help.kill_plotter(text_clip_score_plotter, text_clip_score_plot_thread)
+            gen_train_help.kill_plotter(scene_clip_score_plotter, scene_clip_score_plot_thread)
 
             # Final redraw of the per-width adherence plot so it reflects the last logged epoch.
             if args.plot_validation_caption_score:
