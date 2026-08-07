@@ -25,6 +25,40 @@ from util.size_utils import dataset_width_range, unet_width_factor, sample_rando
 from models.pipeline_loader import get_pipeline
 from models.general_training_helper import BucketBatchSampler
 
+
+def load_clip_model(model_name, device):
+    """Load a pretrained CLIP model/processor from Hugging Face for computing CLIPScore-style
+    text-image alignment. Imported lazily so `transformers` is only required when
+    --use_clip_score is actually passed."""
+    from transformers import CLIPModel, CLIPProcessor
+    clip_model = CLIPModel.from_pretrained(model_name).to(device)
+    clip_model.eval()
+    clip_processor = CLIPProcessor.from_pretrained(model_name)
+    return clip_model, clip_processor
+
+
+def compute_clip_score(image, text, clip_model, clip_processor, device):
+    """Cosine similarity between the CLIP image embedding of a rendered scene and the CLIP
+    text embedding of the caption used to generate it. Returns a plain Python float
+    (roughly in [-1, 1], typically small and positive for related image/text pairs)."""
+    inputs = clip_processor(text=[text], images=image, return_tensors="pt", padding=True, truncation=True)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    with torch.no_grad():
+        outputs = clip_model(**inputs)
+    image_embeds = outputs.image_embeds / outputs.image_embeds.norm(p=2, dim=-1, keepdim=True)
+    text_embeds = outputs.text_embeds / outputs.text_embeds.norm(p=2, dim=-1, keepdim=True)
+    similarity = (image_embeds * text_embeds).sum(dim=-1)
+    return similarity.item()
+
+
+def render_scene_image(sample, game):
+    """Render a single generated sample (channels, height, width) to a PIL image via the
+    existing tile-based visualizer, for use with CLIP scoring. Mirrors the same
+    visualize_samples call pattern used elsewhere in this file for saving per-sample PNGs,
+    just without writing anything to disk (output_dir=None returns the PIL image directly)."""
+    return visualize_samples(sample.unsqueeze(0), output_dir=None, game=game)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
     
@@ -45,6 +79,12 @@ def parse_args():
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
     parser.add_argument("--no_caption_score", action="store_true", help="Skip the caption-adherence score calculation and just generate a sample for each prompt.")
     parser.add_argument("--resume", action="store_true", help="Resume an interrupted checkpoint comparison run")
+
+    # CLIP-based alignment scoring (off by default). Complements the deterministic
+    # caption-adherence score above and, unlike it, works for free-form LLM captions since it
+    # doesn't rely on parsing the caption back into structured claims.
+    parser.add_argument("--use_clip_score", action="store_true", help="Additionally score each generated scene with CLIPScore-style cosine similarity between a pretrained CLIP model's image embedding of the rendered scene and text embedding of the caption. Off by default.")
+    parser.add_argument("--clip_model_name", type=str, default="openai/clip-vit-base-patch32", help="Hugging Face CLIP model to use when --use_clip_score is set.")
 
     # Used to generate captions when generating images
     parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
@@ -173,6 +213,11 @@ def main():
         pipe = get_pipeline(args.model_path).to(device)
         assert(pipe.tokenizer is not None)
 
+    # Load the CLIP model once and reuse it across every generation pathway below.
+    clip_model, clip_processor = (None, None)
+    if args.use_clip_score:
+        clip_model, clip_processor = load_clip_model(args.clip_model_name, device)
+
     if args.match_scene_width and args.random_width:
         print("Error: --match_scene_width and --random_width are mutually exclusive.")
         exit(1)
@@ -197,8 +242,14 @@ def main():
             print(f"Error: no captions found in {args.json}")
             exit(1)
         print(f"Generating {len(items)} scenes from {len(raw_data)} dataset entries...")
-        avg_score, results = mm2_caption_adherence(args, device, pipe, items, tileset)
-        print(f"Average caption adherence score: {avg_score:.4f}")
+        avg_score, avg_clip_score, results = mm2_caption_adherence(
+            args, device, pipe, items, tileset,
+            compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor
+        )
+        if avg_score is not None:
+            print(f"Average caption adherence score: {avg_score:.4f}")
+        if avg_clip_score is not None:
+            print(f"Average CLIP score: {avg_clip_score:.4f}")
         if args.save_as_json:
             out_path = os.path.join(args.output_dir, "all_levels.json")
             with open(out_path, "w") as f:
@@ -272,16 +323,20 @@ def main():
             )
 
     if args.compare_checkpoints:
-        scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors)
+        scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, clip_model=clip_model, clip_processor=clip_processor)
 
     else:
         # Just run on one model and get samples as well
         width_range = resolve_eval_width_range(args)
         per_width_scores = {}
-        avg_score, all_samples, all_prompts, _ = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score, game=game, prompt_metadata=prompt_metadata)
+        clip_all_scores = [] if args.use_clip_score else None
+        avg_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score, game=game, prompt_metadata=prompt_metadata, compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor, clip_all_scores=clip_all_scores)
 
         if avg_score is not None:
             print(f"Average caption adherence score: {avg_score:.4f}")
+        if clip_all_scores:
+            avg_clip_score = sum(clip_all_scores) / len(clip_all_scores)
+            print(f"Average CLIP score: {avg_clip_score:.4f}")
         print(f"Generated {len(all_samples)} level samples")
         # Show how many samples were generated at each width and how well each width scored.
         # A width missing here means no caption was generated at that size.
@@ -301,8 +356,12 @@ def main():
 
         if args.save_as_json:
             scenes = samples_to_scenes(all_samples)
+            # compare_all_scores is only populated per-sample when caption-adherence scoring
+            # ran (i.e. not args.no_caption_score); otherwise leave "score" out of each entry.
+            have_compare_scores = bool(compare_all_scores) and len(compare_all_scores) == len(scenes)
+            have_clip_scores = bool(clip_all_scores) and len(clip_all_scores) == len(scenes)
             paired = []
-            for prompt, scene, metadata in zip(all_prompts, scenes, prompt_metadata or [None] * len(scenes)):
+            for idx, (prompt, scene, metadata) in enumerate(zip(all_prompts, scenes, prompt_metadata or [None] * len(scenes))):
                 if game == "LR":
                     capt_scene = [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
                     caption = lr_assign_caption(capt_scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
@@ -311,6 +370,10 @@ def main():
                 else:  # Mario
                     caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
                 entry = {"prompt": prompt, "caption": caption, "scene": scene}
+                if have_compare_scores:
+                    entry["score"] = compare_all_scores[idx]
+                if have_clip_scores:
+                    entry["clip_score"] = clip_all_scores[idx]
                 if metadata:
                     entry.update(metadata)
                 paired.append(entry)
@@ -392,13 +455,19 @@ def expand_mm2_caption_items(data, all_captions):
     return items
 
 
-def mm2_caption_adherence(args, device, pipe, items, tileset):
+def mm2_caption_adherence(args, device, pipe, items, tileset, compute_clip=False, clip_model=None, clip_processor=None):
     """Generate one scene per item and score it with the MM2 captioner. Batches
     are bucketed by scene size (an item's source scene shape, else
     args.height x args.width) since a batch must share one shape. Returns
-    (average score, results); each result carries the prompt, scene, its
-    deterministic caption, the score, and the source metadata."""
-    assign_caption_fn, compare_captions_fn = mm2_caption_tools(tileset)
+    (average score, average clip score, results); each result carries the prompt, scene, its
+    deterministic caption, the score, the clip score (if computed), and the source metadata.
+    Caption-adherence scoring (the deterministic recaptioning + compare) is skipped when
+    args.no_caption_score is set, matching the other generation pathways; avg_score is then
+    None and results omit "caption"/"score"."""
+    compute_score = not args.no_caption_score
+    assign_caption_fn = compare_captions_fn = None
+    if compute_score:
+        assign_caption_fn, compare_captions_fn = mm2_caption_tools(tileset)
 
     by_shape = {}
     for item in items:
@@ -410,6 +479,8 @@ def mm2_caption_adherence(args, device, pipe, items, tileset):
 
     results = []
     score_sum = 0.0
+    clip_score_sum = 0.0
+    clip_count = 0
     per_shape_scores = {}
     for shape in sorted(by_shape):
         height, width = shape
@@ -436,20 +507,28 @@ def mm2_caption_adherence(args, device, pipe, items, tileset):
                                   prompts=captions, game="MM2")
 
             scenes = samples_to_scenes(samples)
-            for item, scene in zip(batch, scenes):
-                actual_caption = assign_caption_fn(scene)
-                score = compare_captions_fn(item["caption"], actual_caption)
-                score_sum += score
-                per_shape_scores.setdefault(shape, []).append(score)
-                results.append({
+            for idx_in_batch, (item, scene) in enumerate(zip(batch, scenes)):
+                entry = {
                     "prompt": item["caption"],
                     "scene": scene,
-                    "caption": actual_caption,
-                    "score": score,
                     "source_index": item["source_index"],
                     "source_name": item["source_name"],
                     "caption_index": item["caption_index"],
-                })
+                }
+                if compute_score:
+                    actual_caption = assign_caption_fn(scene)
+                    score = compare_captions_fn(item["caption"], actual_caption)
+                    score_sum += score
+                    per_shape_scores.setdefault(shape, []).append(score)
+                    entry["caption"] = actual_caption
+                    entry["score"] = score
+                if compute_clip:
+                    sample_image = render_scene_image(samples[idx_in_batch], "MM2")
+                    clip_score = compute_clip_score(sample_image, item["caption"], clip_model, clip_processor, device)
+                    entry["clip_score"] = clip_score
+                    clip_score_sum += clip_score
+                    clip_count += 1
+                results.append(entry)
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -460,10 +539,12 @@ def mm2_caption_adherence(args, device, pipe, items, tileset):
             scores = per_shape_scores[shape]
             print(f"\t{shape[0]}x{shape[1]}: {len(scores)} samples, avg score {sum(scores) / len(scores):.4f}")
 
-    return score_sum / len(results), results
+    avg_score = (score_sum / len(results)) if compute_score and results else None
+    avg_clip_score = (clip_score_sum / clip_count) if compute_clip and clip_count else None
+    return avg_score, avg_clip_score, results
 
 
-def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True):
+def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True, clip_model=None, clip_processor=None):
 
     _, tileset, height, width = resolve_game(args)
     
@@ -489,6 +570,9 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
     # Companion plot: one caption-adherence line per scene width, so weaknesses at a particular
     # size are visible. Only meaningful when the eval set spans multiple widths.
     width_plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_caption_scores_by_width_plot.png")
+    # CLIP-score companion plot (only produced when --use_clip_score is set). Derived from the
+    # same scores_jsonl_path file as the caption-adherence plot above, just a different key.
+    clip_plot_png_path = os.path.join(args.model_path, f"{os.path.basename(args.json).split('.')[0]}_clip_scores_plot.png")
 
     # Handle file existence based on resume flag
     completed_epochs = set()
@@ -523,12 +607,35 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         output_png=plot_png_path
     )
 
+    # Companion Plotter for CLIP score, reading the same jsonl file but a different key.
+    # Only created when --use_clip_score is set, since the jsonl rows otherwise have no
+    # "clip_score" field to plot.
+    clip_plotter = None
+    if args.use_clip_score:
+        clip_plotter = Plotter(
+            log_file=scores_jsonl_path,
+            update_interval=0.1,
+            left_key="clip_score",
+            right_key=None,
+            left_label="CLIP Score",
+            right_label=None,
+            output_png=clip_plot_png_path
+        )
+
     # Start plotting in a background thread
     import threading
     plot_thread = threading.Thread(target=plotter.start_plotting)
     plot_thread.daemon = True
     plotter.running = True
     plot_thread.start()
+
+    clip_plot_thread = None
+    if clip_plotter is not None:
+        clip_plot_thread = threading.Thread(target=clip_plotter.start_plotting)
+        clip_plot_thread.daemon = True
+        clip_plotter.running = True
+        clip_plot_thread.start()
+
     scores_by_epoch = []
     with open(scores_jsonl_path, "a") as f:
         for epoch, checkpoint_dir in tqdm(checkpoint_dirs, desc="Evaluating Checkpoints"):
@@ -541,22 +648,30 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             pipe = get_pipeline(checkpoint_dir).to(device)
 
             per_width_scores = {}
+            clip_all_scores = [] if args.use_clip_score else None
             # Pass the MM2 caption tools (None for other games) so MM2 scores with the MM2 captioner;
             # scene shape alone can't tell MM2 from Mario.
             avg_score, _, _, _ = calculate_caption_score_and_samples(
                 device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, 
                 args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, 
                 width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, game=args.game,
-                assign_caption_fn=assign_caption_fn, compare_captions_fn=compare_captions_fn
+                assign_caption_fn=assign_caption_fn, compare_captions_fn=compare_captions_fn,
+                compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor, clip_all_scores=clip_all_scores
             )
 
             # Collapse the per-width score lists into mean scores for this checkpoint.
             width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
 
+            avg_clip_score = (sum(clip_all_scores) / len(clip_all_scores)) if clip_all_scores else None
+
             print(f"Checkpoint {checkpoint_dir} - Average caption adherence score: {avg_score:.4f}")
+            if avg_clip_score is not None:
+                print(f"Checkpoint {checkpoint_dir} - Average CLIP score: {avg_clip_score:.4f}")
             if len(width_scores) > 1:
                 print("  By scene width: " + ", ".join(f"{w}:{width_scores[w]:.4f}" for w in sorted(width_scores)))
             result = {"epoch": epoch, "score": avg_score, "checkpoint_dir": checkpoint_dir, "width_scores": width_scores}
+            if avg_clip_score is not None:
+                result["clip_score"] = avg_clip_score
             f.write(json.dumps(result) + "\n")
             f.flush()  # Ensure it's written immediately
 
@@ -565,16 +680,29 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             # Update the plots after each checkpoint
             plotter.update_plot()
             plot_scores_by_width(scores_jsonl_path, width_plot_png_path)
+            if clip_plotter is not None:
+                clip_plotter.update_plot()
 
     plotter.stop_plotting()
     plot_thread.join(timeout=1)
+    if clip_plotter is not None:
+        clip_plotter.stop_plotting()
+        clip_plot_thread.join(timeout=1)
 
     # Final redraw (covers the resume case where every checkpoint was already evaluated).
     plot_scores_by_width(scores_jsonl_path, width_plot_png_path)
 
     return scores_by_epoch
 
-def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None, compute_score=True, game=None, assign_caption_fn=None, compare_captions_fn=None, prompt_metadata=None):
+def calculate_caption_score_and_samples(device, pipe, dataloader, inference_steps, guidance_scale, random_seed, id_to_char, char_to_id, tile_descriptors, describe_absence, height, width, output=True, random_width=False, width_range=None, match_scene_width=False, per_width_scores=None, compute_score=True, game=None, assign_caption_fn=None, compare_captions_fn=None, prompt_metadata=None, compute_clip=False, clip_model=None, clip_processor=None, clip_all_scores=None):
+    # compute_clip=True additionally renders each generated sample to an image (via the same
+    # tile-based visualizer used for saving PNGs) and scores it against the prompt used to
+    # generate it with CLIPScore-style cosine similarity. This is independent of compute_score:
+    # it works for both structured and free-form (LLM) captions, since it doesn't rely on
+    # deriving a structured caption from the generated scene. Per-sample scores are appended,
+    # in generation order, to the caller-provided clip_all_scores list (mirroring the
+    # per_width_scores out-parameter pattern below) rather than added to this function's return
+    # tuple, since several callers depend on that tuple always having exactly 4 values.
     # compute_score=False skips deriving a structured caption from each generated scene and scoring
     # it against the prompt. Use it for natural-language (LLM) captions, where that comparison is
     # meaningless. Samples and prompts are still collected; avg_score is returned as None.
@@ -677,6 +805,14 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     caption = batch[i]
                     
                 all_prompts.append(caption)
+
+                # CLIP scoring is independent of compute_score (works for LLM captions too),
+                # so it runs here before the compute_score early-continue below.
+                if compute_clip:
+                    sample_image = render_scene_image(samples[i], game)
+                    clip_score = compute_clip_score(sample_image, caption, clip_model, clip_processor, device)
+                    if clip_all_scores is not None:
+                        clip_all_scores.append(clip_score)
 
                 # For LLM/natural-language prompts there is no structured caption to derive or
                 # compare, so just keep the generated sample and move on.
