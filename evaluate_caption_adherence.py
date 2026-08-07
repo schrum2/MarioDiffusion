@@ -380,7 +380,11 @@ def main():
         per_width_scores = {}
         clip_all_scores = [] if args.use_clip_score else None
         scene_clip_all_scores = [] if args.use_clip_score else None
-        avg_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score, game=game, prompt_metadata=prompt_metadata, compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor, clip_all_scores=clip_all_scores, scene_clip_all_scores=scene_clip_all_scores)
+        result = calculate_caption_score_and_samples(device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, args.describe_absence, output=False, height=height, width=width, random_width=args.random_width, width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, compute_score=not args.no_caption_score, game=game, prompt_metadata=prompt_metadata, compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor, clip_all_scores=clip_all_scores, scene_clip_all_scores=scene_clip_all_scores)
+        avg_score = result["avg_score"]
+        all_samples = result["all_samples"]
+        all_prompts = result["all_prompts"]
+        compare_all_scores = result["compare_all_scores"]
 
         if avg_score is not None:
             print(f"Average caption adherence score: {avg_score:.4f}")
@@ -731,13 +735,13 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             scene_clip_all_scores = [] if args.use_clip_score else None
             # Pass the MM2 caption tools (None for other games) so MM2 scores with the MM2 captioner;
             # scene shape alone can't tell MM2 from Mario.
-            avg_score, _, _, _ = calculate_caption_score_and_samples(
+            avg_score = calculate_caption_score_and_samples(
                 device, pipe, dataloader, args.inference_steps, args.guidance_scale, args.seed, id_to_char, char_to_id, tile_descriptors, 
                 args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, 
                 width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, game=args.game,
                 assign_caption_fn=assign_caption_fn, compare_captions_fn=compare_captions_fn,
                 compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor, clip_all_scores=clip_all_scores, scene_clip_all_scores=scene_clip_all_scores
-            )
+            )["avg_score"]
 
             # Collapse the per-width score lists into mean scores for this checkpoint.
             width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
@@ -988,10 +992,15 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
         all_samples = all_samples[:total_count]
 
     dataloader.dataset.mode=original_mode
+    result = dict()
+    result["avg_score"] = avg_score
+    result["all_samples"] = all_samples
+    result["all_prompts"] = all_prompts
+    result["compare_all_scores"] = compare_all_scores
+    result["clip_all_scores"] = clip_all_scores if clip_all_scores is not None else None
+    result["scene_clip_all_scores"] = scene_clip_all_scores if scene_clip_all_scores is not None else None
 
-    return (avg_score, all_samples, all_prompts, compare_all_scores) 
-    # Adding this return value broke code in MANY places. Cannot do this unless you make sure that all calls to this function expect 4 values
-    # Found all references of this method and made them all return 4 values
+    return result
 
 if __name__ == "__main__":
     main()

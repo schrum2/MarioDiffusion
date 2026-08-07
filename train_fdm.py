@@ -301,12 +301,12 @@ def main():
                 ).to(accelerator.device)
                 # Only use the positive captions for scoring
 
-                avg_caption_score, _, _, _ = calculate_caption_score_and_samples(
+                avg_caption_score = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, None, None, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, 
                     describe_absence=args.describe_absence, output=False, 
                     height=scene_height, width=scene_width, game=args.game
-                )
+                )["avg_score"]
 
                 if avg_caption_score>best_caption_score:
                     best_model_epoch=epoch

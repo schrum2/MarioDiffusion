@@ -886,7 +886,7 @@ def main():
                     mm2_assign_fn = mm2_compare_fn = None
 
                 per_width_scores = {}
-                avg_caption_score, all_samples, all_prompts, compare_all_scores = calculate_caption_score_and_samples(
+                result = calculate_caption_score_and_samples(
                     accelerator.device, pipeline, val_dataloader, args.num_inference_timesteps, guidance_scale, args.seed,
                     id_to_char=id_to_char, char_to_id=char_to_id, tile_descriptors=tile_descriptors, describe_absence=args.describe_absence,
                     output=False, height=scene_height, width=scene_width,
@@ -895,6 +895,7 @@ def main():
                     # MM2 caption tools (set just above); None for other games.
                     assign_caption_fn=mm2_assign_fn, compare_captions_fn=mm2_compare_fn
                 )
+                avg_caption_score, all_samples, all_prompts, compare_all_scores = result["avg_score"], result["all_samples"], result["all_prompts"], result["compare_all_scores"]
                 # Collapse the per-width score lists into a mean score per width for this epoch.
                 width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
                 
