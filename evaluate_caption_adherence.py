@@ -738,7 +738,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
                 args.describe_absence, output=False, width=width, height=height, random_width=args.random_width, 
                 width_range=width_range, match_scene_width=args.match_scene_width, per_width_scores=per_width_scores, game=args.game,
                 assign_caption_fn=assign_caption_fn, compare_captions_fn=compare_captions_fn,
-                compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor, clip_all_scores=clip_all_scores, scene_clip_all_scores=scene_clip_all_scores
+                compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor
             )["avg_score"]
 
             # Collapse the per-width score lists into mean scores for this checkpoint.
