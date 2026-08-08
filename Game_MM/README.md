@@ -202,7 +202,13 @@ However, this can also be accomplished using the `train-diffusion.bat` batch fil
 ```
 train-diffusion.bat 0 MM-Full llm MM-Full CLIP single none 0 gemma4:12b_captions qwen3.5:9b_captions
 ```
+This command also runs the script for evaluating caption adherence, though regular caption adherence score doesn't really make sense in the context of LLM-generated captions, so other metrics produced by this analysis should be focused on instead. Specifically, the code uses the pretrained VLM CLIP to assess the results in two ways. The image-CLIP score is the result of taking a real game scene that has an LLM-generated caption, and comparing it to a scene generated with the diffusion model using that same caption. Specifically, the images that result from rendering the game scenes are embedded into vectors using CLIP, and the two vectors are compared in terms of cosine similarity, so that higher values closer to 1.0 indicate a high degree of similarity. We also use a text-CLIP score that is the result of embedding the caption text as a vector, and comparing that vector to the embedding vector of the model-generated image, also using cosine similarity. Approaches like this are fairly standard in analyzing AI-generated images, but need to be used with caution in this domain, as CLIP was primarily trained on real-world images rather than video game level scenes. The quality of the captions themselves is also important to take into consideration.
 
+In fact, to get a sense of how good CLIP thinks the LLM generated captions are, you can use a command like this:
+```
+python evaluate_caption_adherence.py --json Game_MM\DATA\MM-Full_LevelsAndCaptions-llm.json --game MM-Full --evaluate_dataset --save_as_json --output_dir MM-Full-llm-clip_eval_test --caption_source_keys gemma4:12b_captions qwen3.5:9b_captions
+```
+This computes the text-CLIP comparison score between level scenes in a dataset and its associated captions, which means it can be applied to the original training data as well as model-generated scenes.
 
 
 
