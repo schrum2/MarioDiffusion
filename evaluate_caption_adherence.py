@@ -104,11 +104,92 @@ def render_scene_image_from_scene(scene, game):
     return visualize_samples(scene_tensor.unsqueeze(0), output_dir=None, game=game)
 
 
+def score_dataset_captions(args, device, clip_model, clip_processor, game):
+    """Compute text-based CLIP scores for the captions already stored in a dataset JSON,
+    without generating anything from a model. For each entry that has a "scene", the scene
+    is rendered to an image once and compared against every requested caption via CLIP
+    cosine similarity.
+
+    Which caption field(s) are scored is controlled by --caption_source_keys: if given, each
+    of those keys is scored independently; otherwise the plain "caption" field is used.
+
+    For a key whose value is a list of captions (e.g. multiple LLM-generated captions under
+    one key), this adds two fields per entry:
+      - clip_scores_<key>: list of per-caption CLIP scores, in the same order as the captions
+      - avg_clip_<key>: average of that entry's clip_scores_<key>
+    For the plain "caption" field (a single string, the common case), it instead adds a single
+    "clip_score" field, consistent with the "clip_score" naming already used elsewhere in this
+    file for a single caption/scene pairing.
+
+    Returns (data, overall_avg_score, scored_entry_count), where `data` is the same list of
+    dataset entries (dicts) mutated in place with the new score field(s), suitable for dumping
+    straight back out to JSON.
+    """
+    with open(args.json, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    keys_to_score = args.caption_source_keys if args.caption_source_keys else ["caption"]
+
+    all_scores = []
+    scored_entries = 0
+    for entry in tqdm(data, desc="Scoring dataset captions with CLIP"):
+        if not isinstance(entry, dict):
+            continue
+
+        scene = entry.get("scene")
+        if scene is None:
+            continue
+
+        keys_present = [key for key in keys_to_score if entry.get(key)]
+        if not keys_present:
+            continue
+
+        scene_image = render_scene_image_from_scene(scene, game)
+        if scene_image is None:
+            continue
+        image_embed = compute_clip_image_embedding(scene_image, clip_model, clip_processor, device)
+
+        entry_scored = False
+        for key in keys_present:
+            value = entry[key]
+            is_list = isinstance(value, list)
+            captions = value if is_list else [value]
+
+            scores = []
+            for caption in captions:
+                if not caption:
+                    scores.append(None)
+                    continue
+                text_embed = compute_clip_text_embedding(caption, clip_model, clip_processor, device)
+                score = (image_embed * text_embed).sum(dim=-1).item()
+                scores.append(score)
+                all_scores.append(score)
+
+            valid_scores = [s for s in scores if s is not None]
+            avg_score = (sum(valid_scores) / len(valid_scores)) if valid_scores else None
+
+            if key == "caption" and not is_list:
+                # Single-caption case: match the "clip_score" naming already used elsewhere
+                # in this file for one caption/scene pairing, rather than a list + average.
+                entry["clip_score"] = scores[0] if scores else None
+            else:
+                entry[f"clip_scores_{key}"] = scores
+                entry[f"avg_clip_{key}"] = avg_score
+
+            entry_scored = True
+
+        if entry_scored:
+            scored_entries += 1
+
+    overall_avg = (sum(all_scores) / len(all_scores)) if all_scores else None
+    return data, overall_avg, scored_entries
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate caption adherence for a pretrained text-conditional diffusion model for tile-based level generation")
     
     # Dataset args
-    parser.add_argument("--model_path", type=str, required=True, help="Path to the trained diffusion model")
+    parser.add_argument("--model_path", type=str, default=None, help="Path to the trained diffusion model. Required unless --evaluate_dataset is set, since that mode scores captions already in --json and never generates from a model.")
     parser.add_argument("--json", type=str, default="SMB1_LevelsAndCaptions.json", help="Path to dataset json file")
     parser.add_argument("--game", type=str, default=None, choices=["Mario", "LR", "MM-Simple", "MM-Full", "MMLV", "MM2"], help="Game to evaluate: selects the tileset, scene shape, tile count, and the tiles used for rendering. This is the main way to pick a game, and how Mega Man should be resolved. When omitted, the game is derived from --num_tiles (+ --mm) for backward compatibility.")
     parser.add_argument("--num_tiles", type=int, default=common_settings.MARIO_TILE_COUNT, help="Number of tile types")
@@ -118,7 +199,8 @@ def parse_args():
         
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--all_captions", action="store_true", help="Generate a scene for EVERY stored caption of each entry (caption, caption1, caption2, ...), not just the first. Output entries carry source_index/source_name/caption_index so scenes generated from the same source scene can be grouped. Mario Maker only")
-    parser.add_argument("--caption_source_keys", nargs="+", type=str, default=None, help="Generate one scene per caption stored under the listed source keys in the dataset JSON. Each output entry is tagged with the source entry, caption key, and caption index so prompt/scene pairs from the same input scene can be grouped.")
+    parser.add_argument("--caption_source_keys", nargs="+", type=str, default=None, help="Generate one scene per caption stored under the listed source keys in the dataset JSON. Each output entry is tagged with the source entry, caption key, and caption index so prompt/scene pairs from the same input scene can be grouped. Also used by --evaluate_dataset to select which caption field(s) to score; defaults to the plain 'caption' field there.")
+    parser.add_argument("--evaluate_dataset", action="store_true", help="Score the dataset itself instead of generating from a model: for each entry's 'scene', render it to an image and compute the text-based CLIP score against its caption(s) (the 'caption' field, or the fields in --caption_source_keys). No --model_path or generation is involved. Use --save_as_json to write the scored dataset back out.")
     parser.add_argument("--inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps") # Large reduction from the 500 used during training
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--save_as_json", action="store_true", help="Save generated levels as JSON")
@@ -230,6 +312,30 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
     game = args.game
     num_tiles, tileset, height, width = resolve_game(args)
+
+    # --evaluate_dataset scores the captions already present in --json against their own
+    # "scene" entries; it never loads or generates from a model, so it's handled entirely
+    # separately from (and before) the model-loading / output-dir setup below.
+    if args.evaluate_dataset:
+        if not args.use_clip_score:
+            print("Error: --evaluate_dataset requires CLIP scoring; remove --no_clip_score.")
+            exit(1)
+        clip_model, clip_processor = load_clip_model(args.clip_model_name, device)
+        scored_data, overall_avg_score, scored_entries = score_dataset_captions(args, device, clip_model, clip_processor, game)
+        print(f"Scored CLIP alignment for {scored_entries} dataset entries.")
+        if overall_avg_score is not None:
+            print(f"Overall average CLIP score: {overall_avg_score:.4f}")
+        if args.save_as_json:
+            os.makedirs(args.output_dir, exist_ok=True)
+            out_path = os.path.join(args.output_dir, "dataset_clip_scores.json")
+            with open(out_path, "w") as f:
+                json.dump(scored_data, f, indent=4)
+            print(f"Saved {len(scored_data)} scored entries to {out_path}")
+        return
+
+    if not args.model_path:
+        print("Error: --model_path is required unless --evaluate_dataset is set.")
+        exit(1)
 
     if not args.compare_checkpoints:
         args.output_dir = os.path.join(args.model_path, args.output_dir)
