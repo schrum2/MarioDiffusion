@@ -760,8 +760,8 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             )
 
             avg_score = result["avg_score"]
-            avg_clip_score = result["avg_clip_score"]
-            avg_scene_clip_score = result["avg_scene_clip_score"]
+            avg_clip_score = result.get("avg_clip_score", None)
+            avg_scene_clip_score = result.get("avg_scene_clip_score", None)
 
             # Collapse the per-width score lists into mean scores for this checkpoint.
             width_scores = {w: sum(s) / len(s) for w, s in per_width_scores.items() if s}
@@ -778,10 +778,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
             if len(width_scores) > 1:
                 print("  By scene width: " + ", ".join(f"{w}:{width_scores[w]:.4f}" for w in sorted(width_scores)))
             result = {"epoch": epoch, "score": avg_score, "checkpoint_dir": checkpoint_dir, "width_scores": width_scores, "text_clip_score" : avg_clip_score, "scene_clip_score": avg_scene_clip_score}
-            if avg_clip_score is not None:
-                result["clip_score"] = avg_clip_score
-            if avg_scene_clip_score is not None:
-                result["scene_clip_score"] = avg_scene_clip_score
+
             f.write(json.dumps(result) + "\n")
             f.flush()  # Ensure it's written immediately
 
