@@ -20,6 +20,7 @@ from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
+from util.metrics import edit_distance_tensor
 from util.plotter import Plotter, plot_scores_by_width
 from util.size_utils import dataset_width_range, unet_width_factor, sample_random_width
 from models.pipeline_loader import get_pipeline
@@ -102,6 +103,20 @@ def render_scene_image_from_scene(scene, game):
                 raise ValueError(f"Tile ID {tile_id} is out of range for a {num_tiles}-tile scene")
             scene_tensor[tile_id, row_idx, col_idx] = 1.0
     return visualize_samples(scene_tensor.unsqueeze(0), output_dir=None, game=game)
+
+
+def compute_hamming_distance(source_scene, generated_scene):
+    """Edit (Hamming) distance between a source-dataset scene and a model-generated scene,
+    both given as 2D grids (list of rows) of tile IDs. Returns None if either scene is
+    missing or their shapes don't match (in which case a per-tile comparison isn't
+    meaningful), otherwise the number of differing tiles as an int."""
+    if source_scene is None or generated_scene is None:
+        return None
+    source_tensor = torch.as_tensor(np.asarray(source_scene, dtype=np.int64))
+    generated_tensor = torch.as_tensor(np.asarray(generated_scene, dtype=np.int64))
+    if source_tensor.shape != generated_tensor.shape:
+        return None
+    return edit_distance_tensor(source_tensor, generated_tensor)
 
 
 def score_dataset_captions(args, device, clip_model, clip_processor, game):
@@ -489,6 +504,7 @@ def main():
         compare_all_scores = result["compare_all_scores"]
         clip_all_scores = result["clip_all_scores"]
         scene_clip_all_scores = result["scene_clip_all_scores"]
+        hamming_all_scores = result["hamming_all_scores"]
 
         if avg_score is not None:
             print(f"Average caption adherence score: {avg_score:.4f}")
@@ -524,6 +540,7 @@ def main():
             have_compare_scores = bool(compare_all_scores) and len(compare_all_scores) == len(scenes)
             have_clip_scores = bool(clip_all_scores) and len(clip_all_scores) == len(scenes)
             have_scene_clip_scores = bool(scene_clip_all_scores) and len(scene_clip_all_scores) == len(scenes)
+            have_hamming_scores = bool(hamming_all_scores) and len(hamming_all_scores) == len(scenes)
             paired = []
             for idx, (prompt, scene, metadata) in enumerate(zip(all_prompts, scenes, prompt_metadata or [None] * len(scenes))):
                 if game == "LR":
@@ -540,6 +557,8 @@ def main():
                     entry["clip_score"] = clip_all_scores[idx]
                 if have_scene_clip_scores:
                     entry["scene_clip_score"] = scene_clip_all_scores[idx]
+                if have_hamming_scores:
+                    entry["hamming_distance"] = hamming_all_scores[idx]
                 if metadata:
                     entry.update(metadata)
                 paired.append(entry)
@@ -687,6 +706,13 @@ def mm2_caption_adherence(args, device, pipe, items, tileset, compute_clip=False
                     "source_name": item["source_name"],
                     "caption_index": item["caption_index"],
                 }
+                # Hamming distance against the source dataset's own scene (when it has one),
+                # independent of compute_score/compute_clip so it's always available.
+                source_scene_for_hamming = item.get("scene")
+                if source_scene_for_hamming is not None:
+                    hamming_distance = compute_hamming_distance(source_scene_for_hamming, scene)
+                    if hamming_distance is not None:
+                        entry["hamming_distance"] = hamming_distance
                 if compute_score:
                     actual_caption = assign_caption_fn(scene)
                     score = compare_captions_fn(item["caption"], actual_caption)
@@ -956,6 +982,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     compare_all_scores = []
     clip_all_scores = []         
     scene_clip_all_scores = []  
+    hamming_all_scores = []
     prompt_index = 0
     scene_embedding_cache = {}
     for batch_idx, batch in enumerate(dataloader):
@@ -971,11 +998,13 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
         batch_source_scenes = None
         if prompt_metadata is not None:
             batch_metadata = prompt_metadata[prompt_index:prompt_index + actual_batch_size]
-        if compute_clip:
-            batch_source_scenes = (
-                dataloader.dataset.data[prompt_index:prompt_index + actual_batch_size]
-                if hasattr(dataloader.dataset, "data") else None
-            )
+        # Needed for scene CLIP scoring (compute_clip) and/or hamming distance against the
+        # source scene, so fetch it whenever the dataset can supply it rather than gating it
+        # on compute_clip alone.
+        batch_source_scenes = (
+            dataloader.dataset.data[prompt_index:prompt_index + actual_batch_size]
+            if hasattr(dataloader.dataset, "data") else None
+        )
         prompt_index += actual_batch_size
 
         # Capture the source scene width before the scene is pruned out of the batch below.
@@ -1038,6 +1067,11 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     
                 all_prompts.append(caption)
 
+                # Convert this sample to a tile-id scene grid once; reused below both for the
+                # hamming distance against the source scene and (when compute_score) for
+                # deriving the sample's own caption.
+                sample_scene_grid = convert_to_level_format(samples[i].unsqueeze(0))[0].tolist()  # Always just one scene: (1,16,16)
+
                 # CLIP scoring is independent of compute_score (works for LLM captions too),
                 # so it runs here before the compute_score early-continue below.
                 if compute_clip:
@@ -1059,6 +1093,16 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
                     scene_clip_all_scores.append(scene_clip_score)
 
+                # Hamming distance against the source dataset's own scene (when the source
+                # entry has one), independent of compute_score/compute_clip so it's always
+                # available whenever the source dataset provides scenes.
+                hamming_distance = None
+                if batch_source_scenes is not None:
+                    source_scene_for_hamming = batch_source_scenes[i].get("scene") if isinstance(batch_source_scenes[i], dict) else None
+                    if source_scene_for_hamming is not None:
+                        hamming_distance = compute_hamming_distance(source_scene_for_hamming, sample_scene_grid)
+                hamming_all_scores.append(hamming_distance)
+
                 # For LLM/natural-language prompts there is no structured caption to derive or
                 # compare, so just keep the generated sample and move on.
                 if not compute_score:
@@ -1066,12 +1110,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     total_count += 1
                     continue
 
-                sample = samples[i].unsqueeze(0)
-                #print("sample.shape", sample.shape)
-                sample_indices = convert_to_level_format(sample)
-                #print("first sample_indices", sample_indices[0])
-                scene = sample_indices[0].tolist()  # Always just one scene: (1,16,16)
-                #quit()
+                scene = sample_scene_grid
 
                 # MM2 uses assign_caption_fn (set above), so it never reaches these by-game cases.
                 if assign_caption_fn is not None:
@@ -1112,7 +1151,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                 total_count += 1
 
                 all_samples.append(samples[i])  # (channels, height, width); stacked/kept-as-list below
-                del sample, sample_indices, scene, actual_caption  # Remove unused variables
+                del sample_scene_grid, scene, actual_caption  # Remove unused variables
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()  # Clear GPU VRAM cache
@@ -1156,6 +1195,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     result["compare_all_scores"] = compare_all_scores
     result["clip_all_scores"] = clip_all_scores if clip_all_scores is not None else None
     result["scene_clip_all_scores"] = scene_clip_all_scores if scene_clip_all_scores is not None else None
+    result["hamming_all_scores"] = hamming_all_scores if hamming_all_scores is not None else None
 
     return result
 

@@ -11,18 +11,19 @@ import sys
 import os
 import numpy as np
 import json
-from util.sampler import CustomSimulator
-from captions.caption_match import compare_captions
-from util.sampler import scene_to_ascii
 from tqdm import tqdm
-import util.common_settings as common_settings
-
-# Add the parent directory to the system path to import the extract_tileset function
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'captions'))
-
-from captions.caption_match import TOPIC_KEYWORDS
-from create_ascii_captions import assign_caption, extract_tileset
+# Not sure how sound this is, but the idea is that the script 
+# gets imported in different ways depending on whether it's run as a script or imported as a module.
+try:
+    from .sampler import CustomSimulator, scene_to_ascii
+    from . import common_settings
+    from ..captions.caption_match import TOPIC_KEYWORDS, compare_captions
+    from ..create_ascii_captions import assign_caption, extract_tileset
+except ImportError:
+    from util.sampler import CustomSimulator, scene_to_ascii
+    import util.common_settings as common_settings
+    from captions.caption_match import TOPIC_KEYWORDS, compare_captions
+    from create_ascii_captions import assign_caption, extract_tileset
 
 
 # Type variable for the tile type
@@ -61,7 +62,7 @@ except FileNotFoundError:
     raise
 
 def edit_distance_tensor(level1: torch.Tensor, level2: torch.Tensor) -> int:
-    """Computes edit distance. Here for future use if needed (not used in evaluate metrics)"""
+    """Computes edit distance between two levels represented as 2D tensors."""
     return (level1 != level2).sum().item()
 
 
