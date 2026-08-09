@@ -37,7 +37,7 @@ Download Mega Man Maker levels by ID. The downloader begins at level ID `200000`
 
 ```bash
 cd Game_MMLV
-python Bulk_Download.py --target 100
+python bulk_mmlv_download.py --target 100
 ```
 
 Downloaded `.mmlv` files are saved directly into:
@@ -50,7 +50,7 @@ Downloaded `.mmlv` files are saved directly into:
 Convert downloaded `.mmlv` files into VGLC `.txt` files.
 
 ```bash
-cd megaman
+cd Game_MMLV
 python bulk_mmlv_to_vglc.py --output ..\datasets\MMLV_Maker_Levels
 ```
 
@@ -73,7 +73,7 @@ Or run each step manually:
 
 ```bash
 cd ..
-python megaman\bulk_mmlv_to_vglc.py --output datasets\MMLV_Maker_Levels
+python Game_MMLV\bulk_mmlv_to_vglc.py --output datasets\MMLV_Maker_Levels
 python create_megaman_json_data.py --levels datasets\MMLV_Maker_Levels --tileset Game_MMLV\MMLV.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --direction_captions --include_moving_ground --output datasets\MMLV_Levels.json
 python MM_create_ascii_captions.py --dataset datasets\MMLV_Levels.json --tileset Game_MMLV\MMLV.json --output datasets\MMLV_LevelsAndCaptions-regular.json
 python tokenizer.py save --json datasets\MMLV_LevelsAndCaptions-regular.json --pkl_file datasets\MMLV_Tokenizer-regular.pkl

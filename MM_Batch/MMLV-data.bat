@@ -24,11 +24,11 @@ goto parse_args
 if "%LVL_TARGET%"=="" set LVL_TARGET=5000
 
 REM download a ton of levels from MMLV
-python Game_MMLV\Bulk_Download.py --target %LVL_TARGET%
+python Game_MMLV\bulk_mmlv_download.py --target %LVL_TARGET%
 python log_timestamp.py --log_file %TIMING_LOG% --event "bulk download"
 
 REM convert to VGLC ASCII
-python megaman\bulk_mmlv_to_vglc.py --output datasets\MMLV_Levels
+python Game_MMLV\bulk_mmlv_to_vglc.py --output datasets\MMLV_Levels
 python log_timestamp.py --log_file %TIMING_LOG% --event "MMLV to VGLC conversion"
 
 REM convert to json

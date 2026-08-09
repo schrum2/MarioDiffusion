@@ -416,7 +416,7 @@ def main():
     level_files = sorted(Path(args.levels).glob("*.txt"))
 
     #Per-level metadata (name/author/downloads/likes/dislikes) fetched at download time by
-    #Bulk_Download.py and keyed by MMLV level id (string). Read from the single master sidecar
+    #bulk_mmlv_download.py and keyed by MMLV level id (string). Read from the single master sidecar
     #at the repo-wide constant path, looked up by mmlv_id per level below, and attached to
     #every sample so it survives into the training data. Absent for the VGLC Enhanced set
     #(non-numeric filenames) or before any download, so a missing file is not an error.
