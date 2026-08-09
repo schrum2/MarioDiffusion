@@ -21,11 +21,11 @@ python log_timestamp.py --log_file %TIMING_LOG% --event "MMLV download"
 python megaman\bulk_mmlv_to_vglc.py --output megaman\vglc_out
 python log_timestamp.py --log_file %TIMING_LOG% --event "MMLV to VGLC conversion"
 
-python create_megaman_json_data.py --scan_mode screen_grid --target_height 32 --target_width 32 --stride_x 16 --stride_y 14 --levels megaman\vglc_out --tileset datasets\MMLV.json --output megaman\32x32_MMLV_Levels.json
+python create_megaman_json_data.py --scan_mode screen_grid --target_height 32 --target_width 32 --stride_x 16 --stride_y 14 --levels megaman\vglc_out --tileset Game_MMLV\MMLV.json --output megaman\32x32_MMLV_Levels.json
 python log_timestamp.py --log_file %TIMING_LOG% --event "scene sampling to JSON"
 
 REM this part is just so we populate the "caption" field in each json entry, which is required in train_diffusion even for unconditional models
-python MM_create_ascii_captions.py --dataset megaman\32x32_MMLV_Levels.json --tileset datasets\MMLV.json --output megaman\32x32_MMLV_LevelsAndCaptions.json
+python MM_create_ascii_captions.py --dataset megaman\32x32_MMLV_Levels.json --tileset Game_MMLV\MMLV.json --output megaman\32x32_MMLV_LevelsAndCaptions.json
 python log_timestamp.py --log_file %TIMING_LOG% --event "ASCII captioning"
 
 python split_data.py --json_file megaman\32x32_MMLV_LevelsAndCaptions.json --game mmlv --train_pct .9 --val_pct .05 --test_pct .05

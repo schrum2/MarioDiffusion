@@ -325,7 +325,7 @@ def mm_tiles(game):
 
     elif game == "MMLV":
         # One (row, col) into MMLV_mapsheet.png per tile id. This list is in the SAME order
-        # as datasets/MMLV.json (extract_tileset does not sort MM tilesets, so the JSON key
+        # as Game_MMLV/MMLV.json (extract_tileset does not sort MM tilesets, so the JSON key
         # order defines the tile ids), so index N here is the sprite for the Nth char in that
         # tileset. Three enemies share a sprite with their variant/spawner (both ids point at
         # the same cell): Mambu/spawner, Killer Bullet/spawner, and the vertical/horizontal

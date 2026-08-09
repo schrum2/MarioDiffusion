@@ -32,10 +32,10 @@ python megaman\bulk_mmlv_to_vglc.py --output datasets\MMLV_Levels
 python log_timestamp.py --log_file %TIMING_LOG% --event "MMLV to VGLC conversion"
 
 REM convert to json
-python create_megaman_json_data.py --levels datasets\MMLV_Levels --tileset datasets\MMLV.json --stride_x 16 --stride_y 14 --scan_mode screen_grid --include_moving_ground --output datasets\MMLV_Levels.json %TRAV_FILTER%
+python create_megaman_json_data.py --levels datasets\MMLV_Levels --tileset Game_MMLV\MMLV.json --stride_x 16 --stride_y 14 --scan_mode screen_grid --include_moving_ground --output datasets\MMLV_Levels.json %TRAV_FILTER%
 python log_timestamp.py --log_file %TIMING_LOG% --event "build level JSON"
 
 REM assign deterministic captions
-python MM_create_ascii_captions.py --dataset datasets\MMLV_Levels.json --tileset datasets\MMLV.json --output datasets\MMLV_LevelsAndCaptions-multi.json --caption-mode keyed --caption-key deterministic_captions
+python MM_create_ascii_captions.py --dataset datasets\MMLV_Levels.json --tileset Game_MMLV\MMLV.json --output datasets\MMLV_LevelsAndCaptions-multi.json --caption-mode keyed --caption-key deterministic_captions
 python log_timestamp.py --log_file %TIMING_LOG% --event "deterministic ASCII captions"
 
