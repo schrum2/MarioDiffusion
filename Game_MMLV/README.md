@@ -49,8 +49,13 @@ python bulk_mmlv_to_vglc.py --output MMLV_Levels
 This format shares some similarities with the VLGC format, but allows many more tile types,
 while also lacking some tile types that are present in the `MM-Full` tileset. The MMLV tileset
 is in `Game_MMLV/MMLV.json`. The command above saves a txt file into `Game_MMLV/MMLV_Levels`
-for each MMLV level downloaded in the previous step. Each of these files represents a complete
-level, so they are broken up into individual scenes using this command:
+for each MMLV level downloaded in the previous step. 
+The format does not represent the full variety of Mega Man levels, ignoring most
+stylistic and artistic distinctions. Some complicated game mechanics that would
+be difficult to represent with a purely 2D ASCII representation are also lost.
+Each of these files represents a complete
+level, so they are broken up into individual scenes using this command, which needs to be run
+from the root project directory rather than the `Game_MMLV` subdirectory:
 ```
-TODO
+python create_megaman_json_data.py --levels Game_MMLV\MMLV_Levels --tileset Game_MMLV\MMLV.json --stride_x 16 --stride_y 14 --scan_mode screen_grid --include_moving_ground --output Game_MMLV\DATA\MMLV_Levels.json --no_traversable_filter
 ```
