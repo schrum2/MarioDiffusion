@@ -20,7 +20,7 @@ from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
-from util.metrics import edit_distance_tensor
+from util.metrics import edit_distance_tensor, jensen_shannon_divergence, tile_distribution
 from util.plotter import Plotter, plot_scores_by_width
 from util.size_utils import dataset_width_range, unet_width_factor, sample_random_width
 from models.pipeline_loader import get_pipeline
@@ -117,6 +117,25 @@ def compute_hamming_distance(source_scene, generated_scene):
     if source_tensor.shape != generated_tensor.shape:
         return None
     return edit_distance_tensor(source_tensor, generated_tensor)
+
+
+def compute_jensen_shannon(source_scene, generated_scene):
+    """Jensen-Shannon divergence between the tile-type distributions of a source-dataset scene
+    and a model-generated scene, both given as 2D grids (list of rows) of tile IDs. Unlike
+    compute_hamming_distance, this doesn't require the two scenes to share a shape - only a
+    shared tile vocabulary, which is inferred as the highest tile ID seen across either scene
+    so both distributions come out the same length. Returns None if either scene is missing or
+    empty, otherwise a float in [0, 1] (0 meaning identical tile distributions)."""
+    if source_scene is None or generated_scene is None:
+        return None
+    source_array = np.asarray(source_scene, dtype=np.int64)
+    generated_array = np.asarray(generated_scene, dtype=np.int64)
+    if source_array.size == 0 or generated_array.size == 0:
+        return None
+    num_tiles = int(max(source_array.max(), generated_array.max())) + 1
+    source_dist = tile_distribution(source_array, num_tiles=num_tiles)
+    generated_dist = tile_distribution(generated_array, num_tiles=num_tiles)
+    return jensen_shannon_divergence(source_dist, generated_dist)
 
 
 def score_dataset_captions(args, device, clip_model, clip_processor, game):
@@ -505,6 +524,7 @@ def main():
         clip_all_scores = result["clip_all_scores"]
         scene_clip_all_scores = result["scene_clip_all_scores"]
         hamming_all_scores = result["hamming_all_scores"]
+        js_all_scores = result["js_all_scores"]
 
         if avg_score is not None:
             print(f"Average caption adherence score: {avg_score:.4f}")
@@ -541,6 +561,7 @@ def main():
             have_clip_scores = bool(clip_all_scores) and len(clip_all_scores) == len(scenes)
             have_scene_clip_scores = bool(scene_clip_all_scores) and len(scene_clip_all_scores) == len(scenes)
             have_hamming_scores = bool(hamming_all_scores) and len(hamming_all_scores) == len(scenes)
+            have_js_scores = bool(js_all_scores) and len(js_all_scores) == len(scenes)
             paired = []
             for idx, (prompt, scene, metadata) in enumerate(zip(all_prompts, scenes, prompt_metadata or [None] * len(scenes))):
                 if game == "LR":
@@ -559,6 +580,8 @@ def main():
                     entry["scene_clip_score"] = scene_clip_all_scores[idx]
                 if have_hamming_scores:
                     entry["hamming_distance"] = hamming_all_scores[idx]
+                if have_js_scores:
+                    entry["jensen-shannon"] = js_all_scores[idx]
                 if metadata:
                     entry.update(metadata)
                 paired.append(entry)
@@ -706,13 +729,17 @@ def mm2_caption_adherence(args, device, pipe, items, tileset, compute_clip=False
                     "source_name": item["source_name"],
                     "caption_index": item["caption_index"],
                 }
-                # Hamming distance against the source dataset's own scene (when it has one),
-                # independent of compute_score/compute_clip so it's always available.
+                # Hamming distance and Jensen-Shannon divergence against the source dataset's
+                # own scene (when it has one), independent of compute_score/compute_clip so
+                # they're always available.
                 source_scene_for_hamming = item.get("scene")
                 if source_scene_for_hamming is not None:
                     hamming_distance = compute_hamming_distance(source_scene_for_hamming, scene)
                     if hamming_distance is not None:
                         entry["hamming_distance"] = hamming_distance
+                    js_divergence = compute_jensen_shannon(source_scene_for_hamming, scene)
+                    if js_divergence is not None:
+                        entry["jensen-shannon"] = js_divergence
                 if compute_score:
                     actual_caption = assign_caption_fn(scene)
                     score = compare_captions_fn(item["caption"], actual_caption)
@@ -983,6 +1010,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     clip_all_scores = []         
     scene_clip_all_scores = []  
     hamming_all_scores = []
+    js_all_scores = []
     prompt_index = 0
     scene_embedding_cache = {}
     for batch_idx, batch in enumerate(dataloader):
@@ -1093,15 +1121,19 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
                     scene_clip_all_scores.append(scene_clip_score)
 
-                # Hamming distance against the source dataset's own scene (when the source
-                # entry has one), independent of compute_score/compute_clip so it's always
-                # available whenever the source dataset provides scenes.
+                # Hamming distance and Jensen-Shannon divergence against the source dataset's
+                # own scene (when the source entry has one), independent of
+                # compute_score/compute_clip so they're always available whenever the source
+                # dataset provides scenes.
                 hamming_distance = None
+                js_divergence = None
                 if batch_source_scenes is not None:
                     source_scene_for_hamming = batch_source_scenes[i].get("scene") if isinstance(batch_source_scenes[i], dict) else None
                     if source_scene_for_hamming is not None:
                         hamming_distance = compute_hamming_distance(source_scene_for_hamming, sample_scene_grid)
+                        js_divergence = compute_jensen_shannon(source_scene_for_hamming, sample_scene_grid)
                 hamming_all_scores.append(hamming_distance)
+                js_all_scores.append(js_divergence)
 
                 # For LLM/natural-language prompts there is no structured caption to derive or
                 # compare, so just keep the generated sample and move on.
@@ -1196,6 +1228,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     result["clip_all_scores"] = clip_all_scores if clip_all_scores is not None else None
     result["scene_clip_all_scores"] = scene_clip_all_scores if scene_clip_all_scores is not None else None
     result["hamming_all_scores"] = hamming_all_scores if hamming_all_scores is not None else None
+    result["js_all_scores"] = js_all_scores if js_all_scores is not None else None
 
     return result
 

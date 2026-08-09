@@ -61,6 +61,53 @@ except FileNotFoundError:
 
     raise
 
+
+def tile_distribution(scene, num_tiles=None):
+    """Count occurrences of each tile ID in a scene (any array-like of ints - a 2D grid of
+    rows, a flat list, or a numpy array) and return the normalized distribution as a 1D numpy
+    array of length num_tiles, where entry i is the fraction of tiles in `scene` equal to i.
+
+    If num_tiles isn't given, it's inferred as (max tile ID in scene) + 1. Pass num_tiles
+    explicitly when comparing two scenes that might not each contain every tile type, so both
+    distributions come out the same length and align position-for-position.
+    """
+    scene_array = np.asarray(scene, dtype=np.int64).reshape(-1)
+    if scene_array.size == 0:
+        raise ValueError("Cannot compute a tile distribution for an empty scene")
+
+    inferred_tiles = int(scene_array.max()) + 1
+    if num_tiles is None:
+        num_tiles = inferred_tiles
+    elif inferred_tiles > num_tiles:
+        raise ValueError(
+            f"Scene contains tile ID {inferred_tiles - 1}, which is out of range for num_tiles={num_tiles}"
+        )
+
+    counts = np.bincount(scene_array, minlength=num_tiles).astype(np.float64)
+    return counts / counts.sum()
+
+
+def jensen_shannon_divergence(dist1, dist2, base=2):
+    """Jensen-Shannon divergence between two discrete probability distributions (equal-length
+    array-likes, each summing to 1 - e.g. from tile_distribution). Symmetric and, with the
+    default log base 2, bounded in [0, 1], where 0 means identical distributions and 1 means
+    maximally different (disjoint support).
+    """
+    p = np.asarray(dist1, dtype=np.float64)
+    q = np.asarray(dist2, dtype=np.float64)
+    if p.shape != q.shape:
+        raise ValueError(f"Distributions must have matching shapes, got {p.shape} and {q.shape}")
+
+    m = 0.5 * (p + q)
+
+    def _kl(a, b):
+        # 0 * log(0/x) is conventionally 0, so only sum over the support of `a`.
+        mask = a > 0
+        return float(np.sum(a[mask] * np.log(a[mask] / b[mask]) / np.log(base)))
+
+    return 0.5 * _kl(p, m) + 0.5 * _kl(q, m)
+
+
 def edit_distance_tensor(level1: torch.Tensor, level2: torch.Tensor) -> int:
     """Computes edit distance between two levels represented as 2D tensors."""
     return (level1 != level2).sum().item()
