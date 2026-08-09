@@ -56,15 +56,7 @@ be difficult to represent with a purely 2D ASCII representation are also lost.
 Each of these files represents a complete
 level, so they are broken up into individual scenes using this command, which needs to be run
 from the root project directory rather than the `Game_MMLV` subdirectory:
-
-
-
-NEED TO CHOOSE
-
 ```
-python create_megaman_json_data.py --levels Game_MMLV\MMLV_Levels --tileset Game_MMLV\MMLV.json --stride_x 16 --stride_y 14 --scan_mode screen_grid --include_moving_ground --output Game_MMLV\DATA\MMLV_Levels.json --no_traversable_filter
+python create_megaman_json_data.py --levels Game_MMLV\MMLV_Levels --tileset Game_MMLV\MMLV.json --stride_x 16 --stride_y 14 --scan_mode screen_grid --include_moving_ground --output Game_MMLV\DATA\MMLV_Levels.json --no_traversable_filter --max_enemies 8 --min_content_pct 7
 ```
 
-```
-python create_megaman_json_data.py --levels Game_MMLV\MMLV_Levels --tileset Game_MMLV\MMLV.json --stride_x 16 --stride_y 14 --scan_mode snap --max_enemies 4 --min_content_pct 15 --direction_captions --include_moving_ground --output datasets\MMLV_Levels.json
-```
