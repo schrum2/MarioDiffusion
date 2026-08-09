@@ -35,3 +35,7 @@ so you can use the following command (from the `Game_MMLV` directory) to downloa
 cd Game_MMLV
 python Bulk_Download.py --target 5000
 ```
+This command attempts to download 5000 valid MMLV levels for use as training data.
+The files are downloaded to `%LOCALAPPDATA%\MegaMaker\Levels` which is a different
+directory for each user of your personal Windows machine. This is the same
+directory where Mega Man Maker downloads levels that you want to play from the Mega Man Maker servers.
