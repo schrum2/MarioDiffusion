@@ -19,3 +19,19 @@ with Mega Man Maker, so it is important to install the program first. Installing
 also means it will be possible to play your created levels later as well.
 
 ## Create datasets
+
+
+TODO: batch file that takes care of everything
+
+TODO: Now break it down step by step
+
+
+## Bulk Download MMLV Levels
+
+Mega Man Maker levels are freely available online in the MMLV format.
+You will need many MMLV levels in order to make a suitable training set,
+so you can use the following command (from the `Game_MMLV` directory) to download levels in bulk.
+```
+cd Game_MMLV
+python Bulk_Download.py --target 5000
+```

@@ -53,7 +53,7 @@ MMLV_TILESET = 'Game_MMLV/MMLV.json'
 
 # The single master metadata sidecar for downloaded Mega Man Maker levels: a global file in
 # the repo, keyed by MMLV level id, holding each level's name/author/downloads/likes/dislikes.
-# megaman/Bulk_Download.py writes/updates it as levels are downloaded; create_megaman_json_data.py
+# Game_MMLV/Bulk_Download.py writes/updates it as levels are downloaded; create_megaman_json_data.py
 # reads it to attach that metadata to every generated sample. Resolved as an absolute path off
 # the repo root so both entry points hit the same file regardless of their working directory.
 MEGAMAN_METADATA_PATH = os.path.join(

@@ -36,7 +36,7 @@ Enter level ID when prompted.
 Download Mega Man Maker levels by ID. The downloader begins at level ID `200000` by default (recommended to start with 100 levels).
 
 ```bash
-cd megaman
+cd Game_MMLV
 python Bulk_Download.py --target 100
 ```
 

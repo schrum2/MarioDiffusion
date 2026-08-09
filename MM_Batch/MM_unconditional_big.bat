@@ -15,7 +15,7 @@ set TIMING_LOG=timing_logs\MM-unconditional-big-%SEED%.jsonl
 if exist "%TIMING_LOG%" del "%TIMING_LOG%"
 python log_timestamp.py --log_file %TIMING_LOG% --status start --event "MM_unconditional_big pipeline start"
 
-python megaman\Bulk_Download.py --target 1000
+python Game_MMLV\Bulk_Download.py --target 1000
 python log_timestamp.py --log_file %TIMING_LOG% --event "MMLV download"
 
 python megaman\bulk_mmlv_to_vglc.py --output megaman\vglc_out
