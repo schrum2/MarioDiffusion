@@ -26,7 +26,6 @@ TODO: batch file that takes care of everything
 TODO: Now break it down step by step
 
 
-## Bulk Download MMLV Levels
 
 Mega Man Maker levels are freely available online in the MMLV format.
 You will need many MMLV levels in order to make a suitable training set,
@@ -59,4 +58,9 @@ from the root project directory rather than the `Game_MMLV` subdirectory:
 ```
 python create_megaman_json_data.py --levels Game_MMLV\MMLV_Levels --tileset Game_MMLV\MMLV.json --stride_x 16 --stride_y 14 --scan_mode screen_grid --include_moving_ground --output Game_MMLV\DATA\MMLV_Levels.json --no_traversable_filter --max_enemies 8 --min_content_pct 7
 ```
-
+Once the level scenes have been created, they can be assigned captions. Given the increased diversity of MMLV levels,
+we are generally more interested in the diversity of LLM-assigned captions when it comes to these levels,
+but you can still assign deterministic captions with this command:
+```
+python MM_create_ascii_captions.py --dataset Game_MMLV\DATA\MMLV_Levels.json --tileset Game_MMLV\MMLV.json --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json
+```
