@@ -62,5 +62,9 @@ Once the level scenes have been created, they can be assigned captions. Given th
 we are generally more interested in the diversity of LLM-assigned captions when it comes to these levels,
 but you can still assign deterministic captions with this command:
 ```
-python MM_create_ascii_captions.py --dataset Game_MMLV\DATA\MMLV_Levels.json --tileset Game_MMLV\MMLV.json --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json
+python MM_create_ascii_captions.py --dataset Game_MMLV\DATA\MMLV_Levels.json --tileset Game_MMLV\MMLV.json --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --caption-mode keyed --caption-key deterministic_captions
 ```
+The use of `--caption-key deterministic_captions` stores the captions differently than in `MM-Simple` and `MM-Full` datasets.
+The one deterministic caption is stored in a list under the key `deterministic_captions`, which makes it easier to combine
+with LLM-generated captions.
+
