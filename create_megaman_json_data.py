@@ -655,6 +655,10 @@ def main():
         all_samples = all_samples[:args.limit]
 
     output = args.output
+    output_dir = os.path.dirname(output)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
     with open(output, 'w') as f:
         json.dump(all_samples, f, indent=2)
     print(f"Saved {len(all_samples)} kept samples to {output}")
