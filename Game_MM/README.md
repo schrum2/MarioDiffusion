@@ -210,15 +210,12 @@ python evaluate_caption_adherence.py --json Game_MM\DATA\MM-Full_LevelsAndCaptio
 ```
 This computes the text-CLIP comparison score between level scenes in a dataset and its associated captions, which means it can be applied to the original training data as well as model-generated scenes.
 
+It is also possible to use commercial LLMs to generate captions for a dataset, but this is discussed more in the context of:
 
 
+TODO: MMLV, Mega Man Maker
 
 
-
-
-
-
-CHECK MORE BENEATH THIS. CHECK COMMANDS ABOVE.
 
 
 
