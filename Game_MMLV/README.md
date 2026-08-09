@@ -42,4 +42,15 @@ directory where Mega Man Maker downloads levels that you want to play from the M
 The process takes a while since the program simply checks sequential level ID numbers,
 but levels with some IDs don't exist.
 
-After the levels are downloaded, they need to be converted into 2D ASCII representation
+After the levels are downloaded, they need to be converted into 2D ASCII representation, with this command (also in `Game_MMLV`):
+```
+python bulk_mmlv_to_vglc.py --output MMLV_Levels
+```
+This format shares some similarities with the VLGC format, but allows many more tile types,
+while also lacking some tile types that are present in the `MM-Full` tileset. The MMLV tileset
+is in `Game_MMLV/MMLV.json`. The command above saves a txt file into `Game_MMLV/MMLV_Levels`
+for each MMLV level downloaded in the previous step. Each of these files represents a complete
+level, so they are broken up into individual scenes using this command:
+```
+TODO
+```
