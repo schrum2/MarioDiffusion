@@ -18,14 +18,7 @@ Some steps of the dataset creation process will download MMLV levels to a direct
 with Mega Man Maker, so it is important to install the program first. Installing the program
 also means it will be possible to play your created levels later as well.
 
-## Create datasets
-
-
-TODO: batch file that takes care of everything
-
-TODO: Now break it down step by step
-
-
+## Create datasets: Deterministic Captions
 
 Mega Man Maker levels are freely available online in the MMLV format.
 You will need many MMLV levels in order to make a suitable training set,
@@ -68,3 +61,12 @@ The use of `--caption-key deterministic_captions` stores the captions differentl
 The one deterministic caption is stored in a list under the key `deterministic_captions`, which makes it easier to combine
 with LLM-generated captions.
 
+All of the above steps can be carried out by simply executing a single batch file:
+```
+cd Game_MMLV
+cd BATCH
+MMLV-data.bat
+```
+This is a good starting point before generating LLM-based captions for level scenes.
+
+## LLM-Generated Captions
