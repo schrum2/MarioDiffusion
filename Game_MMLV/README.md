@@ -70,3 +70,26 @@ MMLV-data.bat
 This is a good starting point before generating LLM-based captions for level scenes.
 
 ## LLM-Generated Captions
+
+The [README](../Game_MM/README.md) for the `MM-Simple` and `MM-Full` tilesets already discusses
+the assigning of LLM-based captions to a dataset, and the procedure is essentially the same
+with the MMLV levels. Here is how you would assign captions from `qwen3.5:9b`:
+```
+python llm_ascii_to_caption.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --game MMLV --llm ollama --model qwen3.5:9b --output Game_MM\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5
+```
+And then you can add captions from `gemma4:12b` to the same dataset with this command:
+```
+python llm_ascii_to_caption.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --game MMLV --llm ollama --model gemma4:12b --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5
+```
+Keep in mind that `train-diffusion.bat` assumes there is a train/validate/test split of the data, so you will need to split the data before using this batch file:
+```
+python split_data.py --json_file Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MMLV
+```
+Once the data is split, you can use `train-diffusion.bat` like usual:
+```
+train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 gemma4:12b_captions qwen3.5:9b_captions deterministic_captions
+```
+Note that this training command added `deterministic_captions` into the mix along with the LLM-generated captions.
+Still, none of this is much different than the instructions for the `MM-Simple` and `MM-Full` tilesets.
+The dataset gets more interesting when you add captions generated from commercial LLMs. However, using
+a commercial LLM means you have to provide the appropriate API key first.
