@@ -747,7 +747,7 @@ class LevelDataset(Dataset):
             # Random selection of limited portion of data (if limit is less than actual size)
             self.data = random.sample(self.data, limit)
 
-        print(f"Training samples: {len(self.data)}")
+        print(f"Number of samples: {len(self.data)}")
 
         if self.require_captions and self.caption_source_keys:
             # Drop samples with no caption from any requested source (e.g. an expensive model

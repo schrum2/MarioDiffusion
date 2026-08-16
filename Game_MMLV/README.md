@@ -93,3 +93,11 @@ Note that this training command added `deterministic_captions` into the mix alon
 Still, none of this is much different than the instructions for the `MM-Simple` and `MM-Full` tilesets.
 The dataset gets more interesting when you add captions generated from commercial LLMs. However, using
 a commercial LLM means you have to provide the appropriate API key first.
+
+
+
+
+
+
+
+TODO: Talk about API keys for commercial LLMs, but also deal with how big the data is. How to distribute creation of captions.
