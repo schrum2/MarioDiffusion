@@ -6,37 +6,6 @@
 
 
 
-
-Enter level ID when prompted.
-
-## Automatic Bulk Download
-
-Download Mega Man Maker levels by ID. The downloader begins at level ID `200000` by default (recommended to start with 100 levels).
-
-```bash
-cd Game_MMLV
-python bulk_mmlv_download.py --target 100
-```
-
-Downloaded `.mmlv` files are saved directly into:
-```text
-%LOCALAPPDATA%\MegaMaker\Levels
-```
-
-## Bulk Converter (MMLV --> VGLC)
-
-Convert downloaded `.mmlv` files into VGLC `.txt` files.
-
-```bash
-cd Game_MMLV
-python bulk_mmlv_to_vglc.py --output ..\datasets\MMLV_Maker_Levels
-```
-
-Saves `.txt` files into:
-```text
-datasets\MM_Maker_Levels
-```
-
 ## Create a filtered dataset (with quality filters and source tracking)
 
 `--stride_x` and `--stride_y` control how far the scan window moves between samples; set both to the screen size (16/14) for non-overlapping, screen-aligned extraction. `--scan_mode snap` extracts scenes that snap to fully null-free screens. `--max_enemies N` drops scenes with more than `N` enemy tiles. `--min_content_pct P` drops scenes where less than `P`% of tiles are real content. `--include_moving_ground` includes moving-ground/platform tiles, which are excluded by default since their motion isn't represented in the static tileset graphics but are needed here for full structure coverage. `--direction_captions` attaches entrance/exit direction data to each scene (required for ceiling captions to ever be generated).
