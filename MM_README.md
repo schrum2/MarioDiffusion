@@ -1,33 +1,11 @@
-# Mega Man Generation
 
-Generate Mega Man level scenes with a diffusion model conditioned on text input.
-This Mega Man data is still experimental and on-going and the current results are not as good as the Mario levels and outputs. This mostly has to do with a smaller, more complex dataset, as well as incomplete code. Many features present in other games have not yet been implemented, but the core of the training and level generation works as intended.
 
-## Set up the repository
 
-```
-git clone https://github.com/schrum2/MarioDiffusion.git
-cd MarioDiffusion
-pip install -r requirements.txt
-```
 
-## Automatic Single-Level Download
 
-Download one Mega Man Maker level by ID.
- 
-```bash
-cd MM_Batch
-Auto_Upload_MMaker.bat 544895
-```
- 
-Replace `544895` with the level ID you want. Saves automatically to `datasets\MM_Maker_Levels_Raw` — no prompt needed.
 
-use this command for prompt: 
 
-```bash
-cd MM_Batch
-Auto_Upload_MMaker.bat
-```
+
 
 Enter level ID when prompted.
 
