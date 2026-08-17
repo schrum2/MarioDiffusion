@@ -108,8 +108,10 @@ Then, on every lab machine (this one included, if you like), start a worker poin
 ```
 python caption_worker.py --coordinator http://<coordinator-ip>:8765 --llm ollama --model qwen3.5:9b
 ```
-To get the IP address in Windows, run the command `ipconfig` in a terminal and replace `<coordinator-ip>` with the period-separated sequence of 4 numbers associated with the `IPv4 Address`.
-
+To get the IP address in Windows, run the command `ipconfig` in a terminal and replace `<coordinator-ip>` with the period-separated sequence of 4 numbers associated with the `IPv4 Address`. For example, the command might look like this:
+```
+python caption_worker.py --coordinator http://10.117.56.119:8765 --llm ollama --model qwen3.5:9b
+```
 Each worker asks the coordinator for a small batch of scenes, captions them with its own local `qwen3.5:9b`, and posts the captions back. The coordinator writes every finished scene straight into a single checkpoint as results come in, named the same way as before: `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.jsonl`. Once every scene is done, the coordinator assembles `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json` itself. If a worker machine dies or gets disconnected mid-batch, its unfinished scenes are automatically handed to another worker after `--lease-seconds`, so you don't have to babysit which machine is doing what.
 
 The coordinator's checkpoint behaves the same as a normal `llm_ascii_to_caption.py` run: if you restart the coordinator and it finds a leftover `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.jsonl` from a previous session, it will ask whether to resume from it, and `--force-resume`/`--force-restart` skip that prompt the same way.
