@@ -1,5 +1,8 @@
 @echo off
 cd ..
+
+mkdir DATA
+
 cd ..
 
 set TIMING_LOG=timing_logs\MMLV-data.jsonl
