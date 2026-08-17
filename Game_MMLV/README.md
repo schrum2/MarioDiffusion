@@ -82,10 +82,34 @@ with the MMLV levels. Here is how you would assign captions from `qwen3.5:9b`:
 ```
 python llm_ascii_to_caption.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --game MMLV --llm ollama --model qwen3.5:9b --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5
 ```
-Running this command takes a long time, so you may want to consider various options for breaking up the task. First, be aware that the code saves incremental progress to a .jsonl file matching the name of your intended .json output file. So, for the examples above, there is a file named 
+Running this command takes a long time, so you may want to consider various options for breaking up the task. First, be aware that the code saves incremental progress to a .jsonl file matching the name of your intended .json output file. So, for the example above, there is a file named 
 `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.jsonl` during execution. If execution completes successfully, you may want to delete this file.
+However, if execution was interrupted and you rerun the same command, and that checkpoint file is still there, you'll be asked whether to resume.
 
-TODO: Talk about sharding
+If you have access to several machines, each running their own local LLM, you can split a single captioning run across them with the `--shard-index` and `--shard-count` parameters. Every machine runs the exact same command, differing only in `--shard-index`. For example, to split the `qwen3.5:9b` run above across 3 machines, you'd run this on the first machine:
+```
+python llm_ascii_to_caption.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --game MMLV --llm ollama --model qwen3.5:9b --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5 --shard-index 0 --shard-count 3
+```
+and separate runs with `--shard-index` values of 1 and 2 on different machines. Each machine only captions the scenes assigned to its shard, and each writes its own checkpoint file: `MMLV_LevelsAndCaptions-llm.shard0of3.jsonl`, `MMLV_LevelsAndCaptions-llm.shard1of3.jsonl`, and `MMLV_LevelsAndCaptions-llm.shard2of3.jsonl`. Crash recovery works per shard exactly as described above, so any one machine can be resumed independently of the others.
+
+Once every shard has finished (or you just want to check progress on a still-running set of shards), gather the three checkpoint files into one folder and run `merge_shards.py`, pointing `--shard-count` at the same number you sharded with:
+```
+python merge_shards.py --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --shard-count 3
+```
+This reconstructs the shard filenames the same way `llm_ascii_to_caption.py` named them, stitches the scenes back together in their original order, and writes the complete dataset to `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json`.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 TODO: Talk about network distribution?
 
