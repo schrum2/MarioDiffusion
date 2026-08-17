@@ -101,17 +101,16 @@ def save_astar_visualizations(all_samples, args):
 
     Images land next to the plain renders in args.output_dir, with the same
     sample_{i} naming plus a 'solved'/'unsolved' tag for traversability."""
-    astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
-    if astar_dir not in sys.path:
-        sys.path.insert(0, astar_dir)
-    from astar_traversability_check import astar_path_image
+    from astar.astar_traversability_check import astar_path_image
     from captions.util import extract_tileset
 
     _, id_to_char, _, tile_descriptors = extract_tileset(args.tileset)
     scenes = samples_to_scenes(all_samples)
+    solved_count = 0
     for i, scene in enumerate(scenes):
         try:
             img, solved, stats = astar_path_image(scene, args.game, id_to_char, tile_descriptors)
+            if solved: solved_count += 1
         except Exception as e:
             print(f"A* visualization failed for sample {i}: {e}")
             continue
@@ -123,7 +122,7 @@ def save_astar_visualizations(all_samples, args):
         img.save(out_path)
         detail = ", ".join(f"{k}={v}" for k, v in stats.items())
         print(f"Sample {i}: {tag} ({detail}) -> {out_path}")
-
+    print(f"Total solved samples: {solved_count}/{len(scenes)}: {solved_count/len(scenes):.1%}")
 
 def resolve_run_width_range(args):
     """Resolve (min_width, max_width) for --random_width.
