@@ -18,7 +18,6 @@ import argparse
 import threading
 import urllib.request
 import urllib.error
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import ollama
 from tqdm import tqdm
@@ -206,14 +205,16 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
 
 def default_checkpoint_path(output: str | None, shard_index: int, shard_count: int) -> str:
     """
-    Derive a checkpoint (.jsonl) path from --output, or fall back to a fixed name when
-    --output isn't given. Shard-suffixed (e.g. '.shard0of4') when running as part of a
+    Derive the checkpoint (.jsonl) path from --output by simply swapping its ".json" extension
+    for ".jsonl" -- this is not user-configurable, so a given --output always has one obvious,
+    predictable checkpoint file next to it. Falls back to "captions.json" -> "captions.jsonl"
+    when --output isn't given. Shard-suffixed (e.g. '.shard0of4') when running as part of a
     multi-machine split, so parallel shards never write over each other's checkpoint.
     """
     base = output or "captions.json"
     stem = base[:-5] if base.endswith(".json") else base
     suffix = f".shard{shard_index}of{shard_count}" if shard_count > 1 else ""
-    return f"{stem}{suffix}.checkpoint.jsonl"
+    return f"{stem}{suffix}.jsonl"
 
 
 def load_checkpoint(path: str) -> dict[int, dict]:
@@ -244,8 +245,9 @@ class CheckpointWriter:
     """
     Append-only, thread-safe JSONL writer. Every completed scene is written and flushed to
     disk immediately (os.fsync included) so a crash, kill, or lab-machine reboot at any point
-    loses at most the scene(s) currently in flight -- never previously finished work. Safe to
-    share across a ThreadPoolExecutor's worker threads.
+    loses at most the scene currently in flight -- never previously finished work. The lock is
+    unused by this script's own (serial) captioning loop, but keeps this class safe to reuse
+    from caption_coordinator.py, which writes to it from several request-handling threads.
     """
 
     def __init__(self, path: str, resume: bool):
@@ -265,6 +267,40 @@ class CheckpointWriter:
 
     def close(self) -> None:
         self._f.close()
+
+
+def resolve_resume(checkpoint_path: str, force_resume: bool, force_restart: bool) -> bool:
+    """
+    Decide whether this run should resume from an existing checkpoint or start fresh.
+
+    - No checkpoint file present: nothing to decide, start fresh.
+    - --force-resume: resume automatically, no prompt.
+    - --force-restart: delete the existing checkpoint and start fresh, no prompt.
+    - Otherwise (interactive default): ask the user, since silently resuming an old checkpoint
+      or silently discarding it are both surprising things to do without asking.
+    """
+    if not os.path.exists(checkpoint_path):
+        return False
+
+    if force_resume:
+        return True
+
+    if force_restart:
+        os.remove(checkpoint_path)
+        print(f"[checkpoint] --force-restart: deleted existing {checkpoint_path}\n")
+        return False
+
+    while True:
+        answer = input(
+            f"Checkpoint file '{checkpoint_path}' already exists. Resume from it? [y/n]: "
+        ).strip().lower()
+        if answer in ("y", "yes"):
+            return True
+        if answer in ("n", "no"):
+            os.remove(checkpoint_path)
+            print(f"[checkpoint] Starting fresh: deleted existing {checkpoint_path}\n")
+            return False
+        print("Please answer 'y' or 'n'.")
 
 
 def finalize_output(checkpoint_path: str, output_path: str | None) -> list[dict]:
@@ -684,23 +720,16 @@ def parse_args():
                                 "(the resolved model name), so each model's captions land under their own key.")
 
     # --- incremental checkpointing / resume ---
-    argparser.add_argument("--checkpoint", default=None,
-                           help="Path to a .jsonl checkpoint file. Every finished scene is appended and flushed here "
-                                "immediately, so a crash mid-run only ever loses the scene(s) in flight. Defaults to "
-                                "'<output-stem>.checkpoint.jsonl' (or 'captions.checkpoint.jsonl' if --output isn't set); "
-                                "shard runs get a '.shardXofY' suffix automatically so shards never collide.")
-    argparser.add_argument("--resume", action="store_true",
-                           help="Resume from an existing --checkpoint file instead of starting over: scenes already "
-                                "recorded there are skipped, and --output is rebuilt from the full checkpoint (old + new) "
-                                "at the end. Omit this to start a fresh checkpoint (overwriting any existing one).")
-
-    # --- concurrency (mainly useful for API-backed --llm claude/openai/gemini; for --llm ollama "
-    #     this only helps if the Ollama server has OLLAMA_NUM_PARALLEL > 1) ---
-    argparser.add_argument("--workers", type=int, default=1,
-                           help="Number of scenes to caption concurrently (thread pool). Safe default is 1. Raise this "
-                                "for API-backed LLMs (claude/openai/gemini) to hide network latency; for local ollama it "
-                                "only helps if the Ollama server itself is configured for parallel requests "
-                                "(OLLAMA_NUM_PARALLEL environment variable on the machine running `ollama serve`).")
+    # Checkpointing is always on and its path is never user-chosen: it's simply --output with
+    # ".json" swapped for ".jsonl" (e.g. "captions.json" -> "captions.jsonl"), so every output
+    # file has one obvious, predictable checkpoint sitting next to it.
+    resume_group = argparser.add_mutually_exclusive_group()
+    resume_group.add_argument("--force-resume", action="store_true",
+                           help="If the checkpoint .jsonl already exists, resume from it automatically (skip scenes "
+                                "already recorded there) without prompting.")
+    resume_group.add_argument("--force-restart", action="store_true",
+                           help="If the checkpoint .jsonl already exists, delete it and start completely fresh, "
+                                "without prompting.")
 
     # --- splitting one dataset across multiple machines (e.g. a computer lab), each running its own local LLM ---
     argparser.add_argument("--shard-index", type=int, default=0,
@@ -764,78 +793,72 @@ def main() -> list[list[str]]:
     # Label combining the inference source and resolved model; printed and stored per entry.
     llmstr = f"{args.llm} - {model}"
 
-    checkpoint_path = args.checkpoint or default_checkpoint_path(args.output, args.shard_index, args.shard_count)
+    # Checkpointing is always on; the path is derived, never user-named (see default_checkpoint_path).
+    checkpoint_path = default_checkpoint_path(args.output, args.shard_index, args.shard_count)
 
-    # Skip scenes already recorded in the checkpoint when resuming. Without --resume we start a
-    # clean checkpoint (CheckpointWriter below opens in "w" mode), so nothing is skipped.
-    already_done = load_checkpoint(checkpoint_path) if args.resume else {}
+    # If a checkpoint from a previous run is already sitting there, decide whether to resume
+    # from it or wipe it and start over. --force-resume / --force-restart skip the prompt;
+    # otherwise ask interactively so a leftover checkpoint is never silently reused or discarded.
+    resume = resolve_resume(checkpoint_path, args.force_resume, args.force_restart)
+
+    # Skip scenes already recorded in the checkpoint when resuming.
+    already_done = load_checkpoint(checkpoint_path) if resume else {}
     if already_done:
         print(f"[resume] {len(already_done)} scene(s) already captioned in {checkpoint_path}; skipping those.\n")
         indexed_scenes = [(i, s) for i, s in indexed_scenes if i not in already_done]
 
-    writer = CheckpointWriter(checkpoint_path, resume=args.resume)
-
-    def process_one(i: int, scene, label: str, attrs: dict):
-        """
-        Caption a single scene end to end (CPU-side prompt prep + the LLM call) and return
-        (i, entry_or_None, num_captions_returned). Safe to run from multiple threads: it only
-        touches its own local state and read-only shared lookups (id_to_char, tile_descriptors, ...).
-        """
-        scene_str = "\n".join(scene_to_ASCII(scene, id_to_char, null_ids))
-        filtered_tiles = filter_tile_set(scene_str, tile_names)
-        det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors, names=tile_names)
-
-        caption_set = llm_caption(scene_str, game=game_name, model=model, tileset=filtered_tiles, llm=args.llm,
-                                  deterministic=det_caption, num_captions=args.num_captions)
-
-        if len(caption_set) != args.num_captions:
-            return i, None, label, caption_set
-
-        entry = dict(attrs)
-        entry["scene"] = scene
-        if args.caption_mode == "legacy":
-            entry["caption"] = caption_set[0]
-            for idx, caption in enumerate(caption_set[1:], start=1):
-                entry[f"caption{idx}"] = caption
-            entry["model"] = llmstr
-        else:
-            entry[caption_key] = caption_set
-        return i, entry, label, caption_set
+    writer = CheckpointWriter(checkpoint_path, resume=resume)
 
     # Mark the start of the full captioning process to report total elapsed time at the end.
     start_time = time.time()
     print(f"[timing] Captioning started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n")
     print(f"[checkpoint] Writing incremental progress to {checkpoint_path} "
-          f"({len(indexed_scenes)} scene(s) to caption this run, {args.workers} worker(s))\n")
+          f"({len(indexed_scenes)} scene(s) to caption this run)\n")
 
-    total_this_run = len(indexed_scenes)
-    caption_lists = []  # list[list] of caption sets produced THIS run, in completion order
+    caption_lists = []  # list[list] of caption set for each scene captioned this run
 
     try:
-        with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool, \
-                tqdm(total=total_this_run, desc="Captioning", unit="scene", disable=args.show_captions) as bar:
+        for i, (scene, label, attrs) in tqdm(indexed_scenes, total=len(indexed_scenes), desc="Captioning",
+                                              unit="scene", disable=args.show_captions):
 
-            futures = {pool.submit(process_one, i, scene, label, attrs): (i, label)
-                       for i, (scene, label, attrs) in indexed_scenes}
+            # Decode the integer grid to ASCII rows purely to build the prompt; the integer
+            # grid itself is what gets stored back in the output unchanged.
+            scene_str = "\n".join(scene_to_ASCII(scene, id_to_char, null_ids))
 
-            for future in as_completed(futures):
-                i, label = futures[future]
-                res_i, entry, res_label, caption_set = future.result()
+            filtered_tiles = filter_tile_set(scene_str, tile_names)
 
-                if args.show_captions:
-                    print(f"------------------ [{llmstr}]  [{res_label}] (index {res_i}) ------------------\n")
-                    for j, caption in enumerate(caption_set):
-                        print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
+            det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors, names=tile_names)
 
-                if entry is None:
-                    skip_msg = (f"[skip] {res_label}: got {len(caption_set)} caption(s) instead of "
-                                f"{args.num_captions}; skipping this scene.\n")
-                    print(skip_msg) if args.show_captions else tqdm.write(skip_msg)
-                else:
-                    writer.write(res_i, entry)  # flushed to disk immediately -- crash-safe
-                    caption_lists.append(caption_set)
+            # assign and collect captions
+            caption_set = llm_caption(scene_str, game=game_name, model=model, tileset=filtered_tiles, llm=args.llm,
+                                      deterministic=det_caption, num_captions=args.num_captions)
 
-                bar.update(1)
+            if args.show_captions:
+                print(f"------------------ [{llmstr}]  [{label}] (index {i}) ------------------\n")
+                for j, caption in enumerate(caption_set):
+                    print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
+
+            if len(caption_set) != args.num_captions:
+                skip_msg = (f"[skip] {label}: got {len(caption_set)} caption(s) instead of "
+                            f"{args.num_captions}; skipping this scene.\n")
+                print(skip_msg) if args.show_captions else tqdm.write(skip_msg)
+                continue
+
+            caption_lists.append(caption_set)
+            # Copy all carried-through input attributes (metadata + captions from earlier sources)
+            # first, then (re)write the scene and this run's captions on top, so chaining datasets
+            # accumulates sources instead of replacing them. "scene" holds the integer tile-id grid.
+            entry = dict(attrs)
+            entry["scene"] = scene
+            if args.caption_mode == "legacy":
+                entry["caption"] = caption_set[0]
+                for idx, caption in enumerate(caption_set[1:], start=1):
+                    entry[f"caption{idx}"] = caption
+                entry["model"] = llmstr
+            else:
+                entry[caption_key] = caption_set
+
+            writer.write(i, entry)  # flushed to disk immediately -- crash-safe
     finally:
         writer.close()
 
