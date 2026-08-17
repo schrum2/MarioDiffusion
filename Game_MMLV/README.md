@@ -98,6 +98,23 @@ python merge_shards.py --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json -
 ```
 This reconstructs the shard filenames the same way `llm_ascii_to_caption.py` named them, stitches the scenes back together in their original order, and writes the complete dataset to `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json`.
 
+Splitting the work with `--shard-index`/`--shard-count` is simple, but it does mean picking a shard count up front and manually merging the results afterward. You can also make multiple machines manage the work on their own and assembly the final file automatically by using `caption_coordinator.py` and `caption_worker.py` instead.
+
+Start the coordinator once, on any one machine the others can reach over the network:
+```
+python caption_coordinator.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --game MMLV --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5
+```
+Then, on every lab machine (this one included, if you like), start a worker pointed at the coordinator, telling it which LLM that machine should run:
+```
+python caption_worker.py --coordinator http://<coordinator-ip>:8765 --llm ollama --model qwen3.5:9b
+```
+To get the IP address in Windows, run the command `ipconfig` in a terminal and replace `<coordinator-ip>` with the period-separated sequence of 4 numbers associated with the `IPv4 Address`.
+
+Each worker asks the coordinator for a small batch of scenes, captions them with its own local `qwen3.5:9b`, and posts the captions back. The coordinator writes every finished scene straight into a single checkpoint as results come in, named the same way as before: `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.jsonl`. Once every scene is done, the coordinator assembles `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json` itself. If a worker machine dies or gets disconnected mid-batch, its unfinished scenes are automatically handed to another worker after `--lease-seconds`, so you don't have to babysit which machine is doing what.
+
+The coordinator's checkpoint behaves the same as a normal `llm_ascii_to_caption.py` run: if you restart the coordinator and it finds a leftover `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.jsonl` from a previous session, it will ask whether to resume from it, and `--force-resume`/`--force-restart` skip that prompt the same way.
+
+Workers don't need any of `llm_ascii_to_caption.py`'s dataset or checkpoint arguments. They only need to know how to reach the coordinator and which LLM to run locally.
 
 
 
@@ -111,7 +128,11 @@ This reconstructs the shard filenames the same way `llm_ascii_to_caption.py` nam
 
 
 
-TODO: Talk about network distribution?
+
+
+
+
+
 
 TODO: Must delete jsonl before adding more captions
 
