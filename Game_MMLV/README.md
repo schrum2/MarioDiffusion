@@ -80,12 +80,37 @@ The [README](../Game_MM/README.md) for the `MM-Simple` and `MM-Full` tilesets al
 the assigning of LLM-based captions to a dataset, and the procedure is essentially the same
 with the MMLV levels. Here is how you would assign captions from `qwen3.5:9b`:
 ```
-python llm_ascii_to_caption.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --game MMLV --llm ollama --model qwen3.5:9b --output Game_MM\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5
+python llm_ascii_to_caption.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --game MMLV --llm ollama --model qwen3.5:9b --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5
 ```
+Running this command takes a long time, so you may want to consider various options for breaking up the task. First, be aware that the code saves incremental progress to a .jsonl file matching the name of your intended .json output file. So, for the examples above, there is a file named 
+`Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.jsonl` during execution. If execution completes successfully, you may want to delete this file.
+
+TODO: Talk about sharding
+
+TODO: Talk about network distribution?
+
+TODO: Must delete jsonl before adding more captions
+
 And then you can add captions from `gemma4:12b` to the same dataset with this command:
 ```
 python llm_ascii_to_caption.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --game MMLV --llm ollama --model gemma4:12b --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5
 ```
+
+
+
+
+
+
+
+
+
+
+
+TODO: Any other transition?
+
+
+
+
 Keep in mind that `train-diffusion.bat` assumes there is a train/validate/test split of the data, so you will need to split the data before using this batch file:
 ```
 python split_data.py --json_file Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MMLV
