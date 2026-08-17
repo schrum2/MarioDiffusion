@@ -15,8 +15,10 @@ import os
 import json
 import time
 import argparse
+import threading
 import urllib.request
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import ollama
 from tqdm import tqdm
@@ -200,6 +202,87 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
             attrs = {}
         scenes.append((grid, Path(path).name, attrs))
     return scenes
+
+
+def default_checkpoint_path(output: str | None, shard_index: int, shard_count: int) -> str:
+    """
+    Derive a checkpoint (.jsonl) path from --output, or fall back to a fixed name when
+    --output isn't given. Shard-suffixed (e.g. '.shard0of4') when running as part of a
+    multi-machine split, so parallel shards never write over each other's checkpoint.
+    """
+    base = output or "captions.json"
+    stem = base[:-5] if base.endswith(".json") else base
+    suffix = f".shard{shard_index}of{shard_count}" if shard_count > 1 else ""
+    return f"{stem}{suffix}.checkpoint.jsonl"
+
+
+def load_checkpoint(path: str) -> dict[int, dict]:
+    """
+    Read a checkpoint jsonl file (if it exists) into {global_index: entry}. Each line is a
+    JSON object carrying a private "_index" key (the scene's position in the full, unsharded
+    dataset) alongside the same fields main() would otherwise put straight into --output.
+    Corrupt trailing lines (e.g. a write cut off mid-flush by a crash) are skipped, not fatal,
+    so resuming after a hard crash only ever loses the one in-flight scene, never prior work.
+    """
+    done = {}
+    if not os.path.exists(path):
+        return done
+    with open(path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            done[entry["_index"]] = entry
+    return done
+
+
+class CheckpointWriter:
+    """
+    Append-only, thread-safe JSONL writer. Every completed scene is written and flushed to
+    disk immediately (os.fsync included) so a crash, kill, or lab-machine reboot at any point
+    loses at most the scene(s) currently in flight -- never previously finished work. Safe to
+    share across a ThreadPoolExecutor's worker threads.
+    """
+
+    def __init__(self, path: str, resume: bool):
+        self.path = path
+        self._lock = threading.Lock()
+        mode = "a" if resume and os.path.exists(path) else "w"
+        self._f = open(path, mode, buffering=1)  # line-buffered
+
+    def write(self, index: int, entry: dict) -> None:
+        record = dict(entry)
+        record["_index"] = index
+        line = json.dumps(record)
+        with self._lock:
+            self._f.write(line + "\n")
+            self._f.flush()
+            os.fsync(self._f.fileno())
+
+    def close(self) -> None:
+        self._f.close()
+
+
+def finalize_output(checkpoint_path: str, output_path: str | None) -> list[dict]:
+    """
+    Rebuild the final captioned_dataset from the checkpoint (source of truth), in original
+    scene order, and write it to --output if given. Because every run -- whether it finishes
+    cleanly or is resumed after a crash -- reads back through this function, --output always
+    reflects everything completed so far.
+    """
+    done = load_checkpoint(checkpoint_path)
+    ordered = [done[i] for i in sorted(done)]
+    for entry in ordered:
+        entry.pop("_index", None)
+    if output_path:
+        with open(output_path, "w") as f:
+            json.dump(ordered, f, indent=2)
+        print(f"Captioned dataset saved to {output_path} ({len(ordered)} scene(s), from checkpoint {checkpoint_path})")
+    return ordered
 
 
 def filter_tile_set(scene: str, tileset: dict) -> dict:
@@ -538,6 +621,10 @@ def llm_caption(scene: str,  deterministic: str, game: str = "Mega Man", tileset
                 messages=context,
                 think=False,
                 options={"num_ctx": OLLAMA_NUM_CTX, "temperature": 0.4},
+                # Keep the model resident in VRAM between calls instead of the ollama default
+                # 5-minute unload. Without this, any gap between scenes (or just normal per-call
+                # overhead) can trigger a full model reload, which dwarfs actual inference time.
+                keep_alive="30m",
             )
             message = completion.message.content
 
@@ -596,6 +683,33 @@ def parse_args():
                            help="Key to store the caption list under when --caption-mode keyed. Defaults to '<model>_captions' "
                                 "(the resolved model name), so each model's captions land under their own key.")
 
+    # --- incremental checkpointing / resume ---
+    argparser.add_argument("--checkpoint", default=None,
+                           help="Path to a .jsonl checkpoint file. Every finished scene is appended and flushed here "
+                                "immediately, so a crash mid-run only ever loses the scene(s) in flight. Defaults to "
+                                "'<output-stem>.checkpoint.jsonl' (or 'captions.checkpoint.jsonl' if --output isn't set); "
+                                "shard runs get a '.shardXofY' suffix automatically so shards never collide.")
+    argparser.add_argument("--resume", action="store_true",
+                           help="Resume from an existing --checkpoint file instead of starting over: scenes already "
+                                "recorded there are skipped, and --output is rebuilt from the full checkpoint (old + new) "
+                                "at the end. Omit this to start a fresh checkpoint (overwriting any existing one).")
+
+    # --- concurrency (mainly useful for API-backed --llm claude/openai/gemini; for --llm ollama "
+    #     this only helps if the Ollama server has OLLAMA_NUM_PARALLEL > 1) ---
+    argparser.add_argument("--workers", type=int, default=1,
+                           help="Number of scenes to caption concurrently (thread pool). Safe default is 1. Raise this "
+                                "for API-backed LLMs (claude/openai/gemini) to hide network latency; for local ollama it "
+                                "only helps if the Ollama server itself is configured for parallel requests "
+                                "(OLLAMA_NUM_PARALLEL environment variable on the machine running `ollama serve`).")
+
+    # --- splitting one dataset across multiple machines (e.g. a computer lab), each running its own local LLM ---
+    argparser.add_argument("--shard-index", type=int, default=0,
+                           help="This machine's shard number (0-based) when splitting the dataset across several "
+                                "machines. Machine k processes scenes where (scene_index %% --shard-count == k). "
+                                "Combine with --shard-count; run the same command on every machine, changing only "
+                                "--shard-index. Merge the resulting checkpoints with merge_shards.py.")
+    argparser.add_argument("--shard-count", type=int, default=1,
+                           help="Total number of machines splitting the dataset. 1 (default) means no sharding.")
 
     return argparser.parse_args()
 
@@ -626,13 +740,19 @@ def main() -> list[list[str]]:
     # load integer tile-id scenes
     scenes = load_dataset(args.levels, char_to_id)
 
-
-    # parsers all of scenes when limit is None 
+    # parsers all of scenes when limit is None
     scenes = scenes[:args.limit]
 
+    # Tag every scene with its position in the FULL (unsharded, unfiltered) dataset before any
+    # shard filtering below, so checkpoint entries always carry a stable global index. This is
+    # what lets merge_shards.py combine several machines' checkpoints back into one ordered file.
+    indexed_scenes = list(enumerate(scenes))
 
-    caption_lists = [] # list[list] of caption set for each scene
-    captioned_dataset = []
+    # Shard: this machine only processes scenes where global_index % shard_count == shard_index.
+    # Running the same command on N machines with --shard-count N and --shard-index 0..N-1 splits
+    # the dataset with no coordination needed between machines beyond agreeing on N.
+    if args.shard_count > 1:
+        indexed_scenes = [(i, s) for i, s in indexed_scenes if i % args.shard_count == args.shard_index]
 
     # Resolve the model: --model overrides, otherwise fall back to the per-branch default.
     model = args.model or DEFAULT_MODELS[args.llm]
@@ -644,61 +764,80 @@ def main() -> list[list[str]]:
     # Label combining the inference source and resolved model; printed and stored per entry.
     llmstr = f"{args.llm} - {model}"
 
-    # Mark the start of the full captioning process to report total elapsed time at the end.
-    start_time = time.time()
-    print(f"[timing] Captioning started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n")
+    checkpoint_path = args.checkpoint or default_checkpoint_path(args.output, args.shard_index, args.shard_count)
 
-    # caption each scene, append back to running lists. By default show a tqdm progress bar
-    # (matching the A* traversability bar in create_megaman_json_data.py); with --show_captions
-    # the bar is disabled and each scene's captions are printed to the console as before.
-    for i, (scene, label, attrs) in enumerate(
-            tqdm(scenes, total=len(scenes), desc="Captioning", unit="scene",
-                 disable=args.show_captions)):
+    # Skip scenes already recorded in the checkpoint when resuming. Without --resume we start a
+    # clean checkpoint (CheckpointWriter below opens in "w" mode), so nothing is skipped.
+    already_done = load_checkpoint(checkpoint_path) if args.resume else {}
+    if already_done:
+        print(f"[resume] {len(already_done)} scene(s) already captioned in {checkpoint_path}; skipping those.\n")
+        indexed_scenes = [(i, s) for i, s in indexed_scenes if i not in already_done]
 
-        # Decode the integer grid to ASCII rows purely to build the prompt; the integer
-        # grid itself is what gets stored back in the output unchanged. Null padding rows
-        # are stripped and any out-of-bounds null cells are hidden (rendered as air).
+    writer = CheckpointWriter(checkpoint_path, resume=args.resume)
+
+    def process_one(i: int, scene, label: str, attrs: dict):
+        """
+        Caption a single scene end to end (CPU-side prompt prep + the LLM call) and return
+        (i, entry_or_None, num_captions_returned). Safe to run from multiple threads: it only
+        touches its own local state and read-only shared lookups (id_to_char, tile_descriptors, ...).
+        """
         scene_str = "\n".join(scene_to_ASCII(scene, id_to_char, null_ids))
-
-        # Get filtered tileset for current scene
         filtered_tiles = filter_tile_set(scene_str, tile_names)
-
-        # Fetch the deterministic structural caption for this scene to ground the LLM as
-        # an extra context message. Operates on the integer grid, not the ASCII decode.
         det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors, names=tile_names)
 
-        # assign and collect captions
         caption_set = llm_caption(scene_str, game=game_name, model=model, tileset=filtered_tiles, llm=args.llm,
                                   deterministic=det_caption, num_captions=args.num_captions)
-        
-
-        if args.show_captions:
-            print(f"------------------ [{llmstr}]  [{label}] ({i + 1}/{len(scenes)}) ------------------\n")
-            for j, caption in enumerate(caption_set):
-                print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
 
         if len(caption_set) != args.num_captions:
-            # Route the skip warning through tqdm.write so it doesn't clobber the progress bar
-            # when it's active; a plain print is fine in --show_captions mode.
-            skip_msg = f"[skip] {label}: got {len(caption_set)} caption(s) instead of {args.num_captions}; skipping this scene.\n"
-            print(skip_msg) if args.show_captions else tqdm.write(skip_msg)
-            continue
+            return i, None, label, caption_set
 
-        caption_lists.append(caption_set)
-        # Copy all carried-through input attributes (metadata + captions from earlier sources)
-        # first, then (re)write the scene and this run's captions on top, so chaining datasets
-        # accumulates sources instead of replacing them. "scene" holds the integer tile-id grid.
         entry = dict(attrs)
         entry["scene"] = scene
         if args.caption_mode == "legacy":
-            # Legacy schema: the first caption under "caption", the rest under "caption1".."captionN-1".
             entry["caption"] = caption_set[0]
             for idx, caption in enumerate(caption_set[1:], start=1):
                 entry[f"caption{idx}"] = caption
             entry["model"] = llmstr
         else:
             entry[caption_key] = caption_set
-        captioned_dataset.append(entry)
+        return i, entry, label, caption_set
+
+    # Mark the start of the full captioning process to report total elapsed time at the end.
+    start_time = time.time()
+    print(f"[timing] Captioning started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n")
+    print(f"[checkpoint] Writing incremental progress to {checkpoint_path} "
+          f"({len(indexed_scenes)} scene(s) to caption this run, {args.workers} worker(s))\n")
+
+    total_this_run = len(indexed_scenes)
+    caption_lists = []  # list[list] of caption sets produced THIS run, in completion order
+
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool, \
+                tqdm(total=total_this_run, desc="Captioning", unit="scene", disable=args.show_captions) as bar:
+
+            futures = {pool.submit(process_one, i, scene, label, attrs): (i, label)
+                       for i, (scene, label, attrs) in indexed_scenes}
+
+            for future in as_completed(futures):
+                i, label = futures[future]
+                res_i, entry, res_label, caption_set = future.result()
+
+                if args.show_captions:
+                    print(f"------------------ [{llmstr}]  [{res_label}] (index {res_i}) ------------------\n")
+                    for j, caption in enumerate(caption_set):
+                        print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
+
+                if entry is None:
+                    skip_msg = (f"[skip] {res_label}: got {len(caption_set)} caption(s) instead of "
+                                f"{args.num_captions}; skipping this scene.\n")
+                    print(skip_msg) if args.show_captions else tqdm.write(skip_msg)
+                else:
+                    writer.write(res_i, entry)  # flushed to disk immediately -- crash-safe
+                    caption_lists.append(caption_set)
+
+                bar.update(1)
+    finally:
+        writer.close()
 
     # Mark the end of the full captioning process and report total elapsed time.
     end_time = time.time()
@@ -706,11 +845,13 @@ def main() -> list[list[str]]:
     print(f"[timing] Captioning finished at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}\n")
     print(f"[timing] Total captioning time: {elapsed:.2f}s ({elapsed / 60:.2f} min)\n")
 
-    # save to specified output dir if specified
-    if args.output:
-        with open(args.output, "w") as f:
-            json.dump(captioned_dataset, f, indent=2)
-        print(f"Captioned dataset saved to {args.output}")
+    # Rebuild --output from the checkpoint (old scenes from a resumed run + everything just
+    # captioned), so --output always reflects the checkpoint's full, crash-safe contents.
+    finalize_output(checkpoint_path, args.output)
+
+    if args.shard_count > 1:
+        print(f"[shard] This is shard {args.shard_index}/{args.shard_count}. Once every shard has finished, "
+              f"combine all shard checkpoints with: python merge_shards.py <checkpoint-glob> --output <final.json>\n")
 
     return caption_lists
 
