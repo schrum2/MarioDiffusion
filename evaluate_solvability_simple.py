@@ -3,9 +3,9 @@
 
 Takes a JSON file of the kind produced by --save_as_json in run_diffusion.py
 (or any of the *_create_ascii_captions.save_level_data writers / the MM2
-captioned-scene writer) and runs the same A* traversability check used
-elsewhere in this codebase on every scene, then reports how many/what
-percentage are solvable.
+captioned-scene writer) and runs astar_traversability_check.evaluate() (the
+no-image traversability check, not astar_path_image) on every scene, then
+reports how many/what percentage are solvable.
 
 The only required inputs are the JSON file and the game; the tileset and
 tile count are derived from --game the same way run_diffusion.py does it.
@@ -17,7 +17,7 @@ import sys
 import util.common_settings as common_settings
 from create_level_json_data import load_tileset
 from captions.util import extract_tileset
-from astar.astar_traversability_check import astar_path_image
+from astar.astar_traversability_check import evaluate, load_levels, RENDER_GAME_TO_TRAV
 
 GAME_TILESETS = {
     "Mario": common_settings.MARIO_TILESET,
@@ -58,6 +58,17 @@ def parse_args():
         help="Optional path to write a detailed per-scene report as JSON",
     )
     parser.add_argument(
+        "--budget",
+        type=int,
+        default=100000,
+        help="Max states expanded before giving up on a single scene (passed to the A* search)",
+    )
+    parser.add_argument(
+        "--allow_weird_lr",
+        action="store_true",
+        help="LodeRunner only: allow moving sideways through diggable ground",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress per-scene printouts; only print the final summary",
@@ -65,52 +76,35 @@ def parse_args():
     return parser.parse_args()
 
 
-def extract_scenes(data):
-    """Pull a flat list of scenes (list-of-lists of tile ids) out of the loaded JSON.
+def evaluate_solvability(json_file, game, output_json=None, quiet=False,
+                         budget=100000, allow_weird_lr=False):
+    trav_game = RENDER_GAME_TO_TRAV.get(game)
+    if trav_game is None:
+        raise ValueError(f"Unknown game {game!r}; expected one of {sorted(RENDER_GAME_TO_TRAV)}")
 
-    Accepts either a bare list of scenes, or the list-of-dicts format written by
-    the save_level_data helpers / the MM2 captioner (each dict holding a "scene" key).
-    """
-    if not isinstance(data, list):
-        raise ValueError(f"Expected a JSON list at the top level, got {type(data).__name__}")
-
-    scenes = []
-    for i, entry in enumerate(data):
-        if isinstance(entry, dict):
-            if "scene" not in entry:
-                raise ValueError(f"Entry {i} is a dict but has no 'scene' key: keys={list(entry.keys())}")
-            scenes.append(entry["scene"])
-        elif isinstance(entry, list):
-            scenes.append(entry)
-        else:
-            raise ValueError(f"Entry {i} is neither a dict nor a list of rows: {type(entry).__name__}")
-    return scenes
-
-
-def evaluate_solvability(json_file, game, output_json=None, quiet=False):
     tileset = GAME_TILESETS[game]
     num_tiles = GAME_TILE_COUNTS[game]
 
     tile_to_id = load_tileset(tileset)
-    id_to_char = {v: k for k, v in tile_to_id.items()}
-    _, _, _, tile_descriptors = extract_tileset(tileset)
+    _, id_to_char, _, tile_descriptors = extract_tileset(tileset)
 
     if not quiet:
         print(f"Game: {game}")
         print(f"Tileset: {len(tile_to_id)} tile types from {tileset} (expected {num_tiles} for {game})")
 
-    with open(json_file) as f:
-        data = json.load(f)
-    scenes = extract_scenes(data)
+    # load_levels handles a dataset-entry list, a list of raw scenes, or a single
+    # scene/entry, mirroring astar_traversability_check.py's own CLI.
+    levels = load_levels(json_file)
     if not quiet:
-        print(f"Loaded {len(scenes)} scene(s) from {json_file}")
+        print(f"Loaded {len(levels)} scene(s) from {json_file}")
 
     results = []
     solved_count = 0
     failed_count = 0
-    for i, scene in enumerate(scenes):
+    for i, (scene, _caption) in enumerate(levels):
         try:
-            _, solved, stats = astar_path_image(scene, game, id_to_char, tile_descriptors)
+            solved, stats, _info = evaluate(trav_game, scene, id_to_char, tile_descriptors,
+                                            budget, allow_weird_lr, visualize=False)
         except Exception as e:
             failed_count += 1
             if not quiet:
@@ -127,7 +121,7 @@ def evaluate_solvability(json_file, game, output_json=None, quiet=False):
             detail = ", ".join(f"{k}={v}" for k, v in stats.items()) if stats else ""
             print(f"Scene {i}: {tag}" + (f" ({detail})" if detail else ""))
 
-    total = len(scenes)
+    total = len(levels)
     pct = (solved_count / total) if total else 0.0
     print(f"\nTotal solvable: {solved_count}/{total}: {pct:.1%}")
     if failed_count:
@@ -153,7 +147,8 @@ def evaluate_solvability(json_file, game, output_json=None, quiet=False):
 if __name__ == "__main__":
     args = parse_args()
     try:
-        evaluate_solvability(args.json_file, args.game, args.output_json, args.quiet)
+        evaluate_solvability(args.json_file, args.game, args.output_json, args.quiet,
+                             args.budget, args.allow_weird_lr)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
