@@ -98,26 +98,21 @@ python merge_shards.py --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json -
 ```
 This reconstructs the shard filenames the same way `llm_ascii_to_caption.py` named them, stitches the scenes back together in their original order, and writes the complete dataset to `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json`.
 
-Splitting the work with `--shard-index`/`--shard-count` is simple, but it does mean picking a shard count up front and manually merging the results afterward. You can also make multiple machines manage the work on their own and assembly the final file automatically by using `caption_coordinator.py` and `caption_worker.py` instead.
+Splitting the work with `--shard-index`/`--shard-count` is simple, but it does mean picking a shard count up front and manually merging the results afterward. You can also make multiple machines manage the work on their own and assembly the final file automatically by using `caption_coordinator.py` and `caption_worker.py` instead. In the example below, we will actually collect captions from two different LLMs at the same time.
 
-Start the coordinator once, on any one machine the others can reach over the network:
+Start the coordinator once, on any one machine the others can reach over the network, listing all LLMs that will be used:
 ```
-python caption_coordinator.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --game MMLV --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5
+python caption_coordinator.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --game MMLV --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5 --model ollama:qwen3.5:9b --model ollama:gemma4:12b
 ```
-Then, on every lab machine (this one included, if you like), start a worker pointed at the coordinator, telling it which LLM that machine should run:
-```
-python caption_worker.py --coordinator http://<coordinator-ip>:8765 --llm ollama --model qwen3.5:9b
-```
-To get the IP address in Windows, run the command `ipconfig` in a terminal and replace `<coordinator-ip>` with the period-separated sequence of 4 numbers associated with the `IPv4 Address`. For example, the command might look like this:
+The coordinator will announce its IP address when it starts, for example, `10.117.56.119`. In that case, you would launch the following two commands on various other machines on the same network:
 ```
 python caption_worker.py --coordinator http://10.117.56.119:8765 --llm ollama --model qwen3.5:9b
 ```
-Each worker asks the coordinator for a small batch of scenes, captions them with its own local `qwen3.5:9b`, and posts the captions back. The coordinator writes every finished scene straight into a single checkpoint as results come in, named the same way as before: `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.jsonl`. Once every scene is done, the coordinator assembles `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json` itself. If a worker machine dies or gets disconnected mid-batch, its unfinished scenes are automatically handed to another worker after `--lease-seconds`, so you don't have to babysit which machine is doing what.
-
-The coordinator's checkpoint behaves the same as a normal `llm_ascii_to_caption.py` run: if you restart the coordinator and it finds a leftover `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.jsonl` from a previous session, it will ask whether to resume from it, and `--force-resume`/`--force-restart` skip that prompt the same way.
-
-Workers don't need any of `llm_ascii_to_caption.py`'s dataset or checkpoint arguments. They only need to know how to reach the coordinator and which LLM to run locally.
-
+That is for the machines that run Qwen, and the command below is for the machines that run Gemma:
+```
+python caption_worker.py --coordinator http://10.117.56.119:8765 --llm ollama --model gemma4:12b
+```
+Once the coordinator has collected captions for all scenes using all designated LLMs, it will tell the workers that it is done.
 
 
 
