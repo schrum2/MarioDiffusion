@@ -114,46 +114,7 @@ python caption_worker.py --coordinator http://10.117.56.119:8765 --llm ollama --
 ```
 Once the coordinator has collected captions for all scenes using all designated LLMs, it will tell the workers that it is done.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-TODO: Must delete jsonl before adding more captions
-
-And then you can add captions from `gemma4:12b` to the same dataset with this command:
-```
-python llm_ascii_to_caption.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --game MMLV --llm ollama --model gemma4:12b --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --num_captions 5
-```
-
-
-
-
-
-
-
-
-
-
-
-TODO: Any other transition?
-
-
-
-
-Keep in mind that `train-diffusion.bat` assumes there is a train/validate/test split of the data, so you will need to split the data before using this batch file:
+No matter how you choose to create your captioned dataset, you should end up with a file `Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json`. This file needs a train/validation/test split before you can train with `train-diffusion.bat`:
 ```
 python split_data.py --json_file Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MMLV
 ```
@@ -162,9 +123,14 @@ Once the data is split, you can use `train-diffusion.bat` like usual:
 train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 gemma4:12b_captions qwen3.5:9b_captions deterministic_captions
 ```
 Note that this training command added `deterministic_captions` into the mix along with the LLM-generated captions.
-Still, none of this is much different than the instructions for the `MM-Simple` and `MM-Full` tilesets.
-The dataset gets more interesting when you add captions generated from commercial LLMs. However, using
+The dataset gets even more interesting when you add captions generated from commercial LLMs. However, using
 a commercial LLM means you have to provide the appropriate API key first.
+
+
+
+
+
+
 
 
 
