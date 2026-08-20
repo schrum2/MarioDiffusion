@@ -108,8 +108,11 @@ def get_embeddings(batch_size, tokenizer, model, captions=None, neg_captions=Non
 
 def get_embeddings_split(batch_size, tokenizer, model, captions=None, neg_captions=None, device='cpu', max_length=20):
 
-    padding_length = max(max([s.count(".") for s in captions]) if captions else 1, 
-                     max([s.count(".") for s in neg_captions]) if neg_captions else 1)
+    def segment_count(s):
+        return len([p for p in s.split(".") if p.strip()])
+
+    padding_length = max(max([segment_count(s) for s in captions]) if captions else 1,
+                     max([segment_count(s) for s in neg_captions]) if neg_captions else 1)
     if (padding_length>max_length):
         raise ValueError(f"Token sequence length {padding_length} exceeds specified length {max_length}.")
 
