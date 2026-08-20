@@ -4,6 +4,7 @@ REM Pulls raw MM2 levels from HuggingFace, decodes them with toost, and writes A
 REM [limit] is optional, defaults to 10000
 REM [likes] is optional, defaults to 10
 cd ..
+cd ..
 
 set LIMIT=%1
 if "%LIMIT%"=="" set LIMIT=10000
@@ -12,10 +13,10 @@ set LIKES=%2
 if "%LIKES%"=="" set LIKES=10
 
 REM Download raw .bcd levels from HuggingFace
-python -m mm2pipeline_data extract --output_folder MM2_Data\bcd --limit %LIMIT% --skip_3dworld --skip_items --skip_subworld_items --likes %LIKES%
+python -m mm2pipeline_data extract --output_folder Game_MM2\LEVELS\bcd --limit %LIMIT% --skip_3dworld --skip_items --skip_subworld_items --likes %LIKES%
 
 REM Decode .bcd into JSON and preview images with toost
-python -m mm2pipeline_data toost --input MM2_Data\bcd -o MM2_Data\json --images-output MM2_Data\images
+python -m mm2pipeline_data toost --input Game_MM2\LEVELS\bcd -o Game_MM2\LEVELS\json --images-output Game_MM2\LEVELS\images
 
 REM Convert decoded JSON levels into ASCII tile grids
-python -m mm2pipeline_data json-to-ascii --input MM2_Data\json --output_folder MM2_Data\ascii
+python -m mm2pipeline_data json-to-ascii --input Game_MM2\LEVELS\json --output_folder Game_MM2\LEVELS\ascii

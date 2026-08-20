@@ -9,16 +9,16 @@ set SEED=%1
 if "%SEED%"=="" set SEED=0
 
 REM Build a sliding-window dataset from the ASCII levels
-python -m mm2pipeline_data dataset build --input MM2_Data\ascii --output_folder datasets\MM2_Levels-regular.json --tileset datasets\mm2_tileset_we.json --sliding_window --stride 20
+python -m mm2pipeline_data dataset build --input Game_MM2\LEVELS\ascii --output_folder Game_MM2\DATA\MM2_Levels-regular.json --tileset datasets\mm2_tileset_we.json --sliding_window --stride 20
 
 REM Generate deterministic captions for MM2
-python MM2_Files\MarioMaker_create_ascii_captions.py --dataset datasets\MM2_Levels-regular.json --tileset datasets\mm2_tileset_we.json --output datasets\MM2_LevelsAndCaptions-regular.json
+python MM2_Files\MarioMaker_create_ascii_captions.py --dataset Game_MM2\DATA\MM2_Levels-regular.json --tileset datasets\mm2_tileset_we.json --output Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json
 
 REM Tokenize MM2 data
-python tokenizer.py save --json_file datasets\MM2_LevelsAndCaptions-regular.json --pkl_file datasets\MM2_Tokenizer-regular.pkl
+python tokenizer.py save --json_file Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --pkl_file Game_MM2\DATA\MM2_Tokenizer-regular.pkl
 
 REM Create validation captions
-python create_random_test_captions.py --save_file datasets\MM2_RandomTest-regular.json --json datasets\MM2_LevelsAndCaptions-regular.json --seed %SEED% --game MM2
+python create_random_test_captions.py --save_file Game_MM2\DATA\MM2_RandomTest-regular.json --json Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --seed %SEED% --game MM2
 
 REM Split output files into train/val/test sets
-python split_data.py --json_file datasets\MM2_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM2
+python split_data.py --json_file Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM2
