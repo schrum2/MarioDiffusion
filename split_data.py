@@ -22,7 +22,7 @@ def parse_args():
 
 def split_dataset(json_path, train_pct, val_pct, test_pct):
     """Splits the dataset into train/val/test and saves them as new JSON files."""
-    with open(json_path, 'r') as f:
+    with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     if abs(train_pct + val_pct + test_pct - 1.0) > 1e-6:
