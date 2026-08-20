@@ -22,3 +22,7 @@ Data source, MariOver repo, etc
 ## Create datasets
 
 We will first retrieve levels from the dataset on Hugging Face.
+
+
+Basically, run MM2_Batch\MM2-extract.bat, then MM2_Batch\MM2-data.bat
+
