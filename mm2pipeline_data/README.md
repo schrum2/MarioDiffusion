@@ -195,7 +195,7 @@ python -m mm2pipeline_data swe --input level_overworld.json -o mylevel.swe --use
 
 ## Misc Notes
 
-The tileset `datasets/mm2_tileset_we.json` is the shared glyph vocabulary — every
+The tileset `Game_MM2/mm2_tileset_we.json` is the shared glyph vocabulary — every
 drawable object has to fold onto one of its glyphs (`mm2pipeline_data.tiles` checks
 this on import). `dataset build` uses it by default, so the examples above don't
 pass `--tileset`; point it elsewhere only if you have a custom vocabulary.

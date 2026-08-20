@@ -15,7 +15,7 @@ MARIO_TILE_COUNT = 13
 # Mario Maker 2
 
 MM2_TILE_COUNT = 67 
-MM2_TILESET = 'datasets/mm2_tileset_we.json'
+MM2_TILESET = 'Game_MM2/mm2_tileset_we.json'
 MM2_TILE_PIXEL_DIM = 16
 MM2_WIDTH = 20 # Patrick: 20x20 is just what I've been using. Changing this will not result in any crashes that I'm aware of.
 MM2_HEIGHT = 20

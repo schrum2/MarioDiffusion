@@ -4,15 +4,16 @@ REM Builds the MM2 dataset from ASCII levels with deterministic tile-presence ca
 REM Run MM2-extract.bat first to produce MM2_Data\ascii.
 REM [seed] is optional, defaults to 0
 cd ..
+cd ..
 
 set SEED=%1
 if "%SEED%"=="" set SEED=0
 
 REM Build a sliding-window dataset from the ASCII levels
-python -m mm2pipeline_data dataset build --input Game_MM2\LEVELS\ascii --output_folder Game_MM2\DATA\MM2_Levels-regular.json --tileset datasets\mm2_tileset_we.json --sliding_window --stride 20
+python -m mm2pipeline_data dataset build --input Game_MM2\LEVELS\ascii --output_folder Game_MM2\DATA\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --sliding_window --stride 20
 
 REM Generate deterministic captions for MM2
-python MM2_Files\MarioMaker_create_ascii_captions.py --dataset Game_MM2\DATA\MM2_Levels-regular.json --tileset datasets\mm2_tileset_we.json --output Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json
+python MM2_Files\MarioMaker_create_ascii_captions.py --dataset Game_MM2\DATA\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --output Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json
 
 REM Tokenize MM2 data
 python tokenizer.py save --json_file Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --pkl_file Game_MM2\DATA\MM2_Tokenizer-regular.pkl

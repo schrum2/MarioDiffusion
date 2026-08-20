@@ -11,9 +11,9 @@ python -m mm2pipeline_data toost --input MM2_Data\bcd -o MM2_Data\json --images-
 python -m mm2pipeline_data json-to-ascii --input MM2_Data\json --output_folder MM2_Data\ascii
 
 
-python -m mm2pipeline_data dataset build --input MM2_Data\ascii --output_folder datasets\MM2_Levels-regular.json --tileset datasets\mm2_tileset_we.json --sliding_window --stride 20 --strip_goal
+python -m mm2pipeline_data dataset build --input MM2_Data\ascii --output_folder datasets\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --sliding_window --stride 20 --strip_goal
 
-python MM2_Files\MarioMaker_create_ascii_captions.py --dataset datasets\MM2_Levels-regular.json --tileset datasets\mm2_tileset_we.json --output datasets\MM2_LevelsAndCaptions-regular.json
+python MM2_Files\MarioMaker_create_ascii_captions.py --dataset datasets\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --output datasets\MM2_LevelsAndCaptions-regular.json
 
 python tokenizer.py save --json_file datasets\MM2_LevelsAndCaptions-regular.json --pkl_file datasets\MM2_Tokenizer-regular.pkl
 

@@ -435,7 +435,7 @@ def main_build(argv=None):
     parser.add_argument("--output_folder", required=True, help="Output JSON filename.")
     parser.add_argument("--tileset", default=str(paths.MM2_TILESET_PATH),
                         help="Path to tileset JSON. Default: the bundled MM2 tileset "
-                             "(datasets/mm2_tileset_we.json).")
+                             "(Game_MM2/mm2_tileset_we.json).")
     convert_group = parser.add_mutually_exclusive_group()
     convert_group.add_argument("--convert_to_vglc", action="store_true",
                                help="Convert layout to VGLC structure (ascii_to_vglc.py).")

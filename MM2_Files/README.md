@@ -34,7 +34,7 @@ dataset build --captions` already runs this for you; run it directly to re-capti
 an existing dataset.
 
 ```bat
-python MM2_Files\MarioMaker_create_ascii_captions.py --dataset dataset.json --tileset datasets\mm2_tileset_we.json --output dataset_captioned.json
+python MM2_Files\MarioMaker_create_ascii_captions.py --dataset dataset.json --tileset Game_MM2\mm2_tileset_we.json --output dataset_captioned.json
 ```
 
 By default the caption lands in the `caption` field. Use `--caption-mode keyed` to
@@ -42,7 +42,7 @@ store it as a list under `--caption-key` instead, so a scene can carry captions
 from several sources at once:
 
 ```bat
-python MM2_Files\MarioMaker_create_ascii_captions.py --dataset dataset.json --tileset datasets\mm2_tileset_we.json --output dataset_captioned.json --caption-mode keyed --caption-key deterministic_captions
+python MM2_Files\MarioMaker_create_ascii_captions.py --dataset dataset.json --tileset Game_MM2\mm2_tileset_we.json --output dataset_captioned.json --caption-mode keyed --caption-key deterministic_captions
 ```
 
 ## LLM captions

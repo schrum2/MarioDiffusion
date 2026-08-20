@@ -31,7 +31,7 @@ captions/MM2_caption_generator.py — builds MM2 captions alongside the existing
 captions/MM2_caption_match.py — checks whether a level matches its caption.
 astar/MM2State.py — MM2's version of the A* pathfinding state, next to the other games'.
 util/mm2_metrics.py — helper functions for the MM2 metrics.
-datasets/mm2_tileset_we.json — the actual MM2 tileset definition (68 tiles).
+Game_MM2/mm2_tileset_we.json — the actual MM2 tileset definition (68 tiles).
 Files Edited already in MarioDiffusion
 util/common_settings.py — added the MM2_* constants so every other file knows MM2's size and tiles.
 requirements.txt — added pycryptodome, which the .bcd decryption needs.
