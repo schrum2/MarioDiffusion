@@ -120,17 +120,26 @@ def get_embeddings_split(batch_size, tokenizer, model, captions=None, neg_captio
     empty_split = split_sentences([""] * batch_size, padding_length)
     embeddings = get_embeddings_from_split(empty_split, tokenizer, model, device)
 
-    if(captions is not None):
-        captions_split = split_sentences(captions, padding_length)
-        caption_embeddings = get_embeddings_from_split(captions_split, tokenizer, model, device)
-        embeddings = torch.cat((embeddings, caption_embeddings), dim=0)
+    try:
+        if(captions is not None):
+            captions_split = split_sentences(captions, padding_length)
+            caption_embeddings = get_embeddings_from_split(captions_split, tokenizer, model, device)
+            embeddings = torch.cat((embeddings, caption_embeddings), dim=0)
+    except RuntimeError:
+        print("Problem captions:")
+        print(captions)
+        raise
     
-    if(neg_captions is not None):
-        neg_split = split_sentences(neg_captions, padding_length)
-        neg_embeddings = get_embeddings_from_split(neg_split, tokenizer, model, device)
-        embeddings = torch.cat((neg_embeddings, embeddings), dim=0)
+    try:
+        if(neg_captions is not None):
+            neg_split = split_sentences(neg_captions, padding_length)
+            neg_embeddings = get_embeddings_from_split(neg_split, tokenizer, model, device)
+            embeddings = torch.cat((neg_embeddings, embeddings), dim=0)
+    except RuntimeError:
+        print("Problem neg_captions:")
+        print(neg_captions)
+        raise
     
-
     #We don't need to unsqueeze this, we have an array of (batch_size, padding_length, encoding_size) already
 
     return embeddings.to(device)
