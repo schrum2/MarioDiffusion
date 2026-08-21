@@ -22,4 +22,4 @@ REM Create validation captions
 python Game_MM2\create_random_test_captions.py --save_file Game_MM2\DATA\MM2_RandomTest-regular.json --json Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --seed %SEED% --game MM2
 
 REM Split output files into train/val/test sets
-python Game_MM2\split_data.py --json_file Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM2
+python split_data.py --json_file Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM2
