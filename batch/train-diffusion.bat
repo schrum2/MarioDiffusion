@@ -281,6 +281,8 @@ if defined CAPTION_SOURCE_KEYS (
 
 set MLM_EPOCHS=300
 set MLM_CHECKPOINT=20
+set MLM_MAX_SEQ_LENGTH_FLAG=
+if /I "%GAME%"=="MM2" set MLM_MAX_SEQ_LENGTH_FLAG=--max_seq_length 200
 if /I "%GAME%"=="LR" (
     REM Is 60,000 really correct?
     set MLM_EPOCHS=60000
@@ -323,7 +325,7 @@ REM ===========================================================================
 if /I "%USE_MLM%"=="true" (
     call :check_dir_exists "%MLM_OUTPUT%"
     if /I "!DIR_EXISTS!"=="false" (
-        python train_mlm.py --epochs %MLM_EPOCHS% --checkpoint_freq %MLM_CHECKPOINT% --save_checkpoints --json %TRAIN_DATA% --val_json %VAL_DATA% --test_json %TEST_DATA% --pkl %TOKENIZER% --output_dir %MLM_OUTPUT% --seed %SEED%
+        python train_mlm.py --epochs %MLM_EPOCHS% --checkpoint_freq %MLM_CHECKPOINT% --save_checkpoints --json %TRAIN_DATA% --val_json %VAL_DATA% --test_json %TEST_DATA% --pkl %TOKENIZER% --output_dir %MLM_OUTPUT% --seed %SEED% %MLM_MAX_SEQ_LENGTH_FLAG%
     )
     python log_timestamp.py --log_file %TIMING_LOG% --event "MLM training"
 )
