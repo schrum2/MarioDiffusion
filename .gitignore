@@ -235,7 +235,7 @@ embedding_comparison/embedding_comparison_report.md
 *.bcd
 *.swe
 # toost's font is sourced from the OS at runtime (mm2pipeline_data.toost.ensure_font), never committed
-MM2_Files/toost_stuff/fonts/
+Game_MM2/toost_stuff/fonts/
 
 desktop.ini
 *.pth

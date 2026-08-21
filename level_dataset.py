@@ -465,7 +465,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
     # canonical mm2_tileset_we.json Mario Maker 2 data -- only "MM-Simple"/"MM-Full"
     # below are the unrelated Mega Man tilesets.
     if game in ('mm2', 'MM2'):
-        from MM2_Files.render_mm2 import _render_mm2_samples
+        from Game_MM2.render_mm2 import _render_mm2_samples
         image = _render_mm2_samples(sample_indices, output_dir, start_index, prompts)
         # Match visualize_samples' contract: with output_dir it saved the PNGs and
         # returns the indices; without one it returns the first scene's image.

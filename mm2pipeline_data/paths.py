@@ -22,4 +22,4 @@ def repo_path(*parts) -> Path:
 MM2_TILESET_PATH = repo_path(*common_settings.MM2_TILESET.split("/"))
 
 # Bundled toost.exe + its sprite/font assets.
-TOOST_DIR = repo_path("MM2_Files", "toost_stuff")
+TOOST_DIR = repo_path("Game_MM2", "toost_stuff")

@@ -1,4 +1,4 @@
-# MM2_Files
+# Game_MM2
 
 The captioning, rendering, and evaluation layer that sits on top of the
 `mm2pipeline_data` pipeline. Once that package has turned real levels into a
@@ -34,7 +34,7 @@ dataset build --captions` already runs this for you; run it directly to re-capti
 an existing dataset.
 
 ```bat
-python MM2_Files\MarioMaker_create_ascii_captions.py --dataset dataset.json --tileset Game_MM2\mm2_tileset_we.json --output dataset_captioned.json
+python Game_MM2\MarioMaker_create_ascii_captions.py --dataset dataset.json --tileset Game_MM2\mm2_tileset_we.json --output dataset_captioned.json
 ```
 
 By default the caption lands in the `caption` field. Use `--caption-mode keyed` to
@@ -42,7 +42,7 @@ store it as a list under `--caption-key` instead, so a scene can carry captions
 from several sources at once:
 
 ```bat
-python MM2_Files\MarioMaker_create_ascii_captions.py --dataset dataset.json --tileset Game_MM2\mm2_tileset_we.json --output dataset_captioned.json --caption-mode keyed --caption-key deterministic_captions
+python Game_MM2\MarioMaker_create_ascii_captions.py --dataset dataset.json --tileset Game_MM2\mm2_tileset_we.json --output dataset_captioned.json --caption-mode keyed --caption-key deterministic_captions
 ```
 
 ## LLM captions
@@ -57,14 +57,14 @@ scenes are skipped, with progress saved every 10 captions.
 the default and needs no key:
 
 ```bat
-python MM2_Files\MarioMaker_llm_captions.py --game MM2 --dataset dataset.json --output dataset_captioned.json --backend ollama --model qwen2.5:14b --num-captions 5
+python Game_MM2\MarioMaker_llm_captions.py --game MM2 --dataset dataset.json --output dataset_captioned.json --backend ollama --model qwen2.5:14b --num-captions 5
 ```
 
 A missing Ollama model is pulled automatically the first time. To use a hosted
 backend, point `--api-key-file` at a `.txt` file with the key on its first line:
 
 ```bat
-python MM2_Files\MarioMaker_llm_captions.py --game MM2 --dataset dataset.json --output dataset_captioned.json --backend claude --api-key-file key.txt
+python Game_MM2\MarioMaker_llm_captions.py --game MM2 --dataset dataset.json --output dataset_captioned.json --backend claude --api-key-file key.txt
 ```
 
 Vision-capable models (Claude, GPT-4o, Gemini, or an Ollama vision model) get each
@@ -73,7 +73,7 @@ scene's rendered PNG sent alongside the grid automatically. Build the dataset wi
 and pass `--images-dir` if the PNGs live somewhere other than next to the dataset:
 
 ```bat
-python MM2_Files\MarioMaker_llm_captions.py --game MM2 --dataset dataset.json --output dataset_captioned.json --backend claude --api-key-file key.txt --images-dir out\images
+python Game_MM2\MarioMaker_llm_captions.py --game MM2 --dataset dataset.json --output dataset_captioned.json --backend claude --api-key-file key.txt --images-dir out\images
 ```
 
 Useful knobs: `--caption-mode keyed` (accumulate captions from several models under
@@ -104,10 +104,10 @@ prompts, and same-source diversity. Two modes — walk a model directory or scor
 
 ```bat
 REM Walk a model dir; writes an evaluation_metrics.json next to each all_levels.json.
-python -m MM2_Files.evaluate_mm2_metrics --model_path MODEL_DIR --game MM2
+python -m Game_MM2.evaluate_mm2_metrics --model_path MODEL_DIR --game MM2
 
 REM Score a single file, with a real dataset for AMED_real.
-python -m MM2_Files.evaluate_mm2_metrics --json MODEL-unconditional-samples-short\all_levels.json --real_json datasets\MM2_LevelsAndCaptions-regular.json
+python -m Game_MM2.evaluate_mm2_metrics --json MODEL-unconditional-samples-short\all_levels.json --real_json datasets\MM2_LevelsAndCaptions-regular.json
 ```
 
 `--cpu` skips the GPU, `--override` recomputes over an existing metrics file, and

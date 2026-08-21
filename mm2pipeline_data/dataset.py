@@ -703,7 +703,7 @@ def main_build(argv=None):
     # rewrites output_file in place, adding a "caption" to every sample. The dropped
     # dataset is left alone -- it exists only for inspection.
     if args.captions:
-        captioner = load_repo_module(os.path.join("MM2_Files", "MarioMaker_create_ascii_captions.py"),
+        captioner = load_repo_module(os.path.join("Game_MM2", "MarioMaker_create_ascii_captions.py"),
                                      "MarioMaker_create_ascii_captions")
         captioner.generate_captions(str(output_file), tileset_path, str(output_file))
 

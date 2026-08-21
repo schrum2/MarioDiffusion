@@ -41,7 +41,7 @@ python evaluate_caption_adherence.py --model_path %DIFF_OUTPUT% --save_as_json -
 python log_timestamp.py --log_file %TIMING_LOG% --event "caption adherence evaluation"
 
 REM Evaluate MM2-specific metrics
-python -m MM2_Files.evaluate_mm2_metrics --model_path %DIFF_OUTPUT% --game %GAME%
+python -m Game_MM2.evaluate_mm2_metrics --model_path %DIFF_OUTPUT% --game %GAME%
 python log_timestamp.py --log_file %TIMING_LOG% --event "MM2 metrics evaluation"
 
 REM move the timing log into the trained model's directory

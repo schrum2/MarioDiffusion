@@ -13,13 +13,13 @@ python -m mm2pipeline_data json-to-ascii --input MM2_Data\json --output_folder M
 
 python -m mm2pipeline_data dataset build --input MM2_Data\ascii --output_folder datasets\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --sliding_window --stride 20 --strip_goal
 
-python MM2_Files\MarioMaker_create_ascii_captions.py --dataset datasets\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --output datasets\MM2_LevelsAndCaptions-regular.json
+python Game_MM2\MarioMaker_create_ascii_captions.py --dataset datasets\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --output datasets\MM2_LevelsAndCaptions-regular.json
 
-python tokenizer.py save --json_file datasets\MM2_LevelsAndCaptions-regular.json --pkl_file datasets\MM2_Tokenizer-regular.pkl
+python Game_MM2\tokenizer.py save --json_file datasets\MM2_LevelsAndCaptions-regular.json --pkl_file datasets\MM2_Tokenizer-regular.pkl
 
-python create_random_test_captions.py --save_file datasets\MM2_RandomTest-regular.json --json datasets\MM2_LevelsAndCaptions-regular.json --seed %SEED% --game MM2
+python Game_MM2\create_random_test_captions.py --save_file datasets\MM2_RandomTest-regular.json --json datasets\MM2_LevelsAndCaptions-regular.json --seed %SEED% --game MM2
 
-python split_data.py --json_file datasets\MM2_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM2
+python Game_MM2\split_data.py --json_file datasets\MM2_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM2
 
 set GAME=MM2
 set NUM_TILES=67
@@ -40,4 +40,4 @@ python run_diffusion.py --model_path %DIFF_OUTPUT% --num_samples 100 --text_cond
 python evaluate_caption_adherence.py --model_path %DIFF_OUTPUT% --save_as_json --json %JSON_TEST% --compare_checkpoints --num_tiles %NUM_TILES% --game %GAME%
 python evaluate_caption_adherence.py --model_path %DIFF_OUTPUT% --save_as_json --json %JSON_RANDOM% --output_dir "%DIFF_OUTPUT%-caption-adherence-random" --num_tiles %NUM_TILES% --game %GAME%
 
-python -m MM2_Files.evaluate_mm2_metrics --model_path %DIFF_OUTPUT% --game %GAME%
+python -m Game_MM2.evaluate_mm2_metrics --model_path %DIFF_OUTPUT% --game %GAME%

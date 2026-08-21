@@ -14,10 +14,10 @@ Two ways to run:
 
   * Walk a model directory's sample subdirs (mirrors evaluate_metrics.py) and
     write an evaluation_metrics.json next to each all_levels.json:
-        python -m MM2_Files.evaluate_mm2_metrics --model_path MODEL_DIR --game MM2
+        python -m Game_MM2.evaluate_mm2_metrics --model_path MODEL_DIR --game MM2
 
   * Score a single all_levels.json:
-        python -m MM2_Files.evaluate_mm2_metrics --json MODEL-unconditional-samples-short\\all_levels.json --real_json datasets\\MM2_LevelsAndCaptions-regular.json
+        python -m Game_MM2.evaluate_mm2_metrics --json MODEL-unconditional-samples-short\\all_levels.json --real_json datasets\\MM2_LevelsAndCaptions-regular.json
 
 Run from the repo root (as a module, or imported by a root-level script such as
 verify_data_complete.py) so the repo-root packages resolve without a sys.path shim.
@@ -27,7 +27,7 @@ import json
 import os
 
 import util.common_settings as common_settings
-from MM2_Files.MarioMaker_create_ascii_captions import build_id_to_char
+from Game_MM2.MarioMaker_create_ascii_captions import build_id_to_char
 from captions.MM2_caption_match import compare_captions, extract_topics
 from util.mm2_metrics import (
     broken_structure_report,

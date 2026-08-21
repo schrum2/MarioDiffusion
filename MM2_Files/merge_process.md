@@ -12,7 +12,7 @@ dataset.py — ties it all together into a dataset build command.
 swe.py — exports playable .swe files (brought over because you asked for it).
 paths.py — central place for all the file paths the pipeline needs.
 README.md — docs for how to actually run the thing.
-MM2_Files:
+Game_MM2:
 
 render_mm2.py — draws MM2 levels back out as images.
 MarioMaker_create_ascii_captions.py — generates the deterministic text captions for levels.
@@ -21,7 +21,7 @@ evaluate_mm2_metrics.py — scores generated MM2 levels.
 MM2_Prompt.txt — the prompt text for the LLM captioner.
 replacements.md — the tile-name mapping reference.
 dataset_captioned.json — a sample captioned dataset to test against.
-init.py — makes MM2_Files importable as a module.
+init.py — makes Game_MM2 importable as a module.
 toost_stuff/bin/toost.exe — the binary that actually decodes .bcd into JSON/PNG.
 toost_stuff/img/spritesheet.png — the one spritesheet the renderer needs.
 toost_stuff/img/tile/22349-0.png — the single ground tile our SMW/theme-0 render path uses.

@@ -26,7 +26,7 @@ def print_error(text):   print(f"\033[91m[!] {text}\033[0m")
 
 EXE_NAME = "toost.exe" if sys.platform == "win32" else "toost"
 
-# toost.exe and its assets are bundled under MM2_Files/toost_stuff/.
+# toost.exe and its assets are bundled under Game_MM2/toost_stuff/.
 TOOST_DIR = paths.TOOST_DIR
 
 # Toost seemingly needs a font for it to work here. Less than ideal, but we can workaround.

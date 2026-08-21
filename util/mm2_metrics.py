@@ -413,7 +413,7 @@ def source_group_key(entry):
 if __name__ == "__main__":
     # Issue #37's Boom Boom example: a ragged blob should count as several
     # broken 2x2 Boom Booms.
-    from MM2_Files.MarioMaker_create_ascii_captions import build_id_to_char
+    from Game_MM2.MarioMaker_create_ascii_captions import build_id_to_char
     import util.common_settings as common_settings
 
     id_to_char = build_id_to_char(common_settings.MM2_TILESET)

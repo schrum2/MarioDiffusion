@@ -24,7 +24,7 @@ import time
 import urllib.request
 import urllib.error
 
-# common_settings lives at the repo root; this script is under MM2_Files/, so make sure
+# common_settings lives at the repo root; this script is under Game_MM2/, so make sure
 # the repo root is importable whether it's run as a module or directly.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:

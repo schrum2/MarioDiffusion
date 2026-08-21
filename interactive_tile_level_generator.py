@@ -477,7 +477,7 @@ class CaptionBuilder(ParentBuilder):
         """
         global tileset_path
 
-        from MM2_Files.MarioMaker_create_ascii_captions import get_char_names, CAPTION_METADATA_FIELDS
+        from Game_MM2.MarioMaker_create_ascii_captions import get_char_names, CAPTION_METADATA_FIELDS
 
         # Tile char -> lowercase display name, read straight from the tileset tags
         # so the names track exactly what the captioner emits (e.g. "goomba",

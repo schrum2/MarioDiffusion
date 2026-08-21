@@ -15,7 +15,7 @@ from collections import OrderedDict
 from captions.MM2_caption_match import (
     QUANTITY_TERMS, build_name_lookup, phrase_topic, topic_entity,
 )
-from MM2_Files.MarioMaker_create_ascii_captions import CAPTION_METADATA_FIELDS
+from Game_MM2.MarioMaker_create_ascii_captions import CAPTION_METADATA_FIELDS
 
 # style/theme/difficulty, in the order MarioMaker_create_ascii_captions emits them.
 METADATA_ORDER = [suffix for _field, suffix in CAPTION_METADATA_FIELDS]

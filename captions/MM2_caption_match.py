@@ -20,7 +20,7 @@ _repo_root = os.path.dirname(_here)
 sys.path.insert(0, _repo_root)
 
 import util.common_settings as common_settings
-from MM2_Files.MarioMaker_create_ascii_captions import (
+from Game_MM2.MarioMaker_create_ascii_captions import (
     build_id_to_char, get_char_names, get_tile_categories, assign_caption,
     pluralize)
 
