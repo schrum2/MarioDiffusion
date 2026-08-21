@@ -43,6 +43,8 @@ The code also assigns simple deterministic captions pointing out the presence an
 entities, generates random test captions based on this simplistic caption scheme, and creates a train/validate/test
 split of the data. To carry out all of these steps, launch this batch file (still inside `Game_MM2\BATCH`):
 ```
+cd Game_MM2
+cd BATCH
 MM2-data.bat
 ```
 The `.json` files produced by this are in `Game_MM2\DATA`. The collection of all samples is in `MM2_LevelsAndCaptions-regular.json` and the train/validate/test split files have similar names.
