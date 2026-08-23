@@ -390,7 +390,7 @@ def load_dataset(path: str, char_to_id: dict[str, int]) -> list[tuple[list[list[
         return [([[char_to_id[c] for c in row] for row in level], file.name, {})
                 for level, file in zip(levels, files)]
 
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     scenes = []
@@ -434,7 +434,7 @@ def load_checkpoint(path: str) -> dict[int, dict]:
     done = {}
     if not os.path.exists(path):
         return done
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -460,7 +460,7 @@ class CheckpointWriter:
         self.path = path
         self._lock = threading.Lock()
         mode = "a" if resume and os.path.exists(path) else "w"
-        self._f = open(path, mode, buffering=1)  # line-buffered
+        self._f = open(path, mode, buffering=1, encoding="utf-8")  # line-buffered
 
     def write(self, index: int, entry: dict) -> None:
         record = dict(entry)
@@ -521,7 +521,7 @@ def finalize_output(checkpoint_path: str, output_path: str | None) -> list[dict]
     for entry in ordered:
         entry.pop("_index", None)
     if output_path:
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(ordered, f, indent=2)
         print(f"Captioned dataset saved to {output_path} ({len(ordered)} scene(s), from checkpoint {checkpoint_path})")
     return ordered
