@@ -175,6 +175,8 @@ def main():
                     llm=args.llm,
                     model=model,
                     num_captions=item["num_captions"],
+                    vocab_extra=item.get("prompt_vocab", []),
+                    rule_extra=item.get("prompt_rules", []),
                 )
             except Exception as exc:
                 # Do not kill the worker. The coordinator's lease will eventually

@@ -414,6 +414,8 @@ def make_handler(pool: WorkPool, writer: CheckpointWriter, args, model_specs,
                         "tileset": d["tileset"],
                         "deterministic": d["deterministic"],
                         "game_name": d["game_name"],
+                        "prompt_vocab": d["prompt_vocab"],
+                        "prompt_rules": d["prompt_rules"],
                         "num_captions": pool.num_captions,
                         "llm": llm,
                         "model": model,
@@ -606,6 +608,8 @@ def main():
     game_name = game["name"]
     tile_names = game["tiles"]["tiles"]
     tileset_path = game["tileset"]
+    prompt_vocab = game.get("prompt_vocab", [])
+    prompt_rules = game.get("prompt_rules", [])
 
     _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
     null_ids = frozenset(
@@ -629,6 +633,8 @@ def main():
                 scene, id_to_char, char_to_id, tile_descriptors, names=tile_names
             ),
             "game_name": game_name,
+            "prompt_vocab": prompt_vocab,
+            "prompt_rules": prompt_rules,
         }
 
     checkpoint_path = default_checkpoint_path(args.output, 0, 1)
