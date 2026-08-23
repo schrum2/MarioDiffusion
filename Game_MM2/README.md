@@ -62,21 +62,47 @@ train-diffusion.bat 0 MM2 regular MM2 MLM
 ## LLM-Generated Captions
 
 Though models can be trained with the deterministic captions, we can also make more complex captions with the aide of LLMs.
+The process of assigning captions to scenes using LLMs is similar to what is possible with Mega Man Maker scenes,
+as described [HERE](../Game_MMLV/README.md). Here is how you would assign captions to Mario Maker 2 scenes
+using `qwen3.5:9b`:
+```
+python llm_ascii_to_caption.py --levels Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --game MM2 --llm ollama --model qwen3.5:9b --output Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json --num_captions 5
+```
+If you have access to several machines, each running their own local LLM, you can split a single captioning run across them with the `--shard-index` and `--shard-count` parameters. Every machine runs the exact same command, differing only in `--shard-index`. For example, to split the `qwen3.5:9b` run above across 3 machines, you'd run this on the first machine:
+```
+python llm_ascii_to_caption.py --levels Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --game MM2 --llm ollama --model qwen3.5:9b --output Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json --num_captions 5 --shard-index 0 --shard-count 3
+```
+and separate runs with `--shard-index` values of 1 and 2 on different machines. Each machine only captions the scenes assigned to its shard, and each writes its own checkpoint file: `MM2_LevelsAndCaptions-llm.shard0of3.jsonl`, `MM2_LevelsAndCaptions-llm.shard1of3.jsonl`, and `MM2_LevelsAndCaptions-llm.shard2of3.jsonl`. Crash recovery works per shard, so any one machine can be resumed independently of the others.
 
+Once every shard has finished, gather the three checkpoint files into one folder and run `merge_shards.py`, pointing `--shard-count` at the same number you sharded with:
+```
+python merge_shards.py --output Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json --shard-count 3
+```
+This reconstructs the shard filenames the same way `llm_ascii_to_caption.py` named them, stitches the scenes back together in their original order, and writes the complete dataset to `Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json`.
 
+Splitting the work with `--shard-index`/`--shard-count` is simple, but it does mean picking a shard count up front and manually merging the results afterward. You can also make multiple machines manage the work on their own and assembly the final file automatically by using `caption_coordinator.py` and `caption_worker.py` instead. In the example below, we will actually collect captions from two different LLMs at the same time.
 
+Start the coordinator once, on any one machine the others can reach over the network, listing all LLMs that will be used:
+```
+python caption_coordinator.py --levels Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json --game MM2 --output Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json --num_captions 5 --model ollama:qwen3.5:9b --model ollama:gemma4:12b
+```
+The coordinator will announce its IP address when it starts, for example, `10.117.56.119`. In that case, you would launch the following two commands on various other machines on the same network:
+```
+python caption_worker.py --coordinator http://10.117.56.119:8765 --llm ollama --model qwen3.5:9b
+```
+That is for the machines that run Qwen, and the command below is for the machines that run Gemma:
+```
+python caption_worker.py --coordinator http://10.117.56.119:8765 --llm ollama --model gemma4:12b
+```
+Once the coordinator has collected captions for all scenes using all designated LLMs, it will tell the workers that it is done.
 
-
-
-
-
-
-
-
-
-
-
-
-NOT TRUE YET. CURRENT INSTRUCTIONS ARE WAY DIFFERENT
-
-The instructions here are somewhat similar to those used with Mega Man Maker, available in this [README](../Game_MMLV/README.md).
+No matter how you choose to create your captioned dataset, you should end up with a file `Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json`. This file needs a train/validation/test split before you can train with `train-diffusion.bat`:
+```
+python split_data.py --json_file Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MMLV
+```
+Once the data is split, you can use `train-diffusion.bat` like usual:
+```
+train-diffusion.bat 0 MM2 llm MM2 CLIP single none 0 gemma4:12b_captions qwen3.5:9b_captions
+```
+The dataset gets even more interesting when you add captions generated from commercial LLMs. However, using
+a commercial LLM means you have to provide the appropriate API key first.
