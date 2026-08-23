@@ -97,12 +97,15 @@ def build_system_prompt(num_captions: int, game_name: str,
     word = num_word(num_captions)
     vocab_block = "\n".join(v for v in vocab_extra if v)
     rules_block = "\n".join(f"- {r}" for r in rule_extra if r)
+    # Built outside the f-string: a literal backslash (the \n here) can't appear inside an
+    # f-string's {...} expression part on Python < 3.12, which is what caused the SyntaxError.
+    vocab_section = f"\n{vocab_block}\n" if vocab_block else ""
 
     return f"""
 You are a {game_name} captioning agent; given an ASCII (or tokenized) grid representation of a
 {game_name} level, a tile set key, and deterministic level data, you must generate EXACTLY
 {word.upper()} diverse captions that all describe the level accurately.
-{("\n" + vocab_block + "\n") if vocab_block else ""}
+{vocab_section}
 RULES:
 - Your captions should each DISTINCTLY vary in tone, length, wordiness, playfulness, specificity, etc.
 while remaining accurate. Make the diversity noticeable, including short and long captions, playfully
@@ -135,15 +138,6 @@ phrase, and do not chain multiple distinct ideas together with commas.
 - Encapsulate each distinct idea or feature in its own concentrated phrase ended by a
 period, rather than stringing many ideas into one run-on sentence. Your captions should still vary
 freely in tone, length, and wordiness, never homogeneous in format or structure.
-
-EXAMPLE CAPTIONS:
-These are examples of desirable captions that encapsulate ideas/level features into discrete '.'-separated chunks
-while still varying in tone, specificity, length, etc. (shown as the JSON array elements they'd be):
-[
- "Multiple vertical passages interweave through this shaft. Ranged enemies guard the lower levels. Fire pillars erupt periodically. The exit waits high above.",
- "A horizontal descent beginning from a modest platform on the left side. The player travels rightward across progressively lower terrain featuring moving platforms and scattered enemies including a named foe. Multiple power-ups dot the landscape while deadly hazards appear in the lower sections. The exit awaits far to the right at the bottom level.",
- "A claustrophobic descent begins here. One enemy blocks the passage near the start. Further down, the area opens into a gauntlet featuring ranged enemies, moving platforms, and eventually a hazardous cavern."
-]
 
 REMINDERS:
 - Make sure your captions are each NOTICEABLY DISTINCT from one another in length, tone, and specificity:
