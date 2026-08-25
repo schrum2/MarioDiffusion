@@ -98,7 +98,7 @@ Once the coordinator has collected captions for all scenes using all designated 
 
 No matter how you choose to create your captioned dataset, you should end up with a file `Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json`. This file needs a train/validation/test split before you can train with `train-diffusion.bat`:
 ```
-python split_data.py --json_file Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MMLV
+python split_data.py --json_file Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM2
 ```
 Once the data is split, you can use `train-diffusion.bat` like usual:
 ```
