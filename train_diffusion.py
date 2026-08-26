@@ -150,6 +150,7 @@ def parse_args():
     parser.add_argument("--tileset", default=None, help="Descriptions of individual tile types. If omitted, defaults to the per-game value below.")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure")
     parser.add_argument("--plot_validation_caption_score", action="store_true", default=False, help="Whether validation caption score should be plotted")
+    parser.add_argument("--plot_clip_score", action="store_true", default=False, help="Whether validation CLIP scores should be plotted")
 
     # Dataset augmentation / checkpointed dataset saving
     parser.add_argument("--auto_augment", action="store_true", help="Enable dataset growth from generated captions after reaching a target caption score")
@@ -674,6 +675,7 @@ def main():
     
     caption_score_log_file = os.path.join(args.output_dir, f"caption_score_log_{formatted_date}.jsonl")
     caption_score_by_width_png = os.path.join(args.output_dir, f"caption_score_by_width_{formatted_date}.png")
+    clip_score_log_file = os.path.join(args.output_dir, f"clip_score_log_{formatted_date}.jsonl")
 
     if accelerator.is_local_main_process:
         plotter, plot_thread = gen_train_help.start_plotter(log_file=log_file, output_dir=args.output_dir,
@@ -688,21 +690,22 @@ def main():
                                             left_key='caption_score', right_key=None, left_label='Caption Match Score', 
                                             right_label=None, png_name='caption_score')
 
-            if args.use_clip_score:
-                text_clip_score_plotter, text_clip_score_plot_thread = gen_train_help.start_plotter(
-                                                log_file=caption_score_log_file, output_dir=args.output_dir,
-                                                left_key='text_clip_score', right_key=None, left_label='Text-Image CLIP Score', 
-                                                right_label=None, png_name='text_clip_score')
+        if args.plot_clip_score and args.use_clip_score:
+            text_clip_score_plotter, text_clip_score_plot_thread = gen_train_help.start_plotter(
+                                            log_file=clip_score_log_file, output_dir=args.output_dir,
+                                            left_key='text_clip_score', right_key=None, left_label='Text-Image CLIP Score',
+                                            right_label=None, png_name='text_clip_score')
 
-                scene_clip_score_plotter, scene_clip_score_plot_thread = gen_train_help.start_plotter(
-                                                log_file=caption_score_log_file, output_dir=args.output_dir,
-                                                left_key='scene_clip_score', right_key=None, left_label='Scene-Image CLIP Score', 
-                                                right_label=None, png_name='scene_clip_score')
+            scene_clip_score_plotter, scene_clip_score_plot_thread = gen_train_help.start_plotter(
+                                            log_file=clip_score_log_file, output_dir=args.output_dir,
+                                            left_key='scene_clip_score', right_key=None, left_label='Scene-Image CLIP Score',
+                                            right_label=None, png_name='scene_clip_score')
 
-                device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
-                clip_model, clip_processor = load_clip_model(args.clip_model_name, device)
-                print(f"Loaded CLIP model {args.clip_model_name} for scoring generated samples.")
-            
+            device = "cuda" if torch.cuda.is_available() else "cpu"     # Save within the model path directory
+            clip_model, clip_processor = load_clip_model(args.clip_model_name, device)
+            print(f"Loaded CLIP model {args.clip_model_name} for scoring generated samples.")
+
+        if args.plot_validation_caption_score or args.plot_clip_score:
             _, id_to_char, char_to_id, tile_descriptors = extract_tileset(args.tileset)
         
         if args.auto_augment:
@@ -736,6 +739,8 @@ def main():
         copy_log_up_to_epoch(args.output_dir, log_file, latest_epoch, "training_log_*.jsonl")
         if args.text_conditional and args.plot_validation_caption_score and caption_score_log_file:
             copy_log_up_to_epoch(args.output_dir, caption_score_log_file, latest_epoch, "caption_score_log_*.jsonl")
+        if args.text_conditional and args.plot_clip_score and clip_score_log_file:
+            copy_log_up_to_epoch(args.output_dir, clip_score_log_file, latest_epoch, "clip_score_log_*.jsonl")
 
         if args.auto_augment and dataset_growth_log_file:
             copy_log_up_to_epoch(
@@ -859,6 +864,8 @@ def main():
         # Calculate validation loss if validation dataset exists and it's time to validate
         val_loss = None
         avg_caption_score = None
+        avg_clip_score = None
+        avg_scene_clip_score = None
         width_scores = {}
         bad_generated_scenes = []
         val_loss_improved = False
@@ -879,7 +886,7 @@ def main():
 
             val_loss /= len(val_dataloader)
 
-            if args.text_conditional and args.plot_validation_caption_score:
+            if args.text_conditional and (args.plot_validation_caption_score or args.plot_clip_score):
                 # Compute caption match score for this data
                 pipeline = TextConditionalDDPMPipeline(
                     unet=accelerator.unwrap_model(model), 
@@ -918,7 +925,8 @@ def main():
                     # MM2 caption tools (set just above); None for other games.
                     assign_caption_fn=mm2_assign_fn, compare_captions_fn=mm2_compare_fn,
                     # CLIP scores
-                    compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor
+                    compute_clip=args.plot_clip_score and args.use_clip_score,
+                    clip_model=clip_model, clip_processor=clip_processor
                 )
                 # Standard, part of old MarioDiffusion, used in AIIDE 2025
                 avg_caption_score, all_samples, all_prompts, compare_all_scores = result["avg_score"], result["all_samples"], result["all_prompts"], result["compare_all_scores"]
@@ -1137,8 +1145,6 @@ def main():
                         "caption_score": avg_caption_score,
                         "width_scores": width_scores,
                         "step": global_step,
-                        "text_clip_score": avg_clip_score,
-                        "scene_clip_score": avg_scene_clip_score,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     f.write(json.dumps(log_entry) + '\n')
@@ -1146,6 +1152,17 @@ def main():
                 # is no per-width data, so it is safe on single-width runs.
                 # TODO: Do width-based CLIP scores?
                 plot_scores_by_width(caption_score_log_file, caption_score_by_width_png)
+
+            if args.text_conditional and args.plot_clip_score and accelerator.is_local_main_process and clip_score_log_file:
+                with open(clip_score_log_file, 'a') as f:
+                    log_entry = {
+                        "epoch": epoch,
+                        "text_clip_score": avg_clip_score,
+                        "scene_clip_score": avg_scene_clip_score,
+                        "step": global_step,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    f.write(json.dumps(log_entry) + '\\n')
 
             # TODO: Option to base early stopping and best model on CLIP scores?
             # Early stopping logic: check if EITHER metric improved in the epoch

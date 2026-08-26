@@ -270,14 +270,14 @@ if exist "%TIMING_LOG%" del "%TIMING_LOG%"
 python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train start"
 
 REM --- Epoch counts ---------------------------------------------------------
-set DIFFUSION_EPOCHS=500
+set DIFFUSION_EPOCHS=400
 if /I "%GAME%"=="LR" set DIFFUSION_EPOCHS=1000
 
-REM Diverse caption sources require more training iterations for stable
-REM convergence, so double the diffusion epochs when they are supplied.
-if defined CAPTION_SOURCE_KEYS (
-    set /A DIFFUSION_EPOCHS=!DIFFUSION_EPOCHS! * 2
-)
+REM Not sure this is actually true, so commenting out
+REM Diverse caption sources require more training iterations for stable convergence
+REM if defined CAPTION_SOURCE_KEYS (
+REM     set /A DIFFUSION_EPOCHS=!DIFFUSION_EPOCHS! * 2
+REM )
 
 set MLM_EPOCHS=300
 set MLM_CHECKPOINT=20
@@ -334,6 +334,9 @@ REM ===========================================================================
 REM Step 2: diffusion model training.
 REM If MODEL_DIR already exists, as to resume.
 REM ===========================================================================
+set "CAPTION_SCORE_PLOT_FLAG=--plot_validation_caption_score"
+if defined CAPTION_SOURCE_KEYS set "CAPTION_SCORE_PLOT_FLAG="
+
 if /I "%UNCONDITIONAL%"=="true" (
     python train_diffusion.py     --save_image_epochs %DIFFUSION_EPOCHS% --augment                    --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG%
     if errorlevel 1 (
@@ -342,13 +345,13 @@ if /I "%UNCONDITIONAL%"=="true" (
     )
 ) else (
     if /I "%USE_MLM%"=="true" (
-        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
+        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SCORE_PLOT_FLAG% --plot_clip_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
         if errorlevel 1 (
             echo Error: train_diffusion.py failed.
             exit /b 1
         )
     ) else (
-        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% --plot_validation_caption_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
+        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SCORE_PLOT_FLAG% --plot_clip_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
         if errorlevel 1 (
             echo Error: train_diffusion.py failed.
             exit /b 1
