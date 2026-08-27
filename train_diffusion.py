@@ -1162,7 +1162,7 @@ def main():
                         "step": global_step,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
-                    f.write(json.dumps(log_entry) + '\\n')
+                    f.write(json.dumps(log_entry) + '\n')
 
             # TODO: Option to base early stopping and best model on CLIP scores?
             # Early stopping logic: check if EITHER metric improved in the epoch
