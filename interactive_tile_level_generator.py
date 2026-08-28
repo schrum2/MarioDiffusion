@@ -59,6 +59,10 @@ class CaptionBuilder(ParentBuilder):
         self.caption_source_keys = caption_source_keys or []
         self.caption_browser_mode = False
         self.caption_library = []
+        self.caption_library_source_scenes = []
+        self.filtered_caption_indices = []
+        self.selected_training_caption = None
+        self.selected_training_scene = None
         self.filtered_captions = []
         self._experiment_log_path = None
         self._experiment_scenes_dir = None
@@ -679,6 +683,7 @@ class CaptionBuilder(ParentBuilder):
             return []
 
         captions = []
+        source_scenes = []
         for item in dataset:
             if not isinstance(item, dict):
                 continue
@@ -689,6 +694,8 @@ class CaptionBuilder(ParentBuilder):
                     # captions too: every list element represents a caption used
                     # for a particular training scene.
                     captions.append(caption)
+                    source_scenes.append(item.get("scene"))
+        self.caption_library_source_scenes = source_scenes
         return captions
 
     @staticmethod
@@ -736,7 +743,7 @@ class CaptionBuilder(ParentBuilder):
 
         self.caption_browser_mode = True
         self.caption_library = captions
-        self.filtered_captions = captions
+        self.filtered_caption_indices = list(range(len(captions)))
 
         controls = ttk.Frame(self.checkbox_frame)
         controls.pack(fill=tk.X, padx=5, pady=5)
@@ -765,27 +772,33 @@ class CaptionBuilder(ParentBuilder):
 
     def _filter_caption_library(self, *_):
         query = self.caption_search_var.get().casefold()
-        self.filtered_captions = [caption for caption in self.caption_library if query in caption.casefold()]
+        self.filtered_caption_indices = [
+            index for index, caption in enumerate(self.caption_library)
+            if query in caption.casefold()
+        ]
         self._refresh_caption_listbox()
-        self._log_event("caption_search_changed", search_text=self.caption_search_var.get(), result_count=len(self.filtered_captions))
+        self._log_event("caption_search_changed", search_text=self.caption_search_var.get(), result_count=len(self.filtered_caption_indices))
 
     def _refresh_caption_listbox(self):
         self.caption_listbox.delete(0, tk.END)
-        for caption in self.filtered_captions:
-            self.caption_listbox.insert(tk.END, caption)
+        for index in self.filtered_caption_indices:
+            self.caption_listbox.insert(tk.END, self.caption_library[index])
         self.caption_library_count_label.config(
-            text=f"{len(self.filtered_captions)} of {len(self.caption_library)} captions"
+            text=f"{len(self.filtered_caption_indices)} of {len(self.caption_library)} captions"
         )
 
     def _load_selected_library_caption(self, _event=None):
         selection = self.caption_listbox.curselection()
         if not selection:
             return
-        caption = self.filtered_captions[selection[0]]
+        caption_index = self.filtered_caption_indices[selection[0]]
+        caption = self.caption_library[caption_index]
         self.caption_text.delete("1.0", tk.END)
         self.caption_text.insert("1.0", caption)
         self.present_caption = caption
-        self._log_event("training_caption_selected", caption=caption)
+        self.selected_training_caption = caption
+        self.selected_training_scene = self.caption_library_source_scenes[caption_index]
+        self._log_event("training_caption_selected", caption=caption, has_source_scene=self.selected_training_scene is not None)
         
     def load_model(self, model = None):
         if model == None:
@@ -906,6 +919,9 @@ class CaptionBuilder(ParentBuilder):
         print("Generating")
         
         prompt = self._get_current_prompt()
+        original_scene = None
+        if prompt == self.selected_training_caption and isinstance(self.selected_training_scene, list):
+            original_scene = self.selected_training_scene
         
         negative_prompt = self.negative_prompt_entry.get("1.0", tk.END).strip()
         num_images = int(self.num_images_entry.get())        
@@ -934,6 +950,7 @@ class CaptionBuilder(ParentBuilder):
             requested_image_count=num_images,
             seed=int(self.seed_entry.get()),
             parameters=param_values,
+            uses_unmodified_training_caption=original_scene is not None,
         )
 
         generator = torch.Generator(self.device).manual_seed(int(self.seed_entry.get()))
@@ -1025,19 +1042,44 @@ class CaptionBuilder(ParentBuilder):
                 )
                 break
 
-            img_frame = ttk.Frame(self.image_inner_frame)
-            img_frame.grid(row=i, column=0, pady=10, sticky="n")  # Center each image frame horizontally
+            row_frame = ttk.Frame(self.image_inner_frame)
+            row_frame.grid(row=i, column=0, pady=10, sticky="n")
+            if original_scene is not None:
+                original_frame = ttk.Frame(row_frame)
+                original_frame.grid(row=0, column=0, padx=(0, 12), sticky="n")
+                img_frame = ttk.Frame(row_frame)
+                img_frame.grid(row=0, column=1, sticky="n")
+            else:
+                original_frame = None
+                img_frame = ttk.Frame(row_frame)
+                img_frame.grid(row=0, column=0, sticky="n")
 
 
             print(f"Image {i + 1} dimensions: width={img_tk.width()}, height={img_tk.height()}")
 
-            # Check if the image width exceeds the frame width and scale it down if necessary
-            if img_tk.width() > frame_width:
-                scale_factor = frame_width / img_tk.width()
-                new_width = frame_width
-                new_height = int(img_tk.height() * scale_factor)
-                img_tk = img_tk._PhotoImage__photo.subsample(img_tk.width() // new_width, img_tk.height() // new_height)
-                print(f"Image {i + 1} scaled to: width={new_width}, height={new_height}")
+            # When comparing with a training scene, reserve half the row for each image.
+            display_width = max(1, frame_width // 2) if original_frame else frame_width
+            if img_tk.width() > display_width:
+                scale_factor = display_width / img_tk.width()
+                new_size = (display_width, max(1, int(img_tk.height() * scale_factor)))
+                img_tk = ImageTk.PhotoImage(pil_img.resize(new_size))
+                print(f"Image {i + 1} scaled to: width={new_size[0]}, height={new_size[1]}")
+
+            if original_frame is not None:
+                try:
+                    original_pil_img = self._render_scene_image(original_scene)
+                    original_tk = ImageTk.PhotoImage(original_pil_img)
+                    if original_tk.width() > display_width:
+                        original_scale = display_width / original_tk.width()
+                        original_size = (display_width, max(1, int(original_tk.height() * original_scale)))
+                        original_tk = ImageTk.PhotoImage(original_pil_img.resize(original_size))
+                    original_label = ttk.Label(original_frame, image=original_tk)
+                    original_label.image = original_tk
+                    original_label.pack()
+                    ttk.Label(original_frame, text="Original").pack(pady=(5, 0))
+                except Exception as error:
+                    # Generation remains usable even if a malformed source scene cannot be rendered.
+                    print(f"Could not render original training scene: {error}")
 
             label = ttk.Label(img_frame, image=img_tk)
             label.image = img_tk
