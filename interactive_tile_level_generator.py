@@ -49,7 +49,12 @@ class CaptionBuilder(ParentBuilder):
     global tileset_path
     def __init__(self, master, game, caption_source_keys=None, experiment_log=None):
         global tileset_path
-        super().__init__(master)
+        self.panel_panes = ttk.Panedwindow(master, orient=tk.HORIZONTAL)
+        self.panel_panes.pack(fill=tk.BOTH, expand=True)
+        super().__init__(self.panel_panes)
+        # ParentBuilder stores its container as ``master``; the rest of this GUI
+        # needs the actual root for dialogs, popups, and global bindings.
+        self.master = master
 
         self.caption_source_keys = caption_source_keys or []
         self.caption_browser_mode = False
@@ -89,8 +94,8 @@ class CaptionBuilder(ParentBuilder):
         self.last_present_caption = ""
 
         # Frame for caption display
-        self.caption_frame = ttk.Frame(master, width=200, borderwidth=2, relief="solid")  # Add border
-        self.caption_frame.pack(side=tk.LEFT, fill=tk.Y, expand=False)  # Only fill vertically, don't expand horizontally
+        self.caption_frame = ttk.Frame(self.panel_panes, width=200, borderwidth=2, relief="solid")
+        self.panel_panes.insert(0, self.caption_frame)
         
         self.caption_label = ttk.Label(self.caption_frame, text="Constructed Caption:", style="TLabel", font=GUI_FONT)
         self.caption_label.pack(pady=5)
@@ -174,8 +179,8 @@ class CaptionBuilder(ParentBuilder):
         self.uncheck_all_button.pack(anchor=tk.E)
 
         # Frame for image display
-        self.image_frame = ttk.Frame(master, borderwidth=2, relief="solid")  # Add border
-        self.image_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        self.image_frame = ttk.Frame(self.panel_panes, borderwidth=2, relief="solid")
+        self.panel_panes.insert(1, self.image_frame)
         
         self.image_canvas = tk.Canvas(self.image_frame, borderwidth=0, highlightthickness=0)
         self.image_scrollbar = ttk.Scrollbar(self.image_frame, orient=tk.VERTICAL, command=self.image_canvas.yview)
@@ -669,7 +674,7 @@ class CaptionBuilder(ParentBuilder):
         return False
 
     def _collect_keyed_captions(self, dataset):
-        """Return unique LLM captions from the explicitly requested keyed fields."""
+        """Return unique, plain-text LLM captions from the requested keyed fields."""
         if not self.caption_source_keys or not isinstance(dataset, list):
             return []
 
@@ -678,16 +683,46 @@ class CaptionBuilder(ParentBuilder):
             if not isinstance(item, dict):
                 continue
             for key in self.caption_source_keys:
-                values = item.get(key, [])
-                if isinstance(values, str):
-                    values = [values]
-                if not isinstance(values, list):
-                    continue
-                captions.update(
-                    caption.strip() for caption in values
-                    if isinstance(caption, str) and caption.strip()
-                )
+                captions.update(self._normalize_caption_values(item.get(key, [])))
         return sorted(captions, key=str.casefold)
+
+    @staticmethod
+    def _normalize_caption_values(value):
+        """Flatten JSON-encoded caption lists and remove JSON quoting artifacts.
+
+        Some datasets contain a normal JSON list under a caption key, while others
+        contain that same list serialized once more as a string.  The latter used
+        to appear as a literal ``[\"caption\"]`` entry in the caption browser.
+        """
+        if isinstance(value, list):
+            captions = []
+            for item in value:
+                captions.extend(CaptionBuilder._normalize_caption_values(item))
+            return captions
+        if not isinstance(value, str):
+            return []
+
+        text = value.strip()
+        if not text:
+            return []
+
+        # A trailing comma is a common artifact when a list was copied from a
+        # larger JSON object. It is not part of a caption and prevents json.loads.
+        json_candidate = text[:-1].rstrip() if text.endswith(",") else text
+        if json_candidate.startswith("[") or (
+            len(json_candidate) >= 2 and json_candidate[0] == json_candidate[-1] and json_candidate[0] in "\"'"
+        ):
+            try:
+                decoded = json.loads(json_candidate)
+            except json.JSONDecodeError:
+                decoded = None
+            if isinstance(decoded, (list, str)):
+                return CaptionBuilder._normalize_caption_values(decoded)
+
+        # Keep a non-JSON string verbatim except for accidental outer quotes.
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+            text = text[1:-1].strip()
+        return [text] if text else []
 
     def _show_caption_browser(self, captions):
         """Replace the phrase builder with a searchable library of LLM captions."""

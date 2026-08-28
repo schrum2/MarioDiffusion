@@ -7,14 +7,17 @@ GUI_FONT_SIZE = 12
 class ParentBuilder:
     def __init__(self, master):
         self.master = master
-        master.title("Caption Builder")
+        master.winfo_toplevel().title("Caption Builder")
         
         self.all_phrases = []
         self.selected_phrases = set()
         
         # Frame for checkboxes
         self.checkbox_frame = ttk.Frame(master)
-        self.checkbox_frame.pack(side=tk.RIGHT, fill=tk.Y)
+        if isinstance(master, ttk.Panedwindow):
+            master.add(self.checkbox_frame)
+        else:
+            self.checkbox_frame.pack(side=tk.RIGHT, fill=tk.Y)
         
 
 
