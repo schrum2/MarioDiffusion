@@ -674,17 +674,22 @@ class CaptionBuilder(ParentBuilder):
         return False
 
     def _collect_keyed_captions(self, dataset):
-        """Return unique, plain-text LLM captions from the requested keyed fields."""
+        """Return plain-text LLM captions from the requested keyed fields in source order."""
         if not self.caption_source_keys or not isinstance(dataset, list):
             return []
 
-        captions = set()
+        captions = []
         for item in dataset:
             if not isinstance(item, dict):
                 continue
             for key in self.caption_source_keys:
-                captions.update(self._normalize_caption_values(item.get(key, [])))
-        return sorted(captions, key=str.casefold)
+                for caption in self._normalize_caption_values(item.get(key, [])):
+                    # Keep the dataset's scene/key/caption order, which is useful
+                    # when comparing a prompt to its source data. Keep duplicate
+                    # captions too: every list element represents a caption used
+                    # for a particular training scene.
+                    captions.append(caption)
+        return captions
 
     @staticmethod
     def _normalize_caption_values(value):
