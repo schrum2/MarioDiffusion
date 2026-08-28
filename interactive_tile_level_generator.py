@@ -3,9 +3,11 @@ from tkinter import ttk, filedialog, messagebox
 import subprocess
 import os
 import json
+import re
 import torch
 import gc
 import tokenizer
+from datetime import datetime
 from PIL import ImageTk
 import sys
 from util.gui_shared import ParentBuilder, GUI_FONT_SIZE
@@ -45,9 +47,20 @@ class CaptionBuilder(ParentBuilder):
 
 
     global tileset_path
-    def __init__(self, master, game):
+    def __init__(self, master, game, caption_source_keys=None, experiment_log=None):
         global tileset_path
         super().__init__(master)
+
+        self.caption_source_keys = caption_source_keys or []
+        self.caption_browser_mode = False
+        self.caption_library = []
+        self.filtered_captions = []
+        self._experiment_log_path = None
+        self._experiment_scenes_dir = None
+        self._experiment_scene_count = 0
+        self._experiment_generation_count = 0
+        self._experiment_session_id = None
+        self._initialize_experiment_log(experiment_log)
 
         # Selected game is stored solely in game_var from here on
         initial_game = common_settings.normalize_game_name(game) or "Mario"
@@ -272,6 +285,65 @@ class CaptionBuilder(ParentBuilder):
         self.game_dropdown.pack()
         self.game_dropdown.bind("<<ComboboxSelected>>", lambda e: self.update_mario_only_buttons()) 
         self.update_mario_only_buttons() 
+
+        # This catches ordinary button, checkbox, and list interactions without changing
+        # the behavior of the individual controls.
+        self.master.bind_all("<ButtonRelease-1>", self._log_widget_click, add="+")
+
+    def _initialize_experiment_log(self, participant_id):
+        """Set up optional JSONL event logging for a human-study participant."""
+        if not participant_id:
+            return
+
+        safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(participant_id)).strip("._")
+        if not safe_id:
+            raise ValueError("--experiment_log must contain at least one letter or number.")
+
+        log_stem = f"experiment_{safe_id}"
+        self._experiment_log_path = os.path.abspath(f"{log_stem}.jsonl")
+        self._experiment_scenes_dir = os.path.abspath(f"{log_stem}_scenes")
+        os.makedirs(self._experiment_scenes_dir, exist_ok=True)
+        self._experiment_session_id = datetime.now().strftime("%Y%m%dT%H%M%S%f")
+        existing_scene_numbers = []
+        for filename in os.listdir(self._experiment_scenes_dir):
+            match = re.fullmatch(r"scene_(\d{6})\.json", filename)
+            if match:
+                existing_scene_numbers.append(int(match.group(1)))
+        self._experiment_scene_count = max(existing_scene_numbers, default=0)
+        self._log_event(
+            "experiment_started",
+            participant_id=str(participant_id),
+            caption_source_keys=self.caption_source_keys,
+            scene_directory=self._experiment_scenes_dir,
+        )
+        print(f"Experiment logging enabled: {self._experiment_log_path}")
+
+    def _log_event(self, event, **details):
+        if not self._experiment_log_path:
+            return
+        record = {
+            "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+            "session_id": self._experiment_session_id,
+            "event": event,
+            **details,
+        }
+        with open(self._experiment_log_path, "a", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def _log_widget_click(self, event):
+        if not self._experiment_log_path:
+            return
+        widget = event.widget
+        try:
+            text = widget.cget("text")
+        except tk.TclError:
+            text = ""
+        self._log_event(
+            "widget_clicked",
+            widget_class=widget.winfo_class(),
+            widget_name=str(widget),
+            text=text,
+        )
         
     def probe_absence_caption_support(self):
         """Test if the loaded model supports absence captions by running a quick, hidden generation."""
@@ -555,19 +627,39 @@ class CaptionBuilder(ParentBuilder):
             _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
 
             try:
-                phrases_set = set()
                 with open(filepath, 'r', encoding='utf-8') as f:
                     dataset = json.load(f)
-                    for item in dataset:
-                        phrases = item['caption'].split('.')
-                        phrases_set.update(phrase.strip() for phrase in phrases if phrase.strip())
-                        if self.automatic_absence_caption.get():
-                            self.update_absence_caption_entry()
-                        if self.automatic_negative_caption.get():
-                            self.update_negative_prompt_entry
+
+                if self.caption_source_keys:
+                    llm_captions = self._collect_keyed_captions(dataset)
+                    if llm_captions:
+                        self._show_caption_browser(llm_captions)
+                        self._log_event(
+                            "caption_dataset_loaded",
+                            dataset_path=os.path.abspath(filepath),
+                            mode="llm_caption_browser",
+                            caption_count=len(llm_captions),
+                            caption_source_keys=self.caption_source_keys,
+                        )
+                        return True
+
+                phrases_set = set()
+                for item in dataset:
+                    phrases = item['caption'].split('.')
+                    phrases_set.update(phrase.strip() for phrase in phrases if phrase.strip())
+                    if self.automatic_absence_caption.get():
+                        self.update_absence_caption_entry()
+                    if self.automatic_negative_caption.get():
+                        self.update_negative_prompt_entry
                             
                 self.all_phrases = sorted(list(phrases_set))
                 self.create_checkboxes()
+                self._log_event(
+                    "caption_dataset_loaded",
+                    dataset_path=os.path.abspath(filepath),
+                    mode="structured_phrase_builder",
+                    phrase_count=len(self.all_phrases),
+                )
 
                 return True
             except FileNotFoundError as e:
@@ -575,6 +667,85 @@ class CaptionBuilder(ParentBuilder):
                 messagebox.showerror("Error", f"Error loading data: {e}")
 
         return False
+
+    def _collect_keyed_captions(self, dataset):
+        """Return unique LLM captions from the explicitly requested keyed fields."""
+        if not self.caption_source_keys or not isinstance(dataset, list):
+            return []
+
+        captions = set()
+        for item in dataset:
+            if not isinstance(item, dict):
+                continue
+            for key in self.caption_source_keys:
+                values = item.get(key, [])
+                if isinstance(values, str):
+                    values = [values]
+                if not isinstance(values, list):
+                    continue
+                captions.update(
+                    caption.strip() for caption in values
+                    if isinstance(caption, str) and caption.strip()
+                )
+        return sorted(captions, key=str.casefold)
+
+    def _show_caption_browser(self, captions):
+        """Replace the phrase builder with a searchable library of LLM captions."""
+        for widget in self.checkbox_frame.winfo_children():
+            widget.destroy()
+
+        self.caption_browser_mode = True
+        self.caption_library = captions
+        self.filtered_captions = captions
+
+        controls = ttk.Frame(self.checkbox_frame)
+        controls.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Button(controls, text="Load Data", command=self.load_data).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(controls, text="Load Model", command=self.load_model).pack(side=tk.LEFT)
+
+        ttk.Label(self.checkbox_frame, text="Training Captions").pack(anchor=tk.W, padx=5)
+        ttk.Label(self.checkbox_frame, text="Search captions:").pack(anchor=tk.W, padx=5, pady=(5, 0))
+        self.caption_search_var = tk.StringVar()
+        self.caption_search_var.trace_add("write", self._filter_caption_library)
+        search_entry = ttk.Entry(self.checkbox_frame, textvariable=self.caption_search_var)
+        search_entry.pack(fill=tk.X, padx=5)
+
+        list_frame = ttk.Frame(self.checkbox_frame)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.caption_listbox = tk.Listbox(list_frame, selectmode=tk.BROWSE, activestyle="none", font=GUI_FONT)
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.caption_listbox.yview)
+        self.caption_listbox.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.caption_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.caption_listbox.bind("<<ListboxSelect>>", self._load_selected_library_caption)
+
+        self.caption_library_count_label = ttk.Label(self.checkbox_frame)
+        self.caption_library_count_label.pack(anchor=tk.W, padx=5, pady=(0, 5))
+        self._refresh_caption_listbox()
+
+    def _filter_caption_library(self, *_):
+        query = self.caption_search_var.get().casefold()
+        self.filtered_captions = [caption for caption in self.caption_library if query in caption.casefold()]
+        self._refresh_caption_listbox()
+        self._log_event("caption_search_changed", search_text=self.caption_search_var.get(), result_count=len(self.filtered_captions))
+
+    def _refresh_caption_listbox(self):
+        self.caption_listbox.delete(0, tk.END)
+        for caption in self.filtered_captions:
+            self.caption_listbox.insert(tk.END, caption)
+        self.caption_library_count_label.config(
+            text=f"{len(self.filtered_captions)} of {len(self.caption_library)} captions"
+        )
+
+    def _load_selected_library_caption(self, _event=None):
+        selection = self.caption_listbox.curselection()
+        if not selection:
+            return
+        caption = self.filtered_captions[selection[0]]
+        self.caption_text.delete("1.0", tk.END)
+        self.caption_text.insert("1.0", caption)
+        self.present_caption = caption
+        self._log_event("training_caption_selected", caption=caption)
         
     def load_model(self, model = None):
         if model == None:
@@ -600,6 +771,7 @@ class CaptionBuilder(ParentBuilder):
 
             filename = os.path.splitext(os.path.basename(model))[0]
             self.loaded_model_label["text"] = f"Using model: {filename}"
+            self._log_event("model_loaded", model_path=os.path.abspath(model), model_name=filename)
     
             # Enable or disable negative prompt entry based on pipeline support
             if hasattr(self.pipe, "supports_negative_prompt") and self.pipe.supports_negative_prompt:
@@ -712,6 +884,18 @@ class CaptionBuilder(ParentBuilder):
         if negative_prompt != "":
             param_values["negative_prompt"] = negative_prompt
 
+        self._experiment_generation_count += 1
+        generation_id = self._experiment_generation_count
+        self._log_event(
+            "generation_requested",
+            generation_id=generation_id,
+            caption=prompt,
+            negative_prompt=negative_prompt,
+            requested_image_count=num_images,
+            seed=int(self.seed_entry.get()),
+            parameters=param_values,
+        )
+
         generator = torch.Generator(self.device).manual_seed(int(self.seed_entry.get()))
         
         self.image_inner_frame
@@ -771,12 +955,28 @@ class CaptionBuilder(ParentBuilder):
                 print(f"Assigning caption for game: {self.game_var.get()}")
                 actual_caption, pil_img = self._prepare_scene_output(scene, images)
 
+                self._save_experiment_scene(
+                    scene=scene,
+                    image=pil_img,
+                    generation_id=generation_id,
+                    image_index=i,
+                    prompt=prompt,
+                    negative_prompt=negative_prompt,
+                    parameters=param_values,
+                )
+
                 self.generated_images.append(pil_img)
                 img_tk = ImageTk.PhotoImage(pil_img)
                 print(f"Comparing captions for game: {self.game_var.get()}")
                 compare_score, exact_matches, partial_matches, excess_phrases = self._compare_caption(prompt, actual_caption)
 
             except Exception as e:
+                self._log_event(
+                    "generation_failed",
+                    generation_id=generation_id,
+                    image_index=i,
+                    error=str(e),
+                )
                 messagebox.showerror(
                     "Generation Error",
                     f"Failed to generate image {i + 1}.\n\n"
@@ -920,7 +1120,41 @@ Average Segment Score: {avg_segment_score}"""
             gc.collect()  # Force garbage collection
 
         print("Image generation completed.")
+        self._log_event("generation_completed", generation_id=generation_id, generated_image_count=len(self.generated_scenes))
         #print(self.current_levels)
+
+    def _save_experiment_scene(self, scene, image, generation_id, image_index, prompt, negative_prompt, parameters):
+        """Persist each generated scene and its generation context for study analysis."""
+        if not self._experiment_scenes_dir:
+            return
+
+        self._experiment_scene_count += 1
+        scene_stem = f"scene_{self._experiment_scene_count:06d}"
+        scene_path = os.path.join(self._experiment_scenes_dir, f"{scene_stem}.json")
+        image_path = os.path.join(self._experiment_scenes_dir, f"{scene_stem}.png")
+        record = {
+            "scene_id": scene_stem,
+            "session_id": self._experiment_session_id,
+            "generation_id": generation_id,
+            "image_index": image_index,
+            "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+            "caption": prompt,
+            "negative_prompt": negative_prompt,
+            "parameters": parameters,
+            "scene": scene,
+        }
+        with open(scene_path, "w", encoding="utf-8") as scene_file:
+            json.dump(record, scene_file, ensure_ascii=False, indent=2)
+        image.save(image_path)
+        self._log_event(
+            "scene_generated",
+            scene_id=scene_stem,
+            generation_id=generation_id,
+            image_index=image_index,
+            scene_path=scene_path,
+            image_path=image_path,
+            caption=prompt,
+        )
 
     def add_to_composed_level(self, idx):
         # Assigns tileset_path below, so it must be declared global 
@@ -1631,6 +1865,19 @@ def parse_args():
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
     parser.add_argument("--load_data", type=str, default="Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
     parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
+    parser.add_argument(
+        "--caption_source_keys",
+        nargs="+",
+        default=None,
+        help="LLM caption-list keys in --load_data. Enables the searchable training-caption browser."
+    )
+    parser.add_argument(
+        "--experiment_log",
+        type=str,
+        default=None,
+        metavar="PARTICIPANT_ID",
+        help="Participant ID for JSONL interaction logging and per-scene experiment output."
+    )
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -1640,7 +1887,12 @@ if __name__ == "__main__":
     tileset_path = config["tileset"]
 
     root = tk.Tk()
-    app = CaptionBuilder(root, game)
+    app = CaptionBuilder(
+        root,
+        game,
+        caption_source_keys=args.caption_source_keys,
+        experiment_log=args.experiment_log,
+    )
     app.load_data(args.load_data)
     app.load_model(args.model_path)
 
