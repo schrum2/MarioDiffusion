@@ -197,7 +197,7 @@ def extract_tileset(tileset_path):
         else:
             # For some reason, sorting the tilesets for MM-Full or MMLV ruins the mapping.
             if tileset_path == common_settings.MM_FULL_TILESET or tileset_path == common_settings.MMLV_TILESET:
-                tile_chars = list(tileset['tiles'].keys())              
+                tile_chars = tileset['tiles'].keys()            
             else:
                 tile_chars = sorted(tileset['tiles'].keys()) 
 
