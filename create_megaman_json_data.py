@@ -157,11 +157,16 @@ def create_tile_to_id(tileset_path, tile_descriptors, new_tileset_dir = 'Game_MM
         #Create a new tileset to match these tiles. We also persist the *actual* id
         #assignment order used to encode scene data, since sort_keys=True below alphabetizes
         #the "tiles" section for human readability and no longer reflects the real ids.
-        output = os.path.join(new_tileset_dir, "MM-Simple-tileset.json")
-        tile_dict = {tile: sorted(list(tile_descriptors.get(tile))) for tile in tile_to_id}
-        tile_dict = {"tiles" : tile_dict, "tile_to_id": dict(tile_to_id)}
-        with open(output, 'w') as f:
-            json.dump(tile_dict, f, indent=4, sort_keys=True)
+
+        #output = os.path.join(new_tileset_dir, "MM-Simple-tileset.json")
+        #tile_dict = {tile: sorted(list(tile_descriptors.get(tile))) for tile in tile_to_id}
+        #tile_dict = {"tiles" : tile_dict, "tile_to_id": dict(tile_to_id)}
+        #with open(output, 'w') as f:
+        #    json.dump(tile_dict, f, indent=4, sort_keys=True)
+
+        # MM-Simple-tileset.jsonis already saved in the repo. 
+        # before, overwriting it was harmless, but since adding the tile coordinate information, this action is desctructive.
+
 
         #Add in the old tiles to allow for encoding of everything
         tile_to_id_enemies = {char: tile_to_id[basic_enemy_char] for char in enemies}
