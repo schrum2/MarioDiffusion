@@ -1244,7 +1244,7 @@ class MegaManLayoutEditor:
             with open(txt_path, 'w') as f:
                 f.write("\n".join(rows))
 
-            from megaman.vglc_to_mmlv import convert
+            from Game_MMLV.vglc_to_mmlv import convert
 
             lines = open(txt_path).readlines()
             locked_seams = self._seam_screen_pairs()

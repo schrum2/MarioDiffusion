@@ -36,7 +36,7 @@ if "!INTERACTIVE!"=="0" goto END
 goto LOOP
 
 :DOTXT
-python -m megaman.vglc_to_mmlv "!FILE!" "!DIR!!NAME!.mmlv"
+python -m Game_MMLV.vglc_to_mmlv "!FILE!" "!DIR!!NAME!.mmlv"
 copy "!DIR!!NAME!.mmlv" "%MMM%\"
 if "!INTERACTIVE!"=="0" goto END
 goto LOOP

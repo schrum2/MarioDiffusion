@@ -408,7 +408,7 @@ class CaptionBuilder(ParentBuilder):
             os.path.expanduser("~"),
             "AppData", "Local", "MegaMaker", "Levels", "generated_level.mmlv"
         )
-        from megaman.vglc_to_mmlv import convert
+        from Game_MMLV.vglc_to_mmlv import convert
         lines = open(txt_path).readlines()
         result = convert(lines, level_name="Generated", author="AI")
         with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
@@ -435,7 +435,7 @@ class CaptionBuilder(ParentBuilder):
             os.path.expanduser("~"),
             "AppData", "Local", "MegaMaker", "Levels", "generated_level.mmlv"
         )
-        from megaman.vglc_to_mmlv import convert
+        from Game_MMLV.vglc_to_mmlv import convert
         lines = open(txt_path).readlines()
         result = convert(lines, level_name="Generated", author="AI")
         with open(mmlv_path, 'w', encoding='utf-8', newline='\n') as f:
