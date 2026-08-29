@@ -120,7 +120,7 @@ python split_data.py --json_file Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json 
 ```
 Once the data is split, you can use `train-diffusion.bat` like usual:
 ```
-train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 gemma4:12b_captions qwen3.5:9b_captions deterministic_captions
+train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 500 gemma4:12b_captions qwen3.5:9b_captions deterministic_captions
 ```
 Note that this training command added `deterministic_captions` into the mix along with the LLM-generated captions.
 The dataset gets even more interesting when you add captions generated from commercial LLMs. However, using

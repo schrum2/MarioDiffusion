@@ -102,7 +102,7 @@ python split_data.py --json_file Game_MM2\DATA\MM2_LevelsAndCaptions-llm.json --
 ```
 Once the data is split, you can use `train-diffusion.bat` like usual:
 ```
-train-diffusion.bat 0 MM2 llm MM2 CLIP single none 0 gemma4:12b_captions qwen3.5:9b_captions
+train-diffusion.bat 0 MM2 llm MM2 CLIP single none 0 500 gemma4:12b_captions qwen3.5:9b_captions
 ```
 The dataset gets even more interesting when you add captions generated from commercial LLMs. However, using
 a commercial LLM means you have to provide the appropriate API key first.
