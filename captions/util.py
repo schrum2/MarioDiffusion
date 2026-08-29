@@ -187,7 +187,7 @@ def extract_tileset(tileset_path):
             id_to_char = {idx: char for char, idx in char_to_id.items()}
             tile_chars = list(char_to_id.keys())
         else:
-            tile_chars = tileset['tiles'].keys()
+            tile_chars = sorted(tileset['tiles'].keys()) # Will this break Mega Man in some way?
             id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
             char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
 
