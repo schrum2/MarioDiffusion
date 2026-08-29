@@ -31,7 +31,7 @@ echo Unsupported file type. Please provide a .mmlv or .txt file.
 goto LOOP
 
 :DOMMLV
-python -m megaman.mmlv_to_vglc "!FILE!"
+python -m Game_MMLV.mmlv_to_vglc "!FILE!"
 if "!INTERACTIVE!"=="0" goto END
 goto LOOP
 
