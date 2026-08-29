@@ -8,5 +8,15 @@
         "G" : ["passable","pickupable","gold"],
         "E" : ["damaging","enemy"],
         "M" : ["passable","spawn"]
+    },
+    "tile_coordinates": {
+        "#": [12, 4],
+        "-": [14, 4],
+        ".": [1, 1],
+        "B": [2, 3],
+        "E": [3, 2],
+        "G": [5, 2],
+        "M": [18, 21],
+        "b": [1, 22]
     }
 }
