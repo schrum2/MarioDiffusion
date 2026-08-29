@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 REM ============================================================================
 REM train-diffusion.bat - unified training entry point
 REM
-REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile_embed_method] [tile_embed_dim] [extra args...]
+REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile_embed_method] [tile_embed_dim] [diffusion_epochs] [extra args...]
 REM
 REM   <seed>   optional, defaults to 0
 REM   <data>   source of data: SMB1, SMB2, Mar1and2, LR, etc.
@@ -36,17 +36,16 @@ REM              (MLM or any pretrained model), or used with unconditional
 REM              training.
 REM   [tile_embed_dim] optional, defaults to 16. Embedding dimension used when
 REM              [tile_embed_method] is not "none". Ignored otherwise.
+REM   [diffusion_epochs] optional, defaults to 500. Number of epochs used for
+REM              diffusion-model training.
 REM   [extra args...] optional. Any additional arguments are treated as
 REM              caption_source_keys values and forwarded to train_diffusion.py
 REM              as --caption_source_keys <key1> <key2> ... . If supplied,
 REM              the run must use a non-MLM, non-unconditional training setup.
-REM              These runs also skip caption-adherence evaluation and use
-REM              doubled diffusion epochs to account for the wider caption mix.
+REM              These runs also skip caption-adherence evaluation.
 REM
-REM Special case: if <data> contains the substring "128", DIFFUSION_EPOCHS is
-REM forced to 100 and train_diffusion.py is called with --batch_size 16,
-REM since "128" data sources use larger training samples that need a smaller
-REM batch size to fit in VRAM (on this hardware).
+REM Data sources containing "128" use --batch_size 16 because their larger
+REM training samples need a smaller batch size to fit in VRAM.
 REM
 REM ============================================================================
 cd ..
@@ -114,9 +113,14 @@ if "%TILE_METHOD%"=="" set TILE_METHOD=none
 set TILE_DIM=%8
 if "%TILE_DIM%"=="" set TILE_DIM=16
 
+REM --- Read diffusion training epochs -----------------------------------
+set DIFFUSION_EPOCHS=%9
+if "%DIFFUSION_EPOCHS%"=="" set DIFFUSION_EPOCHS=500
+
 REM --- Read caption_source_key values from any extra parameters ---------
 set "CAPTION_SOURCE_KEYS="
 set "CAPTION_SOURCE_KEYS_ARG="
+shift
 shift
 shift
 shift
@@ -269,16 +273,7 @@ set TIMING_LOG=timing_logs\train-%GAME%-%DATA%-%TYPE%-seed%SEED%.jsonl
 if exist "%TIMING_LOG%" del "%TIMING_LOG%"
 python log_timestamp.py --log_file %TIMING_LOG% --status start --event "train start"
 
-REM --- Epoch counts ---------------------------------------------------------
-set DIFFUSION_EPOCHS=400
-if /I "%GAME%"=="LR" set DIFFUSION_EPOCHS=1000
-
-REM Not sure this is actually true, so commenting out
-REM Diverse caption sources require more training iterations for stable convergence
-REM if defined CAPTION_SOURCE_KEYS (
-REM     set /A DIFFUSION_EPOCHS=!DIFFUSION_EPOCHS! * 2
-REM )
-
+REM --- MLM epoch counts -----------------------------------------------------
 set MLM_EPOCHS=300
 set MLM_CHECKPOINT=20
 set MLM_MAX_SEQ_LENGTH_FLAG=
@@ -289,14 +284,12 @@ if /I "%GAME%"=="LR" (
     set MLM_CHECKPOINT=1000
 )
 
-REM --- 128-size data special case ---------------------------------------
+REM --- 128-size data batch-size adjustment --------------------------------
 REM Data sources with "128" in the name use larger training samples, which
-REM need a smaller batch size to fit in VRAM (on this hardware, anyway) and
-REM correspondingly fewer epochs.
+REM need a smaller batch size to fit in VRAM (on this hardware, anyway).
 set BATCH_SIZE_FLAG=
 echo %DATA%| findstr /C:"128" >nul
 if %ERRORLEVEL% EQU 0 (
-    set DIFFUSION_EPOCHS=100
     set BATCH_SIZE_FLAG=--batch_size 16
 )
 
