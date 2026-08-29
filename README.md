@@ -53,8 +53,8 @@ After setting up the repo with the instructions above, follow one of the links b
 
 - [Mario 1 and Mario 2 using VGLC Data](Game_Mario/README.md) (Original work from AIIDE 2025 paper)
 - [Mega Man using VGLC Data](Game_MM/README.md) (shared workflow for MM-Simple and MM-Full)
-- Enhanced Mario Levels using Mario Maker 2 Data
-- Enhanced Mega Man Levels using Mega Man Maker Data
+- [Enhanced Mario Levels using Mario Maker 2 Data](Game_MM2/README.md)
+- [Enhanced Mega Man Levels using Mega Man Maker Data](Game_MMLV/README.md)
 - [Lode Runner using VGLC Data](Game_LR/README.md)
 
 
