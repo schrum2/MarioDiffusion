@@ -187,9 +187,19 @@ def extract_tileset(tileset_path):
             id_to_char = {idx: char for char, idx in char_to_id.items()}
             tile_chars = list(char_to_id.keys())
         else:
-            tile_chars = tileset['tiles'].keys()
+            if "MM" in os.path.basename(tileset_path): #Clunky test that I'll likly change later to prevent sorting on the MegaMan data, because it doesn't expect it.
+                tile_chars = tileset['tiles'].keys()
+            else: #Applies to lode runner/mario
+                tile_chars = sorted(tileset['tiles'].keys())
+            # Wiggle room for the tileset to be a bit more flexible.
+            # However, this requires me to add some bogus tiles to the list.
+            # tile_chars.append('!') 
+            # tile_chars.append('*') 
+            #print(f"tile_chars: {tile_chars}")
             id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
+            #print(f"id_to_char: {id_to_char}")
             char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
+            #print(f"char_to_id: {char_to_id}")
 
         tile_descriptors = get_tile_descriptors(tileset)
         #print(f"tile_descriptors: {tile_descriptors}")
