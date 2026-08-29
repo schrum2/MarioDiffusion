@@ -3,6 +3,14 @@ import sys
 import os
 from collections import Counter
 
+# Allow this module to be imported or run from within ``captions`` while still
+# resolving the repository-level ``util`` package.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from util import common_settings
+
 # This file contains utility functions for analyzing and describing levels in both Lode Runner and Super Mario Bros.
 
 # Could define these via the command line, but for now they are hardcoded
@@ -187,6 +195,12 @@ def extract_tileset(tileset_path):
             id_to_char = {idx: char for char, idx in char_to_id.items()}
             tile_chars = list(char_to_id.keys())
         else:
+            # For some reason, sorting the tilesets for MM-Full or MMLV ruins the mapping.
+            if tileset_path == common_settings.MM_FULL_TILESET or tileset_path == common_settings.MMLV_TILESET:
+                tile_chars = list(tileset['tiles'].keys())              
+            else:
+                tile_chars = sorted(tileset['tiles'].keys()) 
+
             tile_chars = sorted(tileset['tiles'].keys()) # Will this break Mega Man in some way?
             id_to_char = {idx: char for idx, char in enumerate(tile_chars)}
             char_to_id = {char: idx for idx, char in enumerate(tile_chars)}
