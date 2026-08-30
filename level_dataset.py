@@ -185,8 +185,8 @@ def mario_tiles():
 
 
     # Load the sprite sheet only once
-    if _sprite_sheet_name != "mapsheet.png":
-        _sprite_sheet_name = "mapsheet.png" #Done to ensure we can change the sprite sheet after code execution
+    if _sprite_sheet_name != "Game_Mario/mapsheet.png":
+        _sprite_sheet_name = "Game_Mario/mapsheet.png" #Done to ensure we can change the sprite sheet after code execution
         _sprite_sheet = Image.open(_sprite_sheet_name)
 
     tile_coordinates = load_tile_coordinates(common_settings.MARIO_TILESET)
@@ -222,8 +222,8 @@ def lr_tiles():
     global _sprite_sheet_name
 
     # Load the sprite sheet only once
-    if _sprite_sheet_name != "LR_mapsheet.png":
-        _sprite_sheet_name = "LR_mapsheet.png" #Done to ensure we can change the sprite sheet after code execution
+    if _sprite_sheet_name != "Game_LR/LR_mapsheet.png":
+        _sprite_sheet_name = "Game_LR/LR_mapsheet.png" #Done to ensure we can change the sprite sheet after code execution
         _sprite_sheet = Image.open(_sprite_sheet_name)
 
     LR_tile_coordinates = load_tile_coordinates(common_settings.LR_TILESET)
@@ -263,7 +263,7 @@ def mm_tiles(game):
     global _sprite_sheet_name
 
     # Pick the sheet for this game and (re)load it only when it changes.
-    sheet = "MMLV_mapsheet.png" if game == "MMLV" else "MM_mapsheet.png"
+    sheet = "Game_MMLV/MMLV_mapsheet.png" if game == "MMLV" else "Game_MM/MM_mapsheet.png"
     if _sprite_sheet_name != sheet:
         _sprite_sheet_name = sheet #Done to ensure we can change the sprite sheet after code execution
         _sprite_sheet = Image.open(sheet)
