@@ -81,6 +81,7 @@ class BucketBatchSampler:
 def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_tiles,
                        negative_prompt_training, block_embeddings, batch_size,
                        persistent_workers=True, multiple_captions=False, caption_source_keys=None,
+                       captions_per_key=None,
                        require_captions=True,
                        bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1,
                        num_workers=4, pin_memory=False):
@@ -106,6 +107,10 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
             instead of the "caption" field. The training split picks one at random per access;
             the validation split picks the first available caption deterministically. See
             LevelDataset for details.
+        captions_per_key (int or None): If set (requires caption_source_keys), restricts each
+            source key to this many randomly-chosen captions per sample, fixed once at dataset
+            construction for both splits. None (the default) leaves every caption from every
+            source key available. See LevelDataset for details.
         require_captions (bool): True for text-conditional training (every item must have a
             "caption"); False for unconditional training, where scenes carry no captions.
         bucket_levels (bool): If True, scenes are variable-size complete levels that get grouped
@@ -132,6 +137,7 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
         block_embeddings=block_embeddings,
         multiple_captions=multiple_captions,
         caption_source_keys=caption_source_keys,
+        captions_per_key=captions_per_key,
         require_captions=require_captions, 
         bucket_levels=bucket_levels,
         num_buckets=num_buckets,
@@ -151,6 +157,7 @@ def create_dataloaders(json_path, val_json, tokenizer, data_mode, augment, num_t
             block_embeddings=block_embeddings,
             multiple_captions=multiple_captions,
             caption_source_keys=caption_source_keys,
+            captions_per_key=captions_per_key,
             require_captions=require_captions,
             bucket_levels=bucket_levels,
             num_buckets=num_buckets,

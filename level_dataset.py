@@ -525,7 +525,7 @@ def positive_negative_caption_split(caption, remove_upside_down_pipes, randomize
     return positive_phrases, negative_phrases
 
 class LevelDataset(Dataset):
-    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None, multiple_captions=False, caption_source_keys=None, require_captions=True, bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1, cache_numpy=True, mmap=True, cache_dir=None):
+    def __init__(self, json_path=None, tokenizer=None, data_as_list=None, shuffle=True, max_length=None, mode="diff_text", augment=True, random_flip=False, limit=-1, num_tiles=common_settings.MARIO_TILE_COUNT, negative_captions=False, block_embeddings=None, multiple_captions=False, caption_source_keys=None, captions_per_key=None, require_captions=True, bucket_levels=False, num_buckets=5, pad_tile_id=None, unet_factor=1, cache_numpy=True, mmap=True, cache_dir=None):
         """
             Args:
             json_path (str): Path to JSON file with captions.
@@ -549,6 +549,14 @@ class LevelDataset(Dataset):
                 are dropped when require_captions is set. None (the default) selects legacy mode,
                 which reads the "caption" field. Like multiple_captions, caption selection is the
                 only augmentation in this mode.
+            captions_per_key (int, optional): Restricts, per sample, how many of each
+                caption_source_keys source's captions are eligible for selection. If set, a
+                random subset of this size (sampled without replacement) is chosen once per
+                sample per key at dataset construction time and stays fixed for the rest of
+                training/validation; every other caption from that key/sample is simply never
+                selected. None (the default) leaves every caption from every listed key
+                available. Requires caption_source_keys; raises ValueError at construction if
+                any sample has fewer captions than captions_per_key under some listed key.
             require_captions (bool): If True (the default, used for text-conditional training),
                 every item must carry a "caption" field and a missing one is a hard error. Set
                 False for unconditional training, where scenes carry no captions: items may omit
@@ -591,8 +599,14 @@ class LevelDataset(Dataset):
         self.num_tiles = num_tiles
         self.negative_captions = negative_captions
         self.require_captions = require_captions
+        self.captions_per_key = captions_per_key  # None = no restriction (all captions from every key available)
         if self.caption_source_keys and self.negative_captions:
             raise ValueError("caption_source_keys captions are free-form text, not the pos/neg phrase format negative_captions needs")
+        if self.captions_per_key is not None:
+            if not self.caption_source_keys:
+                raise ValueError("captions_per_key requires caption_source_keys to be set")
+            if self.captions_per_key < 1:
+                raise ValueError(f"captions_per_key must be a positive integer, got {self.captions_per_key}")
         # Complete-level bucketing/padding (see _build_size_buckets, called below).
         self.bucket_levels = bucket_levels
         self.num_buckets = num_buckets
@@ -616,6 +630,13 @@ class LevelDataset(Dataset):
             self.data = random.sample(self.data, limit)
 
         print(f"Number of samples: {len(self.data)}")
+
+        if self.captions_per_key is not None:
+            # Fix, once and for all, which captions_per_key captions of each source key are
+            # eligible for each sample. Done before the require_captions check below so a
+            # sample that loses all its captions to this restriction is handled the same way
+            # as one that never had any.
+            self._restrict_captions_per_key()
 
         if self.require_captions and self.caption_source_keys:
             # Drop samples with no caption from any requested source (e.g. an expensive model
@@ -764,6 +785,44 @@ class LevelDataset(Dataset):
             return ". ".join(phrases) + "."
         else:
             return caption # Same as original
+
+    def _restrict_captions_per_key(self):
+        """One-time (construction-time) restriction of each caption_source_keys source to at
+        most self.captions_per_key captions per sample, chosen at random without replacement.
+        Mutates self.data in place so the same restricted pool is used for the rest of
+        training/validation (selection among that pool still happens per access, as usual).
+
+        Raises ValueError naming the offending sample/key if a sample has fewer captions than
+        captions_per_key under some listed key.
+        """
+        for idx, sample in enumerate(self.data):
+            for key in self.caption_source_keys:
+                value = sample.get(key)
+                if value is None:
+                    continue  # sample has no captions under this key; require_captions (if set) handles dropping it
+                if isinstance(value, list):
+                    available = [c for c in value if isinstance(c, str) and c]
+                elif isinstance(value, str) and value:
+                    available = [value]
+                else:
+                    continue
+
+                if len(available) < self.captions_per_key:
+                    identifier = sample.get("id", sample.get("scene_id", f"index {idx}"))
+                    raise ValueError(
+                        f"--captions_per_key {self.captions_per_key} exceeds the {len(available)} "
+                        f"caption(s) available for key '{key}' on sample '{identifier}'. Lower "
+                        f"--captions_per_key to at most {len(available)}, or drop '{key}' from "
+                        f"--caption_source_keys."
+                    )
+
+                if len(available) == self.captions_per_key:
+                    chosen = available
+                else:
+                    chosen = random.sample(available, self.captions_per_key)
+                # Keep a bare string as a string when only one caption is kept, so the value's
+                # shape stays consistent with a source that was never a list in the first place.
+                sample[key] = chosen[0] if (self.captions_per_key == 1 and isinstance(value, str)) else chosen
 
     def _caption_options(self, sample):
         """Returns every caption available for a sample, from whichever mode we're in.

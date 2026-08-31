@@ -91,6 +91,7 @@ def parse_args():
     parser.add_argument("--augment", action="store_true", help="Enable data augmentation")
     parser.add_argument("--multiple_captions", action="store_true", help="Each sample stores several captions (legacy 'caption'/'caption1'/... fields or a '<model>_captions' list); select one at random per access instead of phrase-shuffle augmentation. This becomes the only augmentation (phrase shuffling and scene flipping are disabled). Off by default; unconditional and negative-prompt training never select.")
     parser.add_argument("--caption_source_keys", nargs="+", type=str, default=None, help="Each argument names a dataset key holding a LIST of captions, e.g. '--caption_source_keys gemma4:26b_captions qwen3:32b_captions deterministic_captions'. During training, one caption is drawn at random from the pooled captions of all the listed sources; validation picks the first available caption deterministically. Samples with no caption under any listed source are dropped. Omit this to train on the single 'caption' field instead.")
+    parser.add_argument("--captions_per_key", type=int, default=None, help="Restricts, per sample, how many captions from EACH --caption_source_keys source are eligible for selection. E.g. with two source keys and '--captions_per_key 1', one caption per key is randomly chosen at the start of training and used for the rest of training/validation (2 captions total per sample); '--captions_per_key 2' keeps 2 per key (sampled without replacement), etc. Omit to leave all captions from every source key available (the default). Requires --caption_source_keys; exits with an error if any sample has fewer captions than this under some listed key.")
     parser.add_argument("--complete_levels", action="store_true", help="Treat scenes as variable-size complete levels: group them into --num_buckets size buckets and pad each up to its bucket's shared shape with the null/void tile (--pad_tile_id). Use with datasets built via 'create_megaman_json_data.py --scan_mode whole'.")
     parser.add_argument("--num_buckets", type=int, default=5, help="Number of size buckets when --complete_levels is set.")
     parser.add_argument("--pad_tile_id", type=int, default=None, help="Tile id used to fill the pad region under --complete_levels (the null/void tile). Defaults to the 'null'-descriptor tile resolved from --tileset.")
@@ -363,6 +364,12 @@ def main():
         if not args.text_conditional:
             raise ValueError("--caption_source_keys must be combined with --text_conditional")
 
+    if args.captions_per_key is not None:
+        if not args.caption_source_keys:
+            raise ValueError("--captions_per_key requires --caption_source_keys to be set")
+        if args.captions_per_key < 1:
+            raise ValueError(f"--captions_per_key must be a positive integer, got {args.captions_per_key}")
+
     # --multiple_captions only makes sense for text-conditional, non-negative training; clear
     # the flag (rather than erroring) for the incompatible modes so unconditional and
     # negative-prompt runs still work when it is passed.
@@ -470,6 +477,7 @@ def main():
                                         persistent_workers=(not args.auto_augment),
                                         multiple_captions=args.multiple_captions,
                                         caption_source_keys=args.caption_source_keys,
+                                        captions_per_key=args.captions_per_key,
                                         require_captions=args.text_conditional,
                                         bucket_levels=args.complete_levels, num_buckets=args.num_buckets,
                                         pad_tile_id=pad_tile_id, unet_factor=unet_factor,
