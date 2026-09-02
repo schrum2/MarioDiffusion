@@ -264,6 +264,8 @@ set TEST_DATA=%DATA_PATH%-test.json
 REM --- Output directory naming ------------------------------------------
 set MLM_OUTPUT=
 set TOKENIZER=
+set CAPTION_LIMIT_TAG=
+if defined NUM_CAPTIONS if /I "%UNCONDITIONAL%"=="false" set "CAPTION_LIMIT_TAG=-captions%NUM_CAPTIONS%"
 if /I "%UNCONDITIONAL%"=="true" (
     if /I "%USE_TILE_EMBED%"=="true" (
         set MODEL_DIR=%GAME%-%DATA%-unconditional-%TILE_TAG%-seed%SEED%
@@ -275,16 +277,16 @@ if /I "%UNCONDITIONAL%"=="true" (
         set MLM_OUTPUT=%GAME%-%DATA%-MLM-%TYPE%-seed%SEED%
         set TOKENIZER=%GAME_DIR%/DATA/%DATA%_Tokenizer-%TYPE%.pkl
         if /I "%USE_TILE_EMBED%"=="true" (
-            set MODEL_DIR=%GAME%-%DATA%-conditional-%TILE_TAG%-%TYPE%-seed%SEED%
+            set MODEL_DIR=%GAME%-%DATA%-conditional-%TILE_TAG%-%TYPE%!CAPTION_LIMIT_TAG!-seed%SEED%
         ) else (
-            set MODEL_DIR=%GAME%-%DATA%-conditional-%TYPE%-seed%SEED%
+            set MODEL_DIR=%GAME%-%DATA%-conditional-%TYPE%!CAPTION_LIMIT_TAG!-seed%SEED%
         )
     ) else (
         set MODEL_TAG=%MODEL%-%SPLIT%
         if /I "%USE_TILE_EMBED%"=="true" (
-            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TILE_TAG%-%TYPE%-seed%SEED%
+            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TILE_TAG%-%TYPE%!CAPTION_LIMIT_TAG!-seed%SEED%
         ) else (
-            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TYPE%-seed%SEED%
+            set MODEL_DIR=%GAME%-%DATA%-conditional-!MODEL_TAG!-%TYPE%!CAPTION_LIMIT_TAG!-seed%SEED%
         )
     )
 )
