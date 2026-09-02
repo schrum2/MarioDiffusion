@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import torch
 from diffusers import UNet2DModel, UNet2DConditionModel, DDPMScheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup 
@@ -79,6 +80,23 @@ def combined_loss(pred, target, scene_oh=None, noisy_scenes=None, timesteps=None
     return mse + 0.001 * rec  # 0.001 can be made a parameter
 
 
+# --- Remote-orchestration support -------------------------------------------------------
+# A lightweight, dependency-free way for an external orchestrator process to ask a running
+# job to save a checkpoint and exit cleanly, without needing OS signals (which behave
+# inconsistently for subprocesses across Windows/Linux). The orchestrator (or a human) simply
+# creates a file named STOP_REQUEST_FILENAME inside the run's output_dir; this script polls
+# for it once per training step and, when seen, saves a checkpoint at the current epoch and
+# exits with STOP_REQUEST_EXIT_CODE so a caller can distinguish "stopped on request" from a
+# normal completion (exit 0) or a crash (any other non-zero code).
+STOP_REQUEST_FILENAME = "STOP_REQUEST"
+STOP_REQUEST_EXIT_CODE = 75
+
+
+def checkpoint_stop_requested(output_dir):
+    """True if an external orchestrator has asked this run to checkpoint and stop."""
+    return os.path.exists(os.path.join(output_dir, STOP_REQUEST_FILENAME))
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a text-conditional diffusion model for tile-based level generation")
     
@@ -146,6 +164,10 @@ def parse_args():
     parser.add_argument("--beta_end", type=float, default=0.02, help="Beta schedule end value")
     
     parser.add_argument("--config", type=str, default=None, help="Path to JSON config file with training parameters.")
+    parser.add_argument("--auto_resume", action="store_true", default=False,
+                         help="If output_dir already exists and contains checkpoints, resume automatically "
+                              "without the interactive (y/n) prompt. Needed for unattended/orchestrated runs, "
+                              "since a headless process has no stdin to answer the prompt with.")
 
     # For caption score calculation
     parser.add_argument("--tileset", default=None, help="Descriptions of individual tile types. If omitted, defaults to the per-game value below.")
@@ -341,10 +363,14 @@ def main():
     if os.path.exists(args.output_dir):
         checkpoints = glob.glob(os.path.join(args.output_dir, "checkpoint-*"))
         if checkpoints:
-            user_input = input(f"Output directory '{args.output_dir}' already exists and contains checkpoints. Resume training from last checkpoint? (y/n): ").strip().lower()
-            if user_input != 'y':
-                print("Exiting. Please remove the directory or choose a different output directory.")
-                exit()
+            if args.auto_resume:
+                print(f"Output directory '{args.output_dir}' already exists and contains checkpoints. "
+                      f"--auto_resume is set, resuming automatically.")
+            else:
+                user_input = input(f"Output directory '{args.output_dir}' already exists and contains checkpoints. Resume training from last checkpoint? (y/n): ").strip().lower()
+                if user_input != 'y':
+                    print("Exiting. Please remove the directory or choose a different output directory.")
+                    exit()
             resume_training = True
         else:
             raise RuntimeError(f"Output directory '{args.output_dir}' already exists but contains no checkpoints. Please remove it or choose a different name.")
@@ -823,6 +849,66 @@ def main():
         else:
             raise RuntimeError(f"No checkpoint found in {args.output_dir}. Please check the directory or remove it to start fresh.")
             
+    # REVISION CANDIDATE: extracted from the inline "Save model every N epochs" block below so
+    # that both the periodic save and the new remote checkpoint-stop request (see
+    # checkpoint_stop_requested() above) share one implementation.
+    def save_checkpoint(epoch):
+        checkpoint_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}")
+        # save the model
+        if args.text_conditional:
+            pipeline = TextConditionalDDPMPipeline(
+                unet=accelerator.unwrap_model(model),
+                scheduler=noise_scheduler,
+                text_encoder=text_encoder,
+                tokenizer=tokenizer_hf if args.pretrained_language_model else None,
+                supports_pretrained_split=args.split_pretrained_sentences,
+                block_embeddings=block_embeddings
+            ).to(accelerator.device)
+            # Save negative prompt support flag if enabled
+            if args.negative_prompt_training:
+                pipeline.supports_negative_prompt = True
+        else:
+            pipeline = UnconditionalDDPMPipeline(
+                unet=accelerator.unwrap_model(model),
+                scheduler=noise_scheduler,
+                block_embeddings=block_embeddings
+            )
+            if sprite_scaling_factors is not None:
+                pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
+        # Wait for all processes to synchronize before saving
+        accelerator.wait_for_everyone()
+        pipeline.save_pretrained(checkpoint_dir)
+        # Save optimizer state
+        optimizer_path = os.path.join(checkpoint_dir, "optimizer.pt")
+        torch.save(optimizer.state_dict(), optimizer_path)
+        # Save LR scheduler state
+        lr_scheduler_path = os.path.join(checkpoint_dir, "lr_scheduler.pt")
+        torch.save(lr_scheduler.state_dict(), lr_scheduler_path)
+
+        # Save early stopping state
+        early_stop_state = {
+            "best_val_loss": best_val_loss,
+            "best_caption_score": best_caption_score,
+            "best_epoch": best_epoch,
+            "epochs_since_improvement": epochs_since_improvement
+        }
+        early_stop_path = os.path.join(checkpoint_dir, "early_stop_state.json")
+        with open(early_stop_path, "w") as f:
+            json.dump(early_stop_state, f)
+
+        # When saving checkpoint:
+        scheduler_config = {
+            "num_warmup_steps": warmup_steps,
+            "num_training_steps": total_training_steps,
+            "num_cycles": args.lr_scheduler_cycles,
+        }
+        with open(os.path.join(checkpoint_dir, "lr_scheduler_config.json"), "w") as f:
+            json.dump(scheduler_config, f)
+        return checkpoint_dir
+
+    stop_request_path = os.path.join(args.output_dir, STOP_REQUEST_FILENAME)
+    stopped_on_request = False
+
     for epoch in range(start_epoch, args.num_epochs):
         if args.use_early_stopping and early_stop:
             print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss or caption score for {patience} epochs.")
@@ -836,6 +922,13 @@ def main():
         train_loss = 0.0
         
         for batch in train_dataloader:
+            # Check once per step for a remote checkpoint-and-stop request. Checking every
+            # step (rather than only once per epoch) keeps response time to roughly one
+            # batch's duration even on long epochs.
+            if checkpoint_stop_requested(args.output_dir):
+                stopped_on_request = True
+                break
+
             # Add explicit memory clearing at start of batch
             if args.auto_augment and torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -865,7 +958,19 @@ def main():
             
                         
             global_step += 1
-        
+
+        if stopped_on_request:
+            print(f"\nCheckpoint-and-stop requested (found {stop_request_path}); "
+                  f"saving checkpoint at epoch {epoch} and exiting without finishing this epoch.")
+            saved_dir = save_checkpoint(epoch)
+            try:
+                os.remove(stop_request_path)
+            except OSError:
+                pass
+            print(f"Checkpoint saved to {saved_dir}. Exiting with code {STOP_REQUEST_EXIT_CODE}.")
+            progress_bar.close()
+            sys.exit(STOP_REQUEST_EXIT_CODE)
+
         # Calculate average training loss for the epoch
         avg_train_loss = train_loss / len(train_dataloader)
         
@@ -1313,59 +1418,8 @@ def main():
 
         # Save model every N epochs
         if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
-            checkpoint_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}")
-            # save the model
-            if args.text_conditional:
-                pipeline = TextConditionalDDPMPipeline(
-                    unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler,
-                    text_encoder=text_encoder,
-                    tokenizer=tokenizer_hf if args.pretrained_language_model else None,
-                    supports_pretrained_split=args.split_pretrained_sentences, 
-                    block_embeddings=block_embeddings
-                ).to(accelerator.device)
-                # Save negative prompt support flag if enabled
-                if args.negative_prompt_training:
-                    pipeline.supports_negative_prompt = True
-            else:
-                pipeline = UnconditionalDDPMPipeline(
-                    unet=accelerator.unwrap_model(model), 
-                    scheduler=noise_scheduler,
-                    block_embeddings=block_embeddings
-                )
-                if sprite_scaling_factors is not None:
-                    pipeline.give_sprite_scaling_factors(sprite_scaling_factors)
-            # Wait for all processes to synchronize before saving
-            accelerator.wait_for_everyone()
-            pipeline.save_pretrained(checkpoint_dir)
-            # Save optimizer state
-            optimizer_path = os.path.join(checkpoint_dir, "optimizer.pt")
-            # Save the optimizer state dictionary
-            torch.save(optimizer.state_dict(), optimizer_path)
-            # Save LR scheduler state
-            lr_scheduler_path = os.path.join(checkpoint_dir, "lr_scheduler.pt")
-            torch.save(lr_scheduler.state_dict(), lr_scheduler_path)
+            save_checkpoint(epoch)
 
-            # Save early stopping state
-            early_stop_state = {
-                "best_val_loss": best_val_loss,
-                "best_caption_score": best_caption_score,
-                "best_epoch": best_epoch,
-                "epochs_since_improvement": epochs_since_improvement
-            }
-            early_stop_path = os.path.join(checkpoint_dir, "early_stop_state.json")
-            with open(early_stop_path, "w") as f:
-                json.dump(early_stop_state, f)
-            
-            # When saving checkpoint:
-            scheduler_config = {
-                "num_warmup_steps": warmup_steps,
-                "num_training_steps": total_training_steps,
-                "num_cycles": args.lr_scheduler_cycles,
-            }
-            with open(os.path.join(checkpoint_dir, "lr_scheduler_config.json"), "w") as f:
-                json.dump(scheduler_config, f)
-            
     try:
         # Clean up plotting resources
         if accelerator.is_local_main_process and plotter:
