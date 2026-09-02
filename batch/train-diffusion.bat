@@ -120,8 +120,25 @@ set DIFFUSION_EPOCHS=%9
 if "%DIFFUSION_EPOCHS%"=="" set DIFFUSION_EPOCHS=500
 
 REM --- Read optional captions-per-key limit for caption-source pools ------
-set NUM_CAPTIONS=%~10
-if "%NUM_CAPTIONS%"=="" set NUM_CAPTIONS=
+set NUM_CAPTIONS=
+set "CAPTION_SOURCE_KEYS="
+set "CAPTION_SOURCE_KEYS_ARG="
+set "CAPTIONS_PER_KEY_FLAG="
+set ARG_INDEX=0
+
+for %%A in (%*) do (
+    set /a ARG_INDEX+=1
+    if !ARG_INDEX! EQU 10 (
+        set "NUM_CAPTIONS=%%~A"
+    ) else if !ARG_INDEX! GTR 10 (
+        if /I "%%~A"=="--caption_source_keys" (
+            set "CAPTION_SOURCE_KEYS=!CAPTION_SOURCE_KEYS! --caption_source_keys"
+        ) else (
+            set "CAPTION_SOURCE_KEYS=!CAPTION_SOURCE_KEYS! %%~A"
+        )
+    )
+)
+
 if defined NUM_CAPTIONS (
     set /a NUM_CAPTIONS_CHECK=%NUM_CAPTIONS% 2>nul
     if errorlevel 1 (
@@ -132,33 +149,9 @@ if defined NUM_CAPTIONS (
         echo Error: Invalid num_captions '%NUM_CAPTIONS%'. Must be a positive integer.
         exit /b 1
     )
+    set "CAPTIONS_PER_KEY_FLAG=--captions_per_key %NUM_CAPTIONS%"
 )
 
-REM --- Read caption_source_key values from any extra parameters ---------
-set "CAPTION_SOURCE_KEYS="
-set "CAPTION_SOURCE_KEYS_ARG="
-set "CAPTIONS_PER_KEY_FLAG="
-if defined NUM_CAPTIONS set "CAPTIONS_PER_KEY_FLAG=--captions_per_key %NUM_CAPTIONS%"
-shift
-shift
-shift
-shift
-shift
-shift
-shift
-shift
-shift
-shift
-:parse_caption_source_keys
-if "%~1"=="" goto end_parse_caption_source_keys
-if /I "%~1"=="--caption_source_keys" (
-    shift
-    if "%~1"=="" goto end_parse_caption_source_keys
-)
-set "CAPTION_SOURCE_KEYS=!CAPTION_SOURCE_KEYS! %~1"
-shift
-goto parse_caption_source_keys
-:end_parse_caption_source_keys
 if defined CAPTION_SOURCE_KEYS (
     set "CAPTION_SOURCE_KEYS_ARG=--caption_source_keys !CAPTION_SOURCE_KEYS:~1!"
 )
