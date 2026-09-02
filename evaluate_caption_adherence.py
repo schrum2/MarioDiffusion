@@ -138,13 +138,12 @@ def compute_jensen_shannon(source_scene, generated_scene):
     return jensen_shannon_divergence(source_dist, generated_dist)
 
 
-def summarize_scene_caption_variation(entries, clip_image_embeddings=None):
+def summarize_scene_caption_variation(entries, clip_image_embeddings=None, clip_text_embeddings=None, clip_model=None, clip_processor=None, device=None):
     """Aggregate all generated output scenes from the same source scene into paired variation
     metrics. Each input `entry` is one item from an `all_levels.json` export and is assumed to
     carry source grouping metadata (at least `source_group_id`; also `source_index`/`source_name`
-    when available). `clip_image_embeddings` may be a list or dict keyed by output index; values are
-    normalized CLIP image embeddings. Returns a summary dict with one result per source scene and
-    pairwise averages for hamming distance and CLIP image similarity across distinct scene variants."""
+    when available). The summary includes hamming distance, CLIP image similarity, and CLIP text
+    similarity across distinct scene variants generated from the same source scene."""
     groups = {}
     for idx, entry in enumerate(entries):
         if not isinstance(entry, dict):
@@ -176,14 +175,23 @@ def summarize_scene_caption_variation(entries, clip_image_embeddings=None):
             "scene": entry.get("scene"),
         })
 
-    def get_embedding_for_index(index):
-        if clip_image_embeddings is None:
+    def get_embedding_for_index(index, embeddings):
+        if embeddings is None:
             return None
-        if isinstance(clip_image_embeddings, dict):
-            return clip_image_embeddings.get(index)
-        if isinstance(clip_image_embeddings, (list, tuple)) and index < len(clip_image_embeddings):
-            return clip_image_embeddings[index]
+        if isinstance(embeddings, dict):
+            return embeddings.get(index)
+        if isinstance(embeddings, (list, tuple)) and index < len(embeddings):
+            return embeddings[index]
         return None
+
+    if clip_text_embeddings is None and clip_model is not None and clip_processor is not None and device is not None:
+        clip_text_embeddings = {}
+        for entry_idx, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                continue
+            text = entry.get("prompt") or entry.get("caption")
+            if text:
+                clip_text_embeddings[entry_idx] = compute_clip_text_embedding(text, clip_model, clip_processor, device).detach().cpu()
 
     summary_entries = []
     for source_group_id, group in groups.items():
@@ -197,12 +205,14 @@ def summarize_scene_caption_variation(entries, clip_image_embeddings=None):
                 "pair_count": 0,
                 "average_pairwise_hamming_distance": None,
                 "average_pairwise_clip_image_similarity": None,
+                "average_pairwise_clip_text_similarity": None,
                 "generated_scene_refs": [
                     {
                         "all_levels_index": variant["all_levels_index"],
                         "caption_source_key": variant.get("caption_source_key"),
                         "caption_index": variant.get("caption_index"),
                         "caption": variant.get("caption"),
+                        "prompt": variant.get("prompt"),
                     }
                     for variant in variants
                 ],
@@ -211,7 +221,8 @@ def summarize_scene_caption_variation(entries, clip_image_embeddings=None):
 
         pair_count = 0
         hamming_values = []
-        clip_values = []
+        clip_image_values = []
+        clip_text_values = []
         for left_idx in range(len(variants)):
             for j in range(left_idx + 1, len(variants)):
                 left = variants[left_idx]
@@ -228,12 +239,22 @@ def summarize_scene_caption_variation(entries, clip_image_embeddings=None):
                 if hamming_value is not None:
                     hamming_values.append(float(hamming_value))
 
-                left_embed = get_embedding_for_index(left["all_levels_index"])
-                right_embed = get_embedding_for_index(right["all_levels_index"])
+                left_embed = get_embedding_for_index(left["all_levels_index"], clip_image_embeddings)
+                right_embed = get_embedding_for_index(right["all_levels_index"], clip_image_embeddings)
                 if left_embed is not None and right_embed is not None:
                     left_array = np.asarray(left_embed, dtype=np.float32).reshape(-1)
                     right_array = np.asarray(right_embed, dtype=np.float32).reshape(-1)
-                    clip_values.append(float(np.dot(left_array, right_array)))
+                    clip_image_values.append(float(np.dot(left_array, right_array)))
+
+                left_text = left.get("prompt") or left.get("caption")
+                right_text = right.get("prompt") or right.get("caption")
+                if left_text and right_text:
+                    left_text_embed = get_embedding_for_index(left["all_levels_index"], clip_text_embeddings)
+                    right_text_embed = get_embedding_for_index(right["all_levels_index"], clip_text_embeddings)
+                    if left_text_embed is not None and right_text_embed is not None:
+                        left_text_array = np.asarray(left_text_embed, dtype=np.float32).reshape(-1)
+                        right_text_array = np.asarray(right_text_embed, dtype=np.float32).reshape(-1)
+                        clip_text_values.append(float(np.dot(left_text_array, right_text_array)))
 
         summary_entries.append({
             "source_group_id": source_group_id,
@@ -242,18 +263,21 @@ def summarize_scene_caption_variation(entries, clip_image_embeddings=None):
             "caption_count": len(variants),
             "pair_count": pair_count,
             "average_pairwise_hamming_distance": (sum(hamming_values) / len(hamming_values)) if hamming_values else None,
-            "average_pairwise_clip_image_similarity": (sum(clip_values) / len(clip_values)) if clip_values else None,
+            "average_pairwise_clip_image_similarity": (sum(clip_image_values) / len(clip_image_values)) if clip_image_values else None,
+            "average_pairwise_clip_text_similarity": (sum(clip_text_values) / len(clip_text_values)) if clip_text_values else None,
             "generated_scene_refs": [
                 {
                     "all_levels_index": variant["all_levels_index"],
                     "caption_source_key": variant.get("caption_source_key"),
                     "caption_index": variant.get("caption_index"),
                     "caption": variant.get("caption"),
+                    "prompt": variant.get("prompt"),
                 }
                 for variant in variants
             ],
             "pairwise_hamming_distances": hamming_values,
-            "pairwise_clip_image_similarities": clip_values,
+            "pairwise_clip_image_similarities": clip_image_values,
+            "pairwise_clip_text_similarities": clip_text_values,
         })
 
     return {
@@ -552,7 +576,7 @@ def main():
             print(f"Error: no captions found in {args.json}")
             exit(1)
         print(f"Generating {len(items)} scenes from {len(raw_data)} dataset entries...")
-        avg_score, avg_clip_score, avg_scene_clip_score, results, clip_image_embeddings = mm2_caption_adherence(
+        avg_score, avg_clip_score, avg_scene_clip_score, results, clip_image_embeddings, clip_text_embeddings = mm2_caption_adherence(
             args, device, pipe, items, tileset,
             compute_clip=args.use_clip_score, clip_model=clip_model, clip_processor=clip_processor
         )
@@ -572,6 +596,10 @@ def main():
                 summary = summarize_scene_caption_variation(
                     results,
                     clip_image_embeddings=clip_image_embeddings if clip_image_embeddings is not None else None,
+                    clip_text_embeddings=clip_text_embeddings if clip_text_embeddings is not None else None,
+                    clip_model=clip_model,
+                    clip_processor=clip_processor,
+                    device=device,
                 )
                 summary_path = os.path.join(args.output_dir, "all_levels_scene_variation.json")
                 with open(summary_path, "w") as f:
@@ -661,6 +689,7 @@ def main():
         hamming_all_scores = result["hamming_all_scores"]
         js_all_scores = result["js_all_scores"]
         clip_image_embeddings = result.get("clip_image_embeddings")
+        clip_text_embeddings = result.get("clip_text_embeddings")
 
         if avg_score is not None:
             print(f"Average caption adherence score: {avg_score:.4f}")
@@ -728,6 +757,10 @@ def main():
                 summary = summarize_scene_caption_variation(
                     paired,
                     clip_image_embeddings=clip_image_embeddings if clip_image_embeddings is not None else None,
+                    clip_text_embeddings=clip_text_embeddings if clip_text_embeddings is not None else None,
+                    clip_model=clip_model,
+                    clip_processor=clip_processor,
+                    device=device,
                 )
                 summary_path = os.path.join(args.output_dir, "all_levels_scene_variation.json")
                 with open(summary_path, "w") as f:
@@ -899,6 +932,7 @@ def mm2_caption_adherence(args, device, pipe, items, tileset, compute_clip=False
                     sample_image_embed = compute_clip_image_embedding(sample_image, clip_model, clip_processor, device)
                     clip_image_embeddings.append(sample_image_embed.detach().cpu())
                     text_embed = compute_clip_text_embedding(item["caption"], clip_model, clip_processor, device)
+                    clip_text_embeddings.append(text_embed.detach().cpu())
                     clip_score = (sample_image_embed * text_embed).sum(dim=-1).item()
                     entry["clip_score"] = clip_score
                     clip_score_sum += clip_score
@@ -929,7 +963,7 @@ def mm2_caption_adherence(args, device, pipe, items, tileset, compute_clip=False
     avg_score = (score_sum / len(results)) if compute_score and results else None
     avg_clip_score = (clip_score_sum / clip_count) if compute_clip and clip_count else None
     avg_scene_clip_score = (scene_clip_score_sum / scene_clip_count) if compute_clip and scene_clip_count else None
-    return avg_score, avg_clip_score, avg_scene_clip_score, results, clip_image_embeddings
+    return avg_score, avg_clip_score, avg_scene_clip_score, results, clip_image_embeddings, clip_text_embeddings
 
 
 def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, using_unet_pipe=True, clip_model=None, clip_processor=None):
@@ -1160,6 +1194,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     hamming_all_scores = []
     js_all_scores = []
     clip_image_embeddings = [] if compute_clip else None
+    clip_text_embeddings = [] if compute_clip else None
     prompt_index = 0
     scene_embedding_cache = {}
     for batch_idx, batch in enumerate(dataloader):
@@ -1256,6 +1291,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
                     sample_image_embed = compute_clip_image_embedding(sample_image, clip_model, clip_processor, device)
                     clip_image_embeddings.append(sample_image_embed.detach().cpu())
                     text_embed = compute_clip_text_embedding(caption, clip_model, clip_processor, device)
+                    clip_text_embeddings.append(text_embed.detach().cpu())
                     clip_score = (sample_image_embed * text_embed).sum(dim=-1).item()
                     clip_all_scores.append(clip_score)
 
@@ -1380,6 +1416,7 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
     result["hamming_all_scores"] = hamming_all_scores if hamming_all_scores is not None else None
     result["js_all_scores"] = js_all_scores if js_all_scores is not None else None
     result["clip_image_embeddings"] = clip_image_embeddings if compute_clip else None
+    result["clip_text_embeddings"] = clip_text_embeddings if compute_clip else None
 
     return result
 
