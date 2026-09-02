@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 REM ============================================================================
 REM train-diffusion.bat - unified training entry point
 REM
-REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile_embed_method] [tile_embed_dim] [diffusion_epochs] [num_captions] [extra args...]
+REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile_embed_method] [tile_embed_dim] [diffusion_epochs] [num_captions] [compare_checkpoints] [extra args...]
 REM
 REM   <seed>   optional, defaults to 0
 REM   <data>   source of data: SMB1, SMB2, Mar1and2, LR, etc.
@@ -40,6 +40,9 @@ REM   [diffusion_epochs] optional, defaults to 500. Number of epochs used for
 REM              diffusion-model training.
 REM   [num_captions] optional. Assumes [extra args...] will be specified. For
 REM              each caption source key, only sample this many captions from data.
+REM   [compare_checkpoints] optional, defaults to "yes". Set to "no" to skip
+REM              the evaluate_caption_adherence.py calls that include
+REM              --compare_checkpoints.
 REM   [extra args...] optional. Any additional arguments are treated as
 REM              caption_source_keys values and forwarded to train_diffusion.py
 REM              as --caption_source_keys <key1> <key2> ... . If supplied,
@@ -119,8 +122,9 @@ REM --- Read diffusion training epochs -----------------------------------
 set DIFFUSION_EPOCHS=%9
 if "%DIFFUSION_EPOCHS%"=="" set DIFFUSION_EPOCHS=500
 
-REM --- Read optional captions-per-key limit for caption-source pools ------
+REM --- Read optional captions-per-key and compare-checkpoint controls ------
 set NUM_CAPTIONS=
+set COMPARE_CHECKPOINTS=yes
 set "CAPTION_SOURCE_KEYS="
 set "CAPTION_SOURCE_KEYS_ARG="
 set "CAPTIONS_PER_KEY_FLAG="
@@ -128,13 +132,27 @@ set ARG_INDEX=0
 
 for %%A in (%*) do (
     set /a ARG_INDEX+=1
-    if !ARG_INDEX! EQU 10 (
-        set "NUM_CAPTIONS=%%~A"
-    ) else if !ARG_INDEX! GTR 10 (
-        if /I "%%~A"=="--caption_source_keys" (
-            set "CAPTION_SOURCE_KEYS=!CAPTION_SOURCE_KEYS! --caption_source_keys"
+    set "ARG_VALUE=%%~A"
+    if !ARG_INDEX! GTR 9 (
+        set "ARG_IS_INT="
+        set /a ARG_IS_INT=!ARG_VALUE! 2>nul
+        if not errorlevel 1 set "ARG_IS_INT=1" 
+        if !ARG_INDEX! EQU 10 (
+            if defined ARG_IS_INT (
+                set "NUM_CAPTIONS=!ARG_VALUE!"
+            ) else if /I "!ARG_VALUE!"=="yes" (
+                set "COMPARE_CHECKPOINTS=yes"
+            ) else if /I "!ARG_VALUE!"=="no" (
+                set "COMPARE_CHECKPOINTS=no"
+            ) else (
+                set "CAPTION_SOURCE_KEYS=!CAPTION_SOURCE_KEYS! !ARG_VALUE!"
+            )
+        ) else if /I "!ARG_VALUE!"=="yes" (
+            set "COMPARE_CHECKPOINTS=yes"
+        ) else if /I "!ARG_VALUE!"=="no" (
+            set "COMPARE_CHECKPOINTS=no"
         ) else (
-            set "CAPTION_SOURCE_KEYS=!CAPTION_SOURCE_KEYS! %%~A"
+            set "CAPTION_SOURCE_KEYS=!CAPTION_SOURCE_KEYS! !ARG_VALUE!"
         )
     )
 )
@@ -386,7 +404,7 @@ REM ===========================================================================
 REM Step 4: evaluate caption adherence (conditional models only)
 REM ===========================================================================
 if /I "%UNCONDITIONAL%"=="false" (
-    call batch\evaluate_caption_adherence_multi.bat %MODEL_DIR% %TYPE% %DATA% %GAME% %CAPTION_SOURCE_KEYS_ARG%
+    call batch\evaluate_caption_adherence_multi.bat %MODEL_DIR% %TYPE% %DATA% %GAME% %COMPARE_CHECKPOINTS% %CAPTION_SOURCE_KEYS_ARG%
     python log_timestamp.py --log_file %TIMING_LOG% --event "caption adherence evaluation"
 )
 
