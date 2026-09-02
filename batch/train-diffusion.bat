@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 REM ============================================================================
 REM train-diffusion.bat - unified training entry point
 REM
-REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile_embed_method] [tile_embed_dim] [diffusion_epochs] [extra args...]
+REM Usage: train-diffusion.bat <seed> <data> <type> <game> [model] [split] [tile_embed_method] [tile_embed_dim] [diffusion_epochs] [num_captions] [extra args...]
 REM
 REM   <seed>   optional, defaults to 0
 REM   <data>   source of data: SMB1, SMB2, Mar1and2, LR, etc.
@@ -38,6 +38,8 @@ REM   [tile_embed_dim] optional, defaults to 16. Embedding dimension used when
 REM              [tile_embed_method] is not "none". Ignored otherwise.
 REM   [diffusion_epochs] optional, defaults to 500. Number of epochs used for
 REM              diffusion-model training.
+REM   [num_captions] optional. Assumes [extra args...] will be specified. For
+REM              each caption source key, only sample this many captions from data.
 REM   [extra args...] optional. Any additional arguments are treated as
 REM              caption_source_keys values and forwarded to train_diffusion.py
 REM              as --caption_source_keys <key1> <key2> ... . If supplied,
@@ -117,9 +119,27 @@ REM --- Read diffusion training epochs -----------------------------------
 set DIFFUSION_EPOCHS=%9
 if "%DIFFUSION_EPOCHS%"=="" set DIFFUSION_EPOCHS=500
 
+REM --- Read optional captions-per-key limit for caption-source pools ------
+set NUM_CAPTIONS=%~10
+if "%NUM_CAPTIONS%"=="" set NUM_CAPTIONS=
+if defined NUM_CAPTIONS (
+    set /a NUM_CAPTIONS_CHECK=%NUM_CAPTIONS% 2>nul
+    if errorlevel 1 (
+        echo Error: Invalid num_captions '%NUM_CAPTIONS%'. Must be a positive integer.
+        exit /b 1
+    )
+    if %NUM_CAPTIONS% LSS 1 (
+        echo Error: Invalid num_captions '%NUM_CAPTIONS%'. Must be a positive integer.
+        exit /b 1
+    )
+)
+
 REM --- Read caption_source_key values from any extra parameters ---------
 set "CAPTION_SOURCE_KEYS="
 set "CAPTION_SOURCE_KEYS_ARG="
+set "CAPTIONS_PER_KEY_FLAG="
+if defined NUM_CAPTIONS set "CAPTIONS_PER_KEY_FLAG=--captions_per_key %NUM_CAPTIONS%"
+shift
 shift
 shift
 shift
@@ -141,6 +161,10 @@ goto parse_caption_source_keys
 :end_parse_caption_source_keys
 if defined CAPTION_SOURCE_KEYS (
     set "CAPTION_SOURCE_KEYS_ARG=--caption_source_keys !CAPTION_SOURCE_KEYS:~1!"
+)
+if defined NUM_CAPTIONS if not defined CAPTION_SOURCE_KEYS (
+    echo Error: num_captions requires caption_source_keys values in the extra args.
+    exit /b 1
 )
 
 set "TILE_VALID=false"
@@ -338,13 +362,13 @@ if /I "%UNCONDITIONAL%"=="true" (
     )
 ) else (
     if /I "%USE_MLM%"=="true" (
-        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SCORE_PLOT_FLAG% --plot_clip_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
+        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTIONS_PER_KEY_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SCORE_PLOT_FLAG% --plot_clip_score --pkl %TOKENIZER% --mlm_model_dir %MLM_OUTPUT%
         if errorlevel 1 (
             echo Error: train_diffusion.py failed.
             exit /b 1
         )
     ) else (
-        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SCORE_PLOT_FLAG% --plot_clip_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
+        python train_diffusion.py --save_image_epochs %DIFFUSION_EPOCHS% --augment --text_conditional --output_dir "%MODEL_DIR%" --num_epochs %DIFFUSION_EPOCHS% --json %TRAIN_DATA% --val_json %VAL_DATA% --seed %SEED% --game %GAME% %BLOCK_EMBED_FLAG% %BATCH_SIZE_FLAG% %CAPTIONS_PER_KEY_FLAG% %CAPTION_SOURCE_KEYS_ARG% %DIFF_FLAGS% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SCORE_PLOT_FLAG% --plot_clip_score --pretrained_language_model "%MODEL_NAME%" %SPLIT_FLAG%
         if errorlevel 1 (
             echo Error: train_diffusion.py failed.
             exit /b 1
