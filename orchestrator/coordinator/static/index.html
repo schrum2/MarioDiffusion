@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lab // orchestrator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◈</span>
+      <span class="brand-name">lab orchestrator</span>
+    </div>
+    <div class="topbar-stats" id="topbarStats">—</div>
+  </header>
+
+  <main>
+    <section class="panel" id="workersPanel">
+      <div class="panel-head">
+        <h2>machines</h2>
+        <span class="panel-sub" id="workerCount"></span>
+      </div>
+      <div class="workers-grid" id="workersGrid"></div>
+    </section>
+
+    <section class="panel" id="submitPanel">
+      <div class="panel-head">
+        <h2>queue a job</h2>
+      </div>
+      <form id="jobForm" class="job-form">
+        <div class="field-row">
+          <label>script
+            <select name="script" id="scriptSelect">
+              <option value="train_diffusion">train_diffusion.py</option>
+              <option value="train_mlm">train_mlm.py</option>
+            </select>
+          </label>
+          <label>priority
+            <input type="number" name="priority" value="100" title="lower number = runs sooner">
+          </label>
+          <label class="checkbox-field">
+            <input type="checkbox" name="requeue_on_crash" checked>
+            auto-requeue on crash
+          </label>
+        </div>
+        <label class="args-field">
+          arguments <span class="hint">(must include --output_dir; one flag/value per line or space-separated — either works)</span>
+          <textarea name="args" id="argsInput" rows="4" placeholder="--output_dir runs/mario-mlm-seed0
+--text_conditional
+--game Mario
+--num_epochs 500"></textarea>
+        </label>
+        <button type="submit">add to queue</button>
+        <span id="submitStatus" class="submit-status"></span>
+      </form>
+    </section>
+
+    <section class="panel" id="jobsPanel">
+      <div class="panel-head">
+        <h2>jobs</h2>
+        <span class="panel-sub" id="jobCount"></span>
+      </div>
+      <div class="jobs-list" id="jobsList"></div>
+    </section>
+  </main>
+
+  <div class="log-overlay" id="logOverlay" hidden>
+    <div class="log-box">
+      <div class="log-box-head">
+        <span id="logBoxTitle">log</span>
+        <button id="logBoxClose">close ×</button>
+      </div>
+      <pre id="logBoxContent"></pre>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
