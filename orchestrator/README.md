@@ -69,7 +69,7 @@ additions that the stock script doesn't have:
 ```bash
 cd coordinator
 pip install -r requirements.txt
-python server.py --host 0.0.0.0 --port 8000
+python server.py --host 0.0.0.0 --port 8000 --key-phrase "secret"
 ```
 
 Open `http://<that machine's IP>:8000` in a browser. Leave it running — closing the
@@ -81,7 +81,7 @@ are automatically put back in the queue (see "What happens on a crash or reboot"
 ```bash
 cd worker
 pip install -r requirements.txt
-python agent.py --coordinator http://<coordinator-ip>:8000 --repo-path C:\path\to\your\repo
+python agent.py --coordinator http://<coordinator-ip>:8000 --repo-path C:\path\to\your\repo --key-phrase "secret"
 ```
 
 If a machine has more than one GPU you want to use independently, run one agent process
