@@ -17,6 +17,9 @@ Each slot remembers its coordinator-assigned worker_id in a small local file
 a restart instead of showing up as a brand new, duplicate machine.
 """
 import argparse
+import base64
+import hashlib
+import hmac
 import json
 import os
 import shutil
@@ -40,6 +43,72 @@ SCRIPT_ENTRYPOINTS = {
     "train_diffusion": "train_diffusion.py",
     "train_mlm": "train_mlm.py",
 }
+
+
+def derive_secret_key(key_phrase: str) -> bytes:
+    return hashlib.sha256(key_phrase.encode("utf-8")).digest()
+
+
+def xor_stream(data: bytes, key: bytes, nonce: bytes) -> bytes:
+    out = bytearray()
+    nonce_len = len(nonce)
+    for i, b in enumerate(data):
+        k = key[(i + nonce_len) % len(key)] ^ nonce[i % nonce_len]
+        out.append(b ^ k)
+    return bytes(out)
+
+
+def _b64(data: bytes) -> str:
+    return base64.b64encode(data).decode("ascii")
+
+
+def _from_b64(value: str) -> bytes:
+    return base64.b64decode(value.encode("ascii"))
+
+
+def build_auth_headers(secret_phrase: str, method: str, path: str, body: bytes = b"", status_code=None):
+    if not secret_phrase:
+        return {}
+    nonce = os.urandom(16)
+    key = derive_secret_key(secret_phrase)
+    payload = {
+        "method": method,
+        "path": path,
+        "status_code": status_code,
+        "body_sha256": hashlib.sha256(body).hexdigest(),
+    }
+    cipher = xor_stream(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"), key, nonce)
+    tag = hmac.new(key, nonce + cipher + method.encode("utf-8") + path.encode("utf-8"), hashlib.sha256).digest()
+    return {
+        "x-auth-nonce": _b64(nonce),
+        "x-auth-cipher": _b64(cipher),
+        "x-auth-tag": _b64(tag),
+    }
+
+
+def verify_auth_headers(secret_phrase: str, method: str, path: str, body: bytes = b"", status_code=None,
+                       nonce: str = None, cipher: str = None, tag: str = None):
+    if not secret_phrase:
+        return True
+    if not nonce or not cipher or not tag:
+        return False
+    try:
+        key = derive_secret_key(secret_phrase)
+        nonce_bytes = _from_b64(nonce)
+        cipher_bytes = _from_b64(cipher)
+        expected_tag = hmac.new(key, nonce_bytes + cipher_bytes + method.encode("utf-8") + path.encode("utf-8"), hashlib.sha256).digest()
+        if not hmac.compare_digest(expected_tag, _from_b64(tag)):
+            return False
+        payload = json.loads(xor_stream(cipher_bytes, key, nonce_bytes).decode("utf-8"))
+        if payload.get("method") != method or payload.get("path") != path:
+            return False
+        if status_code is not None and payload.get("status_code") is not None and payload.get("status_code") != status_code:
+            return False
+        if body and hashlib.sha256(body).hexdigest() != payload.get("body_sha256", ""):
+            return False
+        return True
+    except Exception:
+        return False
 
 
 def log(slot_label, msg):
@@ -81,7 +150,31 @@ class JobRunner:
     # ---- coordinator HTTP calls ----
     def api(self, method, path, **kwargs):
         url = self.args.coordinator.rstrip("/") + path
-        resp = self.session.request(method, url, timeout=15, **kwargs)
+        auth_body = b""
+        if "json" in kwargs:
+            auth_body = json.dumps(kwargs["json"], separators=(",", ":"), sort_keys=True).encode("utf-8")
+        elif "data" in kwargs:
+            data = kwargs["data"]
+            if isinstance(data, (dict, list, tuple)):
+                auth_body = json.dumps(data, separators=(",", ":"), sort_keys=True).encode("utf-8")
+            elif isinstance(data, bytes):
+                auth_body = data
+            elif isinstance(data, str):
+                auth_body = data.encode("utf-8")
+        headers = dict(kwargs.pop("headers", {}))
+        headers.update(build_auth_headers(self.args.key_phrase, method, path, auth_body))
+        resp = self.session.request(method, url, timeout=15, headers=headers, **kwargs)
+        auth_headers = resp.headers
+        if self.args.key_phrase and not verify_auth_headers(
+            self.args.key_phrase,
+            method,
+            path,
+            status_code=resp.status_code,
+            nonce=auth_headers.get("x-auth-nonce"),
+            cipher=auth_headers.get("x-auth-cipher"),
+            tag=auth_headers.get("x-auth-tag"),
+        ):
+            raise RuntimeError("coordinator authentication failed; shared key mismatch")
         resp.raise_for_status()
         return resp.json() if resp.content else {}
 
@@ -262,6 +355,7 @@ class JobRunner:
     # ---- main loop ----
     def run(self):
         self.register()
+        backoff = POLL_INTERVAL_SEC
         while True:
             try:
                 status = "busy" if self.proc is not None else "idle"
@@ -270,9 +364,16 @@ class JobRunner:
                     "current_job_id": self.current_job_id,
                     "log_tail": self.get_log_tail() if self.proc is not None else None,
                 })
+                backoff = POLL_INTERVAL_SEC
             except Exception as e:
-                log(self.slot_label, f"poll failed (coordinator unreachable?): {e}")
-                time.sleep(POLL_INTERVAL_SEC)
+                log(self.slot_label, f"poll failed (coordinator unreachable or key mismatch): {e}")
+                try:
+                    if self.worker_id:
+                        self.register()
+                except Exception:
+                    pass
+                time.sleep(min(backoff, 60))
+                backoff = min(backoff * 2, 60)
                 continue
 
             if resp.get("control"):
@@ -294,6 +395,7 @@ def parse_args():
     ap.add_argument("--python", default=sys.executable, help="python executable to run training scripts with")
     ap.add_argument("--gpu-ids", default=None, help="comma-separated GPU ids to run one slot per GPU, e.g. 0,1,2,3")
     ap.add_argument("--gpu-label", default=None, help="override the GPU label shown in the dashboard (single-GPU machines)")
+    ap.add_argument("--key-phrase", required=True, help="shared secret phrase the coordinator and workers must both know")
     return ap.parse_args()
 
 

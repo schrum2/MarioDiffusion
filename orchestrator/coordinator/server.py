@@ -16,6 +16,9 @@ history. Workers re-register on their own; nothing on the worker side is
 lost either.
 """
 import argparse
+import base64
+import hashlib
+import hmac
 import json
 import os
 import shlex
@@ -93,6 +96,73 @@ class State:
 
 
 STATE: Optional[State] = None
+SHARED_SECRET_PHRASE = None
+
+
+def derive_secret_key(key_phrase: str) -> bytes:
+    return hashlib.sha256(key_phrase.encode("utf-8")).digest()
+
+
+def xor_stream(data: bytes, key: bytes, nonce: bytes) -> bytes:
+    out = bytearray()
+    nonce_len = len(nonce)
+    for i, b in enumerate(data):
+        k = key[(i + nonce_len) % len(key)] ^ nonce[i % nonce_len]
+        out.append(b ^ k)
+    return bytes(out)
+
+
+def _b64(data: bytes) -> str:
+    return base64.b64encode(data).decode("ascii")
+
+
+def _from_b64(value: str) -> bytes:
+    return base64.b64decode(value.encode("ascii"))
+
+
+def build_auth_headers(secret_phrase: str, method: str, path: str, body: bytes = b"", status_code: Optional[int] = None):
+    if not secret_phrase:
+        return {}
+    nonce = os.urandom(16)
+    key = derive_secret_key(secret_phrase)
+    payload = {
+        "method": method,
+        "path": path,
+        "status_code": status_code,
+        "body_sha256": hashlib.sha256(body).hexdigest(),
+    }
+    cipher = xor_stream(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"), key, nonce)
+    tag = hmac.new(key, nonce + cipher + method.encode("utf-8") + path.encode("utf-8"), hashlib.sha256).digest()
+    return {
+        "x-auth-nonce": _b64(nonce),
+        "x-auth-cipher": _b64(cipher),
+        "x-auth-tag": _b64(tag),
+    }
+
+
+def verify_auth_headers(secret_phrase: str, method: str, path: str, body: bytes = b"", status_code: Optional[int] = None,
+                       nonce: Optional[str] = None, cipher: Optional[str] = None, tag: Optional[str] = None):
+    if not secret_phrase:
+        return True
+    if not nonce or not cipher or not tag:
+        return False
+    try:
+        key = derive_secret_key(secret_phrase)
+        nonce_bytes = _from_b64(nonce)
+        cipher_bytes = _from_b64(cipher)
+        expected_tag = hmac.new(key, nonce_bytes + cipher_bytes + method.encode("utf-8") + path.encode("utf-8"), hashlib.sha256).digest()
+        if not hmac.compare_digest(expected_tag, _from_b64(tag)):
+            return False
+        payload = json.loads(xor_stream(cipher_bytes, key, nonce_bytes).decode("utf-8"))
+        if payload.get("method") != method or payload.get("path") != path:
+            return False
+        if status_code is not None and payload.get("status_code") is not None and payload.get("status_code") != status_code:
+            return False
+        if body and hashlib.sha256(body).hexdigest() != payload.get("body_sha256", ""):
+            return False
+        return True
+    except Exception:
+        return False
 
 
 def parse_output_dir(args_list):
@@ -230,6 +300,45 @@ class FetchUploadNotify(BaseModel):
 # App
 # --------------------------------------------------------------------------------------
 app = FastAPI(title="Diffusion Lab Coordinator")
+
+
+@app.middleware("http")
+async def auth_middleware(request, call_next):
+    if not request.url.path.startswith("/api/"):
+        return await call_next(request)
+    if not SHARED_SECRET_PHRASE:
+        response = await call_next(request)
+        return response
+    if request.method == "GET" and (
+        request.url.path == "/api/state" or request.url.path.startswith("/api/fetch/")
+    ):
+        response = await call_next(request)
+        for key, value in build_auth_headers(SHARED_SECRET_PHRASE, request.method, request.url.path, status_code=response.status_code).items():
+            response.headers[key] = value
+        return response
+
+    body = await request.body()
+    headers = request.headers
+    if not verify_auth_headers(
+        SHARED_SECRET_PHRASE,
+        request.method,
+        request.url.path,
+        body=body,
+        nonce=headers.get("x-auth-nonce"),
+        cipher=headers.get("x-auth-cipher"),
+        tag=headers.get("x-auth-tag"),
+    ):
+        return JSONResponse({"detail": "unauthorized: bad or missing shared key"}, status_code=401)
+
+    response = await call_next(request)
+    for key, value in build_auth_headers(
+        SHARED_SECRET_PHRASE,
+        request.method,
+        request.url.path,
+        status_code=response.status_code,
+    ).items():
+        response.headers[key] = value
+    return response
 
 
 @app.post("/api/workers/register")
@@ -553,8 +662,11 @@ def main():
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--state-file", default=str(BASE_DIR / "state.json"))
+    ap.add_argument("--key-phrase", required=True, help="shared secret phrase that coordinator and worker agents must both know")
     args = ap.parse_args()
 
+    global SHARED_SECRET_PHRASE
+    SHARED_SECRET_PHRASE = args.key_phrase
     STATE = State(Path(args.state_file))
 
     import uvicorn
