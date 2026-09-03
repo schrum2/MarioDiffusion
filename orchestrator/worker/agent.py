@@ -20,6 +20,7 @@ import argparse
 import json
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -302,26 +303,44 @@ def main():
 
     gpu_ids = [g.strip() for g in args.gpu_ids.split(",")] if args.gpu_ids else [None]
 
-    threads = []
+    runners = []
     for gid in gpu_ids:
         slot_args = argparse.Namespace(**vars(args))
         slot_args.gpu_id = gid
         slot_label = f"gpu{gid}" if gid is not None else "default"
         jobs_log_path = Path(f".jobs_log_{slot_label}.json")
         runner = JobRunner(slot_args, worker_id=None, slot_label=slot_label, jobs_log_path=jobs_log_path)
+        runners.append(runner)
         t = threading.Thread(target=runner.run, daemon=True, name=f"slot-{slot_label}")
         t.start()
-        threads.append(t)
         time.sleep(0.5)  # stagger registration calls slightly
 
-    print(f"Worker agent running with {len(threads)} slot(s). Ctrl+C to stop.", flush=True)
+    def handle_shutdown(sig, frame):
+        for runner in runners:
+            if runner.proc is not None and runner.current_job_id:
+                log(runner.slot_label, "Ctrl+C received; reporting current job as crashed before shutdown")
+                try:
+                    runner.proc.terminate()
+                    try:
+                        runner.proc.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        runner.proc.kill()
+                except Exception as e:
+                    log(runner.slot_label, f"error stopping in-flight job on shutdown: {e}")
+                runner.report(runner.current_job_id, "crashed", exit_code=runner.proc.poll(), log_tail=runner.get_log_tail())
+                runner.current_job_id = None
+                runner.current_output_dir = None
+                runner.proc = None
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGINT, handle_shutdown)
+
+    print(f"Worker agent running with {len(runners)} slot(s). Ctrl+C to stop.", flush=True)
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Shutting down (in-flight jobs on this machine keep running as orphan "
-              "processes; the coordinator will mark them crashed once heartbeats stop "
-              "and can auto-requeue them).")
+        print("Shutting down; active runs were reported as crashed so the coordinator could clear them.")
 
 
 if __name__ == "__main__":

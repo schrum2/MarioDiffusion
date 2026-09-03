@@ -105,6 +105,29 @@ def parse_output_dir(args_list):
     return None
 
 
+def worker_identity(name, slot=None):
+    return (name, slot or "default")
+
+
+def mark_worker_job_offline(worker):
+    """Any active job on a dead/stale worker is no longer safe to consider running."""
+    job_id = worker.get("current_job_id")
+    if job_id and job_id in STATE.jobs:
+        job = STATE.jobs[job_id]
+        if job["status"] in ("assigned", "running", "checkpoint_stop_requested"):
+            job["status"] = "crashed"
+            job["finished_at"] = now_iso()
+            job["exit_code"] = -1
+            job["worker_id"] = None
+            job["pending_control"] = None
+            job["log_tail"].append(
+                f"[coordinator] worker {worker['name']} stopped sending heartbeats; job marked crashed."
+            )
+            maybe_requeue(job)
+    worker["current_job_id"] = None
+    worker["status"] = "offline"
+
+
 def next_queued_job_for(worker):
     """Lowest-priority-number, oldest, queued job. No matching on worker beyond
     'idle and script supported' -- every worker runs the same repo checkout so any
@@ -125,18 +148,24 @@ def mark_offline_workers():
         cutoff = time.time() - HEARTBEAT_TIMEOUT_SEC
         for w in STATE.workers.values():
             if w["status"] != "offline" and w.get("_last_seen_epoch", 0) < cutoff:
-                w["status"] = "offline"
-                job_id = w.get("current_job_id")
-                if job_id and job_id in STATE.jobs:
-                    j = STATE.jobs[job_id]
-                    if j["status"] in ("assigned", "running", "checkpoint_stop_requested"):
-                        j["status"] = "crashed"
-                        j["finished_at"] = now_iso()
-                        j["log_tail"].append(
-                            f"[coordinator] worker {w['name']} stopped sending heartbeats "
-                            f"(machine likely off/crashed); marking job crashed."
-                        )
-                        maybe_requeue(j)
+                mark_worker_job_offline(w)
+
+        # Also catch any stale workers that were already marked offline but still carry
+        # an active job assignment from a crashed or restarted agent.
+        for w in STATE.workers.values():
+            if w.get("current_job_id") and w["current_job_id"] in STATE.jobs:
+                job = STATE.jobs[w["current_job_id"]]
+                if job["status"] in ("assigned", "running", "checkpoint_stop_requested"):
+                    job["status"] = "crashed"
+                    job["finished_at"] = now_iso()
+                    job["exit_code"] = -1
+                    job["worker_id"] = None
+                    job["pending_control"] = None
+                    job["log_tail"].append(
+                        f"[coordinator] worker {w['name']} still had an active assignment while offline; job marked crashed."
+                    )
+                    maybe_requeue(job)
+                    w["current_job_id"] = None
 
 
 def maybe_requeue(job):
@@ -206,20 +235,38 @@ app = FastAPI(title="Diffusion Lab Coordinator")
 @app.post("/api/workers/register")
 def register_worker(req: RegisterRequest):
     with STATE_LOCK:
-        wid = req.worker_id or str(uuid.uuid4())
-        existing = STATE.workers.get(wid, {})
-        STATE.workers[wid] = {
+        identity = worker_identity(req.name, req.slot)
+        existing = STATE.workers.get(req.worker_id) if req.worker_id else None
+        if existing is None:
+            for wid, w in list(STATE.workers.items()):
+                if worker_identity(w.get("name"), w.get("slot")) == identity:
+                    existing = w
+                    req.worker_id = wid
+                    break
+
+        if existing is None:
+            wid = str(uuid.uuid4())
+        else:
+            wid = existing["id"]
+
+        # A restarted agent should replace earlier stale records for the same machine/slot.
+        for stale_wid, stale in list(STATE.workers.items()):
+            if stale_wid != wid and worker_identity(stale.get("name"), stale.get("slot")) == identity:
+                del STATE.workers[stale_wid]
+
+        state = {
             "id": wid,
             "name": req.name,
             "repo_path": req.repo_path,
             "gpu_info": req.gpu_info,
             "slot": req.slot,
             "status": "idle",
-            "current_job_id": existing.get("current_job_id"),
+            "current_job_id": existing.get("current_job_id") if existing else None,
             "last_seen": now_iso(),
             "_last_seen_epoch": time.time(),
-            "registered_at": existing.get("registered_at", now_iso()),
+            "registered_at": existing.get("registered_at", now_iso()) if existing else now_iso(),
         }
+        STATE.workers[wid] = state
         STATE.save()
         return {"worker_id": wid}
 
@@ -321,12 +368,14 @@ def report_job(job_id: str, req: JobReportRequest):
             job["finished_at"] = now_iso()
             job["exit_code"] = req.exit_code
             job["pending_control"] = None
+            job["worker_id"] = None
         elif req.event == "paused":
             # Exit code STOP_REQUEST_EXIT_CODE (75): checkpoint saved on request, ready to resume.
             job["status"] = "paused"
             job["finished_at"] = now_iso()
             job["exit_code"] = req.exit_code
             job["pending_control"] = None
+            job["worker_id"] = None
         elif req.event == "failed":
             job["status"] = "failed"
             job["finished_at"] = now_iso()
@@ -334,11 +383,13 @@ def report_job(job_id: str, req: JobReportRequest):
             if req.error:
                 job["log_tail"].append(f"[worker] error: {req.error}")
             job["pending_control"] = None
+            job["worker_id"] = None
         elif req.event == "crashed":
             job["status"] = "crashed"
             job["finished_at"] = now_iso()
             job["exit_code"] = req.exit_code
             job["pending_control"] = None
+            job["worker_id"] = None
             maybe_requeue(job)
         else:
             raise HTTPException(400, f"unknown event {req.event}")
