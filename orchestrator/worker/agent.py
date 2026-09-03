@@ -165,6 +165,8 @@ class JobRunner:
             elif isinstance(data, str):
                 auth_body = data.encode("utf-8")
         headers = dict(kwargs.pop("headers", {}))
+        if "data" in kwargs or "json" in kwargs:
+            headers["Content-Type"] = "application/json"
         headers.update(build_auth_headers(self.args.key_phrase, method, path, auth_body))
         resp = self.session.request(method, url, timeout=15, headers=headers, **kwargs)
         auth_headers = resp.headers

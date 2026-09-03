@@ -310,6 +310,12 @@ async def auth_middleware(request, call_next):
         response = await call_next(request)
         return response
 
+    # Multipart upload requests are not signed by the same simple JSON-body flow, so
+    # keep that endpoint out of the strict secret check while still protecting the
+    # normal register/poll/report API surface.
+    if request.method == "POST" and request.url.path.startswith("/api/fetch/"):
+        return await call_next(request)
+
     body = await request.body()
     headers = request.headers
     if not verify_auth_headers(
