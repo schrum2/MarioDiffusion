@@ -123,7 +123,7 @@ class JobRunner:
             self.report(job["job_id"], "failed", error=f"{entry} not found on this machine")
             return
 
-        cmd = [self.args.python, str(script)] + list(job["args"])
+        cmd = [self.args.python, "-u", str(script)] + list(job["args"])
         env = os.environ.copy()
         if self.args.gpu_id is not None:
             env["CUDA_VISIBLE_DEVICES"] = str(self.args.gpu_id)
@@ -144,9 +144,13 @@ class JobRunner:
         log(self.slot_label, f"starting job {job['job_id']}: {' '.join(cmd)}")
         try:
             self.proc = subprocess.Popen(
-                cmd, cwd=str(self.args.repo_path), env=env,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1,
+                cmd,
+                cwd=str(self.args.repo_path),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,  # Line buffered
             )
         except Exception as e:
             self.report(job["job_id"], "failed", error=f"could not launch: {e}")
@@ -180,7 +184,12 @@ class JobRunner:
     def _stream_output(self, job_id):
         last_report = 0.0
         for line in self.proc.stdout:
+            # Print directly to the worker's terminal/console
+            print(f"[{self.slot_label}][JOB-OUT] {line}", end="", flush=True)
+
+            # Store line for local logs and coordinator reports
             self.append_log(line)
+
             now = time.time()
             if now - last_report > HEARTBEAT_WHILE_RUNNING_SEC:
                 last_report = now
