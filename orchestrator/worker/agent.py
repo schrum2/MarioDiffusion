@@ -152,11 +152,14 @@ class JobRunner:
         url = self.args.coordinator.rstrip("/") + path
         auth_body = b""
         if "json" in kwargs:
-            auth_body = json.dumps(kwargs["json"], separators=(",", ":"), sort_keys=True).encode("utf-8")
+            payload = kwargs.pop("json")
+            kwargs["data"] = json.dumps(payload).encode("utf-8")
+            auth_body = kwargs["data"]
         elif "data" in kwargs:
             data = kwargs["data"]
             if isinstance(data, (dict, list, tuple)):
-                auth_body = json.dumps(data, separators=(",", ":"), sort_keys=True).encode("utf-8")
+                kwargs["data"] = json.dumps(data).encode("utf-8")
+                auth_body = kwargs["data"]
             elif isinstance(data, bytes):
                 auth_body = data
             elif isinstance(data, str):
@@ -337,10 +340,14 @@ class JobRunner:
         try:
             archive_path = shutil.make_archive(str(tmp_zip), "zip", root_dir=str(output_dir))
             with open(archive_path, "rb") as f:
+                form_data = {"job_id": job_id or ""}
+                files = {"file": (f"{output_dir.name}.zip", f, "application/zip")}
+                headers = build_auth_headers(self.args.key_phrase, "POST", f"/api/fetch/{request_id}/upload", json.dumps(form_data).encode("utf-8"))
                 self.session.post(
                     self.args.coordinator.rstrip("/") + f"/api/fetch/{request_id}/upload",
-                    data={"job_id": job_id or ""},
-                    files={"file": (f"{output_dir.name}.zip", f, "application/zip")},
+                    data=form_data,
+                    files=files,
+                    headers=headers,
                     timeout=600,
                 )
             log(self.slot_label, f"uploaded {archive_path} for fetch request {request_id}")

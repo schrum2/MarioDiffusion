@@ -309,13 +309,6 @@ async def auth_middleware(request, call_next):
     if not SHARED_SECRET_PHRASE:
         response = await call_next(request)
         return response
-    if request.method == "GET" and (
-        request.url.path == "/api/state" or request.url.path.startswith("/api/fetch/")
-    ):
-        response = await call_next(request)
-        for key, value in build_auth_headers(SHARED_SECRET_PHRASE, request.method, request.url.path, status_code=response.status_code).items():
-            response.headers[key] = value
-        return response
 
     body = await request.body()
     headers = request.headers
