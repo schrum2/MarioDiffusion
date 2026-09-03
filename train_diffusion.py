@@ -140,6 +140,20 @@ def parse_args():
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps")
     parser.add_argument("--lr_warmup_percentage", type=float, default=0.05, help="Learning rate warmup portion") 
     parser.add_argument("--lr_scheduler_cycles", type=float, default=0.5, help="Number of cycles for the cosine learning rate scheduler")
+    parser.add_argument(
+        "--lr_scheduler_type",
+        type=str,
+        default="cosine",
+        choices=["cosine", "plateau"],
+        help="Learning rate schedule. 'cosine' (default): warmup then cosine decay over the full --num_epochs, "
+             "as before. 'plateau': warmup, then hold at peak LR and only reduce (via ReduceLROnPlateau) when "
+             "validation loss stops improving. Unlike 'cosine', this doesn't assume a fixed final epoch count, "
+             "so it composes naturally with --use_early_stopping or with runs of unpredictable length."
+    )
+    parser.add_argument("--lr_plateau_factor", type=float, default=0.5, help="[plateau scheduler] Multiply LR by this factor when validation loss plateaus.")
+    parser.add_argument("--lr_plateau_patience", type=int, default=3, help="[plateau scheduler] Number of validation checks (not epochs) with no improvement before reducing LR.")
+    parser.add_argument("--lr_plateau_threshold", type=float, default=1e-4, help="[plateau scheduler] Minimum relative improvement in val_loss to count as progress.")
+    parser.add_argument("--lr_plateau_min_lr", type=float, default=1e-7, help="[plateau scheduler] Floor below which LR will not be reduced further.")
     parser.add_argument("--save_image_epochs", type=int, default=20, help="Save generated levels every N epochs")
     parser.add_argument("--save_model_epochs", type=int, default=20, help="Save model every N epochs")
     parser.add_argument("--mixed_precision", type=str, default="fp16", choices=["no", "fp16", "bf16"], help="Mixed precision type")
@@ -621,12 +635,50 @@ def main():
 
     print(f"Warmup period will be {warmup_steps} steps out of {total_training_steps}")
 
-    lr_scheduler = get_cosine_schedule_with_warmup(
-        optimizer=optimizer,
-        num_cycles=args.lr_scheduler_cycles,
-        num_warmup_steps=warmup_steps,  # Use calculated warmup steps
-        num_training_steps=total_training_steps,
-    )
+    # REVISION CANDIDATE: build_lr_scheduler is self-contained (no dependency on main()'s local
+    # state beyond the args/optimizer/warmup_steps it's passed) and could move to
+    # training_utils.py alongside the loss functions above.
+    def build_lr_scheduler(optimizer, warmup_steps, total_training_steps):
+        """
+        Builds the LR scheduler selected by --lr_scheduler_type.
+        'cosine': warmup then cosine decay to ~0 over total_training_steps, stepped once per
+            optimizer step (unchanged default behavior).
+        'plateau': warmup is applied manually (see apply_manual_warmup below) since
+            ReduceLROnPlateau has no warmup concept of its own; after warmup, LR is held
+            constant until validation loss plateaus, at which point ReduceLROnPlateau reduces
+            it. Stepped once per validation check (with the val_loss metric), not per batch.
+        """
+        if args.lr_scheduler_type == "plateau":
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode="min",
+                factor=args.lr_plateau_factor,
+                patience=args.lr_plateau_patience,
+                threshold=args.lr_plateau_threshold,
+                min_lr=args.lr_plateau_min_lr,
+            )
+        else:
+            scheduler = get_cosine_schedule_with_warmup(
+                optimizer=optimizer,
+                num_cycles=args.lr_scheduler_cycles,
+                num_warmup_steps=warmup_steps,
+                num_training_steps=total_training_steps,
+            )
+        return scheduler
+
+    def apply_manual_warmup(optimizer, step, warmup_steps, base_lr):
+        """
+        Only used when --lr_scheduler_type plateau: linearly ramps LR from 0 to base_lr over
+        the first warmup_steps optimizer steps, since ReduceLROnPlateau has no warmup of its
+        own and would otherwise start straight at the (possibly too-high) target LR.
+        """
+        if warmup_steps <= 0 or step >= warmup_steps:
+            return
+        warmup_lr = base_lr * float(step + 1) / float(warmup_steps)
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = warmup_lr
+
+    lr_scheduler = build_lr_scheduler(optimizer, warmup_steps, total_training_steps)
     
     # Prepare for training with accelerator
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
@@ -760,7 +812,9 @@ def main():
     
     best_val_loss = float('inf')
     best_caption_score = float('-inf')
-    best_model_state = None
+    # True once at least one "checkpoint-best" has been saved to disk (see save_checkpoint(...,
+    # dir_name="checkpoint-best") below). Replaces the old in-memory best_model_state clone.
+    have_best_checkpoint = False
     # Track the epoch of the last improvement
     best_epoch = 0
     # If resuming training, load the latest checkpoint
@@ -808,13 +862,27 @@ def main():
             if os.path.exists(lr_scheduler_config_path):
                 with open(lr_scheduler_config_path, "r") as f:
                     scheduler_config = json.load(f)
-                # Use these values to re-create the scheduler
-                lr_scheduler = get_cosine_schedule_with_warmup(
-                    optimizer=optimizer,
-                    num_cycles=scheduler_config["num_cycles"],
-                    num_warmup_steps=scheduler_config["num_warmup_steps"],
-                    num_training_steps=scheduler_config["num_training_steps"],
-                )
+                # Re-create whichever scheduler type this run was configured with.
+                # scheduler_config["type"] is the source of truth (saved alongside each
+                # checkpoint) so resuming still works correctly if --lr_scheduler_type isn't
+                # re-passed identically on the command line.
+                saved_scheduler_type = scheduler_config.get("type", "cosine")
+                if saved_scheduler_type == "plateau":
+                    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                        optimizer,
+                        mode="min",
+                        factor=scheduler_config["factor"],
+                        patience=scheduler_config["patience"],
+                        threshold=scheduler_config["threshold"],
+                        min_lr=scheduler_config["min_lr"],
+                    )
+                else:
+                    lr_scheduler = get_cosine_schedule_with_warmup(
+                        optimizer=optimizer,
+                        num_cycles=scheduler_config["num_cycles"],
+                        num_warmup_steps=scheduler_config["num_warmup_steps"],
+                        num_training_steps=scheduler_config["num_training_steps"],
+                    )
                 # Now load the state dict into the new scheduler
                 lr_scheduler_path = os.path.join(latest_ckpt, "lr_scheduler.pt")
                 if os.path.exists(lr_scheduler_path):
@@ -843,6 +911,8 @@ def main():
                 best_epoch = 0
                 epochs_since_improvement = 0
                 
+            have_best_checkpoint = os.path.isdir(os.path.join(args.output_dir, "checkpoint-best"))
+
             start_epoch = latest_epoch + 1
             global_step = infer_global_step_from_log(log_file)
             print(f"Resumed training from epoch {start_epoch}, global_step {global_step}")
@@ -852,8 +922,14 @@ def main():
     # REVISION CANDIDATE: extracted from the inline "Save model every N epochs" block below so
     # that both the periodic save and the new remote checkpoint-stop request (see
     # checkpoint_stop_requested() above) share one implementation.
-    def save_checkpoint(epoch):
-        checkpoint_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}")
+    def save_checkpoint(epoch, dir_name=None):
+        """
+        Saves a full checkpoint (model/optimizer/scheduler/early-stop state) to
+        output_dir/dir_name, defaulting to output_dir/checkpoint-{epoch}. Passing an explicit
+        dir_name (e.g. "checkpoint-best") gives a stable location that's overwritten in place
+        rather than accumulating one directory per save.
+        """
+        checkpoint_dir = os.path.join(args.output_dir, dir_name if dir_name is not None else f"checkpoint-{epoch}")
         # save the model
         if args.text_conditional:
             pipeline = TextConditionalDDPMPipeline(
@@ -896,12 +972,23 @@ def main():
         with open(early_stop_path, "w") as f:
             json.dump(early_stop_state, f)
 
-        # When saving checkpoint:
-        scheduler_config = {
-            "num_warmup_steps": warmup_steps,
-            "num_training_steps": total_training_steps,
-            "num_cycles": args.lr_scheduler_cycles,
-        }
+        # When saving checkpoint: record enough to reconstruct whichever scheduler type this
+        # run used (see build_lr_scheduler / the resume block above).
+        if args.lr_scheduler_type == "plateau":
+            scheduler_config = {
+                "type": "plateau",
+                "factor": args.lr_plateau_factor,
+                "patience": args.lr_plateau_patience,
+                "threshold": args.lr_plateau_threshold,
+                "min_lr": args.lr_plateau_min_lr,
+            }
+        else:
+            scheduler_config = {
+                "type": "cosine",
+                "num_warmup_steps": warmup_steps,
+                "num_training_steps": total_training_steps,
+                "num_cycles": args.lr_scheduler_cycles,
+            }
         with open(os.path.join(checkpoint_dir, "lr_scheduler_config.json"), "w") as f:
             json.dump(scheduler_config, f)
         return checkpoint_dir
@@ -941,7 +1028,14 @@ def main():
                 if accelerator.sync_gradients:
                     accelerator.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 optimizer.step()
-                lr_scheduler.step()
+                if args.lr_scheduler_type == "plateau":
+                    # ReduceLROnPlateau is stepped once per validation (with the val_loss
+                    # metric) further down, not once per batch. During the warmup window we
+                    # still need to ramp LR up manually since ReduceLROnPlateau has no warmup
+                    # concept of its own.
+                    apply_manual_warmup(optimizer, global_step, warmup_steps, args.learning_rate)
+                else:
+                    lr_scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
             train_loss += loss.detach().item()
 
@@ -986,10 +1080,19 @@ def main():
         if val_dataloader is not None and (epoch % args.validate_epochs == 0 or epoch == args.num_epochs - 1):
             model.eval()
             val_loss = 0.0
+            # Deterministic validation: process_diffusion_batch draws its noise/timesteps from
+            # this generator instead of the global (continuously-advancing) RNG stream. Reseeding
+            # it fresh from args.seed every epoch means the same val batch sees the exact same
+            # noise/timesteps every time it's evaluated, so val_loss differences across epochs
+            # reflect real changes in the model rather than which random timesteps happened to be
+            # sampled that epoch. This assumes val_dataloader iterates batches in a fixed order
+            # (no shuffling), which is standard for validation loaders.
+            val_generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
             with torch.no_grad():
                 for val_batch in val_dataloader:
                     val_batch_loss = process_diffusion_batch(
-                        args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator
+                        args, model, val_batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator,
+                        generator=val_generator
                     )
                     val_loss += val_batch_loss.item()
                     # Clear memory after each validation batch
@@ -998,6 +1101,13 @@ def main():
                     #    torch.cuda.empty_cache()
 
             val_loss /= len(val_dataloader)
+
+            # For the 'plateau' scheduler: step once per validation with the fresh val_loss,
+            # not once per batch like the cosine scheduler. Held off until warmup has finished
+            # so the manual warmup ramp (see apply_manual_warmup) and ReduceLROnPlateau's own
+            # LR reductions don't fight over control of the LR.
+            if args.lr_scheduler_type == "plateau" and global_step >= warmup_steps:
+                lr_scheduler.step(val_loss)
 
             if args.text_conditional and (args.plot_validation_caption_score or args.plot_clip_score):
                 # Compute caption match score for this data
@@ -1291,14 +1401,25 @@ def main():
             # Save best model if caption score improves for text_conditionalm or validation loss for unconditional
             if (args.text_conditional and caption_score_improved) or (not args.text_conditional and val_loss_improved):
                 best_epoch = epoch
+                have_best_checkpoint = True
 
-                best_model_state = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'val_loss': val_loss,
-                    'caption_score': avg_caption_score,
-                }
+                # Saved to disk immediately (into a stable "checkpoint-best" dir, overwritten
+                # in place each time) rather than held only in memory until training finishes.
+                # This means a crash partway through a long run doesn't lose the best model
+                # found so far, and we're not holding a full extra copy of the model/optimizer
+                # state resident in memory for the entire run.
+                save_checkpoint(epoch, dir_name="checkpoint-best")
+
+                if accelerator.is_local_main_process:
+                    best_model_info = {
+                        "best_epoch": best_epoch,
+                        "best_val_loss": best_val_loss,
+                        "best_caption_score": best_caption_score if args.text_conditional else None,
+                    }
+                    with open(os.path.join(args.output_dir, "best_model_info.json"), "w") as f:
+                        json.dump(best_model_info, f)
+
+                print(f"New best model at epoch {epoch} (val_loss={val_loss}); saved to checkpoint-best.")
 
             # Early stopping logic: Conditional training end when both validation and caption metrics stop improving
             # and unconditional training ends when validation loss stops improving
@@ -1451,23 +1572,24 @@ def main():
         # Close progress bar and TensorBoard writer
         progress_bar.close()
 
-        # Replace model with best ever encountered
-        if best_model_state is not None:
-            model.load_state_dict(best_model_state['model_state_dict'])
-            # Save best epoch info
-            best_model_info = {
-                "best_epoch": best_epoch,
-                "best_val_loss": best_val_loss,
-                "best_caption_score": best_caption_score if args.text_conditional else None
-            }
-            with open(os.path.join(args.output_dir, "best_model_info.json"), "w") as f:
-                json.dump(best_model_info, f)
-            
-            print(f"\nSaved best model from epoch {best_epoch}")
+        # Replace model with best ever encountered. This is now loaded back from the
+        # "checkpoint-best" directory saved to disk during training (see save_checkpoint(...,
+        # dir_name="checkpoint-best") in the validation block above) rather than from an
+        # in-memory clone -- best_model_info.json was already written at that point too.
+        if have_best_checkpoint:
+            best_ckpt_dir = os.path.join(args.output_dir, "checkpoint-best")
+            print(f"\nLoading best model from {best_ckpt_dir} (best epoch {best_epoch})")
+            best_pipeline = get_pipeline(best_ckpt_dir)
+            accelerator.unwrap_model(model).load_state_dict(best_pipeline.unet.state_dict())
+
             if args.text_conditional:
                 print(f"Best caption score: {best_caption_score:.4f}")
             else:
                 print(f"Best validation loss: {best_val_loss:.4f}")
+        else:
+            print("\nNo checkpoint-best was ever saved (validation loss/caption score never "
+                  "improved over the run's starting values); the final model reflects the last "
+                  "epoch trained instead.")
         
         # Final model save
         if args.text_conditional:
@@ -1596,10 +1718,17 @@ def prepare_conditioned_batch(args, tokenizer_hf, text_encoder, scenes, captions
         return combined_embeddings, scenes_for_train, timesteps_for_train
 
 def process_diffusion_batch(
-    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator
+    args, model, batch, noise_scheduler, loss_fn, tokenizer_hf, text_encoder, accelerator, generator=None
 ):
     """
     Handles a single batch for training or validation.
+
+    generator: optional torch.Generator used to draw the timesteps and noise below. Training
+        calls leave this as None, so they keep drawing from the global (continuously-advancing)
+        RNG stream as before -- that randomness is desirable during training. Validation calls
+        pass a generator that's reseeded to the same value every epoch, so the same batch is
+        always scored against the same noise/timesteps; this removes RNG sampling as a source
+        of epoch-to-epoch val_loss noise, so val_loss differences actually reflect the model.
     """ 
     if args.negative_prompt_training:
         scenes, captions, negative_captions = batch
@@ -1610,7 +1739,8 @@ def process_diffusion_batch(
     scenes = scenes.to(accelerator.device)
 
     timesteps = torch.randint(
-        0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device
+        0, noise_scheduler.config.num_train_timesteps, (scenes.shape[0],), device=accelerator.device,
+        generator=generator
     ).long()
     
 
@@ -1622,7 +1752,12 @@ def process_diffusion_batch(
     else: #Otherwise they can be set as is
         combined_embeddings, scenes_for_train, timesteps_for_train = None, scenes, timesteps
 
-    noise = torch.randn_like(scenes_for_train)
+    # torch.randn_like() has no generator= parameter, so build the noise tensor with torch.randn()
+    # against the same shape/dtype/device instead in order to support a deterministic generator.
+    noise = torch.randn(
+        scenes_for_train.shape, dtype=scenes_for_train.dtype, device=scenes_for_train.device,
+        generator=generator
+    )
     noisy_scenes = noise_scheduler.add_noise(scenes_for_train, noise, timesteps_for_train)
     
     if args.text_conditional:
