@@ -204,3 +204,75 @@ button.small { padding: 4px 9px; font-size: 11px; }
   margin: 0; padding: 14px; overflow: auto; flex: 1;
   font-family: var(--mono); font-size: 12px; white-space: pre-wrap; color: var(--text);
 }
+
+/* --- configurable job form --- */
+
+.config-section {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 12px 14px;
+  background: var(--bg);
+}
+
+.config-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.config-section .config-title {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.wide-field {
+  flex: 1;
+  min-width: 280px;
+}
+
+.generated-command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.generated-command-head .config-title {
+  margin: 0;
+}
+
+#argsInput {
+  min-height: 130px;
+}
+
+#argsInput:focus {
+  border-color: var(--phosphor-dim);
+  outline: none;
+}
+
+input:disabled,
+select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.command-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.command-actions button[type="submit"] {
+  order: 2;
+}
+
+.command-actions #regenerateButtonBottom {
+  order: 1;
+}
+
+[hidden] {
+  display: none !important;
+}
