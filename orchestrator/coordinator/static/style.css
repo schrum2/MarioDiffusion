@@ -1,0 +1,293 @@
+:root {
+  --bg: #10130f;
+  --bg-raised: #161a14;
+  --line: #2a2f26;
+  --text: #d8ddce;
+  --text-dim: #8a9280;
+  --phosphor: #7fe08a;
+  --phosphor-dim: #4c8a55;
+  --amber: #e0a95c;
+  --red: #e0705c;
+  --blue: #6ea3d8;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  --sans: "IBM Plex Sans", Inter, system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: local("IBM Plex Mono");
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { color: var(--phosphor); font-size: 18px; }
+.brand-name { font-family: var(--mono); letter-spacing: 0.02em; font-size: 15px; }
+.topbar-stats { font-family: var(--mono); color: var(--text-dim); font-size: 12px; }
+.auth-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.auth-field input { width: 180px; padding: 5px 7px; }
+
+main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 24px 80px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+#workersPanel { grid-column: 1 / -1; }
+#jobsPanel { grid-column: 1 / -1; }
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--bg-raised);
+  padding: 18px 20px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.panel-sub { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+
+/* --- workers --- */
+.workers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.worker-card {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 12px 14px;
+  background: var(--bg);
+}
+
+.worker-card .wname { font-family: var(--mono); font-size: 13px; }
+.worker-card .wgpu { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+.worker-card .wseen { color: var(--text-dim); font-size: 11px; margin-top: 8px; }
+
+.status-pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: 1px solid currentColor;
+  margin-top: 8px;
+}
+.status-idle { color: var(--phosphor-dim); }
+.status-busy, .status-running { color: var(--phosphor); }
+.status-offline { color: var(--red); }
+.status-queued { color: var(--blue); }
+.status-assigned { color: var(--blue); }
+.status-checkpoint_stop_requested { color: var(--amber); }
+.status-paused { color: var(--amber); }
+.status-completed { color: var(--phosphor); }
+.status-failed, .status-crashed { color: var(--red); }
+.status-cancelled { color: var(--text-dim); }
+
+.empty-note { color: var(--text-dim); font-size: 12px; font-style: italic; }
+
+/* --- job form --- */
+.job-form { display: flex; flex-direction: column; gap: 12px; }
+.field-row { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; }
+.field-row label, .args-field {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--text-dim);
+}
+.checkbox-field { flex-direction: row !important; align-items: center; gap: 6px !important; }
+input, select, textarea, button {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 7px 9px;
+  font-size: 13px;
+}
+textarea { resize: vertical; font-size: 12px; }
+.hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-dim); font-size: 11px; }
+button {
+  cursor: pointer;
+  border-color: var(--phosphor-dim);
+  color: var(--phosphor);
+  width: fit-content;
+  padding: 8px 16px;
+}
+button:hover { background: rgba(127, 224, 138, 0.08); }
+button.danger { border-color: var(--red); color: var(--red); }
+button.warn { border-color: var(--amber); color: var(--amber); }
+button.small { padding: 4px 9px; font-size: 11px; }
+.submit-status { font-size: 12px; color: var(--phosphor); }
+
+/* --- jobs list --- */
+.jobs-list { display: flex; flex-direction: column; gap: 8px; }
+.job-row {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 0.7fr 1fr auto;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+}
+.job-row .jscript { font-family: var(--mono); color: var(--text-dim); }
+.job-row .jout { font-family: var(--mono); }
+.job-row .jworker { color: var(--text-dim); }
+.job-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+@media (max-width: 720px) {
+  main { grid-template-columns: 1fr; }
+  .job-row { grid-template-columns: 1fr; }
+  .job-actions { justify-content: flex-start; }
+}
+
+/* --- log overlay --- */
+.log-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 10;
+}
+/* Higher specificity than ".log-overlay" alone, so this reliably wins over the rule
+   above regardless of stylesheet order -- otherwise the [hidden] attribute and
+   "display: flex" tie on specificity and flex can end up winning, leaving the overlay
+   visible (and stuck that way, since toggling "hidden" then has no visual effect). */
+.log-overlay[hidden] {
+  display: none;
+}
+.log-box {
+  width: min(820px, 90vw); height: min(560px, 80vh);
+  background: var(--bg-raised); border: 1px solid var(--line); border-radius: 4px;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.log-box-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+}
+.log-box-head button { padding: 3px 8px; font-size: 11px; }
+#logBoxContent {
+  margin: 0; padding: 14px; overflow: auto; flex: 1;
+  font-family: var(--mono); font-size: 12px; white-space: pre-wrap; color: var(--text);
+}
+
+/* --- configurable job form --- */
+
+.config-section {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 12px 14px;
+  background: var(--bg);
+}
+
+.config-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.config-section .config-title {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.wide-field {
+  flex: 1;
+  min-width: 280px;
+}
+
+.generated-command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.generated-command-head .config-title {
+  margin: 0;
+}
+
+#argsInput {
+  min-height: 130px;
+}
+
+#argsInput:focus {
+  border-color: var(--phosphor-dim);
+  outline: none;
+}
+
+input:disabled,
+select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .topbar { flex-wrap: wrap; gap: 10px; }
+  .auth-field { order: 3; width: 100%; }
+  .auth-field input { flex: 1; width: auto; }
+}
+
+.command-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.command-actions button[type="submit"] {
+  order: 2;
+}
+
+.command-actions #regenerateButtonBottom {
+  order: 1;
+}
+
+[hidden] {
+  display: none !important;
+}

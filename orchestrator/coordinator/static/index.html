@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lab // orchestrator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◈</span>
+      <span class="brand-name">lab orchestrator</span>
+    </div>
+    <label class="auth-field">key phrase
+      <input type="password" id="keyPhraseInput" autocomplete="off">
+    </label>
+    <div class="topbar-stats" id="topbarStats">—</div>
+  </header>
+
+  <main>
+    <section class="panel" id="workersPanel">
+      <div class="panel-head">
+        <h2>machines</h2>
+        <span class="panel-sub" id="workerCount"></span>
+      </div>
+      <div class="workers-grid" id="workersGrid"></div>
+    </section>
+
+<section class="panel" id="submitPanel">
+  <div class="panel-head">
+    <h2>queue a job</h2>
+  </div>
+
+  <form id="jobForm" class="job-form">
+
+    <div class="field-row">
+      <label>script
+        <select name="script" id="scriptSelect">
+          <option value="train_diffusion">train_diffusion.py</option>
+          <option value="train_mlm">train_mlm.py</option>
+        </select>
+      </label>
+
+      <label>priority
+        <input type="number" name="priority" value="100"
+               title="lower number = runs sooner">
+      </label>
+
+      <label class="checkbox-field">
+        <input type="checkbox" name="requeue_on_crash" checked>
+        auto-requeue on crash
+      </label>
+    </div>
+
+    <div id="diffusionConfig">
+
+      <div class="config-section">
+        <div class="config-title">training configuration</div>
+
+        <div class="field-row">
+          <label>game
+            <select id="gameSelect">
+              <option>Mario</option>
+              <option>LR</option>
+              <option>MM-Simple</option>
+              <option>MM-Full</option>
+              <option>MMLV</option>
+              <option>MM2</option>
+            </select>
+          </label>
+
+          <label>data
+            <input type="text" id="dataInput" value="regular">
+          </label>
+
+          <label>caption type
+            <select id="typeSelect">
+              <option value="regular">regular</option>
+              <option value="absence">absence</option>
+              <option value="negative">negative</option>
+              <option value="llm">llm</option>
+              <option value="none">none (unconditional)</option>
+            </select>
+          </label>
+
+          <label>seed
+            <input type="number" id="seedInput" value="0">
+          </label>
+
+          <label>diffusion epochs
+            <input type="number" id="epochsInput" value="500" min="1">
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label>text encoder
+            <select id="modelSelect">
+              <option value="MLM">MLM</option>
+              <option value="MiniLM">MiniLM</option>
+              <option value="GTE">GTE</option>
+              <option value="CLIP">CLIP</option>
+              <option value="T5">T5</option>
+            </select>
+          </label>
+
+          <label id="splitField">text split
+            <select id="splitSelect">
+              <option value="single">single</option>
+              <option value="multiple">multiple</option>
+            </select>
+          </label>
+
+          <label>tile embedding
+            <select id="tileMethodSelect">
+              <option value="none">none</option>
+              <option value="block2vec">block2vec</option>
+              <option value="skip">skip-gram</option>
+            </select>
+          </label>
+
+          <label id="tileDimField">embedding dimension
+            <input type="number" id="tileDimInput" value="16" min="1">
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label>captions per key
+            <input type="number" id="numCaptionsInput"
+                   placeholder="optional" min="1">
+          </label>
+
+          <label class="wide-field">caption source keys
+            <input type="text" id="captionKeysInput"
+                   placeholder="e.g. llm_gpt,llm_claude">
+          </label>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <div class="config-title">output</div>
+
+        <div class="field-row">
+          <label class="wide-field">output directory
+            <input type="text" id="outputDirInput">
+          </label>
+        </div>
+      </div>
+
+      <div class="generated-command-head">
+        <span class="config-title">generated command</span>
+        <button type="button" id="regenerateButton" class="small">
+          regenerate
+        </button>
+      </div>
+
+    </div>
+
+    <div id="mlmConfig" hidden>
+      <div class="config-section">
+        <div class="config-title">MLM training</div>
+
+        <div class="field-row">
+          <label>game
+            <select id="mlmGameSelect">
+              <option>Mario</option>
+              <option>LR</option>
+              <option>MM-Simple</option>
+              <option>MM-Full</option>
+              <option>MMLV</option>
+              <option>MM2</option>
+            </select>
+          </label>
+
+          <label>data
+            <input type="text" id="mlmDataInput" value="regular">
+          </label>
+
+          <label>caption type
+            <select id="mlmTypeSelect">
+              <option value="regular">regular</option>
+              <option value="absence">absence</option>
+              <option value="negative">negative</option>
+              <option value="llm">llm</option>
+            </select>
+          </label>
+
+          <label>seed
+            <input type="number" id="mlmSeedInput" value="0">
+          </label>
+
+          <label>epochs
+            <input type="number" id="mlmEpochsInput" value="300" min="1">
+          </label>
+
+          <label>checkpoint frequency
+            <input type="number" id="mlmCheckpointInput" value="20" min="1">
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label class="wide-field">output directory
+            <input type="text" id="mlmOutputDirInput">
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <label class="args-field">
+      final command
+      <span class="hint">
+        This is the command that will actually be queued. You can edit it
+        directly after generating it.
+      </span>
+      <textarea name="args" id="argsInput" rows="7"></textarea>
+    </label>
+
+    <div class="command-actions">
+      <button type="button" id="regenerateButtonBottom" class="small">
+        regenerate from settings
+      </button>
+      <button type="submit">add to queue</button>
+      <span id="submitStatus" class="submit-status"></span>
+    </div>
+
+  </form>
+</section>
+
+    <section class="panel" id="jobsPanel">
+      <div class="panel-head">
+        <h2>jobs</h2>
+        <span class="panel-sub" id="jobCount"></span>
+      </div>
+      <div class="jobs-list" id="jobsList"></div>
+    </section>
+  </main>
+
+  <div class="log-overlay" id="logOverlay" hidden>
+    <div class="log-box">
+      <div class="log-box-head">
+        <span id="logBoxTitle">log</span>
+        <button id="logBoxClose">close ×</button>
+      </div>
+      <pre id="logBoxContent"></pre>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
