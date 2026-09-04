@@ -42,6 +42,15 @@ body {
 .brand-mark { color: var(--phosphor); font-size: 18px; }
 .brand-name { font-family: var(--mono); letter-spacing: 0.02em; font-size: 15px; }
 .topbar-stats { font-family: var(--mono); color: var(--text-dim); font-size: 12px; }
+.auth-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.auth-field input { width: 180px; padding: 5px 7px; }
 
 main {
   max-width: 1180px;
@@ -256,6 +265,12 @@ input:disabled,
 select:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .topbar { flex-wrap: wrap; gap: 10px; }
+  .auth-field { order: 3; width: 100%; }
+  .auth-field input { flex: 1; width: auto; }
 }
 
 .command-actions {

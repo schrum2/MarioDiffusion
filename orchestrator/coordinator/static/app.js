@@ -304,6 +304,59 @@ function updateDiffusionVisibility() {
       : "1";
 }
 
+function bytesToBase64(bytes) {
+  let binary = "";
+  bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+function textBytes(text) {
+  return new TextEncoder().encode(text);
+}
+
+function concatBytes(...parts) {
+  const result = new Uint8Array(parts.reduce((length, part) => length + part.length, 0));
+  let offset = 0;
+  parts.forEach(part => {
+    result.set(part, offset);
+    offset += part.length;
+  });
+  return result;
+}
+
+async function buildAuthHeaders(method, path, bodyBytes) {
+  const phrase = document.getElementById("keyPhraseInput").value;
+  if (!phrase) return {};
+
+  const key = new Uint8Array(await crypto.subtle.digest("SHA-256", textBytes(phrase)));
+  const bodyHash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bodyBytes))]
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("");
+  const nonce = crypto.getRandomValues(new Uint8Array(16));
+  const payload = JSON.stringify({
+    body_sha256: bodyHash,
+    method,
+    path,
+    status_code: null
+  });
+  const payloadBytes = textBytes(payload);
+  const cipher = new Uint8Array(payloadBytes.length);
+  for (let i = 0; i < payloadBytes.length; i++) {
+    cipher[i] = payloadBytes[i] ^ key[(i + nonce.length) % key.length] ^ nonce[i % nonce.length];
+  }
+  const hmacKey = await crypto.subtle.importKey(
+    "raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const signingData = concatBytes(nonce, cipher, textBytes(method), textBytes(path));
+  const tag = new Uint8Array(await crypto.subtle.sign("HMAC", hmacKey, signingData));
+
+  return {
+    "x-auth-nonce": bytesToBase64(nonce),
+    "x-auth-cipher": bytesToBase64(cipher),
+    "x-auth-tag": bytesToBase64(tag)
+  };
+}
+
 async function api(method, path, body) {
   const opts = { method, headers: {} };
 
@@ -311,6 +364,11 @@ async function api(method, path, body) {
     opts.headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(body);
   }
+
+  Object.assign(
+    opts.headers,
+    await buildAuthHeaders(method, path, textBytes(opts.body || ""))
+  );
 
   const res = await fetch(path, opts);
 
