@@ -18,7 +18,6 @@
 """
 import os
 import sys
-import torch
 
 # Repo root on the path so the converter modules resolve from the util dir.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -332,6 +331,7 @@ def average_min_edit_distance(level_collection, use_gpu=True):
     """AMED_self: averaged tile-wise distance from each level to its nearest
     same-shape neighbour. A level whose shape appears once is skipped.
     Returns (average, num_compared, num_skipped)."""
+    import torch    # local so this module imports without torch
     device = "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
     total = 0.0
     compared = 0
@@ -355,6 +355,7 @@ def average_min_edit_distance_from_real(generated_levels, real_levels, use_gpu=T
     """AMED_real: each generated level's distance to the nearest same-shape real
     level; generated levels with no same-shape real level are skipped.
     Returns (average, perfect_matches, num_compared, num_skipped)."""
+    import torch    # local so this module imports without torch
     device = "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
     real_by_shape = {
         shape: torch.tensor([real_levels[i] for i in idx], dtype=torch.int16).to(device)
@@ -387,6 +388,7 @@ def max_edit_distance(levels, use_gpu=True):
     ignored; returns None if no pair could be compared."""
     if len(levels) < 2:
         return None
+    import torch    # local so this module imports without torch
     device = "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
     best = None
     for indices in _group_by_shape(levels).values():

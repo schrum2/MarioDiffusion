@@ -463,6 +463,7 @@ COALESCE_POLICY = {
     "Lift":               (_HRUN,),
     "Bullet Bill Blaster":(_VRUN,),
     "Vine":               (_VRUN,),
+    "Goal":               (_VRUN,),   # one tall pole, not a stack of tiles
     "Pipe":               (_PIPE,),
 }
 

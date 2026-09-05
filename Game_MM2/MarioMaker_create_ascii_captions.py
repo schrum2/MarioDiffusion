@@ -151,6 +151,20 @@ def largest_blobs(scene, id_to_char):
     return biggest
 
 
+def count_objects(scene, id_to_char):
+    """
+        Counts placed objects instead of occupied cells, so a 2x6 pipe counts once.
+        Only the multi-tile types have a footprint to go by; the rest are one per cell.
+        Returns a dict mapping tile char to the number of objects in the scene.
+    """
+    from util.mm2_metrics import count_structures, FEATURE_POLICIES
+
+    counts = count_structures(scene, id_to_char)
+    return {char: counts[name]["total"]
+            for char, (name, _policy) in FEATURE_POLICIES.items()
+            if name in counts}
+
+
 def describe_ground(scene, id_to_char, ground_chars):
     if not ground_chars:
         return None
@@ -178,9 +192,9 @@ def describe_ground(scene, id_to_char, ground_chars):
 def assign_caption(scene, id_to_char, char_names, ground_chars=None,
                    meta_phrases=None, debug=False, return_details=False):
     """
-        Assigns a caption to a level scene based on its contents. The metadata comes
-        first, then the ground summary, then a count of each tile type, and finally a
-        note for any type that piles up into a blob.
+        Assigns a caption to a level scene based on its contents: the metadata, the
+        ground summary, a count of each tile type, and a note for anything that piles
+        up into a blob. Multi-tile objects now should count as one.
         Returns (caption, details) when return_details is True, where details maps
         each phrase to the (row, col) positions that produced it.
     """
@@ -212,10 +226,13 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
     add_to_caption(describe_ground(scene, id_to_char, ground_chars), ground_cells)
 
     blobs = largest_blobs(scene, id_to_char)
+    object_counts = count_objects(scene, id_to_char)
     for char, char_cells in cells.items():
         name = char_names[char]
-        add_to_caption(count_phrase(len(char_cells), name), char_cells)
-        if len(blobs.get(char, ())) >= BLOB_THRESHOLD:
+        count = object_counts.get(char, len(char_cells))
+        add_to_caption(count_phrase(count, name), char_cells)
+        # A pile of coins is a blob, but a row of bridges is just several bridges.
+        if char not in object_counts and len(blobs.get(char, ())) >= BLOB_THRESHOLD:
             add_to_caption(f"a blob of {pluralize(name)}".capitalize(), blobs[char])
 
     caption = " ".join(f"{p}." for p in phrases)
