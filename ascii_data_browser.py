@@ -43,7 +43,7 @@ import level_dataset
 import util.common_settings as common_settings
 from util.sampler import SampleOutput, scene_to_ascii
 from captions.MM2_caption_match import assign_caption as mm2_assign_caption
-from captions.MM2_caption_match import get_char_names, get_tile_categories
+from captions.MM2_caption_match import get_char_names, get_tile_categories, metadata_phrases
 from captions.util import extract_tileset
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
@@ -643,14 +643,15 @@ class TileViewer(tk.Tk):
         from captions.caption_match import TOPIC_KEYWORDS  # Mario (default)
         from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
         from captions.MM_caption_match import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
-        # MM2 has no fixed topic-keyword list (its captions derive from the
-        # tileset), so MM2 falls back to Mario's topic colors below.
+        from captions.MM2_caption_match import TOPIC_KEYWORDS as MM2_TOPIC_KEYWORDS
 
         if self.game.get() == "LR":
             TOPIC_KEYWORDS = LR_TOPIC_KEYWORDS
         elif self.game.get() in ("MM-Simple", "MM-Full", "MMLV"):
             TOPIC_KEYWORDS = MM_TOPIC_KEYWORDS
-        # else: keep Mario's TOPIC_KEYWORDS (also used as the MM2 fallback)
+        elif self.game.get() == "MM2":
+            TOPIC_KEYWORDS = MM2_TOPIC_KEYWORDS
+        # else: keep Mario's TOPIC_KEYWORDS
 
         topic_colors = {}
         golden_ratio_conjugate = 0.618033988749895
@@ -1067,8 +1068,10 @@ class TileViewer(tk.Tk):
             # Code from interactive_tile_level_generator.
             _, _, ground_chars = get_tile_categories(self.tileset_path)
             char_names = get_char_names(self.tileset_path)
-            caption = mm2_assign_caption(sample['scene'], self.id_to_char, char_names, ground_chars)
-            details = None  # MM2 assign_caption only returns a single caption string
+            caption, details = mm2_assign_caption(
+                sample['scene'], self.id_to_char, char_names, ground_chars,
+                meta_phrases=metadata_phrases(sample), debug=True, return_details=True
+            )
 
         sample['caption'] = caption
         sample['captions'] = [caption]

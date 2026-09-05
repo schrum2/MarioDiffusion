@@ -22,7 +22,7 @@ sys.path.insert(0, _repo_root)
 import util.common_settings as common_settings
 from Game_MM2.MarioMaker_create_ascii_captions import (
     build_id_to_char, get_char_names, get_tile_categories, assign_caption,
-    pluralize)
+    metadata_phrases, pluralize)
 
 QUANTITY_TERMS = ["one", "two", "a few", "several", "many", "a ton of"]
 
@@ -47,6 +47,23 @@ def build_name_lookup(tileset_path):
 
 
 NAME_LOOKUP = build_name_lookup(common_settings.MM2_TILESET)
+
+
+def build_topic_keywords(tileset_path):
+    """
+        Topics that the ascii data browser colors caption phrases by. The other
+        games hardcode this list, but MM2 entity names come from the tileset.
+        Returns the topics longest first, so "question block" is matched before
+        "block".
+    """
+    topics = {name.lower().rstrip(".") for name in get_char_names(tileset_path).values()}
+    topics.update(suffix.strip() for suffix in METADATA_SUFFIXES)
+    # Matching is case sensitive, and the ground phrases start with a capital.
+    topics.update(("floor", "ground"))
+    return sorted(topics, key=len, reverse=True)
+
+
+TOPIC_KEYWORDS = build_topic_keywords(common_settings.MM2_TILESET)
 
 
 def phrase_topic(phrase, name_lookup=None):
