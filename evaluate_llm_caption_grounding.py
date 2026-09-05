@@ -6,8 +6,7 @@ and power-ups), gives extra evidence for tile-specific vocabulary (for example
 "Kamadoma"), and penalizes recognized concepts that are absent from the scene.
 
 Example:
-    python evaluate_llm_caption_grounding.py --input captions.json \
-        --game MM-Full --caption-key gemma4:12b_captions --output scored.json
+    python evaluate_llm_caption_grounding.py --input captions.json --game MM-Full --caption-key gemma4:12b_captions --output scored.json
 """
 
 import argparse
@@ -207,7 +206,11 @@ def main() -> dict:
             caption_scores.append(result)
             scores.append(result["overall"])
         if caption_scores:
-            scored_entries.append({"entry_index": entry_index, "scores": caption_scores})
+            scored_entries.append({
+                "entry_index": entry_index,
+                "scene": entry["scene"],
+                "scores": caption_scores,
+            })
 
     summary = {
         "game": args.game,
