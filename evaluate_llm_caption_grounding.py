@@ -23,10 +23,10 @@ from util.descriptive_tilesets import GAMES
 # vocabulary; these words let a caption say "enemies" instead of naming every enemy.
 CATEGORY_TERMS = {
     "enemy": {"enemy", "enemies", "foe", "foes"},
-    "hazard": {"hazard", "hazards", "danger", "dangers", "obstacle", "obstacles"},
-    "powerup": {"powerup", "powerups", "power", "powers", "collectible", "collectibles", "item", "items"},
-    "platform": {"platform", "platforms", "lift", "lifts"},
-    "block": {"block", "blocks", "brick", "bricks"},
+    "hazard": {"hazard", "hazards", "danger", "dangers", "obstacle", "obstacles", "spikes", "spike", "trap", "traps"},
+    "powerup": {"powerup", "powerups", "power", "powers", "collectible", "collectibles", "item", "items", "pickup", "pickups"},
+    "platform": {"platform", "platforms"},
+    # "block": {"block", "blocks", "brick", "bricks"}, # These are just the general floor tiles. They are so common that specifically mentioning them is not useful.
     "ladder": {"ladder", "ladders"},
     "door": {"door", "doors"},
     "goal": {"goal", "goals", "exit", "exits", "flag", "flagpole"},
