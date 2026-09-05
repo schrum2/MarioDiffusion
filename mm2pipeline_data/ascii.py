@@ -300,14 +300,16 @@ def build_ascii_grid(level):
 
 
 def level_metadata(lvl):
-    """Human-readable fields to carry into the dataset. tags/difficulty were
-    folded in earlier by mm2pipeline_data.toost."""
+    """Human-readable fields to carry into the dataset, plus object boxes for the
+    dataset builder. tags/difficulty were folded in earlier by
+    mm2pipeline_data.toost."""
     return {
         "level_name": lvl.get("name", ""),
         "difficulty": lvl.get("difficulty"),
         "gamestyle": lvl.get("gamestyle"),
         "theme": lvl.get("theme"),
         "tags": lvl.get("tags", []),
+        "indivisible_objects": indivisible_object_boxes(lvl),
     }
 
 
@@ -463,6 +465,34 @@ COALESCE_POLICY = {
     "Vine":               (_VRUN,),
     "Pipe":               (_PIPE,),
 }
+
+# Objects with a fixed footprint. A window must never cut one of these in half.
+INDIVISIBLE_NAMES = frozenset(
+    name for name, policy in COALESCE_POLICY.items() if policy[0] == _FIXED)
+
+
+def indivisible_object_boxes(level):
+    """Boxes of the objects a window must not cut, as {name,x,y,w,h}. Grid
+    coordinates, y counted from the top like the emitted rows."""
+    _, max_ty = grid_bounds(level)
+    gamestyle_raw = level.get("gamestyle_raw", 0)
+
+    boxes = []
+    for obj in level.get("objects", []):
+        name = obj.get("name", "_unknown")
+        if name in ASCII_DROP:
+            continue
+
+        resolved = resolve_obj_name(name, gamestyle_raw)
+        if resolved not in INDIVISIBLE_NAMES:
+            continue
+        col, row_game = obj_anchor(obj)
+        w, h = obj_tile_size(obj)
+        if w <= 1:      # nothing a horizontal window can split
+            continue
+        boxes.append({"name": resolved, "x": col, "y": max_ty - row_game - h,
+                      "w": w, "h": h})
+    return boxes
 
 
 def _connected_components(cells):
