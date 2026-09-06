@@ -138,8 +138,53 @@ class GroundingReviewViewer(TileViewer):
         precision = score.get("precision", "n/a")
         overall = score.get("overall", "n/a")
 
+        def harmonic(left, right):
+            return 2 * left * right / (left + right) if left + right else 0.0
+
+        score_changes = []
+        missing_categories = score.get("missing_categories", [])
+        if (missing_categories and isinstance(coverage, (int, float))
+            and isinstance(precision, (int, float)) and isinstance(coverage_present, (int, float))):
+            present_count = max(1, coverage_present)
+            coverage_without_omission = min(1.0, coverage + 1.0 / present_count)
+            increase = harmonic(coverage_without_omission, precision) - harmonic(coverage, precision)
+            for category in missing_categories:
+                score_changes.append(
+                    f"Score decreased by {increase:.6f} because caption does not mention "
+                    f"{category} in the scene."
+                )
+        if (score.get("unsupported_categories") and isinstance(coverage, (int, float))
+            and isinstance(precision, (int, float)) and isinstance(precision_total, (int, float))):
+            total = max(1, precision_total)
+            supported = precision_supported
+            precision_without_claim = min(1.0, (supported + 1.0) / total)
+            increase = harmonic(coverage, precision_without_claim) - harmonic(coverage, precision)
+            for category in score["unsupported_categories"]:
+                score_changes.append(
+                    f"Score decreased by {increase:.6f} because caption mentions {category} "
+                    "but that category is not present in the scene."
+                )
+        for item in score.get("unsupported_specific_tiles", []):
+            if item.get("specificity_kind") == "modifier":
+                modifier_penalty_value = breakdown.get("unsupported_specificity_penalty", 0.25)
+                total = max(1, precision_total) if isinstance(precision_total, (int, float)) else 1
+                precision_without_claim = min(1.0, (precision_supported + modifier_penalty_value) / total)
+                increase = harmonic(coverage, precision_without_claim) - harmonic(coverage, precision)
+                reason = "the modifier is not supported by any present tile"
+            else:
+                total = max(1, precision_total) if isinstance(precision_total, (int, float)) else 1
+                precision_without_claim = min(1.0, (precision_supported + 1.0) / total)
+                increase = harmonic(coverage, precision_without_claim) - harmonic(coverage, precision)
+                reason = "the referenced tile concept is not present in the scene"
+            score_changes.append(
+                f"Score decreased by {increase:.6f} because caption mentions "
+                f"{', '.join(item.get('matched_terms', []))}, but {reason}."
+            )
+        score_change_text = "\n".join(score_changes) if score_changes else "No score decreases were identified."
+
         return (
             f"Overall: {overall}    Coverage: {coverage}    Precision: {precision}\n"
+            f"Score diagnostics:\n{score_change_text}\n\n"
             f"Coverage = {coverage_supported} supported present categories / {coverage_present} present categories = {coverage}\n"
             f"Precision = {precision_supported} supported mentions / {precision_total} recognized mentions = {precision}\n"
             f"  ({precision_unsupported} weighted unsupported penalty; modifier penalty portion: {modifier_penalty})\n"

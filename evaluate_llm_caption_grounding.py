@@ -56,6 +56,15 @@ COMBINED_CONCEPTS = {
     "on off block": {"on/off block", "on off block"},
     "dotted line block": {"dotted-line block", "dotted line block"},
     "moving lift": {"moving lift"},
+    "life energy": {"life energy", "health energy"},
+    "weapon energy": {"weapon energy"},
+    "extra life": {"extra life", "1 up", "1-up"},
+    "magnet beam": {"magnet beam"},
+    "yashichi": {"yashichi"},
+}
+
+POWERUP_COMPOUND_CONCEPTS = {
+    "life energy", "weapon energy", "extra life", "magnet beam", "yashichi",
 }
 
 # Modifier+noun phrases provide bonus specificity but are never required for the
@@ -86,6 +95,7 @@ IGNORED_DESCRIPTION_WORDS = {
     "style", "temporary", "transparent", "way", "when", "that", "right", "left", "path", "track",
     "rail", "opens", "opened", "behaves", "barrier", "shooting", "pushes", "warps", "paired",
     "block", "blocks", "brick", "bricks",
+    "energy", "life", "weapon", "extra",
     # Behaviour, position, appearance, and generic physical-property words are not
     # reliable evidence for a particular tile. For example, "floating" can describe
     # platforms or islands and must not imply the Watcher tile.
@@ -215,16 +225,33 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
 
     # Evaluate category alternatives explicitly while preserving a stable, human-readable result.
     required = sorted(category for category in present_categories
-                      if any(phrase_present(tokens, term) for term in vocabulary["categories"][category]))
+                      if any(phrase_present(tokens, term) for term in vocabulary["categories"][category])
+                      or (category == "powerup" and any(
+                          phrase_present(tokens, phrase)
+                          for info in vocabulary["tiles"].values()
+                          for phrase in info["phrases"]
+                          if phrase in POWERUP_COMPOUND_CONCEPTS)))
     all_categories = sorted(vocabulary["categories"])
     mentioned_categories = sorted(category for category in all_categories
-                                  if any(phrase_present(tokens, term) for term in vocabulary["categories"][category]))
+                                  if any(phrase_present(tokens, term) for term in vocabulary["categories"][category])
+                                  or (category == "powerup" and any(
+                                      phrase_present(tokens, phrase)
+                                      for info in vocabulary["tiles"].values()
+                                      for phrase in info["phrases"]
+                                      if phrase in POWERUP_COMPOUND_CONCEPTS)))
     unsupported_categories = sorted(set(mentioned_categories) - present_categories)
     category_matches = [
         {
             "category": category,
-            "matched_terms": sorted(term for term in vocabulary["categories"][category]
-                                     if phrase_present(tokens, term)),
+            "matched_terms": sorted(set(
+                [term for term in vocabulary["categories"][category]
+                 if phrase_present(tokens, term)]
+                + ([phrase for info in vocabulary["tiles"].values()
+                    for phrase in info["phrases"]
+                    if category == "powerup"
+                    and phrase in POWERUP_COMPOUND_CONCEPTS
+                    and phrase_present(tokens, phrase)])
+            )),
             "supported": category in present_categories,
         }
         for category in mentioned_categories
@@ -288,6 +315,7 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         if item.get("specificity_kind") == "compound"
     })
     unsupported_compounds = sorted(set(mentioned_compounds) - set(present_compounds))
+    missing_categories = sorted(present_categories - set(required))
 
     # Category coverage is the main score. Specific terms are a bonus signal and do not make
     # omission of every exact enemy type look like a failure when "enemies" is accurate.
@@ -344,6 +372,7 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         "present_compound_concepts": present_compounds,
         "mentioned_compound_concepts": mentioned_compounds,
         "unsupported_compound_concepts": unsupported_compounds,
+        "missing_categories": missing_categories,
         "supported_specific_tiles": supported_specific,
         "unsupported_specific_tiles": unsupported_specific,
         "scene_tile_counts": dict(present),
