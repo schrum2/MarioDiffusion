@@ -131,6 +131,8 @@ class GroundingReviewViewer(TileViewer):
         precision_supported = breakdown.get("precision_supported_mentions", "n/a")
         precision_total = breakdown.get("precision_total_mentions", "n/a")
         precision_unsupported = breakdown.get("precision_unsupported_mentions", "n/a")
+        base_overall = breakdown.get("base_overall", score.get("base_overall", "n/a"))
+        specificity_bonus = breakdown.get("specificity_bonus", score.get("specificity_bonus", "n/a"))
         coverage = score.get("coverage", "n/a")
         precision = score.get("precision", "n/a")
         overall = score.get("overall", "n/a")
@@ -140,7 +142,9 @@ class GroundingReviewViewer(TileViewer):
             f"Coverage = {coverage_supported} supported present categories / {coverage_present} present categories = {coverage}\n"
             f"Precision = {precision_supported} supported mentions / {precision_total} recognized mentions = {precision}\n"
             f"  ({precision_unsupported} recognized mentions are unsupported by this scene)\n"
-            f"Overall = 2 * {coverage} * {precision} / ({coverage} + {precision}) = {overall}\n\n"
+            f"Base overall = 2 * {coverage} * {precision} / ({coverage} + {precision}) = {base_overall}\n"
+            f"Specificity bonus = {specificity_bonus}\n"
+            f"Overall = base overall + specificity bonus = {overall}\n\n"
             f"Caption:\n{score.get('caption', '')}\n\n"
             f"Scene categories present:\n{names(score.get('present_categories', []))}\n\n"
             f"Categories mentioned:\n{names(score.get('mentioned_categories', []))}\n\n"

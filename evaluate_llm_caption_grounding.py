@@ -36,6 +36,44 @@ CATEGORY_TERMS = {
     "coin": {"coin", "coins"},
 }
 
+# These concepts are meaningful only as phrases. A lone "block" or "platform" is
+# intentionally too broad, while "breakable block" and "moving platform" carry
+# useful information about the scene.
+COMBINED_CONCEPTS = {
+    "breakable block": {"breakable block", "breakable brick"},
+    "transparent block": {"secret block", "transparent block"},
+    "disappearing block": {"disappearing block", "reappearing block"},
+    "moving platform": {"moving block", "moving platform"},
+    "falling platform": {"falling platform"},
+    "fake block": {"fake block"},
+    "question block": {"question block"},
+    "note block": {"note block"},
+    "mushroom platform": {"mushroom platform"},
+    "semisolid platform": {"semisolid platform"},
+    "hidden block": {"hidden block"},
+    "donut block": {"donut block"},
+    "ice block": {"ice block", "slippery block"},
+    "on off block": {"on/off block", "on off block"},
+    "dotted line block": {"dotted-line block", "dotted line block"},
+    "moving lift": {"moving lift"},
+}
+
+# Modifier+noun phrases provide bonus specificity but are never required for the
+# generic category score. The matcher accepts hyphenated and spaced spellings.
+SPECIFICITY_PHRASES = {
+    "enemy": {
+        "jumping enemy", "flying enemy", "ranged enemy", "vertical enemy",
+        "horizontal enemy", "stationary enemy", "ground walking enemy",
+        "moving enemy", "floating enemy",
+    },
+    "powerup": {
+        "large powerup", "small powerup", "large power", "small power",
+        "weapon powerup", "weapon power", "life powerup", "life power",
+        "health powerup", "health power", "large pickup", "small pickup",
+        "weapon pickup", "life pickup", "health pickup",
+    },
+}
+
 IGNORED_DESCRIPTION_WORDS = {
     "a", "an", "and", "as", "but", "can", "collectible", "damaging", "deadly",
     "enemy", "fades", "from", "ground", "in", "like", "of", "out", "passable",
@@ -45,6 +83,7 @@ IGNORED_DESCRIPTION_WORDS = {
     "one", "player", "regular", "reappearing", "secret", "shortly", "specific", "starting",
     "style", "temporary", "transparent", "way", "when", "that", "right", "left", "path", "track",
     "rail", "opens", "opened", "behaves", "barrier", "shooting", "pushes", "warps", "paired",
+    "block", "blocks", "brick", "bricks",
     # Behaviour, position, appearance, and generic physical-property words are not
     # reliable evidence for a particular tile. For example, "floating" can describe
     # platforms or islands and must not imply the Watcher tile.
@@ -68,7 +107,19 @@ def normalize_word(word: str) -> str:
 
 
 def tokenize(text: str) -> list[str]:
-    return [normalize_word(token) for token in re.findall(r"[a-z0-9]+", text.lower())]
+    tokens = [normalize_word(token) for token in re.findall(r"[a-z0-9]+", text.lower())]
+    # Treat the common spaced spelling "power up" like the hyphenated and closed
+    # spellings "power-up" and "powerup".
+    merged = []
+    index = 0
+    while index < len(tokens):
+        if index + 1 < len(tokens) and tokens[index:index + 2] == ["power", "up"]:
+            merged.append("powerup")
+            index += 2
+        else:
+            merged.append(tokens[index])
+            index += 1
+    return merged
 
 
 def phrase_present(tokens: list[str], phrase: str) -> bool:
@@ -83,6 +134,29 @@ def tile_terms(description: str) -> set[str]:
     """Extract useful distinctive words from a descriptive tileset entry."""
     words = re.findall(r"[a-z0-9]+", description.lower())
     return {word for word in words if word not in IGNORED_DESCRIPTION_WORDS and len(word) > 2}
+
+
+def matching_phrases(description: str, tags: set[str]) -> set[str]:
+    """Return phrase-level concepts that identify this tile without broad adjectives."""
+    lowered = description.lower()
+    phrases = set()
+    for concept, alternatives in COMBINED_CONCEPTS.items():
+        if any(phrase_present(tokenize(lowered), alternative) for alternative in alternatives):
+            phrases.add(concept)
+    categories = category_for_tile(description, tags)
+    for category, alternatives in SPECIFICITY_PHRASES.items():
+        if category not in categories:
+            continue
+        for phrase in alternatives:
+            modifier, noun = phrase.rsplit(" ", 1)
+            # The modifier and category noun need not be adjacent in the tileset
+            # description, but they must be adjacent in the caption.
+            description_tokens = tokenize(lowered)
+            modifier_tokens = tokenize(modifier)
+            if any(description_tokens[i:i + len(modifier_tokens)] == modifier_tokens
+                   for i in range(len(description_tokens) - len(modifier_tokens) + 1)):
+                phrases.add(phrase)
+    return phrases
 
 
 def category_for_tile(description: str, tags: set[str]) -> set[str]:
@@ -118,6 +192,7 @@ def build_vocabulary(game: str, id_to_char: dict[int, str], tile_descriptors: di
         tile_concepts[char] = {
             "description": description,
             "terms": tile_terms(description),
+            "phrases": matching_phrases(description, tags),
             "categories": category_for_tile(description, tags),
         }
     return {"categories": vocabulary, "tiles": tile_concepts}
@@ -173,11 +248,25 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
                     match["matched_terms"].append(term)
                 match["chars"].append(char)
                 match["descriptions"].append(info["description"])
+        matched_phrases = sorted(
+            phrase for phrase in info["phrases"] if phrase_present(tokens, phrase)
+        )
+        for phrase in matched_phrases:
+            match = specific_matches_by_term.setdefault(
+                normalize_word(phrase),
+                {"matched_terms": [], "chars": [], "descriptions": [], "phrase": phrase},
+            )
+            if phrase not in match["matched_terms"]:
+                match["matched_terms"].append(phrase)
+            match["chars"].append(char)
+            match["descriptions"].append(info["description"])
+
     specific_matches = list(specific_matches_by_term.values())
     for item in specific_matches:
         item["chars"] = sorted(set(item["chars"]))
         item["descriptions"] = sorted(set(item["descriptions"]))
         item["supported"] = bool(set(item["chars"]) & present_tiles)
+        item["specificity_kind"] = "phrase" if "phrase" in item else "name"
     supported_specific = [item for item in specific_matches if item["supported"]]
     unsupported_specific = [item for item in specific_matches if not item["supported"]]
 
@@ -190,6 +279,9 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
                  if mentioned_count else 1.0)
     overall = (2 * coverage * precision / (coverage + precision)
                if coverage + precision else 0.0)
+    base_overall = overall
+    specificity_bonus = min(0.2, 0.05 * len(supported_specific))
+    overall = min(1.0, overall + specificity_bonus)
     score_breakdown = {
         "coverage_supported_categories": len(required),
         "coverage_present_categories": len(present_categories),
@@ -201,6 +293,9 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         "precision_supported_categories": len(mentioned_categories) - len(unsupported_categories),
         "precision_supported_specific_tiles": len(supported_specific),
         "precision_specific_mentions_exclude_category_words": True,
+        "base_overall": round(base_overall, 6),
+        "specificity_bonus": round(specificity_bonus, 6),
+        "specificity_bonus_formula": "min(0.2, 0.05 * supported specific concepts)",
         "coverage_formula": "supported present categories / present categories",
         "precision_formula": "supported mentions / total recognized mentions",
         "overall_formula": "2 * coverage * precision / (coverage + precision)",
@@ -209,6 +304,8 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         "coverage": round(coverage, 6),
         "precision": round(max(0.0, precision), 6),
         "overall": round(overall, 6),
+        "base_overall": round(base_overall, 6),
+        "specificity_bonus": round(specificity_bonus, 6),
         "present_categories": sorted(present_categories),
         "mentioned_categories": mentioned_categories,
         "unsupported_categories": unsupported_categories,
