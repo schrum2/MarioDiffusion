@@ -96,6 +96,7 @@ IGNORED_DESCRIPTION_WORDS = {
     "rail", "opens", "opened", "behaves", "barrier", "shooting", "pushes", "warps", "paired",
     "block", "blocks", "brick", "bricks",
     "energy", "life", "weapon", "extra",
+    "drop", "drops", "gap", "gaps", "elevated", "early", "end", "middle", "sections",
     # Behaviour, position, appearance, and generic physical-property words are not
     # reliable evidence for a particular tile. For example, "floating" can describe
     # platforms or islands and must not imply the Watcher tile.
@@ -271,29 +272,32 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
             for term in matched_terms:
                 match = specific_matches_by_term.setdefault(
                     normalize_word(term),
-                    {"matched_terms": [], "chars": [], "descriptions": []},
+                    {"matched_terms": [], "chars": [], "descriptions": [], "categories": set()},
                 )
                 if term not in match["matched_terms"]:
                     match["matched_terms"].append(term)
                 match["chars"].append(char)
                 match["descriptions"].append(info["description"])
+                match["categories"].update(info["categories"])
         matched_phrases = sorted(
             phrase for phrase in info["phrases"] if phrase_present(tokens, phrase)
         )
         for phrase in matched_phrases:
             match = specific_matches_by_term.setdefault(
                 normalize_word(phrase),
-                {"matched_terms": [], "chars": [], "descriptions": [], "phrase": phrase},
+                {"matched_terms": [], "chars": [], "descriptions": [], "categories": set(), "phrase": phrase},
             )
             if phrase not in match["matched_terms"]:
                 match["matched_terms"].append(phrase)
             match["chars"].append(char)
             match["descriptions"].append(info["description"])
+            match["categories"].update(info["categories"])
 
     specific_matches = list(specific_matches_by_term.values())
     for item in specific_matches:
         item["chars"] = sorted(set(item["chars"]))
         item["descriptions"] = sorted(set(item["descriptions"]))
+        item["categories"] = sorted(item["categories"])
         item["supported"] = bool(set(item["chars"]) & present_tiles)
         item["specificity_kind"] = (
             "compound" if item.get("phrase") in COMBINED_CONCEPTS
@@ -301,6 +305,52 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         )
     supported_specific = [item for item in specific_matches if item["supported"]]
     unsupported_specific = [item for item in specific_matches if not item["supported"]]
+
+    specific_category_evidence = set(
+        category for item in supported_specific for category in item["categories"]
+    ) | set(
+        category for item in unsupported_specific for category in item["categories"]
+        if category not in present_categories
+    )
+
+    generic_mentioned_categories = {
+        category for category in vocabulary["categories"]
+        if any(phrase_present(tokens, term) for term in vocabulary["categories"][category])
+    }
+    powerup_compound_mentioned = any(
+        phrase_present(tokens, phrase)
+        for info in vocabulary["tiles"].values()
+        for phrase in info["phrases"]
+        if phrase in POWERUP_COMPOUND_CONCEPTS
+    )
+    if powerup_compound_mentioned:
+        generic_mentioned_categories.add("powerup")
+    mentioned_categories = sorted(generic_mentioned_categories | specific_category_evidence)
+    required = sorted(category for category in present_categories
+                      if category in generic_mentioned_categories or category in specific_category_evidence)
+    unsupported_categories = sorted(set(mentioned_categories) - present_categories)
+    category_matches = []
+    for category in mentioned_categories:
+        matched_terms = {
+            term for term in vocabulary["categories"][category]
+            if phrase_present(tokens, term)
+        }
+        if category == "powerup":
+            matched_terms.update(
+                phrase for info in vocabulary["tiles"].values()
+                for phrase in info["phrases"]
+                if phrase in POWERUP_COMPOUND_CONCEPTS and phrase_present(tokens, phrase)
+            )
+        matched_terms.update(
+            term for item in specific_matches
+            if category in item["categories"]
+            for term in item["matched_terms"]
+        )
+        category_matches.append({
+            "category": category,
+            "matched_terms": sorted(matched_terms),
+            "supported": category in present_categories,
+        })
 
     present_compounds = sorted({
         concept for info in vocabulary["tiles"].values()
