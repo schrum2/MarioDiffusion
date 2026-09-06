@@ -88,8 +88,8 @@ def category_for_tile(description: str, tags: set[str]) -> set[str]:
         categories.add("powerup")
     if "platform" in tags or "moving" in tags and "platform" in lowered:
         categories.add("platform")
-    if "block" in lowered or "brick" in lowered:
-        categories.add("block")
+    #if "block" in lowered or "brick" in lowered:
+    #    categories.add("block")
     for category in ("ladder", "door", "water", "lava", "spring", "coin"):
         if category in lowered:
             categories.add(category)
