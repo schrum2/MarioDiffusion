@@ -43,7 +43,8 @@ IGNORED_DESCRIPTION_WORDS = {
     "moving", "ranged", "stationary", "horizontal", "vertical", "large", "small",
     "appearing", "depending", "final", "game", "interactive", "looks", "man", "mega",
     "one", "player", "regular", "reappearing", "secret", "shortly", "specific", "starting",
-    "style", "temporary", "transparent", "way", "when",
+    "style", "temporary", "transparent", "way", "when", "that", "right", "left", "path", "track",
+    "rail", "opens", "opened", "behaves", "barrier", "shooting", "pushes", "warps", "paired",
 }
 
 
@@ -135,13 +136,43 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     mentioned_categories = sorted(category for category in all_categories
                                   if any(phrase_present(tokens, term) for term in vocabulary["categories"][category]))
     unsupported_categories = sorted(set(mentioned_categories) - present_categories)
+    category_matches = [
+        {
+            "category": category,
+            "matched_terms": sorted(term for term in vocabulary["categories"][category]
+                                     if phrase_present(tokens, term)),
+            "supported": category in present_categories,
+        }
+        for category in mentioned_categories
+    ]
 
-    specific_matches = []
+    category_terms = {normalize_word(term) for terms in vocabulary["categories"].values() for term in terms}
+    specific_matches_by_term = {}
     for char, info in vocabulary["tiles"].items():
-        if any(phrase_present(tokens, term) for term in info["terms"]):
-            specific_matches.append({"char": char, "description": info["description"]})
-    supported_specific = [item for item in specific_matches if item["char"] in present_tiles]
-    unsupported_specific = [item for item in specific_matches if item["char"] not in present_tiles]
+        # Category words such as "door" and "platform" are already scored at the
+        # category level. They remain useful tile evidence, but must not be counted
+        # a second time as independent precision claims.
+        matched_terms = sorted(
+            term for term in info["terms"]
+            if normalize_word(term) not in category_terms and phrase_present(tokens, term)
+        )
+        if matched_terms:
+            for term in matched_terms:
+                match = specific_matches_by_term.setdefault(
+                    normalize_word(term),
+                    {"matched_terms": [], "chars": [], "descriptions": []},
+                )
+                if term not in match["matched_terms"]:
+                    match["matched_terms"].append(term)
+                match["chars"].append(char)
+                match["descriptions"].append(info["description"])
+    specific_matches = list(specific_matches_by_term.values())
+    for item in specific_matches:
+        item["chars"] = sorted(set(item["chars"]))
+        item["descriptions"] = sorted(set(item["descriptions"]))
+        item["supported"] = bool(set(item["chars"]) & present_tiles)
+    supported_specific = [item for item in specific_matches if item["supported"]]
+    unsupported_specific = [item for item in specific_matches if not item["supported"]]
 
     # Category coverage is the main score. Specific terms are a bonus signal and do not make
     # omission of every exact enemy type look like a failure when "enemies" is accurate.
@@ -152,6 +183,21 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
                  if mentioned_count else 1.0)
     overall = (2 * coverage * precision / (coverage + precision)
                if coverage + precision else 0.0)
+    score_breakdown = {
+        "coverage_supported_categories": len(required),
+        "coverage_present_categories": len(present_categories),
+        "precision_supported_mentions": mentioned_count - unsupported_count,
+        "precision_total_mentions": mentioned_count,
+        "precision_unsupported_mentions": unsupported_count,
+        "precision_category_mentions": len(mentioned_categories),
+        "precision_specific_tile_mentions": len(specific_matches),
+        "precision_supported_categories": len(mentioned_categories) - len(unsupported_categories),
+        "precision_supported_specific_tiles": len(supported_specific),
+        "precision_specific_mentions_exclude_category_words": True,
+        "coverage_formula": "supported present categories / present categories",
+        "precision_formula": "supported mentions / total recognized mentions",
+        "overall_formula": "2 * coverage * precision / (coverage + precision)",
+    }
     return {
         "coverage": round(coverage, 6),
         "precision": round(max(0.0, precision), 6),
@@ -159,9 +205,11 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         "present_categories": sorted(present_categories),
         "mentioned_categories": mentioned_categories,
         "unsupported_categories": unsupported_categories,
+        "category_matches": category_matches,
         "supported_specific_tiles": supported_specific,
         "unsupported_specific_tiles": unsupported_specific,
         "scene_tile_counts": dict(present),
+        "score_breakdown": score_breakdown,
     }
 
 

@@ -66,26 +66,87 @@ class GroundingReviewViewer(TileViewer):
         index = min(self.current_caption_idx, len(scores) - 1)
         return scores[index]
 
+    @staticmethod
+    def _breakdown(score):
+        """Read new breakdown fields, or reconstruct them for older score files."""
+        breakdown = score.get("score_breakdown")
+        if breakdown:
+            return breakdown
+        mentioned_categories = score.get("mentioned_categories", [])
+        unsupported_categories = score.get("unsupported_categories", [])
+        supported_specific = score.get("supported_specific_tiles", [])
+        unsupported_specific = score.get("unsupported_specific_tiles", [])
+        mentioned_count = len(mentioned_categories) + len(supported_specific) + len(unsupported_specific)
+        unsupported_count = len(unsupported_categories) + len(unsupported_specific)
+        return {
+            "coverage_supported_categories": len(mentioned_categories) - len(unsupported_categories),
+            "coverage_present_categories": len(score.get("present_categories", [])),
+            "precision_supported_mentions": mentioned_count - unsupported_count,
+            "precision_total_mentions": mentioned_count,
+            "precision_unsupported_mentions": unsupported_count,
+        }
+
     def _format_review(self, score):
         if score is None:
             return "No score is available for this scene."
+
+        breakdown = self._breakdown(score)
 
         def names(items):
             if not items:
                 return "(none)"
             return ", ".join(
-                item if isinstance(item, str) else f"{item.get('char', '?')}: {item.get('description', '')}"
+                item if isinstance(item, str) else (
+                    f"{'/'.join(item.get('chars', [])) or item.get('char', '?')}: "
+                    f"{'; '.join(item.get('descriptions', [])) or item.get('description', '')}"
+                )
                 for item in items
             )
 
+        category_matches = score.get("category_matches", [])
+        if category_matches:
+            category_lines = "\n".join(
+                f"  {'SUPPORTED' if item.get('supported') else 'UNSUPPORTED'} category "
+                f"'{item.get('category')}' matched by: {', '.join(item.get('matched_terms', []))}"
+                for item in category_matches
+            )
+        else:
+            category_lines = "  (none)"
+
+        specific_matches = score.get("supported_specific_tiles", []) + score.get("unsupported_specific_tiles", [])
+        if specific_matches:
+            specific_lines = "\n".join(
+                f"  {'SUPPORTED' if item.get('supported') else 'UNSUPPORTED'} concept "
+                f"matched by: "
+                f"{', '.join(item.get('matched_terms', []))}\n"
+                f"    tile alternatives: {', '.join(item.get('chars', []))}\n"
+                f"    { '; '.join(item.get('descriptions', [])) }"
+                for item in specific_matches
+            )
+        else:
+            specific_lines = "  (none)"
+
+        coverage_supported = breakdown.get("coverage_supported_categories", "n/a")
+        coverage_present = breakdown.get("coverage_present_categories", "n/a")
+        precision_supported = breakdown.get("precision_supported_mentions", "n/a")
+        precision_total = breakdown.get("precision_total_mentions", "n/a")
+        precision_unsupported = breakdown.get("precision_unsupported_mentions", "n/a")
+        coverage = score.get("coverage", "n/a")
+        precision = score.get("precision", "n/a")
+        overall = score.get("overall", "n/a")
+
         return (
-            f"Overall: {score.get('overall', 'n/a')}    "
-            f"Coverage: {score.get('coverage', 'n/a')}    "
-            f"Precision: {score.get('precision', 'n/a')}\n\n"
+            f"Overall: {overall}    Coverage: {coverage}    Precision: {precision}\n"
+            f"Coverage = {coverage_supported} supported present categories / {coverage_present} present categories = {coverage}\n"
+            f"Precision = {precision_supported} supported mentions / {precision_total} recognized mentions = {precision}\n"
+            f"  ({precision_unsupported} recognized mentions are unsupported by this scene)\n"
+            f"Overall = 2 * {coverage} * {precision} / ({coverage} + {precision}) = {overall}\n\n"
             f"Caption:\n{score.get('caption', '')}\n\n"
             f"Scene categories present:\n{names(score.get('present_categories', []))}\n\n"
             f"Categories mentioned:\n{names(score.get('mentioned_categories', []))}\n\n"
             f"Unsupported categories:\n{names(score.get('unsupported_categories', []))}\n\n"
+            f"Recognized category mentions counted in precision:\n{category_lines}\n\n"
+            f"Recognized tile-specific mentions counted in precision:\n{specific_lines}\n\n"
             f"Supported specific tiles:\n{names(score.get('supported_specific_tiles', []))}\n\n"
             f"Unsupported specific tiles:\n{names(score.get('unsupported_specific_tiles', []))}\n\n"
             f"Scene tile counts:\n{names([f'{char}: {count}' for char, count in score.get('scene_tile_counts', {}).items()])}"
