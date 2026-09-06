@@ -45,6 +45,13 @@ IGNORED_DESCRIPTION_WORDS = {
     "one", "player", "regular", "reappearing", "secret", "shortly", "specific", "starting",
     "style", "temporary", "transparent", "way", "when", "that", "right", "left", "path", "track",
     "rail", "opens", "opened", "behaves", "barrier", "shooting", "pushes", "warps", "paired",
+    # Behaviour, position, appearance, and generic physical-property words are not
+    # reliable evidence for a particular tile. For example, "floating" can describe
+    # platforms or islands and must not imply the Watcher tile.
+    "jumping", "jump", "flying", "floating", "exploding", "walking", "rising", "falling",
+    "slows", "blows", "tackle", "extends", "shoots", "rides", "riding", "hidden", "fake",
+    "breakable", "climbable", "damaging", "deadly", "solid", "passable", "transparent",
+    "large", "small", "vertical", "horizontal", "temporary", "periodic", "rotating",
 }
 
 
