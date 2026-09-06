@@ -131,6 +131,7 @@ class GroundingReviewViewer(TileViewer):
         precision_supported = breakdown.get("precision_supported_mentions", "n/a")
         precision_total = breakdown.get("precision_total_mentions", "n/a")
         precision_unsupported = breakdown.get("precision_unsupported_mentions", "n/a")
+        modifier_penalty = breakdown.get("precision_modifier_penalty", "n/a")
         base_overall = breakdown.get("base_overall", score.get("base_overall", "n/a"))
         specificity_bonus = breakdown.get("specificity_bonus", score.get("specificity_bonus", "n/a"))
         coverage = score.get("coverage", "n/a")
@@ -141,7 +142,7 @@ class GroundingReviewViewer(TileViewer):
             f"Overall: {overall}    Coverage: {coverage}    Precision: {precision}\n"
             f"Coverage = {coverage_supported} supported present categories / {coverage_present} present categories = {coverage}\n"
             f"Precision = {precision_supported} supported mentions / {precision_total} recognized mentions = {precision}\n"
-            f"  ({precision_unsupported} recognized mentions are unsupported by this scene)\n"
+            f"  ({precision_unsupported} weighted unsupported penalty; modifier penalty portion: {modifier_penalty})\n"
             f"Base overall = 2 * {coverage} * {precision} / ({coverage} + {precision}) = {base_overall}\n"
             f"Specificity bonus = {specificity_bonus}\n"
             f"Overall = base overall + specificity bonus = {overall}\n\n"
@@ -149,6 +150,9 @@ class GroundingReviewViewer(TileViewer):
             f"Scene categories present:\n{names(score.get('present_categories', []))}\n\n"
             f"Categories mentioned:\n{names(score.get('mentioned_categories', []))}\n\n"
             f"Unsupported categories:\n{names(score.get('unsupported_categories', []))}\n\n"
+            f"Compound concepts present in scene:\n{names(score.get('present_compound_concepts', []))}\n\n"
+            f"Compound concepts mentioned:\n{names(score.get('mentioned_compound_concepts', []))}\n\n"
+            f"Unsupported compound concepts:\n{names(score.get('unsupported_compound_concepts', []))}\n\n"
             f"Recognized category mentions counted in precision:\n{category_lines}\n\n"
             f"Recognized tile-specific mentions counted in precision:\n{specific_lines}\n\n"
             f"Supported specific tiles:\n{names(score.get('supported_specific_tiles', []))}\n\n"

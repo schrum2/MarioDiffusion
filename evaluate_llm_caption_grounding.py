@@ -74,6 +74,8 @@ SPECIFICITY_PHRASES = {
     },
 }
 
+UNSUPPORTED_SPECIFICITY_PENALTY = 0.25
+
 IGNORED_DESCRIPTION_WORDS = {
     "a", "an", "and", "as", "but", "can", "collectible", "damaging", "deadly",
     "enemy", "fades", "from", "ground", "in", "like", "of", "out", "passable",
@@ -266,16 +268,37 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         item["chars"] = sorted(set(item["chars"]))
         item["descriptions"] = sorted(set(item["descriptions"]))
         item["supported"] = bool(set(item["chars"]) & present_tiles)
-        item["specificity_kind"] = "phrase" if "phrase" in item else "name"
+        item["specificity_kind"] = (
+            "compound" if item.get("phrase") in COMBINED_CONCEPTS
+            else "modifier" if item.get("phrase") else "name"
+        )
     supported_specific = [item for item in specific_matches if item["supported"]]
     unsupported_specific = [item for item in specific_matches if not item["supported"]]
+
+    present_compounds = sorted({
+        concept for info in vocabulary["tiles"].values()
+        for concept in info["phrases"]
+        if concept in COMBINED_CONCEPTS and any(
+            char in present_tiles for char, tile_info in vocabulary["tiles"].items()
+            if concept in tile_info["phrases"]
+        )
+    })
+    mentioned_compounds = sorted({
+        item.get("phrase") for item in specific_matches
+        if item.get("specificity_kind") == "compound"
+    })
+    unsupported_compounds = sorted(set(mentioned_compounds) - set(present_compounds))
 
     # Category coverage is the main score. Specific terms are a bonus signal and do not make
     # omission of every exact enemy type look like a failure when "enemies" is accurate.
     coverage = len(required) / len(present_categories) if present_categories else 1.0
     mentioned_count = len(mentioned_categories) + len(specific_matches)
-    unsupported_count = len(unsupported_categories) + len(unsupported_specific)
-    precision = ((mentioned_count - unsupported_count) / mentioned_count
+    weighted_unsupported = len(unsupported_categories) + sum(
+        1.0 if item["specificity_kind"] != "modifier" else UNSUPPORTED_SPECIFICITY_PENALTY
+        for item in unsupported_specific
+    )
+    weighted_supported = mentioned_count - weighted_unsupported
+    precision = (weighted_supported / mentioned_count
                  if mentioned_count else 1.0)
     overall = (2 * coverage * precision / (coverage + precision)
                if coverage + precision else 0.0)
@@ -285,14 +308,22 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     score_breakdown = {
         "coverage_supported_categories": len(required),
         "coverage_present_categories": len(present_categories),
-        "precision_supported_mentions": mentioned_count - unsupported_count,
+        "precision_supported_mentions": round(weighted_supported, 6),
         "precision_total_mentions": mentioned_count,
-        "precision_unsupported_mentions": unsupported_count,
+        "precision_unsupported_mentions": round(weighted_unsupported, 6),
+        "precision_full_unsupported_mentions": len(unsupported_categories) + sum(
+            1 for item in unsupported_specific if item["specificity_kind"] != "modifier"
+        ),
+        "precision_modifier_penalty": round(sum(
+            UNSUPPORTED_SPECIFICITY_PENALTY for item in unsupported_specific
+            if item["specificity_kind"] == "modifier"
+        ), 6),
         "precision_category_mentions": len(mentioned_categories),
         "precision_specific_tile_mentions": len(specific_matches),
         "precision_supported_categories": len(mentioned_categories) - len(unsupported_categories),
         "precision_supported_specific_tiles": len(supported_specific),
         "precision_specific_mentions_exclude_category_words": True,
+        "unsupported_specificity_penalty": UNSUPPORTED_SPECIFICITY_PENALTY,
         "base_overall": round(base_overall, 6),
         "specificity_bonus": round(specificity_bonus, 6),
         "specificity_bonus_formula": "min(0.2, 0.05 * supported specific concepts)",
@@ -310,6 +341,9 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         "mentioned_categories": mentioned_categories,
         "unsupported_categories": unsupported_categories,
         "category_matches": category_matches,
+        "present_compound_concepts": present_compounds,
+        "mentioned_compound_concepts": mentioned_compounds,
+        "unsupported_compound_concepts": unsupported_compounds,
         "supported_specific_tiles": supported_specific,
         "unsupported_specific_tiles": unsupported_specific,
         "scene_tile_counts": dict(present),
