@@ -36,6 +36,18 @@ CATEGORY_TERMS = {
     "coin": {"coin", "coins"},
 }
 
+# Context-sensitive category terms. These words should not be treated as standalone
+# category claims when they modify a more specific noun in the caption.
+CATEGORY_EXCLUSIONS = {
+    "powerup": {
+        "key": {"key door", "key doors"},
+    },
+}
+
+SPECIFIC_TERM_EXCLUSIONS = {
+    "key": {"key door", "key doors"},
+}
+
 # These concepts are meaningful only as phrases. A lone "block" or "platform" is
 # intentionally too broad, while "breakable block" and "moving platform" carry
 # useful information about the scene.
@@ -143,6 +155,22 @@ def phrase_present(tokens: list[str], phrase: str) -> bool:
                for index in range(len(tokens) - len(wanted) + 1))
 
 
+def category_term_present(tokens: list[str], category: str, term: str) -> bool:
+    """Match a category term unless it is used in a more specific excluded phrase."""
+    if not phrase_present(tokens, term):
+        return False
+    exclusions = CATEGORY_EXCLUSIONS.get(category, {}).get(normalize_word(term), set())
+    return not any(phrase_present(tokens, phrase) for phrase in exclusions)
+
+
+def specific_term_present(tokens: list[str], term: str) -> bool:
+    """Match a tile term unless it is being used inside an excluded compound phrase."""
+    return phrase_present(tokens, term) and not any(
+        phrase_present(tokens, phrase)
+        for phrase in SPECIFIC_TERM_EXCLUSIONS.get(normalize_word(term), set())
+    )
+
+
 def tile_terms(description: str) -> set[str]:
     """Extract useful distinctive words from a descriptive tileset entry."""
     words = re.findall(r"[a-z0-9]+", description.lower())
@@ -226,7 +254,8 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
 
     # Evaluate category alternatives explicitly while preserving a stable, human-readable result.
     required = sorted(category for category in present_categories
-                      if any(phrase_present(tokens, term) for term in vocabulary["categories"][category])
+                 if any(category_term_present(tokens, category, term)
+                     for term in vocabulary["categories"][category])
                       or (category == "powerup" and any(
                           phrase_present(tokens, phrase)
                           for info in vocabulary["tiles"].values()
@@ -266,7 +295,7 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         # a second time as independent precision claims.
         matched_terms = sorted(
             term for term in info["terms"]
-            if normalize_word(term) not in category_terms and phrase_present(tokens, term)
+            if normalize_word(term) not in category_terms and specific_term_present(tokens, term)
         )
         if matched_terms:
             for term in matched_terms:
@@ -315,7 +344,8 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
 
     generic_mentioned_categories = {
         category for category in vocabulary["categories"]
-        if any(phrase_present(tokens, term) for term in vocabulary["categories"][category])
+        if any(category_term_present(tokens, category, term)
+               for term in vocabulary["categories"][category])
     }
     powerup_compound_mentioned = any(
         phrase_present(tokens, phrase)
@@ -333,7 +363,7 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     for category in mentioned_categories:
         matched_terms = {
             term for term in vocabulary["categories"][category]
-            if phrase_present(tokens, term)
+            if category_term_present(tokens, category, term)
         }
         if category == "powerup":
             matched_terms.update(
