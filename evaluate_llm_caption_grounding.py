@@ -23,12 +23,12 @@ from util.descriptive_tilesets import GAMES
 # vocabulary; these words let a caption say "enemies" instead of naming every enemy.
 CATEGORY_TERMS = {
     "enemy": {"enemy", "enemies", "foe", "foes"},
-    "hazard": {"hazard", "hazards", "danger", "dangers", "obstacle", "obstacles", "spikes", "spike", "trap", "traps"},
+    "hazard": {"hazard", "hazards", "danger", "dangers", "obstacle", "obstacles", "spikes", "spike", "spiked", "trap", "traps"},
     "powerup": {"powerup", "powerups", "power", "powers", "collectible", "collectibles", "item", "items", "pickup", "pickups"},
     "platform": {"platform", "platforms"},
     # "block": {"block", "blocks", "brick", "bricks"}, # These are just the general floor tiles. They are so common that specifically mentioning them is not useful.
     "ladder": {"ladder", "ladders"},
-    "door": {"door", "doors"},
+    "door": {"door", "doors", "doorway", "doorways", "gate", "gates"},
     "water": {"water"},
     "lava": {"lava"},
     "spring": {"spring", "springs"},
@@ -67,6 +67,7 @@ COMBINED_CONCEPTS = {
     "on off block": {"on/off block", "on off block"},
     "dotted line block": {"dotted-line block", "dotted line block"},
     "moving lift": {"moving lift"},
+    "fading platform": {"fading platform", "fading platforms"},
     "life energy": {"life energy", "health energy"},
     "weapon energy": {"weapon energy"},
     "extra life": {"extra life", "1 up", "1-up"},
@@ -201,6 +202,11 @@ def scene_has_platform(scene: list[list[int]], id_to_char: dict[int, str],
 
     height = len(scene)
     width = len(scene[0]) if height else 0
+
+    def is_open(row: int, col: int) -> bool:
+        descriptors = tile_descriptors.get(id_to_char.get(scene[row][col]), set())
+        return "solid" not in descriptors and "null" not in descriptors
+
     for row in range(max(0, height - 1)):
         col = 0
         while col < width:
@@ -214,10 +220,8 @@ def scene_has_platform(scene: list[list[int]], id_to_char: dict[int, str],
                 descriptors = tile_descriptors.get(current, set())
                 if "solid" not in descriptors or "pipe" in descriptors:
                     break
-                above_open = row > 0 and "solid" not in tile_descriptors.get(
-                    id_to_char.get(scene[row - 1][col]), set())
-                below_open = row + 1 < height and "solid" not in tile_descriptors.get(
-                    id_to_char.get(scene[row + 1][col]), set())
+                above_open = row > 0 and is_open(row - 1, col)
+                below_open = row + 1 < height and is_open(row + 1, col)
                 if not (above_open and below_open):
                     break
                 col += 1
@@ -234,6 +238,8 @@ def matching_phrases(description: str, tags: set[str]) -> set[str]:
     for concept, alternatives in COMBINED_CONCEPTS.items():
         if any(phrase_present(tokenize(lowered), alternative) for alternative in alternatives):
             phrases.add(concept)
+    if "disappearing" in lowered or "reappearing" in lowered:
+        phrases.add("fading platform")
     categories = category_for_tile(description, tags)
     for category, alternatives in SPECIFICITY_PHRASES.items():
         if category not in categories:
@@ -263,9 +269,11 @@ def category_for_tile(description: str, tags: set[str]) -> set[str]:
         categories.add("platform")
     #if "block" in lowered or "brick" in lowered:
     #    categories.add("block")
-    for category in ("ladder", "door", "water", "lava", "spring", "coin"):
+    for category in ("ladder", "water", "lava", "spring", "coin"):
         if category in lowered:
             categories.add(category)
+    if "door" in tags or ("door" in lowered and "key door" not in lowered):
+        categories.add("door")
     return categories
 
 
@@ -299,6 +307,11 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     present_tiles = set(present)
     for char in present_tiles:
         present_categories.update(vocabulary["tiles"].get(char, {}).get("categories", set()))
+    if any(
+        char in present_tiles and "fading platform" in info["phrases"]
+        for char, info in vocabulary["tiles"].items()
+    ):
+        present_categories.add("platform")
     if scene_has_platform(scene, id_to_char, vocabulary["tile_descriptors"], vocabulary["tiles"]):
         present_categories.add("platform")
 
