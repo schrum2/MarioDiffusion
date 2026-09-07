@@ -29,7 +29,6 @@ CATEGORY_TERMS = {
     # "block": {"block", "blocks", "brick", "bricks"}, # These are just the general floor tiles. They are so common that specifically mentioning them is not useful.
     "ladder": {"ladder", "ladders"},
     "door": {"door", "doors"},
-    "goal": {"goal", "goals", "exit", "exits", "flag", "flagpole"},
     "water": {"water"},
     "lava": {"lava"},
     "spring": {"spring", "springs"},
@@ -75,6 +74,10 @@ COMBINED_CONCEPTS = {
     "yashichi": {"yashichi"},
 }
 
+COMBINED_CATEGORY_CONCEPTS = {
+    "fire hazard": {"fire hazard", "flame hazard", "fire hazards", "flame hazards"},
+}
+
 POWERUP_COMPOUND_CONCEPTS = {
     "life energy", "weapon energy", "extra life", "magnet beam", "yashichi",
 }
@@ -108,6 +111,7 @@ IGNORED_DESCRIPTION_WORDS = {
     "rail", "opens", "opened", "behaves", "barrier", "shooting", "pushes", "warps", "paired",
     "block", "blocks", "brick", "bricks",
     "energy", "life", "weapon", "extra",
+    "fire",
     "drop", "drops", "gap", "gaps", "elevated", "early", "end", "middle", "sections",
     # Behaviour, position, appearance, and generic physical-property words are not
     # reliable evidence for a particular tile. For example, "floating" can describe
@@ -180,6 +184,49 @@ def tile_name_terms(description: str) -> set[str]:
     }
 
 
+def scene_has_platform(scene: list[list[int]], id_to_char: dict[int, str],
+                       tile_descriptors: dict, tile_concepts: dict) -> bool:
+    """Detect explicit platform tiles or a Mario-style horizontal solid platform run."""
+    present_chars = {
+        id_to_char[tile]
+        for row in scene
+        for tile in row
+        if tile in id_to_char
+    }
+    for char, tags in tile_descriptors.items():
+        if char in present_chars and (
+                "platform" in tags
+                or "platform" in tile_concepts.get(char, {}).get("description", "").lower()):
+            return True
+
+    height = len(scene)
+    width = len(scene[0]) if height else 0
+    for row in range(max(0, height - 1)):
+        col = 0
+        while col < width:
+            char = id_to_char.get(scene[row][col])
+            if "solid" not in tile_descriptors.get(char, set()) or "pipe" in tile_descriptors.get(char, set()):
+                col += 1
+                continue
+            start = col
+            while col < width:
+                current = id_to_char.get(scene[row][col])
+                descriptors = tile_descriptors.get(current, set())
+                if "solid" not in descriptors or "pipe" in descriptors:
+                    break
+                above_open = row > 0 and "solid" not in tile_descriptors.get(
+                    id_to_char.get(scene[row - 1][col]), set())
+                below_open = row + 1 < height and "solid" not in tile_descriptors.get(
+                    id_to_char.get(scene[row + 1][col]), set())
+                if not (above_open and below_open):
+                    break
+                col += 1
+            if col - start >= 2:
+                return True
+            col = max(col + 1, start + 1)
+    return False
+
+
 def matching_phrases(description: str, tags: set[str]) -> set[str]:
     """Return phrase-level concepts that identify this tile without broad adjectives."""
     lowered = description.lower()
@@ -219,8 +266,6 @@ def category_for_tile(description: str, tags: set[str]) -> set[str]:
     for category in ("ladder", "door", "water", "lava", "spring", "coin"):
         if category in lowered:
             categories.add(category)
-    if "goal" in lowered or "exit" in lowered or "flagpole" in lowered:
-        categories.add("goal")
     return categories
 
 
@@ -239,7 +284,7 @@ def build_vocabulary(game: str, id_to_char: dict[int, str], tile_descriptors: di
             "phrases": matching_phrases(description, tags),
             "categories": category_for_tile(description, tags),
         }
-    return {"categories": vocabulary, "tiles": tile_concepts}
+    return {"categories": vocabulary, "tiles": tile_concepts, "tile_descriptors": tile_descriptors}
 
 
 def scene_characters(scene: list[list[int]], id_to_char: dict[int, str]) -> Counter:
@@ -254,6 +299,8 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     present_tiles = set(present)
     for char in present_tiles:
         present_categories.update(vocabulary["tiles"].get(char, {}).get("categories", set()))
+    if scene_has_platform(scene, id_to_char, vocabulary["tile_descriptors"], vocabulary["tiles"]):
+        present_categories.add("platform")
 
     # Evaluate category alternatives explicitly while preserving a stable, human-readable result.
     required = sorted(category for category in present_categories
@@ -393,10 +440,24 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
             if concept in tile_info["phrases"]
         )
     })
+    has_fire_hazard = any(
+        char in present_tiles
+        and "hazard" in info["categories"]
+        and any(word in info["description"].lower() for word in ("fire", "flame"))
+        for char, info in vocabulary["tiles"].items()
+    )
+    if has_fire_hazard:
+        present_compounds.append("fire hazard")
+        present_compounds.sort()
     mentioned_compounds = sorted({
         item.get("phrase") for item in specific_matches
         if item.get("specificity_kind") == "compound"
     })
+    mentioned_compounds.extend(sorted(
+        concept for concept, alternatives in COMBINED_CATEGORY_CONCEPTS.items()
+        if any(phrase_present(tokens, alternative) for alternative in alternatives)
+    ))
+    mentioned_compounds = sorted(set(mentioned_compounds))
     unsupported_compounds = sorted(set(mentioned_compounds) - set(present_compounds))
     missing_categories = sorted(present_categories - set(required))
 
