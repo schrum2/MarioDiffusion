@@ -171,10 +171,13 @@ def specific_term_present(tokens: list[str], term: str) -> bool:
     )
 
 
-def tile_terms(description: str) -> set[str]:
-    """Extract useful distinctive words from a descriptive tileset entry."""
-    words = re.findall(r"[a-z0-9]+", description.lower())
-    return {word for word in words if word not in IGNORED_DESCRIPTION_WORDS and len(word) > 2}
+def tile_name_terms(description: str) -> set[str]:
+    """Extract proper-name anchors, excluding generic prose from tile descriptions."""
+    words = re.findall(r"[A-Z][A-Za-z0-9']*", description)
+    return {
+        word.lower() for word in words
+        if normalize_word(word) not in IGNORED_DESCRIPTION_WORDS and len(word) > 2
+    }
 
 
 def matching_phrases(description: str, tags: set[str]) -> set[str]:
@@ -232,7 +235,7 @@ def build_vocabulary(game: str, id_to_char: dict[int, str], tile_descriptors: di
         tags = set(tile_descriptors.get(char, set()))
         tile_concepts[char] = {
             "description": description,
-            "terms": tile_terms(description),
+            "terms": tile_name_terms(description),
             "phrases": matching_phrases(description, tags),
             "categories": category_for_tile(description, tags),
         }
