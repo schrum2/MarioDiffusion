@@ -2,7 +2,6 @@ import json
 import os
 import sys
 import argparse
-from collections import Counter
 
 # Tags used to describe tile properties rather than identity; everything in a
 # tile's tag list other than these is treated as part of its name.
@@ -120,8 +119,11 @@ def count_phrase(count, name):
 
 
 def largest_blobs(scene, id_to_char):
-    """Largest contiguous same-tile region for each tile char, found by flood
-    fill over 4-connected neighbours."""
+    """
+        Finds the largest contiguous same-tile region for each tile char by flood
+        fill over 4-connected neighbours.
+        Returns a dict mapping each char to the (row, col) positions of its region.
+    """
     height = len(scene)
     width = len(scene[0]) if height else 0
     visited = set()
@@ -134,7 +136,7 @@ def largest_blobs(scene, id_to_char):
             if char is None:
                 continue
             stack = [(r, c)]
-            size = 0
+            blob = []
             while stack:
                 y, x = stack.pop()
                 if (y, x) in visited or not (0 <= y < height and 0 <= x < width):
@@ -142,11 +144,25 @@ def largest_blobs(scene, id_to_char):
                 if id_to_char.get(scene[y][x]) != char:
                     continue
                 visited.add((y, x))
-                size += 1
+                blob.append((y, x))
                 stack += [(y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)]
-            if size > biggest.get(char, 0):
-                biggest[char] = size
+            if len(blob) > len(biggest.get(char, ())):
+                biggest[char] = blob
     return biggest
+
+
+def count_objects(scene, id_to_char):
+    """
+        Counts placed objects instead of occupied cells, so a 2x6 pipe counts once.
+        Only the multi-tile types have a footprint to go by; the rest are one per cell.
+        Returns a dict mapping tile char to the number of objects in the scene.
+    """
+    from util.mm2_metrics import count_structures, FEATURE_POLICIES
+
+    counts = count_structures(scene, id_to_char)
+    return {char: counts[name]["total"]
+            for char, (name, _policy) in FEATURE_POLICIES.items()
+            if name in counts}
 
 
 def describe_ground(scene, id_to_char, ground_chars):
@@ -174,33 +190,53 @@ def describe_ground(scene, id_to_char, ground_chars):
 
 
 def assign_caption(scene, id_to_char, char_names, ground_chars=None,
-                   meta_phrases=None):
-    # Metadata, the ground summary, then a count of every tile type present, and
-    # a note for any type that piles up into a blob, e.g. "SMB1 style. Full
-    # ground floor. Two goombas. A few coins. A blob of coins."
+                   meta_phrases=None, debug=False, return_details=False):
+    """
+        Assigns a caption to a level scene based on its contents: the metadata, the
+        ground summary, a count of each tile type, and a note for anything that piles
+        up into a blob. Multi-tile objects now should count as one.
+        Returns (caption, details) when return_details is True, where details maps
+        each phrase to the (row, col) positions that produced it.
+    """
     ground_chars = ground_chars or set()
-    phrases = list(meta_phrases) if meta_phrases else []
+    details = {} if return_details else None
+    phrases = []
 
-    ground_phrase = describe_ground(scene, id_to_char, ground_chars)
-    if ground_phrase:
-        phrases.append(ground_phrase)
+    def add_to_caption(phrase, contributing_blocks):
+        if phrase:
+            phrases.append(phrase)
+            if return_details and details is not None:
+                # The caption box splits on periods, so the keys keep theirs.
+                details[f"{phrase}."] = contributing_blocks
+
+    for phrase in meta_phrases or []:
+        add_to_caption(phrase, [])      # metadata describes no tiles
 
     # Ground is covered by the floor phrase, so leave it out of the tile counts.
-    counts = Counter()
-    for row in scene:
-        for tile_id in row:
+    cells = {}
+    ground_cells = []
+    for r, row in enumerate(scene):
+        for c, tile_id in enumerate(row):
             char = id_to_char.get(tile_id)
-            if char and char not in ground_chars and char in char_names:
-                counts[char] += 1
+            if char in ground_chars:
+                ground_cells.append((r, c))
+            elif char in char_names:
+                cells.setdefault(char, []).append((r, c))
+
+    add_to_caption(describe_ground(scene, id_to_char, ground_chars), ground_cells)
 
     blobs = largest_blobs(scene, id_to_char)
-    for char, count in counts.items():
+    object_counts = count_objects(scene, id_to_char)
+    for char, char_cells in cells.items():
         name = char_names[char]
-        phrases.append(count_phrase(count, name))
-        if blobs.get(char, 0) >= BLOB_THRESHOLD:
-            phrases.append(f"a blob of {pluralize(name)}".capitalize())
+        count = object_counts.get(char, len(char_cells))
+        add_to_caption(count_phrase(count, name), char_cells)
+        # A pile of coins is a blob, but a row of bridges is just several bridges.
+        if char not in object_counts and len(blobs.get(char, ())) >= BLOB_THRESHOLD:
+            add_to_caption(f"a blob of {pluralize(name)}".capitalize(), blobs[char])
 
-    return " ".join(f"{p}." for p in phrases)
+    caption = " ".join(f"{p}." for p in phrases)
+    return (caption, details) if return_details else caption
 
 
 def generate_captions(dataset_path, tileset_path, output_path,

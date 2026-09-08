@@ -106,18 +106,33 @@ def extract_best_window(rows, tile_to_id, extra_tile=EXTRA_TILE, empty_char="-")
     return best_scene, best_x
 
 
-def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty_char="-"):
+def window_slices_object(x, boxes, window_w=WINDOW_W):
+    """True if a window starting at column x cuts a box instead of holding it whole."""
+    right = x + window_w
+    for box in boxes:
+        box_left = box["x"]
+        box_right = box_left + box["w"]
+        if box_left < right and box_right > x:          # they overlap at all...
+            if box_left < x or box_right > right:       # ...but not completely
+                return True
+    return False
+
+
+def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty_char="-",
+                        protected_boxes=()):
     """Slide a WINDOW_H x WINDOW_W window across the level and return every window
     as a list of (x, scene) pairs, where x is the game-grid column of the
     window's left edge (needed to crop the matching slice of the level image).
-    Air-only windows are dropped so empty gaps don't end up in the dataset."""
+    Air-only windows are dropped so empty gaps don't end up in the dataset.
+    Positions that would cut one of protected_boxes are skipped -- sliding gives
+    us more windows than we need. Returns (windows, skipped)."""
     extra_id = tile_to_id.get(extra_tile, 0)
     empty_id = tile_to_id.get(empty_char, 0)
 
     width = max((len(r) for r in rows), default=0)
 
     if width < WINDOW_W or not rows:
-        return []
+        return [], 0
 
     padded = _pad_rows(rows, width, empty_char)
 
@@ -132,6 +147,12 @@ def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty
             xs.append(last_x)
         else:
             xs[-1] = last_x
+
+    # An object wider than the window can never fit, so protecting it is pointless.
+    boxes = [b for b in protected_boxes if b["w"] <= WINDOW_W]
+    intact_xs = [x for x in xs if not window_slices_object(x, boxes)]
+    skipped = len(xs) - len(intact_xs)
+    xs = intact_xs
 
     scenes = []
     for x in xs:
@@ -149,7 +170,7 @@ def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty
         if has_content:
             scenes.append((x, scene))
 
-    return scenes
+    return scenes, skipped
 
 
 def count_non_air_tiles(scene, empty_id, extra_id):
@@ -461,6 +482,10 @@ def main_build(argv=None):
                              "Pass --no_dropped to skip writing it.")
     parser.add_argument("--no_dropped", action="store_true",
                         help="Don't write the 'dropped' dataset of below-min_tiles_pct samples.")
+    parser.add_argument("--allow_sliced_objects", action="store_true",
+                        help="Keep window positions that cut an object in half. Off "
+                             "by default, since those samples teach the model that "
+                             "half a Saw is valid level content.")
     parser.add_argument("--with_images", action="store_true",
                         help="For every tile sample, also crop the matching "
                              f"{WINDOW_W}x{WINDOW_H}-tile region out of the level's "
@@ -566,11 +591,23 @@ def main_build(argv=None):
     processed = 0
     skipped = 0
     dropped_min_samples = 0  # samples set aside for being under --min_tiles
+    windows_sliced = 0       # positions skipped to keep objects whole
+    levels_without_boxes = 0  # levels whose metadata has no boxes yet
 
     for input_file in input_files:
         raw_levels = parse_source_file(input_file)
         file_stem = input_file.stem
         file_meta = level_metadata.get(file_stem)
+
+        # Older sidecars have no boxes, so those levels keep the old behaviour.
+        if args.allow_sliced_objects:
+            protected_boxes = []
+        else:
+            protected_boxes = (file_meta or {}).get("indivisible_objects")
+            if protected_boxes is None:
+                protected_boxes = []
+                levels_without_boxes += 1
+
         print(f"Parsing content from {input_file}...")
 
         for name, rows in raw_levels.items():
@@ -630,7 +667,10 @@ def main_build(argv=None):
                 samples = []
                 dropped_samples = []
                 if args.sliding_window:
-                    windows = extract_all_windows(rows, tile_to_id, extra_tile=extra_tile, stride=stride, empty_char=empty_char)
+                    windows, sliced = extract_all_windows(
+                        rows, tile_to_id, extra_tile=extra_tile, stride=stride,
+                        empty_char=empty_char, protected_boxes=protected_boxes)
+                    windows_sliced += sliced
                     if not windows:
                         print(f"  [SKIP] {full_name} (empty)")
                         skipped += 1
@@ -722,6 +762,11 @@ def main_build(argv=None):
     if dropped_min_samples:
         print(f"Dropped for --min_tiles_pct ({args.min_tiles_pct:g}%, "
               f"{min_tiles} tiles): {dropped_min_samples} sample(s).")
+    if windows_sliced:
+        print(f"Skipped {windows_sliced} window(s) that would have cut an object in half.")
+    if levels_without_boxes:
+        print(f"{levels_without_boxes} level(s) had no object boxes and went unchecked; "
+              f"re-run 'json-to-ascii' to refresh the metadata.")
     if keep_dropped:
         print(f"Dropped dataset: {len(dataset_dropped)} sample(s) written to {dropped_file}.")
     if args.with_images:
