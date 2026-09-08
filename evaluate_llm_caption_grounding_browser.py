@@ -128,6 +128,8 @@ class GroundingReviewViewer(TileViewer):
 
         coverage_supported = breakdown.get("coverage_supported_categories", "n/a")
         coverage_present = breakdown.get("coverage_present_categories", "n/a")
+        coverage_supported_concepts = breakdown.get("coverage_supported_concepts", coverage_supported)
+        coverage_present_concepts = breakdown.get("coverage_present_concepts", coverage_present)
         precision_supported = breakdown.get("precision_supported_mentions", "n/a")
         precision_total = breakdown.get("precision_total_mentions", "n/a")
         precision_unsupported = breakdown.get("precision_unsupported_mentions", "n/a")
@@ -144,14 +146,24 @@ class GroundingReviewViewer(TileViewer):
         score_changes = []
         missing_categories = score.get("missing_categories", [])
         if (missing_categories and isinstance(coverage, (int, float))
-            and isinstance(precision, (int, float)) and isinstance(coverage_present, (int, float))):
-            present_count = max(1, coverage_present)
+                and isinstance(precision, (int, float)) and isinstance(coverage_present_concepts, (int, float))):
+            present_count = max(1, coverage_present_concepts)
             coverage_without_omission = min(1.0, coverage + 1.0 / present_count)
             increase = harmonic(coverage_without_omission, precision) - harmonic(coverage, precision)
             for category in missing_categories:
                 score_changes.append(
                     f"Score decreased by {increase:.6f} because caption does not mention "
                     f"{category} in the scene."
+                )
+        for compound in score.get("missing_compound_concepts", []):
+            if (isinstance(coverage, (int, float)) and isinstance(precision, (int, float))
+                    and isinstance(coverage_present_concepts, (int, float))):
+                present_count = max(1, coverage_present_concepts)
+                coverage_without_omission = min(1.0, coverage + 1.0 / present_count)
+                increase = harmonic(coverage_without_omission, precision) - harmonic(coverage, precision)
+                score_changes.append(
+                    f"Score decreased by {increase:.6f} because caption does not mention "
+                    f"{compound} in the scene."
                 )
         if (score.get("unsupported_categories") and isinstance(coverage, (int, float))
             and isinstance(precision, (int, float)) and isinstance(precision_total, (int, float))):
@@ -186,6 +198,8 @@ class GroundingReviewViewer(TileViewer):
             f"Overall: {overall}    Coverage: {coverage}    Precision: {precision}\n"
             f"Score diagnostics:\n{score_change_text}\n\n"
             f"Coverage = {coverage_supported} supported present categories / {coverage_present} present categories = {coverage}\n"
+            f"Coverage concepts including compounds = {coverage_supported_concepts} supported / "
+            f"{coverage_present_concepts} present = {coverage}\n"
             f"Precision = {precision_supported} supported mentions / {precision_total} recognized mentions = {precision}\n"
             f"  ({precision_unsupported} weighted unsupported penalty; modifier penalty portion: {modifier_penalty})\n"
             f"Base overall = 2 * {coverage} * {precision} / ({coverage} + {precision}) = {base_overall}\n"

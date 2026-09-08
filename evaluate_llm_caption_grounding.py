@@ -473,10 +473,14 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     mentioned_compounds = sorted(set(mentioned_compounds))
     unsupported_compounds = sorted(set(mentioned_compounds) - set(present_compounds))
     missing_categories = sorted(present_categories - set(required))
+    missing_compounds = sorted(set(present_compounds) - set(mentioned_compounds))
 
     # Category coverage is the main score. Specific terms are a bonus signal and do not make
     # omission of every exact enemy type look like a failure when "enemies" is accurate.
-    coverage = len(required) / len(present_categories) if present_categories else 1.0
+    coverage_supported_concepts = len(required) + len(set(present_compounds) & set(mentioned_compounds))
+    coverage_present_concepts = len(present_categories) + len(present_compounds)
+    coverage = (coverage_supported_concepts / coverage_present_concepts
+                if coverage_present_concepts else 1.0)
     mentioned_count = len(mentioned_categories) + len(specific_matches)
     weighted_unsupported = len(unsupported_categories) + sum(
         1.0 if item["specificity_kind"] != "modifier" else UNSUPPORTED_SPECIFICITY_PENALTY
@@ -493,6 +497,10 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     score_breakdown = {
         "coverage_supported_categories": len(required),
         "coverage_present_categories": len(present_categories),
+        "coverage_supported_compounds": len(set(present_compounds) & set(mentioned_compounds)),
+        "coverage_present_compounds": len(present_compounds),
+        "coverage_supported_concepts": coverage_supported_concepts,
+        "coverage_present_concepts": coverage_present_concepts,
         "precision_supported_mentions": round(weighted_supported, 6),
         "precision_total_mentions": mentioned_count,
         "precision_unsupported_mentions": round(weighted_unsupported, 6),
@@ -530,6 +538,7 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         "mentioned_compound_concepts": mentioned_compounds,
         "unsupported_compound_concepts": unsupported_compounds,
         "missing_categories": missing_categories,
+        "missing_compound_concepts": missing_compounds,
         "supported_specific_tiles": supported_specific,
         "unsupported_specific_tiles": unsupported_specific,
         "scene_tile_counts": dict(present),
