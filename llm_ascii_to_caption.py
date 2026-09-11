@@ -28,6 +28,7 @@ import urllib.error
 
 import ollama
 from tqdm import tqdm
+from util.energy_tracking import track_energy
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
@@ -1189,6 +1190,10 @@ def parse_args():
     return args
 
 
+# Measures whole-run energy (codecarbon for CPU/RAM, plus a utilization-based GPU
+# estimate since this hardware exposes no NVML power telemetry), prints one summary on
+# completion and appends a row to energy_summary.csv. See util/energy_tracking.py.
+@track_energy(project_name="llm_ascii_to_caption")
 def main() -> list[list[str]]:
 
     args = parse_args()

@@ -15,7 +15,12 @@ from datetime import datetime
 from util.plotter import Plotter
 import random
 import models.text_model as text_model
+from util.energy_tracking import track_energy
 
+# Measures energy of the training loop (codecarbon for CPU/RAM, plus a utilization-based
+# GPU estimate since this hardware exposes no NVML power telemetry), prints one summary on
+# completion and appends a row to energy_summary.csv. See util/energy_tracking.py.
+@track_energy(project_name="train_mlm")
 def train(model, train_loader, val_loader, criterion, optimizer, device, epochs, tokenizer, patience=20):
     global args
 
@@ -247,6 +252,11 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument("--use_early_stopping", action="store_true", help="Stop training if validation/caption performance stagnate")
     parser.add_argument("--eval_at_end", action="store_true", help="Give an evaluation report after training")
+    # Registered here rather than left to util.energy_tracking, which strips this flag from
+    # sys.argv before the function it decorates runs. That works when parse_args() is called
+    # inside the decorated function, but this script parses at module level -- before the
+    # decorated train() -- so argparse would reject the flag as unrecognized.
+    parser.add_argument("--energy_detail", action="store_true", help="Print the full per-component energy breakdown on completion instead of the one-line summary")
     
     global args
     args = parser.parse_args()
