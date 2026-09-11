@@ -29,11 +29,29 @@ class GroundingReviewViewer(TileViewer):
         self.current_caption_idx = 0
 
         review_frame = tk.LabelFrame(self.scroll_frame, text="Grounding Review")
-        review_frame.pack(fill=tk.X, padx=4, pady=(2, 8))
+        review_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(2, 8))
+        review_frame.grid_rowconfigure(0, weight=1)
+        review_frame.grid_columnconfigure(0, weight=1)
         self.review_text = tk.Text(review_frame, height=10, width=100, wrap=tk.WORD,
                                    state=tk.DISABLED)
-        self.review_text.pack(fill=tk.X, padx=4, pady=4)
+        self.review_text.grid(row=0, column=0, sticky="nsew", padx=(4, 0), pady=4)
+        review_scrollbar = tk.Scrollbar(review_frame, orient=tk.VERTICAL,
+                                        command=self.review_text.yview)
+        review_scrollbar.grid(row=0, column=1, sticky="ns", padx=(0, 4), pady=4)
+        self.review_text.configure(yscrollcommand=review_scrollbar.set)
+        self.scroll_canvas.bind("<Configure>", self._fit_review_panel, add="+")
+        self._fit_review_panel()
         self.redraw()
+
+    def _fit_review_panel(self, event=None):
+        """Give the expanding review panel any unused visible viewport height."""
+        self.scroll_canvas.update_idletasks()
+        viewport_height = self.scroll_canvas.winfo_height()
+        content_height = self.scroll_frame.winfo_reqheight()
+        self.scroll_canvas.itemconfigure(
+            self._scroll_frame_window,
+            height=max(viewport_height, content_height),
+        )
 
     def load_files_from_paths(self, dataset_path, tileset_path):
         """Load the evaluator's summary object, then initialize TileViewer state."""
