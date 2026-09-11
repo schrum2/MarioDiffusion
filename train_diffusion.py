@@ -33,6 +33,7 @@ from torch.utils.data import DataLoader
 from models.pipeline_loader import get_pipeline
 from create_ascii_captions import assign_caption
 import astar.astar_traversability_check
+from util.energy_tracking import track_energy
 
 
 # REVISION CANDIDATE: mse_loss, reconstruction_loss, and combined_loss are self-contained
@@ -339,6 +340,10 @@ def infer_global_step_from_log(log_file):
         raise RuntimeError(f"Could not read log file {log_file} to infer global step: {e}")
     return global_step
 
+# Measures whole-run energy (codecarbon for CPU/RAM, plus a utilization-based GPU
+# estimate since this hardware exposes no NVML power telemetry), prints one summary on
+# completion and appends a row to energy_summary.csv. See util/energy_tracking.py.
+@track_energy(project_name="train_diffusion")
 def main():
     args = parse_args()
 

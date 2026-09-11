@@ -28,6 +28,7 @@ import urllib.error
 
 import ollama
 from tqdm import tqdm
+from util.energy_tracking import track_energy
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
@@ -426,8 +427,10 @@ def default_checkpoint_path(output: str | None, shard_index: int, shard_count: i
 def load_checkpoint(path: str) -> dict[int, dict]:
     """
     Read a checkpoint jsonl file (if it exists) into {global_index: entry}. Each line is a
-    JSON object carrying a private "_index" key (the scene's position in the full, unsharded
-    dataset) alongside the same fields main() would otherwise put straight into --output.
+    JSON object carrying private keys -- "_index" (the scene's position in the full, unsharded
+    dataset) and "_usage" (that scene's backend-reported token counts, so a resumed run can
+    still report a cumulative total) -- alongside the same fields main() would otherwise put
+    straight into --output.
     Corrupt trailing lines (e.g. a write cut off mid-flush by a crash) are skipped, not fatal,
     so resuming after a hard crash only ever loses the one in-flight scene, never prior work.
     """
@@ -519,7 +522,10 @@ def finalize_output(checkpoint_path: str, output_path: str | None) -> list[dict]
     done = load_checkpoint(checkpoint_path)
     ordered = [done[i] for i in sorted(done)]
     for entry in ordered:
+        # Underscore-prefixed keys are checkpoint bookkeeping (scene order, token usage), not
+        # dataset fields, so they stay in the .jsonl and never reach --output.
         entry.pop("_index", None)
+        entry.pop("_usage", None)
     if output_path:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(ordered, f, indent=2)
@@ -690,12 +696,104 @@ def load_api_key(api_key_path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Token usage accounting
+# ---------------------------------------------------------------------------
+
+def _int(value) -> int:
+    """Coerce a possibly-missing usage field to an int (None/garbage -> 0)."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+class TokenUsage:
+    """
+    Running total of tokens actually consumed, as REPORTED BY THE BACKEND -- never estimated.
+    (estimate_prompt_tokens() above is a separate, deliberately-crude thing used only to size
+    Ollama's context window; it is not used for any number reported here.)
+
+    Every backend hands back real counts with each call:
+      - Ollama: prompt_eval_count / eval_count on the chat response
+      - Claude: usage.input_tokens / output_tokens (+ cache_read / cache_creation)
+      - OpenAI: usage.prompt_tokens / completion_tokens (+ prompt/completion token details)
+      - Gemini: usageMetadata.promptTokenCount / candidatesTokenCount (+ cached / thoughts)
+
+    Field meanings are normalized across those backends so the totals are comparable:
+      input_tokens         all prompt tokens, INCLUDING any served from cache
+      cached_input_tokens  the subset of input_tokens that was a cache hit (a breakdown, not
+                           an addition -- don't add it to input_tokens)
+      output_tokens        all generated tokens, INCLUDING reasoning/thinking tokens
+      reasoning_tokens     the subset of output_tokens spent on reasoning (a breakdown)
+      calls                LLM calls counted
+      unreported           calls whose response carried no usage block at all, so a summary
+                           can say the totals are short rather than silently under-report
+
+    Counts accumulate over EVERY call, including a scene's reprompts, so a scene's usage is
+    the true cost of producing its captions -- not just the final successful attempt.
+    """
+
+    __slots__ = ("calls", "unreported", "input_tokens", "output_tokens",
+                 "cached_input_tokens", "reasoning_tokens")
+
+    def __init__(self, input_tokens: int = 0, output_tokens: int = 0,
+                 cached_input_tokens: int = 0, reasoning_tokens: int = 0,
+                 calls: int = 0, unreported: int = 0):
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.cached_input_tokens = cached_input_tokens
+        self.reasoning_tokens = reasoning_tokens
+        self.calls = calls
+        self.unreported = unreported
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TokenUsage":
+        """Rebuild from as_dict() output, ignoring any unknown keys (older/newer checkpoints)."""
+        return cls(**{k: _int(v) for k, v in (data or {}).items() if k in cls.__slots__})
+
+    def add(self, other: "TokenUsage") -> "TokenUsage":
+        for field in self.__slots__:
+            setattr(self, field, getattr(self, field) + getattr(other, field))
+        return self
+
+    @property
+    def total(self) -> int:
+        return self.input_tokens + self.output_tokens
+
+    def as_dict(self) -> dict:
+        return {field: getattr(self, field) for field in self.__slots__}
+
+    def summary(self, scenes: int = 0) -> str:
+        """One-line human summary; pass `scenes` to also get per-scene averages."""
+        parts = [
+            f"{self.calls:,} call(s)",
+            f"{self.input_tokens:,} in",
+            f"{self.output_tokens:,} out",
+            f"{self.total:,} total",
+        ]
+        if self.cached_input_tokens:
+            parts.append(f"{self.cached_input_tokens:,} of the input cached")
+        if self.reasoning_tokens:
+            parts.append(f"{self.reasoning_tokens:,} of the output reasoning")
+        if scenes > 0:
+            parts.append(f"avg {self.total / scenes:,.0f}/scene over {scenes} scene(s)")
+        if self.unreported:
+            parts.append(f"WARNING: {self.unreported:,} call(s) reported no usage, totals are low")
+        return " | ".join(parts)
+
+    def __str__(self) -> str:
+        return self.summary()
+
+
+# ---------------------------------------------------------------------------
 # Backend callers
 # ---------------------------------------------------------------------------
 # Each call_*() function has the same signature:
-#   call_*(system_prompt, user_content, model, api_key, max_tokens, timeout, retries, **kw) -> str
-# returning the raw text response. Adding a new backend (e.g. a future vision-capable model)
-# means writing one more function with this signature and registering it in BACKEND_CALLERS.
+#   call_*(system_prompt, user_content, model, api_key, max_tokens, timeout, retries, **kw)
+#       -> (raw_text_response, TokenUsage)
+# The TokenUsage is the backend's own reported count for that one call. Adding a new backend
+# (e.g. a future vision-capable model) means writing one more function with this signature --
+# returning both halves -- and registering it in BACKEND_CALLERS.
 
 def call_claude(system_prompt, user_content, model, api_key, max_tokens, timeout, retries, **_):
     payload = json.dumps({
@@ -720,7 +818,19 @@ def call_claude(system_prompt, user_content, model, api_key, max_tokens, timeout
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
                 parts = result.get("content", [])
-                return "".join(p.get("text", "") for p in parts).strip()
+                # Anthropic reports input_tokens EXCLUDING cache reads/writes, so fold those
+                # back in to keep input_tokens meaning "every prompt token" like the others.
+                reported = result.get("usage") or {}
+                cache_read = _int(reported.get("cache_read_input_tokens"))
+                usage = TokenUsage(
+                    input_tokens=(_int(reported.get("input_tokens")) + cache_read
+                                  + _int(reported.get("cache_creation_input_tokens"))),
+                    output_tokens=_int(reported.get("output_tokens")),
+                    cached_input_tokens=cache_read,
+                    calls=1,
+                    unreported=0 if reported else 1,
+                )
+                return "".join(p.get("text", "") for p in parts).strip(), usage
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             if attempt < retries - 1:
                 wait = min(2 ** attempt * 5, 60)
@@ -753,10 +863,21 @@ def call_openai(system_prompt, user_content, model, api_key, max_tokens, timeout
             )
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
+                # OpenAI's prompt_tokens already includes cached tokens and completion_tokens
+                # already includes reasoning tokens, so the *_details values are breakdowns.
+                reported = result.get("usage") or {}
+                usage = TokenUsage(
+                    input_tokens=_int(reported.get("prompt_tokens")),
+                    output_tokens=_int(reported.get("completion_tokens")),
+                    cached_input_tokens=_int((reported.get("prompt_tokens_details") or {}).get("cached_tokens")),
+                    reasoning_tokens=_int((reported.get("completion_tokens_details") or {}).get("reasoning_tokens")),
+                    calls=1,
+                    unreported=0 if reported else 1,
+                )
                 choices = result.get("choices", [])
                 if not choices:
-                    return ""
-                return (choices[0].get("message", {}).get("content") or "").strip()
+                    return "", usage
+                return (choices[0].get("message", {}).get("content") or "").strip(), usage
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             if attempt < retries - 1:
                 wait = min(2 ** attempt * 5, 60)
@@ -786,11 +907,24 @@ def call_gemini(system_prompt, user_content, model, api_key, max_tokens, timeout
             )
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
+                # Gemini counts thoughts SEPARATELY from candidates (totalTokenCount = prompt +
+                # candidates + thoughts), so add thoughts into output_tokens; cachedContent is a
+                # subset of promptTokenCount.
+                reported = result.get("usageMetadata") or {}
+                thoughts = _int(reported.get("thoughtsTokenCount"))
+                usage = TokenUsage(
+                    input_tokens=_int(reported.get("promptTokenCount")),
+                    output_tokens=_int(reported.get("candidatesTokenCount")) + thoughts,
+                    cached_input_tokens=_int(reported.get("cachedContentTokenCount")),
+                    reasoning_tokens=thoughts,
+                    calls=1,
+                    unreported=0 if reported else 1,
+                ) 
                 candidates = result.get("candidates", [])
                 if not candidates:
-                    return ""
+                    return "", usage
                 parts = candidates[0].get("content", {}).get("parts", [])
-                return "".join(p.get("text", "") for p in parts).strip()
+                return "".join(p.get("text", "") for p in parts).strip(), usage
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             if attempt < retries - 1:
                 wait = min(2 ** attempt * 5, 60)
@@ -815,7 +949,18 @@ def call_ollama(system_prompt, user_content, model, api_key, max_tokens, timeout
         # 5-minute unload, which would otherwise dwarf actual inference time.
         keep_alive="30m",
     )
-    return (completion.message.content or "").strip()
+    # Ollama reports the real counts on the response itself: prompt_eval_count is how many
+    # prompt tokens it actually evaluated and eval_count how many it generated. Either can be
+    # absent/None (e.g. a fully prompt-cached call), hence getattr + _int.
+    prompt_eval = getattr(completion, "prompt_eval_count", None)
+    eval_count = getattr(completion, "eval_count", None)
+    usage = TokenUsage(
+        input_tokens=_int(prompt_eval),
+        output_tokens=_int(eval_count),
+        calls=1,
+        unreported=0 if (prompt_eval is not None or eval_count is not None) else 1,
+    )
+    return (completion.message.content or "").strip(), usage
 
 
 BACKEND_CALLERS = {
@@ -841,7 +986,7 @@ def llm_caption(scene: str, deterministic: str, game: str = "Mega Man", tileset:
                 max_caption_retries: int = MAX_CAPTION_RETRIES,
                 retry_on_empty: bool = True, retry_on_nonascii: bool = True,
                 max_reprompts: int = MAX_REPROMPTS,
-                bad_chars: set = None) -> list[str]:
+                bad_chars: set = None, usage: "TokenUsage" = None) -> list[str]:
     """
     Prompt the selected backend for `num_captions` diverse captions of a scene, retrying on
     the wrong caption count (always) and, if enabled, on empty or non-ASCII responses.
@@ -852,6 +997,10 @@ def llm_caption(scene: str, deterministic: str, game: str = "Mega Man", tileset:
     bad_chars: optional set the caller can pass in and reuse across scenes, so the "banned
         character" list accumulates over an entire run rather than resetting every scene.
         If omitted, a fresh set is used for just this call.
+    usage: optional TokenUsage the caller passes in to have this scene's backend-reported token
+        counts added to it (same in/out pattern as bad_chars). Every call this function makes is
+        counted, reprompts included, so the caller sees what the scene really cost even when it
+        took several attempts -- or when it ultimately failed and returned too few captions.
     Returns a list of caption strings (possibly fewer than num_captions if every retry budget
     is exhausted).
     """
@@ -906,8 +1055,10 @@ def llm_caption(scene: str, deterministic: str, game: str = "Mega Man", tileset:
             + build_count_clause(num_captions, caption_retries)
         )
 
-        raw = call_fn(system_prompt, active_content, model, api_key, max_tokens, timeout, retries,
-                     num_ctx=num_ctx, temperature=temperature)
+        raw, call_usage = call_fn(system_prompt, active_content, model, api_key, max_tokens,
+                                  timeout, retries, num_ctx=num_ctx, temperature=temperature)
+        if usage is not None:
+            usage.add(call_usage)
         captions = parse_captions(raw)
 
         if not captions and retry_on_empty:
@@ -1039,6 +1190,10 @@ def parse_args():
     return args
 
 
+# Measures whole-run energy (codecarbon for CPU/RAM, plus a utilization-based GPU
+# estimate since this hardware exposes no NVML power telemetry), prints one summary on
+# completion and appends a row to energy_summary.csv. See util/energy_tracking.py.
+@track_energy(project_name="llm_ascii_to_caption")
 def main() -> list[list[str]]:
 
     args = parse_args()
@@ -1076,9 +1231,20 @@ def main() -> list[list[str]]:
     resume = resolve_resume(checkpoint_path, args.force_resume, args.force_restart)
 
     already_done = load_checkpoint(checkpoint_path) if resume else {}
+    prior_usage = TokenUsage()
+    prior_missing_usage = 0
     if already_done:
         print(f"[resume] {len(already_done)} scene(s) already captioned in {checkpoint_path}; skipping those.\n")
         indexed_scenes = [(i, s) for i, s in indexed_scenes if i not in already_done]
+        # Per-scene usage kept in the checkpoint lets the end-of-run summary report the whole
+        # dataset's cost, not just the scenes this particular run happened to caption.
+        # Checkpoints written before token accounting existed have no "_usage" at all; count
+        # them so the cumulative line can say it's missing those scenes rather than look low.
+        for entry in already_done.values():
+            if entry.get("_usage"):
+                prior_usage.add(TokenUsage.from_dict(entry["_usage"]))
+            else:
+                prior_missing_usage += 1
 
     writer = CheckpointWriter(checkpoint_path, resume=resume)
 
@@ -1091,11 +1257,18 @@ def main() -> list[list[str]]:
     # resetting every scene.
     run_bad_chars: set = set()
 
+    # Backend-reported token totals for this run, plus how many scenes fed into them (scenes
+    # skipped for a bad caption count still burned tokens, so they count here too).
+    run_usage = TokenUsage()
+    run_usage_scenes = 0
+
     caption_lists = []
 
+    progress = tqdm(indexed_scenes, total=len(indexed_scenes), desc="Captioning",
+                    unit="scene", disable=args.show_captions)
+
     try:
-        for i, (scene, label, attrs) in tqdm(indexed_scenes, total=len(indexed_scenes), desc="Captioning",
-                                              unit="scene", disable=args.show_captions):
+        for i, (scene, label, attrs) in progress:
 
             scene_str = "\n".join(scene_to_ASCII(scene, id_to_char, null_ids))
             if args.grid_format == "tokens":
@@ -1120,6 +1293,7 @@ def main() -> list[list[str]]:
                     print(msg) if args.show_captions else tqdm.write(msg)
                     continue
 
+            scene_usage = TokenUsage()
             caption_set = llm_caption(
                 grid_for_prompt, game=game_name, model=model, tileset=filtered_tiles, llm=args.llm,
                 deterministic=det_caption, num_captions=args.num_captions,
@@ -1129,12 +1303,23 @@ def main() -> list[list[str]]:
                 max_caption_retries=args.max_caption_retries,
                 retry_on_empty=args.retry_on_empty, retry_on_nonascii=args.retry_on_nonascii,
                 max_reprompts=args.max_reprompts, bad_chars=run_bad_chars,
+                usage=scene_usage,
             )
+            # Counted before the caption-count check below: a scene skipped for a bad caption
+            # count still spent every one of those tokens.
+            run_usage.add(scene_usage)
+            run_usage_scenes += 1
 
             if args.show_captions:
                 print(f"------------------ [{llmstr}]  [{label}] (index {i}) ------------------\n")
                 for j, caption in enumerate(caption_set):
                     print(f"[Caption {j + 1}/{len(caption_set)}] {caption}\n")
+                print(f"[tokens] {label}: {scene_usage.summary()}\n")
+            else:
+                progress.set_postfix_str(
+                    f"tok in {run_usage.input_tokens:,} / out {run_usage.output_tokens:,}",
+                    refresh=False,
+                )
 
             if len(caption_set) != args.num_captions:
                 skip_msg = (f"[skip] {label}: got {len(caption_set)} caption(s) instead of "
@@ -1153,14 +1338,31 @@ def main() -> list[list[str]]:
             else:
                 entry[caption_key] = caption_set
 
+            # Private to the checkpoint (finalize_output strips it), so --output keeps the
+            # dataset schema it always had while a resumed run can still total the whole set.
+            entry["_usage"] = scene_usage.as_dict()
+
             writer.write(i, entry)
     finally:
         writer.close()
+        progress.close()
 
     end_time = time.time()
     elapsed = end_time - start_time
     print(f"[timing] Captioning finished at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}\n")
     print(f"[timing] Total captioning time: {elapsed:.2f}s ({elapsed / 60:.2f} min)\n")
+
+    print(f"[tokens] This run ({llmstr}): {run_usage.summary(run_usage_scenes)}\n")
+    if prior_usage.calls or prior_missing_usage:
+        cumulative = TokenUsage().add(prior_usage).add(run_usage)
+        counted_scenes = len(already_done) - prior_missing_usage + run_usage_scenes
+        note = (f" (excludes {prior_missing_usage} earlier scene(s) checkpointed without usage data)"
+                if prior_missing_usage else "")
+        print(f"[tokens] Cumulative for {checkpoint_path} (resumed runs included){note}: "
+              f"{cumulative.summary(counted_scenes)}\n")
+    if elapsed > 0 and run_usage.total:
+        print(f"[tokens] Throughput: {run_usage.total / elapsed:,.1f} tokens/s "
+              f"({run_usage.output_tokens / elapsed:,.1f} generated tokens/s)\n")
 
     finalize_output(checkpoint_path, args.output)
 
