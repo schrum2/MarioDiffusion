@@ -3,6 +3,11 @@ import os
 import sys
 import argparse
 
+# Only for running this file directly to debug it; imports already find the root.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 # Tags used to describe tile properties rather than identity; everything in a
 # tile's tag list other than these is treated as part of its name.
 PROPERTY_TAGS = {
@@ -27,6 +32,53 @@ CAPTION_METADATA_FIELDS = [
 
 # A same-tile contiguous region at least this big gets called a blob.
 BLOB_THRESHOLD = 10
+
+# A terrain region smaller than this is left to the tile counts.
+TERRAIN_MIN_REGION = 4
+
+# A region on the bottom row at least this wide is the ground, not a structure.
+GROUND_WIDTH_FRACTION = 0.4
+
+# Surface heights within this much of each other read as level ground.
+SURFACE_FLAT_TOLERANCE = 2
+
+# A ledge this much of the scene wide is doing the job of a floor.
+WIDE_LEDGE_FRACTION = 0.6
+
+# A region packed at least this solid is a block rather than a room.
+SOLID_FILL_FRACTION = 0.7
+
+# Surfaces that climb steadily one way. A region shaped like this is a staircase.
+SLOPED_SURFACES = ("rising to the right", "sloping down to the right")
+
+# A staircase needs at least this much run and rise.
+STAIRCASE_MIN_SPAN = 3
+
+# Ground covering this much of the scene gets called out as bulk terrain.
+GROUND_BULK_FRACTION = 0.6
+GROUND_HEAVY_FRACTION = 0.35
+
+# Gaps under terrain in this many columns read as a cave.
+UNDERCUT_MIN_COLUMNS = 3
+
+# Ground this many rows deep is a plateau, not the floor.
+GROUND_TALL_ROWS = 6
+
+# Tags that keep a tile out of the block set: it moves, hurts, or is picked up.
+BLOCK_EXCLUDE_TAGS = {"damaging", "hazard", "enemy", "moving", "warp", "pipe",
+                      "shooter", "collectable", "power-up"}
+
+# Shape names for structures built out of blocks instead of ground.
+BLOCK_SHAPE_NOUNS = {
+    "ground": "platform",
+    "wide ledge": "platform",
+    "ledge": "row",
+    "pillar": "column",
+    "ground block": "wall",
+    "staircase": "staircase",
+    "hollow structure": "structure",
+    "mound": "cluster",
+}
 
 
 def metadata_phrases(item):
@@ -89,6 +141,29 @@ def get_tile_categories(tileset_path):
         if "ground" in tagset:
             ground_chars.add(char)
     return enemy_chars, item_chars, ground_chars
+
+
+def get_block_chars(tileset_path):
+    """
+        Picks the block types that build structures the way ground does. Pipes and
+        bridges stay out, since a footprint already counts them as one object.
+        Returns the set of tile chars, without the ground itself.
+    """
+    from util.mm2_metrics import FEATURE_POLICIES
+
+    with open(tileset_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    chars = set()
+    for char, tags in data["tiles"].items():
+        tagset = set(tags)
+        if char in FEATURE_POLICIES or "ground" in tagset:
+            continue
+        if tagset & BLOCK_EXCLUDE_TAGS:
+            continue
+        if "solid" in tagset or tags[-1].endswith("block"):
+            chars.add(char)
+    return chars
 
 
 def describe_quantity(count):
@@ -175,7 +250,8 @@ def describe_ground(scene, id_to_char, ground_chars):
     if all(bottom):
         return "Full ground floor"
     if not any(bottom):
-        return "Scattered ground"
+        # Only the bottom row is ours; the region pass covers the rest.
+        return None
 
     # Count the runs of missing ground along the bottom row.
     gaps = 0
@@ -189,8 +265,181 @@ def describe_ground(scene, id_to_char, ground_chars):
     return f"Ground floor with {describe_quantity(gaps)} gap" + ("s" if gaps > 1 else "")
 
 
+def terrain_regions(scene, id_to_char, terrain_chars):
+    """
+        Finds connected regions of terrain by flood fill over 4-connected
+        neighbours. Every char in terrain_chars counts as the same material.
+        Returns a list of (row, col) lists, largest region first.
+    """
+    height = len(scene)
+    width = len(scene[0]) if height else 0
+    visited = set()
+    regions = []
+    for r in range(height):
+        for c in range(width):
+            if (r, c) in visited or id_to_char.get(scene[r][c]) not in terrain_chars:
+                continue
+            stack = [(r, c)]
+            region = []
+            while stack:
+                y, x = stack.pop()
+                if (y, x) in visited or not (0 <= y < height and 0 <= x < width):
+                    continue
+                if id_to_char.get(scene[y][x]) not in terrain_chars:
+                    continue
+                visited.add((y, x))
+                region.append((y, x))
+                stack += [(y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)]
+            regions.append(region)
+    regions.sort(key=len, reverse=True)
+    return regions
+
+
+def surface_profile(cells):
+    """
+        Walks the top of a region, keeping the highest cell in each column.
+        Returns one row number per column it covers, left to right.
+    """
+    tops = {}
+    for r, c in cells:
+        if c not in tops or r < tops[c]:
+            tops[c] = r
+    return [tops[c] for c in sorted(tops)]
+
+
+def describe_surface(profile):
+    """
+        Names the shape of a region's top edge. Rows count down from the top of the
+        scene, so a shrinking row number means the ground is climbing.
+        Returns "flat", "rising to the right", "sloping down to the right" or "uneven".
+    """
+    if len(profile) < 2 or max(profile) - min(profile) <= SURFACE_FLAT_TOLERANCE:
+        return "flat"
+    if all(b <= a for a, b in zip(profile, profile[1:])):
+        return "rising to the right"
+    if all(b >= a for a, b in zip(profile, profile[1:])):
+        return "sloping down to the right"
+    return "uneven"
+
+
+def undercut_columns(cells, height):
+    """
+        Counts the columns where the region has empty space directly below it,
+        which is what a cave roof or a tunnel looks like from above.
+        Returns the number of such columns.
+    """
+    occupied = set(cells)
+    undercut = set()
+    for r, c in cells:
+        if r + 1 < height and (r + 1, c) not in occupied:
+            undercut.add(c)
+    return len(undercut)
+
+
+def classify_terrain_region(cells, height, width):
+    """
+        Sorts a terrain region into a shape by its footprint, so a tall thin one is
+        a pillar and a flat wide one is a ledge.
+        Returns the shape name, or None when the region is too small to name.
+    """
+    if len(cells) < TERRAIN_MIN_REGION:
+        return None
+    rows = [r for r, _ in cells]
+    cols = [c for _, c in cells]
+    span_w = max(cols) - min(cols) + 1
+    span_h = max(rows) - min(rows) + 1
+
+    if max(rows) == height - 1 and span_w >= width * GROUND_WIDTH_FRACTION:
+        return "ground"
+    if span_h <= 2 and span_w >= 3:
+        return "wide ledge" if span_w >= width * WIDE_LEDGE_FRACTION else "ledge"
+    if span_w <= 2 and span_h >= 3:
+        return "pillar"
+    if len(cells) >= SOLID_FILL_FRACTION * span_w * span_h:
+        return "ground block"
+    # A top edge that climbs the whole way without turning back is a staircase.
+    if span_w >= STAIRCASE_MIN_SPAN and span_h >= STAIRCASE_MIN_SPAN:
+        if describe_surface(surface_profile(cells)) in SLOPED_SURFACES:
+            return "staircase"
+    # Big and mostly empty inside: walls around rooms or a maze, not a clump.
+    if span_w >= 6 and span_h >= 4:
+        return "hollow structure"
+    return "mound"
+
+
+def describe_terrain(scene, id_to_char, terrain_chars):
+    """
+        Describes the terrain above the bottom row, which the floor summary cannot
+        reach. Shapes other than the ground are grouped so three ledges count once.
+        Returns a list of (phrase, cells) pairs in the order they should be read.
+    """
+    height = len(scene)
+    width = len(scene[0]) if height else 0
+    phrases = []
+    shapes = {}
+
+    for region in terrain_regions(scene, id_to_char, terrain_chars):
+        kind = classify_terrain_region(region, height, width)
+        if kind is None:
+            continue
+        if kind == "ground":
+            rows = [r for r, _ in region]
+            surface = describe_surface(surface_profile(region))
+            # Flat ground is already covered by the floor summary.
+            if surface == "uneven":
+                phrases.append(("Uneven ground", region))
+            elif surface != "flat":
+                phrases.append((f"Ground {surface}", region))
+            if len(region) >= GROUND_BULK_FRACTION * height * width:
+                phrases.append(("The ground fills most of the scene", region))
+            elif len(region) >= GROUND_HEAVY_FRACTION * height * width:
+                phrases.append(("The ground fills much of the scene", region))
+            elif surface == "flat" and max(rows) - min(rows) + 1 >= GROUND_TALL_ROWS:
+                # A deep flat mass is a plateau the floor summary misses.
+                phrases.append(("Raised flat ground", region))
+            if undercut_columns(region, height) >= UNDERCUT_MIN_COLUMNS:
+                phrases.append(("Open space beneath the ground", region))
+        else:
+            count, cells = shapes.get(kind, (0, []))
+            shapes[kind] = (count + 1, cells + region)
+
+    for kind, (count, cells) in shapes.items():
+        phrases.append((count_phrase(count, kind), cells))
+    return phrases
+
+
+def describe_block_structures(scene, id_to_char, block_chars, char_names):
+    """
+        Runs the same shape pass over the other block types, one material at a time,
+        so a stack of bricks reads as a brick wall instead of a blob of bricks.
+        Returns the (phrase, cells) pairs and the chars that produced a shape.
+    """
+    height = len(scene)
+    width = len(scene[0]) if height else 0
+    phrases = []
+    named = set()
+
+    for char in sorted(block_chars):
+        name = char_names.get(char)
+        if name is None:
+            continue
+        shapes = {}
+        for region in terrain_regions(scene, id_to_char, {char}):
+            kind = classify_terrain_region(region, height, width)
+            if kind is None:
+                continue
+            noun = f"{name.lower()} {BLOCK_SHAPE_NOUNS[kind]}"
+            count, cells = shapes.get(noun, (0, []))
+            shapes[noun] = (count + 1, cells + region)
+            named.add(char)
+        for noun, (count, cells) in shapes.items():
+            phrases.append((count_phrase(count, noun), cells))
+    return phrases, named
+
+
 def assign_caption(scene, id_to_char, char_names, ground_chars=None,
-                   meta_phrases=None, debug=False, return_details=False):
+                   meta_phrases=None, debug=False, return_details=False,
+                   block_chars=None):
     """
         Assigns a caption to a level scene based on its contents: the metadata, the
         ground summary, a count of each tile type, and a note for anything that piles
@@ -225,6 +474,16 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
 
     add_to_caption(describe_ground(scene, id_to_char, ground_chars), ground_cells)
 
+    for phrase, region in describe_terrain(scene, id_to_char, ground_chars):
+        add_to_caption(phrase, region)
+
+    shaped_chars = set()
+    if block_chars:
+        block_phrases, shaped_chars = describe_block_structures(
+            scene, id_to_char, block_chars, char_names)
+        for phrase, region in block_phrases:
+            add_to_caption(phrase, region)
+
     blobs = largest_blobs(scene, id_to_char)
     object_counts = count_objects(scene, id_to_char)
     for char, char_cells in cells.items():
@@ -232,7 +491,9 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
         count = object_counts.get(char, len(char_cells))
         add_to_caption(count_phrase(count, name), char_cells)
         # A pile of coins is a blob, but a row of bridges is just several bridges.
-        if char not in object_counts and len(blobs.get(char, ())) >= BLOB_THRESHOLD:
+        # Blocks already named as a shape do not need one.
+        if (char not in object_counts and char not in shaped_chars
+                and len(blobs.get(char, ())) >= BLOB_THRESHOLD):
             add_to_caption(f"a blob of {pluralize(name)}".capitalize(), blobs[char])
 
     caption = " ".join(f"{p}." for p in phrases)
@@ -252,6 +513,7 @@ def generate_captions(dataset_path, tileset_path, output_path,
     id_to_char = build_id_to_char(tileset_path)
     char_names = get_char_names(tileset_path)
     _, _, ground_chars = get_tile_categories(tileset_path)
+    block_chars = get_block_chars(tileset_path)
 
     captioned = []
     for item in dataset:
@@ -259,7 +521,7 @@ def generate_captions(dataset_path, tileset_path, output_path,
         scene = item["scene"] if is_dict else item
         meta_phrases = metadata_phrases(item) if is_dict else []
         caption = assign_caption(scene, id_to_char, char_names, ground_chars,
-                                 meta_phrases)
+                                 meta_phrases, block_chars=block_chars)
         entry = dict(item) if is_dict else {}  # copy all input attributes so metadata/other sources carry through
         entry["scene"] = scene
         if caption_mode == "keyed":

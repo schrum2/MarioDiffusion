@@ -43,7 +43,7 @@ import level_dataset
 import util.common_settings as common_settings
 from util.sampler import SampleOutput, scene_to_ascii
 from captions.MM2_caption_match import assign_caption as mm2_assign_caption
-from captions.MM2_caption_match import get_char_names, get_tile_categories, metadata_phrases
+from captions.MM2_caption_match import get_char_names, get_tile_categories, get_block_chars, metadata_phrases
 from captions.util import extract_tileset
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
@@ -1068,9 +1068,11 @@ class TileViewer(tk.Tk):
             # Code from interactive_tile_level_generator.
             _, _, ground_chars = get_tile_categories(self.tileset_path)
             char_names = get_char_names(self.tileset_path)
+            block_chars = get_block_chars(self.tileset_path)
             caption, details = mm2_assign_caption(
                 sample['scene'], self.id_to_char, char_names, ground_chars,
-                meta_phrases=metadata_phrases(sample), debug=True, return_details=True
+                meta_phrases=metadata_phrases(sample), debug=True, return_details=True,
+                block_chars=block_chars
             )
 
         sample['caption'] = caption
