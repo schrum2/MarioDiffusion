@@ -29,6 +29,7 @@ CATEGORY_TERMS = {
     # "block": {"block", "blocks", "brick", "bricks"}, # These are just the general floor tiles. They are so common that specifically mentioning them is not useful.
     "ladder": {"ladder", "ladders"},
     "door": {"door", "doors", "doorway", "doorways", "gate", "gates"},
+    "pipe": {"pipe", "pipes"},
     "water": {"water"},
     "lava": {"lava"},
     "spring": {"spring", "springs"},
@@ -45,22 +46,23 @@ CATEGORY_EXCLUSIONS = {
 
 SPECIFIC_TERM_EXCLUSIONS = {
     "key": {"key door", "key doors"},
+    "mushroom": {"mushroom platform", "platform mushroom", "platform of mushroom"},
 }
 
 # These concepts are meaningful only as phrases. A lone "block" or "platform" is
 # intentionally too broad, while "breakable block" and "moving platform" carry
 # useful information about the scene.
 COMBINED_CONCEPTS = {
-    "breakable block": {"breakable block", "breakable brick"},
+    "breakable block": {"breakable block", "breakable brick", "brick block"},
     "transparent block": {"secret block", "transparent block"},
     "disappearing block": {"disappearing block", "reappearing block"},
-    "moving platform": {"moving block", "moving platform"},
+    "moving lift": {"moving block", "moving platform", "moving lift", "lift"},
     "falling platform": {"falling platform"},
     "fake block": {"fake block"},
     "question block": {"question block"},
     "note block": {"note block"},
-    "mushroom platform": {"mushroom platform"},
-    "semisolid platform": {"semisolid platform"},
+    "mushroom platform": {"mushroom platform", "platform mushroom", "platform of mushroom"},
+    "semisolid platform": {"semisolid platform", "semi-solid platform"},
     "hidden block": {"hidden block"},
     "donut block": {"donut block"},
     "ice block": {"ice block", "slippery block"},
@@ -76,7 +78,9 @@ COMBINED_CONCEPTS = {
 }
 
 COMBINED_CATEGORY_CONCEPTS = {
-    "fire hazard": {"fire hazard", "flame hazard", "fire hazards", "flame hazards"},
+    "fire hazard": {
+        "fire hazard", "flame hazard", "fire hazards", "flame hazards", "burner hazard",
+    },
 }
 
 POWERUP_COMPOUND_CONCEPTS = {
@@ -263,13 +267,15 @@ def category_for_tile(description: str, tags: set[str]) -> set[str]:
         categories.add("enemy")
     if "hazard" in tags:
         categories.add("hazard")
-    if "powerup" in tags or "power-up" in tags or "collectable" in tags:
+    is_platform = "platform" in tags or "platform" in lowered
+    is_coin = "coin" in lowered
+    if ("powerup" in tags or "power-up" in tags or "collectable" in tags) and not is_coin and not is_platform:
         categories.add("powerup")
-    if "platform" in tags or "moving" in tags and "platform" in lowered:
+    if is_platform or "moving" in tags and "platform" in lowered:
         categories.add("platform")
     #if "block" in lowered or "brick" in lowered:
     #    categories.add("block")
-    for category in ("ladder", "water", "lava", "spring", "coin"):
+    for category in ("ladder", "water", "lava", "spring", "coin", "pipe"):
         if category in lowered:
             categories.add(category)
     if "door" in tags or ("door" in lowered and "key door" not in lowered):
@@ -456,7 +462,7 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     has_fire_hazard = any(
         char in present_tiles
         and "hazard" in info["categories"]
-        and any(word in info["description"].lower() for word in ("fire", "flame"))
+        and any(word in info["description"].lower() for word in ("fire", "flame", "burner"))
         for char, info in vocabulary["tiles"].items()
     )
     if has_fire_hazard:
