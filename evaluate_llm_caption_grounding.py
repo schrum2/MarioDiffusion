@@ -68,7 +68,6 @@ COMBINED_CONCEPTS = {
     "ice block": {"ice block", "slippery block"},
     "on off block": {"on/off block", "on off block"},
     "dotted line block": {"dotted-line block", "dotted line block"},
-    "moving lift": {"moving lift"},
     "fading platform": {"fading platform", "fading platforms"},
     "life energy": {"life energy", "health energy"},
     "weapon energy": {"weapon energy"},
@@ -141,7 +140,8 @@ def normalize_word(word: str) -> str:
 
 
 def tokenize(text: str) -> list[str]:
-    tokens = [normalize_word(token) for token in re.findall(r"[a-z0-9]+", text.lower())]
+    text = re.sub(r"\bsemi(?:-| )solid\b", "semisolid", text.lower())
+    tokens = [normalize_word(token) for token in re.findall(r"[a-z0-9]+", text)]
     # Treat the common spaced spelling "power up" like the hyphenated and closed
     # spellings "power-up" and "powerup".
     merged = []
