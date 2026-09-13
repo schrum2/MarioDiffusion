@@ -355,7 +355,25 @@ def classify_arrangement(cells):
     return None
 
 
-def describe_arrangements(scene, id_to_char, loose_chars, char_names):
+def big_form_blocks(scene, id_to_char, loose_chars):
+    """Find the big variant of an enemy, which paints an exact 2x2 square of its
+    glyph, so it reads as one big goomba instead of four normal ones."""
+    # Only captions know this. COALESCE_POLICY and count_structures still split a
+    # big enemy four ways, so the .swe export and the metrics need the same rule.
+    # Bowser Jr.'s policy also has its big form as the base; the real base is 1x1.
+    blocks = {}
+    for char in sorted(loose_chars):
+        for region in terrain_regions(scene, id_to_char, {char}):
+            if len(region) != 4:
+                continue
+            rows = [r for r, _ in region]
+            cols = [c for _, c in region]
+            if max(rows) - min(rows) == 1 and max(cols) - min(cols) == 1:
+                blocks.setdefault(char, []).append(region)
+    return blocks
+
+
+def describe_arrangements(scene, id_to_char, loose_chars, char_names, skip=None):
     """Runs over the loose tiles one type at a time, so a row of coins becomes a
     line of coins. Returns (phrase, cells) pairs and the chars that got one."""
     phrases = []
@@ -369,6 +387,8 @@ def describe_arrangements(scene, id_to_char, loose_chars, char_names):
         loose = []
         groups = 0
         for region in terrain_regions(scene, id_to_char, {char}):
+            if skip and tuple(sorted(region)) in skip:
+                continue
             kind = classify_arrangement(region)
             if kind is None:
                 loose.extend(region)
@@ -633,9 +653,15 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
         for phrase, region in block_phrases:
             add_to_caption(phrase, region)
 
+    big = big_form_blocks(scene, id_to_char, loose_chars) if loose_chars else {}
+    for char, blocks in big.items():
+        add_to_caption(count_phrase(len(blocks), f"big {char_names[char].lower()}"),
+                       [cell for block in blocks for cell in block])
+
     if loose_chars:
+        skip = {tuple(sorted(b)) for blocks in big.values() for b in blocks}
         loose_phrases, _ = describe_arrangements(
-            scene, id_to_char, loose_chars, char_names)
+            scene, id_to_char, loose_chars, char_names, skip)
         for phrase, region in loose_phrases:
             add_to_caption(phrase, region)
 
@@ -643,6 +669,8 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
     for char, char_cells in cells.items():
         name = char_names[char]
         count = object_counts.get(char, len(char_cells))
+        # The big ones were already named, so don't count their tiles again.
+        count -= 4 * len(big.get(char, ()))
         add_to_caption(count_phrase(count, name), char_cells)
 
     caption = " ".join(f"{p}." for p in phrases)
