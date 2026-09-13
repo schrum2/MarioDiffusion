@@ -224,7 +224,19 @@ def describe_quantity(count):
 
 
 def pluralize(name):
-    return name if name.endswith("s") else name + "s"
+    # Names that are already plural (Spikes, Dry Bones) should stay as they are
+    if name.endswith("s") or name.endswith("."):
+        return name
+    if name.endswith(("x", "z", "ch", "sh")):
+        return name + "es"
+    if name.endswith("y") and len(name) > 1 and name[-2] not in "aeiou":
+        return name[:-1] + "ies"
+    return name + "s"
+
+
+def end_phrase(phrase):
+    # Bowser Jr. already carries a period??? This stops it from giving it a second one
+    return phrase if phrase.endswith(".") else phrase + "."
 
 
 def count_phrase(count, name):
@@ -621,7 +633,7 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
             phrases.append(phrase)
             if return_details and details is not None:
                 # The caption box splits on periods, so the keys keep theirs.
-                details[f"{phrase}."] = contributing_blocks
+                details[end_phrase(phrase)] = contributing_blocks
 
     for phrase in meta_phrases or []:
         add_to_caption(phrase, [])      # metadata describes no tiles
@@ -673,7 +685,7 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
         count -= 4 * len(big.get(char, ()))
         add_to_caption(count_phrase(count, name), char_cells)
 
-    caption = " ".join(f"{p}." for p in phrases)
+    caption = " ".join(end_phrase(p) for p in phrases)
     return (caption, details) if return_details else caption
 
 
