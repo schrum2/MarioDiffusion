@@ -35,9 +35,10 @@ FOOTPRINT_OVERRIDES = {
     "Banzai Bill": (4, 4),
 }
 
-# Footprints too variable to judge (Bowser Jr. 1x1/2x2, Clown Car many sizes,
-# lone Goomba's Shoe common). Totals reported, nothing flagged broken.
-UNCHECKED_FEATURES = {"Bowser Jr.", "Bowser Jr", "Clown Car", "Goomba's Shoe"}
+# Footprints too variable to judge (Clown Car many sizes, lone Goomba's Shoe
+# common). Totals reported, nothing flagged broken. Bowser Jr. used to be here
+# too, but it has no footprint at all now that we know it is 1x1.
+UNCHECKED_FEATURES = {"Clown Car", "Goomba's Shoe"}
 
 # Blocks that can hold an item; an item glyph painted above one is its contents.
 CONTAINER_CHARS = {"B", "?", "h"}
