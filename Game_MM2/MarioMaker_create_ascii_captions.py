@@ -51,6 +51,10 @@ SLOPED_SURFACES = ("rising to the right", "sloping down to the right")
 # A staircase needs at least this much run and rise.
 STAIRCASE_MIN_SPAN = 3
 
+# Ground that only changes height once or twice is stepped rather than uneven.
+# Most of what we used to call uneven turned out to be this
+STEPPED_MAX_CHANGES = 2
+
 # Ground covering this much of the scene gets called out as bulk terrain.
 GROUND_BULK_FRACTION = 0.6
 GROUND_HEAVY_FRACTION = 0.35
@@ -462,16 +466,29 @@ def surface_profile(cells):
     return [tops[c] for c in sorted(tops)]
 
 
+def surface_changes(profile):
+    """How many times the surface jumps to a new height going left to right. A
+    floor with one raised section changes twice, rolling terrain changes a lot."""
+    changes = 0
+    level = profile[0]
+    for row in profile[1:]:
+        if abs(row - level) > SURFACE_FLAT_TOLERANCE:
+            changes += 1
+            level = row
+    return changes
+
+
 def describe_surface(profile):
     """Names a region's top edge: "flat", "rising to the right", "sloping down to
-    the right" or "uneven". Rows count downward, so a smaller row is higher up."""
+    the right", "stepped" or "uneven". Rows count downward, so a smaller row is
+    higher up."""
     if len(profile) < 2 or max(profile) - min(profile) <= SURFACE_FLAT_TOLERANCE:
         return "flat"
     if all(b <= a for a, b in zip(profile, profile[1:])):
         return "rising to the right"
     if all(b >= a for a, b in zip(profile, profile[1:])):
         return "sloping down to the right"
-    return "uneven"
+    return "stepped" if surface_changes(profile) <= STEPPED_MAX_CHANGES else "uneven"
 
 
 def solid_positions(scene, id_to_char, solid_chars):
@@ -566,8 +583,8 @@ def describe_terrain(scene, id_to_char, terrain_chars, solid=None):
             rows = [r for r, _ in region]
             surface = describe_surface(surface_profile(region))
             # Flat ground is already covered by the floor summary.
-            if surface == "uneven":
-                phrases.append(("Uneven ground", region))
+            if surface in ("uneven", "stepped"):
+                phrases.append((f"{surface.capitalize()} ground", region))
             elif surface != "flat":
                 phrases.append((f"Ground {surface}", region))
             if len(region) >= GROUND_BULK_FRACTION * height * width:
@@ -681,7 +698,7 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
     for char, char_cells in cells.items():
         name = char_names[char]
         count = object_counts.get(char, len(char_cells))
-        # The big ones were already named, so don't count their tiles again.
+        # The big ones were already named, so their tiles shouldn't be counted again
         count -= 4 * len(big.get(char, ()))
         add_to_caption(count_phrase(count, name), char_cells)
 
