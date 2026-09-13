@@ -22,7 +22,7 @@ sys.path.insert(0, _repo_root)
 import util.common_settings as common_settings
 from Game_MM2.MarioMaker_create_ascii_captions import (
     build_id_to_char, get_char_names, get_tile_categories, get_block_chars,
-    assign_caption, metadata_phrases, pluralize)
+    get_solid_chars, get_loose_chars, assign_caption, metadata_phrases, pluralize)
 
 QUANTITY_TERMS = ["one", "two", "a few", "several", "many", "a ton of"]
 
@@ -216,11 +216,14 @@ def caption_tools(tileset_path=common_settings.MM2_TILESET):
     char_names = get_char_names(tileset_path)
     _, _, ground_chars = get_tile_categories(tileset_path)
     block_chars = get_block_chars(tileset_path)
+    solid_chars = get_solid_chars(tileset_path)
+    loose_chars = get_loose_chars(tileset_path)
     name_lookup = build_name_lookup(tileset_path)
 
     def assign_fn(scene):
         return assign_caption(scene, id_to_char, char_names, ground_chars,
-                              block_chars=block_chars)
+                              block_chars=block_chars, solid_chars=solid_chars,
+                              loose_chars=loose_chars)
 
     def compare_fn(correct_caption, generated_caption, **kwargs):
         return compare_captions(correct_caption, generated_caption,
