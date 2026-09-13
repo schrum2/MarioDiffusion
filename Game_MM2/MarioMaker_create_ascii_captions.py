@@ -122,9 +122,10 @@ def build_id_to_char(tileset_path):
 
 
 def get_char_names(tileset_path):
-    """Map each tile char to a readable name read straight from its tag list, so
-    names track whatever tileset is passed in (e.g. ["passable", "collectable",
-    "coin"] -> "Coin")."""
+    """Map each tile char to the name toost decodes it as, so a caption calls
+    something the same thing the level data does."""
+    from mm2pipeline_data.tiles import CHAR_TO_NAME
+
     with open(tileset_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -132,12 +133,13 @@ def get_char_names(tileset_path):
     for char, tags in data["tiles"].items():
         if not tags or any(t in EMPTY_TAGS for t in tags):
             continue
-        # The name is the last non-property tag. Some tiles carry a category word
-        # ahead of the name (Bowser is [..., "boss", "bowser"]), so taking the
-        # last tag keeps every boss from being named "boss".
-        name_tags = [t for t in tags if t not in PROPERTY_TAGS]
-        name = name_tags[-1] if name_tags else tags[-1]
-        char_names[char] = name.title()
+        name = CHAR_TO_NAME.get(char)
+        if name is None:
+            # A glyph toost has no name for. The last non-property tag names it,
+            # so a boss (Bowser is [..., "boss", "bowser"]) isn't named "boss".
+            name_tags = [t for t in tags if t not in PROPERTY_TAGS]
+            name = (name_tags[-1] if name_tags else tags[-1]).title()
+        char_names[char] = name
     return char_names
 
 
