@@ -463,8 +463,12 @@ def get_char_names(tileset_path):
         return EXTENDED_CHAR_NAMES
     if basename == "mm2_tileset_full.json":
         return MM2_CHAR_NAMES
-    # Everything else (the MM2 'we' set and the Mega Man tilesets) has no curated
-    # name dict, so build names straight from each tileset's own tags.
+    if basename == os.path.basename(common_settings.MM2_TILESET):
+        # The naming schema deterministic captions use for consistency
+        from Game_MM2.MarioMaker_create_ascii_captions import get_char_names as toost_char_names
+        return toost_char_names(tileset_path)
+
+
     return derive_char_names(tileset_path)
 
 
