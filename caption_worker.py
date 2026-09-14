@@ -24,6 +24,7 @@ import urllib.parse
 import urllib.request
 
 from llm_ascii_to_caption import DEFAULT_MODELS, TokenUsage, llm_caption
+from util.token_tracking import log_run as log_token_run
 
 
 def get_work(coordinator: str, worker_id: str, llm: str, model: str, n: int) -> dict:
@@ -118,10 +119,22 @@ def main():
     # distributed run reports what it actually spent.
     worker_usage = TokenUsage()
     worker_usage_scenes = 0
+    start_time = time.time()
 
-    def print_worker_usage():
+    def report_worker_usage():
         print(f"[worker {worker_id}] Token usage for this worker: "
               f"{worker_usage.summary(worker_usage_scenes)}")
+        # One row per worker process, in the same token_usage.csv a single-machine run
+        # writes. The game/dataset columns stay blank here: a worker is handed individual
+        # scenes by the coordinator and never sees which dataset they came from.
+        log_token_run(
+            usage=worker_usage,
+            scenes=worker_usage_scenes,
+            started_at=start_time,
+            args=args,
+            script="caption_worker",
+            extra={"model": model, "worker_id": worker_id},
+        )
 
     while True:
         try:
@@ -241,7 +254,7 @@ def main():
                         f"[worker {worker_id}] Coordinator sent the final shutdown message. "
                         "Exiting cleanly."
                     )
-                    print_worker_usage()
+                    report_worker_usage()
                     return
             else:
                 print(
@@ -249,7 +262,7 @@ def main():
                     f"{result.get('error', 'unknown error')}"
                 )
 
-    print_worker_usage()
+    report_worker_usage()
 
 
 if __name__ == "__main__":
