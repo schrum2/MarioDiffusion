@@ -29,6 +29,7 @@ import urllib.error
 import ollama
 from tqdm import tqdm
 from util.energy_tracking import track_energy
+from util.token_tracking import log_run as log_token_run
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
@@ -1346,6 +1347,24 @@ def main() -> list[list[str]]:
     finally:
         writer.close()
         progress.close()
+        # Written from the finally block, like the energy row, so a run killed partway
+        # through (Ctrl-C, a backend failing mid-dataset) still records what it spent
+        # rather than losing the accounting for every scene it did finish.
+        log_token_run(
+            usage=run_usage,
+            scenes=run_usage_scenes,
+            started_at=start_time,
+            args=args,
+            script="llm_ascii_to_caption",
+            # Values argparse never saw: --model and --caption-key both default to None
+            # and get filled in above, so the row names what actually ran.
+            extra={"model": model, "caption_key": caption_key},
+            cumulative=TokenUsage().add(prior_usage).add(run_usage),
+            cumulative_scenes=len(already_done) - prior_missing_usage + run_usage_scenes,
+            cumulative_missing=prior_missing_usage,
+            checkpoint=checkpoint_path,
+            resumed=bool(already_done),
+        )
 
     end_time = time.time()
     elapsed = end_time - start_time
