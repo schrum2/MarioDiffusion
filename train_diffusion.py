@@ -714,6 +714,14 @@ def main():
         hyperparams = vars(args)
         with open(config_file, "w") as f:
             json.dump(hyperparams, f, indent=4)
+        interactive_defaults = {
+            "game": args.game,
+            "load_data": os.path.abspath(args.json),
+            "caption_source_keys": args.caption_source_keys,
+            "tileset": args.tileset,
+        }
+        with open(os.path.join(args.output_dir, "interactive_defaults.json"), "w") as f:
+            json.dump(interactive_defaults, f, indent=4)
         print(f"Saved configuration to: {config_file}")
 
     if args.auto_augment:

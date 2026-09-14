@@ -1935,18 +1935,44 @@ Average Segment Score: {avg_segment_score}"""
         MegaManLayoutEditor(self.master, self)
     
 import argparse
+
+
+def load_model_defaults(model_path):
+    """Load interactive defaults saved alongside a trained model, if present."""
+    if not model_path:
+        return {}
+    defaults_path = os.path.join(model_path, "interactive_defaults.json")
+    try:
+        with open(defaults_path, "r", encoding="utf-8") as handle:
+            defaults = json.load(handle)
+        return defaults if isinstance(defaults, dict) else {}
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as error:
+        if not isinstance(error, FileNotFoundError):
+            print(f"Could not load model defaults from {defaults_path}: {error}")
+        return {}
+
+
+def apply_model_defaults(args):
+    """Fill omitted CLI values from the model; explicit CLI values win."""
+    defaults = load_model_defaults(args.model_path)
+    for name in ("game", "load_data", "tileset", "caption_source_keys"):
+        if getattr(args, name) is None and defaults.get(name) is not None:
+            setattr(args, name, defaults[name])
+    return args
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Interactive Tile Level Generator")
     parser.add_argument(
         "--game",
         type=str,
-        default="Mario",
+        default=None,
         choices=common_settings.GAME_CLI_CHOICES,
         help="Which game to create a model for (affects sample style and tile count)"
     )
     parser.add_argument("--model_path", type=str, help="Path to the trained diffusion model")
-    parser.add_argument("--load_data", type=str, default="Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json", help="Path to the dataset JSON file")
-    parser.add_argument("--tileset", default=common_settings.MARIO_TILESET, help="Descriptions of individual tile types")
+    parser.add_argument("--load_data", type=str, default=None, help="Path to the dataset JSON file")
+    parser.add_argument("--tileset", default=None, help="Descriptions of individual tile types")
     parser.add_argument(
         "--caption_source_keys",
         nargs="+",
@@ -1960,7 +1986,14 @@ def parse_args():
         metavar="PARTICIPANT_ID",
         help="Participant ID for JSONL interaction logging and per-scene experiment output."
     )
-    return parser.parse_args()
+    args = apply_model_defaults(parser.parse_args())
+    if args.game is None:
+        args.game = "Mario"
+    if args.load_data is None:
+        args.load_data = "Game_Mario/DATA/Mar1and2_LevelsAndCaptions-regular.json"
+    if args.tileset is None:
+        args.tileset = common_settings.get_game_config(args.game)["tileset"]
+    return args
 
 if __name__ == "__main__":
     args = parse_args()
