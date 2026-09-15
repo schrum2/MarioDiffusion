@@ -117,6 +117,7 @@ MMLV_TILESET_DICT = {
         "R": "Rising platform: a solid block that rises",
         "G": "Horizontal fire emitter shooting fire to the right (damaging hazard)",
         "J": "Horizontal fire emitter shooting fire to the left (damaging hazard)",
+        "X": "Checkpoint that sets Mega Man's respawn point (transparent and passable)",
     }
 }
 
