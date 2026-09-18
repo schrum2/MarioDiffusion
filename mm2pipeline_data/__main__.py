@@ -6,7 +6,7 @@ Commands (in pipeline order):
     extract         HuggingFace mm2_level dataset -> .bcd files
     toost           .bcd -> level JSON + rendered PNG (via toost.exe)
     json-to-ascii   level JSON -> ASCII grids (+ metadata.json sidecar)
-    dataset         build / split the tile-id training dataset
+    dataset         build / split / check the tile-id training dataset
     ascii-to-json   generated ASCII -> level JSON
     swe             level JSON -> playable .swe (SMM: World Engine)
 
