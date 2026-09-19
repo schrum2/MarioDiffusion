@@ -748,7 +748,7 @@ def main():
                 if have_js_scores:
                     entry["jensen-shannon"] = js_all_scores[idx]
                 if metadata:
-                    entry.update(metadata)
+                    entry.update({k: v for k, v in metadata.items() if k != "caption"})
                 paired.append(entry)
             with open(os.path.join(args.output_dir, "all_levels.json"), "w") as f:
                 json.dump(paired, f, indent=4)

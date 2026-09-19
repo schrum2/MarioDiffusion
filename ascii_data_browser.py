@@ -964,8 +964,9 @@ class TileViewer(tk.Tk):
             print("No A* path to draw for this scene.")
             return None
         print(f"A* path: {'traversable' if ok else 'NOT traversable'}  ({stats})")
-        # game doubles as the render-target name render_info expects.
-        return render_info(scene, game, info)
+        # Render with the selected game's own tileset (the Mega Man variants share
+        # one traversability target but each renders with its own tiles).
+        return render_info(scene, config["render_name"], info)
 
     def _astar_path_for_scene(self, scene, spawn=None, orb=None):
         """Run A* on a single scene and return (pil_image_or_None, solved, stats).
