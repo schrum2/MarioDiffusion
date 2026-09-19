@@ -473,7 +473,7 @@ INDIVISIBLE_NAMES = frozenset(
 
 
 def indivisible_object_boxes(level):
-    """Boxes of the objects a window must not cut, as {name,x,y,w,h}. Grid
+    """Boxes of the objects a cut must not land inside, as {name,x,y,w,h}. Grid
     coordinates, y counted from the top like the emitted rows."""
     _, max_ty = grid_bounds(level)
     gamestyle_raw = level.get("gamestyle_raw", 0)
@@ -489,7 +489,7 @@ def indivisible_object_boxes(level):
             continue
         col, row_game = obj_anchor(obj)
         w, h = obj_tile_size(obj)
-        if w <= 1:      # nothing a horizontal window can split
+        if w <= 1 and h <= 1:   # a single cell survives any cut
             continue
         boxes.append({"name": resolved, "x": col, "y": max_ty - row_game - h,
                       "w": w, "h": h})

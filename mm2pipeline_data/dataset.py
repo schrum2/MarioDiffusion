@@ -25,6 +25,10 @@ import random
 from pathlib import Path
 
 from . import paths
+from .ascii import _connected_components
+
+# The sky blue toost renders, for painting over objects wiped from the tiles.
+MM2_SKY = (0x5C, 0x94, 0xFC)
 
 WINDOW_H = 20
 WINDOW_W = 20
@@ -106,9 +110,11 @@ def extract_best_window(rows, tile_to_id, extra_tile=EXTRA_TILE, empty_char="-")
     return best_scene, best_x
 
 
-def window_slices_object(x, boxes, window_w=WINDOW_W):
+def window_slices_object(x, boxes, window_w=None):
     """True if a window starting at column x cuts a box instead of holding it whole."""
-    right = x + window_w
+    # Read the global here instead of defaulting to it -- --window_w rewrites it
+    # long after this module is imported.
+    right = x + (WINDOW_W if window_w is None else window_w)
     for box in boxes:
         box_left = box["x"]
         box_right = box_left + box["w"]
@@ -116,6 +122,33 @@ def window_slices_object(x, boxes, window_w=WINDOW_W):
             if box_left < x or box_right > right:       # ...but not completely
                 return True
     return False
+
+
+def erase_cropped_remnants(rows, boxes, top_cut, empty_char):
+    """Blanks whatever's left of a protected box once the level is cropped to
+    WINDOW_H rows, since there's no other window to fall back on here."""
+    height = len(rows)
+    grid = None
+    blanked = []
+    for box in boxes:
+        top = box["y"]
+        bottom = top + box["h"] - 1
+        if not top < top_cut <= bottom:
+            continue
+        blanked.append({"x": box["x"], "w": box["w"],
+                        "r0": 0, "r1": bottom - top_cut})
+        if grid is None:
+            grid = [list(r) for r in rows]
+        for row in range(top_cut, bottom + 1):
+            r = row - top_cut
+            if not 0 <= r < height:
+                continue
+            for c in range(box["x"], box["x"] + box["w"]):
+                if 0 <= c < len(grid[r]):
+                    grid[r][c] = empty_char
+    if grid is None:
+        return rows, []
+    return ["".join(r) for r in grid], blanked
 
 
 def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty_char="-",
@@ -394,11 +427,11 @@ class ImageLocator:
         return None
 
 
-def crop_image_window(Image, img, x_tile, ppt, fill=(0, 0, 0)):
+def crop_image_window(Image, img, x_tile, ppt, fill=(0, 0, 0), blanked=()):
     """Cut a WINDOW_W x WINDOW_H tile region (at `ppt` pixels/tile) out of the
     level image, bottom-aligned to match the tile sample, starting at column
     `x_tile`. Regions past the image edge are padded with `fill` so the crop is
-    always exactly the window size."""
+    always exactly the window size. Anything in `blanked` is painted back to sky."""
     img = img.convert("RGB")
     img_w, img_h = img.size
     box_w, box_h = WINDOW_W * ppt, WINDOW_H * ppt
@@ -412,6 +445,13 @@ def crop_image_window(Image, img, x_tile, ppt, fill=(0, 0, 0)):
     if sr > sl and sb > st:
         region = img.crop((sl, st, sr, sb))
         canvas.paste(region, (sl - left, st - top))
+    for rect in blanked:
+        x0 = (rect["x"] - x_tile) * ppt
+        x1 = x0 + rect["w"] * ppt
+        if x1 <= 0 or x0 >= box_w:
+            continue
+        canvas.paste(MM2_SKY, (max(0, x0), rect["r0"] * ppt,
+                               min(box_w, x1), (rect["r1"] + 1) * ppt))
     return canvas
 
 
@@ -420,7 +460,7 @@ def _safe_filename(name):
 
 
 def build_sample_entry(sample_name, x, scene, with_images, Image, level_img, ppt,
-                       image_out_dir, file_stem, meta=None):
+                       image_out_dir, file_stem, meta=None, blanked=()):
     """Make a dataset entry for one window, cropping its image slice when
     --with_images is on. Returns (entry, saved_image); `meta` goes between the
     name and the scene."""
@@ -431,7 +471,7 @@ def build_sample_entry(sample_name, x, scene, with_images, Image, level_img, ppt
     if not with_images:
         return entry, False
     if level_img is not None and x is not None:
-        crop = crop_image_window(Image, level_img, x, ppt)
+        crop = crop_image_window(Image, level_img, x, ppt, blanked=blanked)
         # Prefix the crop with the level name so images never collide.
         if sample_name.startswith(f"{file_stem}_") or sample_name.startswith(f"{file_stem}/"):
             img_stem = sample_name
@@ -592,6 +632,7 @@ def main_build(argv=None):
     skipped = 0
     dropped_min_samples = 0  # samples set aside for being under --min_tiles
     windows_sliced = 0       # positions skipped to keep objects whole
+    objects_cropped = 0      # half-objects wiped by the level's vertical crop
     levels_without_boxes = 0  # levels whose metadata has no boxes yet
 
     for input_file in input_files:
@@ -606,6 +647,12 @@ def main_build(argv=None):
             protected_boxes = (file_meta or {}).get("indivisible_objects")
             if protected_boxes is None:
                 protected_boxes = []
+                if not levels_without_boxes:
+                    # The tally at the end is easy to scroll past, and a stale
+                    # sidecar means the guard isn't running at all.
+                    print(f"[WARNING] {input_file.name} has no 'indivisible_objects' "
+                          "in its metadata -- nothing stops a window cutting an "
+                          "object in half. Re-run 'json-to-ascii' to refresh it.")
                 levels_without_boxes += 1
 
         print(f"Parsing content from {input_file}...")
@@ -616,6 +663,7 @@ def main_build(argv=None):
             try:
                 level_img = None    # the level's rendered PNG, if we found one
                 ppt = None          # pixels per tile in that PNG
+                blanked = []        # half-objects the height crop wiped
                 if converter_mod is not None:
                     rows = converter_mod.convert_level(rows)
                     empty_char = " "
@@ -629,6 +677,13 @@ def main_build(argv=None):
                     if len(rows) > WINDOW_H:
                         rows = rows[-WINDOW_H:]
                     empty_char = default_empty_char
+                    # That crop cuts across the level, so it can halve an object
+                    # just like a window edge does.
+                    top_cut = orig_row_count - len(rows)
+                    if protected_boxes and top_cut:
+                        rows, blanked = erase_cropped_remnants(
+                            rows, protected_boxes, top_cut, empty_char)
+                        objects_cropped += len(blanked)
 
                     if args.with_images:
                         # PNG shares the ascii stem; fall back to the source name.
@@ -710,7 +765,8 @@ def main_build(argv=None):
                 for sample_name, x, scene in samples:
                     entry, saved = build_sample_entry(
                         sample_name, x, scene, args.with_images, Image,
-                        level_img, ppt, image_out_dir, file_stem, meta=file_meta)
+                        level_img, ppt, image_out_dir, file_stem, meta=file_meta,
+                        blanked=blanked)
                     if saved:
                         images_saved += 1
                     dataset.append(entry)
@@ -719,7 +775,8 @@ def main_build(argv=None):
                     for sample_name, x, scene in dropped_samples:
                         entry, saved = build_sample_entry(
                             sample_name, x, scene, args.with_images, Image,
-                            level_img, ppt, dropped_image_out_dir, file_stem, meta=file_meta)
+                            level_img, ppt, dropped_image_out_dir, file_stem,
+                            meta=file_meta, blanked=blanked)
                         if saved:
                             dropped_images_saved += 1
                         dataset_dropped.append(entry)
@@ -764,6 +821,8 @@ def main_build(argv=None):
               f"{min_tiles} tiles): {dropped_min_samples} sample(s).")
     if windows_sliced:
         print(f"Skipped {windows_sliced} window(s) that would have cut an object in half.")
+    if objects_cropped:
+        print(f"Erased {objects_cropped} object(s) the level's height crop cut in half.")
     if levels_without_boxes:
         print(f"{levels_without_boxes} level(s) had no object boxes and went unchecked; "
               f"re-run 'json-to-ascii' to refresh the metadata.")
@@ -842,18 +901,155 @@ def main_split(argv=None):
 
 
 # ===========================================================================
+# check
+# ===========================================================================
+
+def _edges_touched(r0, c0, r1, c1, h, w):
+    """Which scene edges a blob is flush against, like 'left+top'."""
+    names = []
+    if c0 == 0:
+        names.append("left")
+    if c1 == w - 1:
+        names.append("right")
+    if r0 == 0:
+        names.append("top")
+    if r1 == h - 1:
+        names.append("bottom")
+    return "+".join(names)
+
+
+def _fits_on_scene(stamp, fw, fh, explained, h, w):
+    """True if the whole footprint fits on the scene over `stamp`. Same idea as
+    util.mm2_metrics._count_fixed, but off-scene cells don't count as explained."""
+    lo_c = max(0, max(c for _, c in stamp) - fw + 1)
+    hi_c = min(min(c for _, c in stamp), w - fw)
+    lo_r = max(0, max(r for r, _ in stamp) - fh + 1)
+    hi_r = min(min(r for r, _ in stamp), h - fh)
+    for wr in range(lo_r, hi_r + 1):
+        for wc in range(lo_c, hi_c + 1):
+            if all((r, c) in explained
+                   for r in range(wr, wr + fh)
+                   for c in range(wc, wc + fw)):
+                return True
+    return False
+
+
+def find_sliced_objects(scene, id_to_char):
+    """Fixed-footprint objects an edge cut short, as (name, box, edge). A blob only
+    counts if its footprint won't fit anywhere on the scene, so something buried in
+    terrain is left alone."""
+    if str(paths.REPO_ROOT) not in sys.path:
+        sys.path.append(str(paths.REPO_ROOT))
+    from util.mm2_metrics import FEATURE_POLICIES, UNCHECKED_FEATURES
+
+    h = len(scene)
+    w = len(scene[0]) if h else 0
+    cells_by_char = {}
+    occupied = set()
+    for r, row in enumerate(scene):
+        for c, tid in enumerate(row):
+            ch = id_to_char.get(tid)
+            if ch is None or ch == " ":
+                continue
+            occupied.add((r, c))
+            if ch in FEATURE_POLICIES:
+                cells_by_char.setdefault(ch, set()).add((r, c))
+
+    hits = []
+    for ch, cells in cells_by_char.items():
+        name, policy = FEATURE_POLICIES[ch]
+        if policy[0] != "fixed" or name in UNCHECKED_FEATURES:
+            continue
+        fw, fh = policy[1], policy[2]
+        # build_ascii_grid paints objects in sequence, so anything can be covering
+        # part of this one -- terrain, a Clown Car over its rider, another cell of
+        # its own glyph. Only sky rules a placement out.
+        for comp in _connected_components(cells):
+            rs = [r for r, _ in comp]
+            cs = [c for _, c in comp]
+            r0, r1, c0, c1 = min(rs), max(rs), min(cs), max(cs)
+            comp_set = set(comp)
+            # Split the blob into footprint-sized stamps like coalesce() does and
+            # check each one against a whole object.
+            for sr in range(r0, r1 + 1, fh):
+                for sc in range(c0, c1 + 1, fw):
+                    stamp = [(r, c) for r in range(sr, min(sr + fh, r1 + 1))
+                             for c in range(sc, min(sc + fw, c1 + 1))
+                             if (r, c) in comp_set]
+                    if not stamp or _fits_on_scene(stamp, fw, fh, occupied, h, w):
+                        continue
+                    box = (min(r for r, _ in stamp), min(c for _, c in stamp),
+                           max(r for r, _ in stamp), max(c for _, c in stamp))
+                    edge = _edges_touched(*box, h, w)
+                    if edge:  # no edge -> a broken blob, not something a cut made
+                        hits.append((name, box, edge))
+    return hits
+
+
+def main_check(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Check a built dataset for multi-tile objects a window cut in half.")
+    parser.add_argument("--input", required=True,
+                        help="Dataset JSON produced by 'dataset build'.")
+    parser.add_argument("--tileset", default=str(paths.MM2_TILESET_PATH),
+                        help="Tileset the dataset was built with.")
+    parser.add_argument("--list", type=int, default=20,
+                        help="How many offending samples to name. Default: 20.")
+    args = parser.parse_args(argv)
+
+    tile_to_id, _ = load_tileset(args.tileset)
+    id_to_char = {i: ch for ch, i in tile_to_id.items()}
+
+    with open(args.input, encoding="utf-8") as f:
+        samples = json.load(f)
+
+    per_feature = {}
+    offenders = []
+    for sample in samples:
+        scene = sample.get("scene")
+        if not scene:
+            continue
+        hits = find_sliced_objects(scene, id_to_char)
+        if not hits:
+            continue
+        offenders.append((sample.get("name", "?"), hits))
+        for name, _, edge in hits:
+            per_feature.setdefault(name, {}).setdefault(edge, 0)
+            per_feature[name][edge] += 1
+
+    print(f"Scanned {len(samples)} sample(s) from {args.input}")
+    if not offenders:
+        print("No sliced objects found.")
+        return
+    print(f"{len(offenders)} sample(s) hold an object the window cut "
+          f"({100.0 * len(offenders) / max(1, len(samples)):.2f}% of the dataset):")
+    for name in sorted(per_feature, key=lambda n: -sum(per_feature[n].values())):
+        by_edge = ", ".join(f"{edge} {n}" for edge, n in sorted(per_feature[name].items()))
+        print(f"  {name}: {sum(per_feature[name].values())} ({by_edge})")
+    print()
+    for sample_name, hits in offenders[:args.list]:
+        detail = "; ".join(f"{name} rows {b[0]}-{b[2]} cols {b[1]}-{b[3]} cut at {edge}"
+                           for name, b, edge in hits)
+        print(f"  {sample_name}: {detail}")
+    if len(offenders) > args.list:
+        print(f"  ... and {len(offenders) - args.list} more.")
+
+
+# ===========================================================================
 # Subcommand dispatch
 # ===========================================================================
 
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
-    if not argv or argv[0] not in ("build", "split"):
-        print("Usage: python -m mm2pipeline_data.dataset {build|split} [options]")
+    if not argv or argv[0] not in ("build", "split", "check"):
+        print("Usage: python -m mm2pipeline_data.dataset {build|split|check} [options]")
         sys.exit(2)
     sub, rest = argv[0], argv[1:]
     if sub == "build":
         main_build(rest)
+    elif sub == "check":
+        main_check(rest)
     else:
         main_split(rest)
 

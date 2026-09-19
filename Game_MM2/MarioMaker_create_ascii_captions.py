@@ -45,11 +45,11 @@ SURFACE_FLAT_TOLERANCE = 2
 # A region packed at least this solid is a block rather than a room.
 SOLID_FILL_FRACTION = 0.7
 
-# Surfaces that climb steadily one way. A region shaped like this is a staircase.
-SLOPED_SURFACES = ("rising to the right", "sloping down to the right")
-
 # A staircase needs at least this much run and rise.
 STAIRCASE_MIN_SPAN = 3
+
+# It also has to stop at this many different heights, or an L shape counts as one
+STAIRCASE_MIN_LEVELS = 3
 
 # Ground that only changes height once or twice is stepped rather than uneven.
 # Most of what we used to call uneven turned out to be this
@@ -98,7 +98,8 @@ BLOCK_SHAPE_NOUNS = {
 }
 
 # What a group of loose tiles is called once its arrangement is known.
-ARRANGEMENT_NOUNS = {"row": "line", "column": "column", "block": "cluster"}
+ARRANGEMENT_NOUNS = {"row": "line", "column": "column", "block": "cluster",
+                     "clump": "clump"}
 
 
 def metadata_phrases(item):
@@ -323,20 +324,21 @@ def describe_ground(scene, id_to_char, ground_chars):
 
 
 def describe_ceiling(scene, id_to_char, solid_chars):
+    """The ceiling phrase and the row it turned up on, or (None, None)."""
     if not scene or not scene[0]:
-        return None
+        return None, None
 
-    for i, row in enumerate(scene[:CEILING_SCAN_ROWS]):
+    for index, row in enumerate(scene[:CEILING_SCAN_ROWS]):
         # A few stray blocks overhead are not a ceiling, and neither is the top of
         # a mass of ground with no room under it.
         top = [id_to_char.get(t) in solid_chars for t in row]
         if sum(top) < CEILING_MIN_COVERAGE * len(top):
             continue
-        below = scene[i + 1] if i + 1 < len(scene) else []
+        below = scene[index + 1] if index + 1 < len(scene) else []
         if sum(id_to_char.get(t) in solid_chars for t in below) >= CEILING_MIN_COVERAGE * len(top):
             continue
         if all(top):
-            return "Full ceiling"
+            return "Full ceiling", index
 
         gaps = 0
         in_gap = False
@@ -346,8 +348,8 @@ def describe_ceiling(scene, id_to_char, solid_chars):
                 in_gap = True
             else:
                 in_gap = False
-        return f"Ceiling with {describe_quantity(gaps)} gap" + ("s" if gaps > 1 else "")
-    return None
+        return f"Ceiling with {describe_quantity(gaps)} gap" + ("s" if gaps > 1 else ""), index
+    return None, None
 
 
 def classify_arrangement(cells):
@@ -391,9 +393,9 @@ def big_form_blocks(scene, id_to_char, loose_chars):
 
 def describe_arrangements(scene, id_to_char, loose_chars, char_names, skip=None):
     """Runs over the loose tiles one type at a time, so a row of coins becomes a
-    line of coins. Returns (phrase, cells) pairs and the chars that got one."""
+    line of coins. Returns (phrase, cells) pairs and the cells each char spoke for."""
     phrases = []
-    named = set()
+    spoken = {}
 
     for char in sorted(loose_chars):
         name = char_names.get(char)
@@ -410,13 +412,9 @@ def describe_arrangements(scene, id_to_char, loose_chars, char_names, skip=None)
                 loose.extend(region)
                 groups += 1
                 continue
-            if kind == "clump":
-                phrases.append((f"A clump of {pluralize(name.lower())}", region))
-                named.add(char)
-                continue
             count, cells = shapes.get(kind, (0, []))
             shapes[kind] = (count + 1, cells + region)
-            named.add(char)
+            spoken.setdefault(char, set()).update(region)
         # "Two lines of coins" rather than "two coins lines", since several tile
         # names are already plural.
         for kind, (count, cells) in shapes.items():
@@ -426,8 +424,8 @@ def describe_arrangements(scene, id_to_char, loose_chars, char_names, skip=None)
             phrases.append((phrase.capitalize(), cells))
         if groups >= SCATTER_GROUPS:
             phrases.append((f"Scattered {pluralize(name.lower())}", loose))
-            named.add(char)
-    return phrases, named
+            spoken.setdefault(char, set()).update(loose)
+    return phrases, spoken
 
 
 def terrain_regions(scene, id_to_char, terrain_chars):
@@ -517,6 +515,16 @@ def base_is_clear(cells, solid, height):
     return not any((r + 1, c) in solid for c, r in bottoms.items() if r < height - 1)
 
 
+def climbs_steadily(profile):
+    """True for a top edge that only goes one way and stops at three or more
+    different heights, since two heights is just an L. describe_surface is no help
+    here, its flat tolerance hides a staircase that rises one tile at a time."""
+    if len(set(profile)) < STAIRCASE_MIN_LEVELS:
+        return False
+    return (all(b <= a for a, b in zip(profile, profile[1:]))
+            or all(b >= a for a, b in zip(profile, profile[1:])))
+
+
 def undercut_columns(cells, height):
     """Counts the columns with empty space directly below the region, which is
     what a cave roof or a tunnel looks like from above."""
@@ -554,13 +562,13 @@ def classify_terrain_region(cells, height, width, solid=None):
     if span_w <= 2 and span_h >= 3:
         # Standing on something is what makes it a tower rather than a hanging column.
         return "tower" if on_floor or not clear_below else "column"
+    # This goes before the solid test, since a staircase is usually filled in
+    # underneath and would otherwise just look like a block
+    if span_w >= STAIRCASE_MIN_SPAN and span_h >= STAIRCASE_MIN_SPAN and clear_above:
+        if climbs_steadily(surface_profile(cells)):
+            return "staircase"
     if len(cells) >= SOLID_FILL_FRACTION * span_w * span_h:
         return "ground block"
-    # A top edge that climbs the whole way without turning back is a staircase,
-    # as long as you could actually land on it.
-    if span_w >= STAIRCASE_MIN_SPAN and span_h >= STAIRCASE_MIN_SPAN and clear_above:
-        if describe_surface(surface_profile(cells)) in SLOPED_SURFACES:
-            return "staircase"
     # Big and mostly empty inside: walls around rooms or a maze, not a clump.
     if span_w >= 6 and span_h >= 4:
         return "hollow structure"
@@ -611,7 +619,7 @@ def describe_block_structures(scene, id_to_char, block_chars, char_names, solid=
     height = len(scene)
     width = len(scene[0]) if height else 0
     phrases = []
-    named = set()
+    spoken = {}
 
     for char in sorted(block_chars):
         name = char_names.get(char)
@@ -625,10 +633,10 @@ def describe_block_structures(scene, id_to_char, block_chars, char_names, solid=
             noun = f"{name.lower()} {BLOCK_SHAPE_NOUNS[kind]}"
             count, cells = shapes.get(noun, (0, []))
             shapes[noun] = (count + 1, cells + region)
-            named.add(char)
+            spoken.setdefault(char, set()).update(region)
         for noun, (count, cells) in shapes.items():
             phrases.append((count_phrase(count, noun), cells))
-    return phrases, named
+    return phrases, spoken
 
 
 def assign_caption(scene, id_to_char, char_names, ground_chars=None,
@@ -668,39 +676,47 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
 
     add_to_caption(describe_ground(scene, id_to_char, ground_chars), ground_cells)
     if solid_chars:
-        add_to_caption(describe_ceiling(scene, id_to_char, solid_chars),
-                       [(0, c) for c in range(len(scene[0]))] if scene else [])
+        # The ceiling isn't always the top row, so highlight the row it was found on
+        ceiling, ceiling_row = describe_ceiling(scene, id_to_char, solid_chars)
+        add_to_caption(ceiling, [(ceiling_row, c) for c in range(len(scene[0]))]
+                       if ceiling else [])
 
     solid = solid_positions(scene, id_to_char, solid_chars) if solid_chars else None
 
     for phrase, region in describe_terrain(scene, id_to_char, ground_chars, solid):
         add_to_caption(phrase, region)
 
+    spoken = {}
     if block_chars:
-        block_phrases, _ = describe_block_structures(
+        block_phrases, spoken = describe_block_structures(
             scene, id_to_char, block_chars, char_names, solid)
         for phrase, region in block_phrases:
             add_to_caption(phrase, region)
 
     big = big_form_blocks(scene, id_to_char, loose_chars) if loose_chars else {}
     for char, blocks in big.items():
-        add_to_caption(count_phrase(len(blocks), f"big {char_names[char].lower()}"),
-                       [cell for block in blocks for cell in block])
+        named = [cell for block in blocks for cell in block]
+        add_to_caption(count_phrase(len(blocks), f"big {char_names[char].lower()}"), named)
+        spoken.setdefault(char, set()).update(named)
 
     if loose_chars:
         skip = {tuple(sorted(b)) for blocks in big.values() for b in blocks}
-        loose_phrases, _ = describe_arrangements(
+        loose_phrases, loose_spoken = describe_arrangements(
             scene, id_to_char, loose_chars, char_names, skip)
         for phrase, region in loose_phrases:
             add_to_caption(phrase, region)
+        for char, named in loose_spoken.items():
+            spoken.setdefault(char, set()).update(named)
 
     object_counts = count_objects(scene, id_to_char)
     for char, char_cells in cells.items():
         name = char_names[char]
-        count = object_counts.get(char, len(char_cells))
-        # The big ones were already named, so their tiles shouldn't be counted again
-        count -= 4 * len(big.get(char, ()))
-        add_to_caption(count_phrase(count, name), char_cells)
+        # Tiles a shape already spoke for don't get counted a second time, so a
+        # scene whose coins are all in one row just says there is a row of coins
+        # instead of a row of coins + many coins or something of the like
+        left = [cell for cell in char_cells if cell not in spoken.get(char, ())]
+        count = object_counts.get(char, len(left))
+        add_to_caption(count_phrase(count, name), left)
 
     caption = " ".join(end_phrase(p) for p in phrases)
     return (caption, details) if return_details else caption
