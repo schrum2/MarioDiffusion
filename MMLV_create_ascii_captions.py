@@ -30,6 +30,10 @@ FLOOR_SEARCH_DEPTH = 4
 # tiles thick; anything thicker is a solid mass and keeps being described as a cluster.
 MAX_FLOOR_THICKNESS = 2
 
+# A vertical opening this tall or shorter is too small for Mega Man to pass through, so it
+# does not break a wall. Two rows is a doorway.
+MAX_IMPASSABLE_GAP = 1
+
 # This is used for describing locations, but it doesn't work well
 STANDARD_WIDTH = common_settings.MEGAMAN_WIDTH
 
@@ -657,7 +661,10 @@ def detect_edge_walls(scene, wall_ids, ceiling_row=2, floor_row=15):
     Detects 'left wall', 'perforated left wall', 'right wall', or 'perforated right wall'.
     
     1. Solid Wall: A SINGLE flood-filled component of solid blocks within the 
-       3 outermost columns spans continuously from `ceiling_row` to `floor_row`.
+       3 outermost columns spans continuously from `ceiling_row` to `floor_row`. The top of
+       the wall may fall short of `ceiling_row` by up to MAX_IMPASSABLE_GAP rows: a slab
+       that stops a row below the ceiling is still a solid wall, not a perforated one,
+       because nothing can get over it.
     2. Perforated Wall: No single flood-filled shape spans top-to-bottom, but 
        there are NO contiguous vertical gaps >= 2 tiles tall across the 3 boundary columns.
     3. None: Any vertical gap >= 2 tiles tall exists across all 3 columns.
@@ -691,7 +698,7 @@ def detect_edge_walls(scene, wall_ids, ceiling_row=2, floor_row=15):
 
             while queue:
                 curr_r, curr_c = queue.pop(0)
-                if curr_r == ceiling_row:
+                if curr_r <= ceiling_row + MAX_IMPASSABLE_GAP:
                     reaches_top = True
                 if curr_r == floor_row:
                     reaches_bottom = True
@@ -736,7 +743,7 @@ def detect_edge_walls(scene, wall_ids, ceiling_row=2, floor_row=15):
                 current_gap = 0
 
         # Gaps <= 1 tile qualify as a perforated wall; gaps >= 2 tiles allow passage (no wall)
-        if max_gap <= 1:
+        if max_gap <= MAX_IMPASSABLE_GAP:
             return "perforated", perforated_coords
 
         return "none", set()
