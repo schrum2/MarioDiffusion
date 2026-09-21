@@ -164,6 +164,12 @@ def phrase_present(tokens: list[str], phrase: str) -> bool:
                for index in range(len(tokens) - len(wanted) + 1))
 
 
+def concept_present(tokens: list[str], concept: str) -> bool:
+    """Match a canonical compound concept or any of its registered alternatives."""
+    alternatives = COMBINED_CONCEPTS.get(concept)
+    return any(phrase_present(tokens, phrase) for phrase in alternatives) if alternatives else phrase_present(tokens, concept)
+
+
 def category_term_present(tokens: list[str], category: str, term: str) -> bool:
     """Match a category term unless it is used in a more specific excluded phrase."""
     if not phrase_present(tokens, term):
@@ -378,7 +384,7 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
                 match["descriptions"].append(info["description"])
                 match["categories"].update(info["categories"])
         matched_phrases = sorted(
-            phrase for phrase in info["phrases"] if phrase_present(tokens, phrase)
+            phrase for phrase in info["phrases"] if concept_present(tokens, phrase)
         )
         for phrase in matched_phrases:
             match = specific_matches_by_term.setdefault(
