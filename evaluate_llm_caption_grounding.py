@@ -405,7 +405,13 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     unsupported_specific = [item for item in specific_matches if not item["supported"]]
 
     specific_category_evidence = set(
-        category for item in supported_specific for category in item["categories"]
+        category for item in supported_specific
+        for category in {
+            category
+            for char, info in vocabulary["tiles"].items()
+            if char in present_tiles and char in item["chars"]
+            for category in info["categories"]
+        }
     ) | set(
         category for item in unsupported_specific for category in item["categories"]
         if category not in present_categories
