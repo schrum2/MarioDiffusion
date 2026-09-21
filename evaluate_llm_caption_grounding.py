@@ -276,7 +276,8 @@ def category_for_tile(description: str, tags: set[str]) -> set[str]:
     is_platform = "platform" in tags or "platform" in lowered
     is_coin = "coin" in lowered
     is_spring = "spring" in lowered
-    if ("powerup" in tags or "power-up" in tags or "collectable" in tags) and not is_coin and not is_spring and not is_platform:
+    is_p_switch = "p switch" in lowered
+    if ("powerup" in tags or "power-up" in tags or "collectable" in tags) and not is_coin and not is_spring and not is_p_switch and not is_platform:
         categories.add("powerup")
     if is_platform or "moving" in tags and "platform" in lowered:
         categories.add("platform")
