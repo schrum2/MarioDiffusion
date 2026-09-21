@@ -25,6 +25,9 @@ EMPTY_TAGS = {"empty", "air"}
 # and a super leaf in the next, so only the generic name is true everywhere.
 STYLE_SLOT_NAMES = {"E": "Style Power-Up", "z": "Style Ride"}
 
+# Tileset names that are already plural. Dry Bones reads the same either way.
+SINGULAR_NAMES = {"Spikes": "Spike"}
+
 # Level metadata fields to fold into the caption, paired with the word that
 # turns the raw value into a phrase. level_name is left out on purpose - it names
 # the source level, not its contents.
@@ -39,6 +42,9 @@ BLOB_THRESHOLD = 10
 
 # A terrain region smaller than this is left to the tile counts.
 TERRAIN_MIN_REGION = 4
+
+# Narrower than this and a flat run is a couple of loose blocks, not a platform.
+PLATFORM_MIN_WIDTH = 3
 
 # A region on the bottom row at least this wide is the ground, not a structure.
 GROUND_WIDTH_FRACTION = 0.3
@@ -254,7 +260,7 @@ def end_phrase(phrase):
 def count_phrase(count, name):
     if count <= 0:
         return None
-    noun = pluralize(name) if count > 1 else name
+    noun = pluralize(name) if count > 1 else SINGULAR_NAMES.get(name, name)
     return f"{describe_quantity(count)} {noun}".capitalize()
 
 
@@ -549,8 +555,6 @@ def classify_terrain_region(cells, height, width, solid=None):
         so a tall thin one standing on the floor is a tower rather than a column.
         Returns the shape name, or None when the region is too small or buried.
     """
-    if len(cells) < TERRAIN_MIN_REGION:
-        return None
     rows = [r for r, _ in cells]
     cols = [c for _, c in cells]
     span_w = max(cols) - min(cols) + 1
@@ -561,11 +565,14 @@ def classify_terrain_region(cells, height, width, solid=None):
 
     if on_floor and span_w >= width * GROUND_WIDTH_FRACTION:
         return "ground"
-    if span_h <= 2 and span_w >= 3:
+    # A three wide platform is only three cells, under the floor the rest need.
+    if span_h <= 2 and span_w >= PLATFORM_MIN_WIDTH:
         # Buried in something bigger, so the tile count already speaks for it.
         if not clear_above:
             return None
         return "platform" if clear_below else "ledge"
+    if len(cells) < TERRAIN_MIN_REGION:
+        return None
     if span_w <= 2 and span_h >= 3:
         # Standing on something is what makes it a tower rather than a hanging column.
         return "tower" if on_floor or not clear_below else "column"
@@ -621,28 +628,34 @@ def describe_terrain(scene, id_to_char, terrain_chars, solid=None):
 
 
 def describe_block_structures(scene, id_to_char, block_chars, char_names, solid=None):
-    """Runs the shape pass over the other block types, one material at a time, so
-    a stack of bricks reads as a brick wall. Same returns as describe_arrangements."""
+    """Runs the shape pass over the other block types, so a stack of bricks reads as
+    a brick wall. Materials go in together and the shape is named after whichever one
+    it is mostly made of, since bricks with a hard block in the middle are still one
+    platform. Same returns as describe_arrangements."""
     height = len(scene)
     width = len(scene[0]) if height else 0
     phrases = []
     spoken = {}
+    shapes = {}
 
-    for char in sorted(block_chars):
-        name = char_names.get(char)
+    for region in terrain_regions(scene, id_to_char, block_chars):
+        kind = classify_terrain_region(region, height, width, solid)
+        if kind is None:
+            continue
+        tally = {}
+        for r, c in region:
+            char = id_to_char.get(scene[r][c])
+            tally[char] = tally.get(char, 0) + 1
+            spoken.setdefault(char, set()).add((r, c))
+        name = char_names.get(max(tally, key=tally.get))
         if name is None:
             continue
-        shapes = {}
-        for region in terrain_regions(scene, id_to_char, {char}):
-            kind = classify_terrain_region(region, height, width, solid)
-            if kind is None:
-                continue
-            noun = f"{name.lower()} {BLOCK_SHAPE_NOUNS[kind]}"
-            count, cells = shapes.get(noun, (0, []))
-            shapes[noun] = (count + 1, cells + region)
-            spoken.setdefault(char, set()).update(region)
-        for noun, (count, cells) in shapes.items():
-            phrases.append((count_phrase(count, noun), cells))
+        noun = f"{name.lower()} {BLOCK_SHAPE_NOUNS[kind]}"
+        count, cells = shapes.get(noun, (0, []))
+        shapes[noun] = (count + 1, cells + region)
+    for noun in sorted(shapes):
+        count, cells = shapes[noun]
+        phrases.append((count_phrase(count, noun), cells))
     return phrases, spoken
 
 
@@ -730,11 +743,14 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
 
 
 def generate_captions(dataset_path, tileset_path, output_path,
-                      caption_mode="legacy", caption_key="deterministic_captions"):
+                      caption_mode="legacy", caption_key="deterministic_captions",
+                      include_metadata=False):
     """Write a deterministic caption for every scene.
 
     "legacy" stores it in the "caption" field; "keyed" stores it as a one-element list under
     caption_key. Either way every other input attribute is copied through.
+    include_metadata prepends the style, theme, difficulty and tags, none of which
+    show up in the tiles.
     """
     with open(dataset_path, "r", encoding="utf-8") as f:
         dataset = json.load(f)
@@ -750,7 +766,7 @@ def generate_captions(dataset_path, tileset_path, output_path,
     for item in dataset:
         is_dict = isinstance(item, dict)
         scene = item["scene"] if is_dict else item
-        meta_phrases = metadata_phrases(item) if is_dict else []
+        meta_phrases = metadata_phrases(item) if is_dict and include_metadata else []
         caption = assign_caption(scene, id_to_char, char_names, ground_chars,
                                  meta_phrases, block_chars=block_chars,
                                  solid_chars=solid_chars, loose_chars=loose_chars)
@@ -790,6 +806,11 @@ if __name__ == "__main__":
         default="deterministic_captions",
         help="Key to store the caption list under when --caption-mode keyed. Default: deterministic_captions",
     )
+    parser.add_argument(
+        "--include-metadata",
+        action="store_true",
+        help="Prepend the level's style, theme, difficulty and tags. None of it shows up in the tiles.",
+    )
     args = parser.parse_args()
 
     if not os.path.isfile(args.dataset):
@@ -800,4 +821,5 @@ if __name__ == "__main__":
         sys.exit(1)
 
     generate_captions(args.dataset, args.tileset, args.output,
-                      caption_mode=args.caption_mode, caption_key=args.caption_key)
+                      caption_mode=args.caption_mode, caption_key=args.caption_key,
+                      include_metadata=args.include_metadata)

@@ -553,10 +553,11 @@ def main_build(argv=None):
                              "the input folder (or next to a single input file) is "
                              "picked up automatically.")
     parser.add_argument("--captions", action="store_true",
-                        help="Assign a deterministic, rule-based caption to every "
-                             "sample -- a ground/floor summary plus per-tile counts "
-                             "and blob callouts, read from the tileset tags and the "
-                             "level metadata -- and store it in the 'caption' field.")
+                        help="Write a rule-based caption to the 'caption' field: the "
+                             "floor, the shapes built on it, and per-tile counts.")
+    parser.add_argument("--caption_metadata", action="store_true",
+                        help="Prepend the level's style, theme, difficulty and tags. "
+                             "None of it shows up in the tiles.")
     parser.add_argument("--build_tokenizer", action="store_true",
                         help="After captioning, build the caption tokenizer vocabulary "
                              "from the dataset and save it as a .pkl. Requires --captions.")
@@ -802,7 +803,8 @@ def main_build(argv=None):
     if args.captions:
         captioner = load_repo_module(os.path.join("Game_MM2", "MarioMaker_create_ascii_captions.py"),
                                      "MarioMaker_create_ascii_captions")
-        captioner.generate_captions(str(output_file), tileset_path, str(output_file))
+        captioner.generate_captions(str(output_file), tileset_path, str(output_file),
+                                    include_metadata=args.caption_metadata)
 
     # Save the companion "dropped" dataset of below-min_tiles_pct samples.
     dropped_file = None

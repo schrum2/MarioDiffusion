@@ -22,7 +22,8 @@ sys.path.insert(0, _repo_root)
 import util.common_settings as common_settings
 from Game_MM2.MarioMaker_create_ascii_captions import (
     build_id_to_char, get_char_names, get_tile_categories, get_block_chars,
-    get_solid_chars, get_loose_chars, assign_caption, metadata_phrases, pluralize)
+    get_solid_chars, get_loose_chars, assign_caption, metadata_phrases, pluralize,
+    BLOCK_SHAPE_NOUNS, ARRANGEMENT_NOUNS, SINGULAR_NAMES)
 
 QUANTITY_TERMS = ["one", "two", "a few", "several", "many", "a ton of"]
 
@@ -56,10 +57,17 @@ def build_topic_keywords(tileset_path):
         Returns the topics longest first, so "question block" is matched before
         "block".
     """
-    topics = {name.lower().rstrip(".") for name in get_char_names(tileset_path).values()}
+    names = [name.lower().rstrip(".") for name in get_char_names(tileset_path).values()]
+    topics = set(names)
+    # A spiny pluralises to spinies, which the singular is not a substring of.
+    topics.update(pluralize(name) for name in names)
     topics.update(suffix.strip() for suffix in METADATA_SUFFIXES)
-    # Matching is case sensitive, and the ground phrases start with a capital.
-    topics.update(("floor", "ground"))
+    topics.update(name.lower() for name in SINGULAR_NAMES.values())
+    # Shapes are topics too. Terrain uses the shape name, blocks the noun, so both go in.
+    topics.update(BLOCK_SHAPE_NOUNS)
+    topics.update(BLOCK_SHAPE_NOUNS.values())
+    topics.update(ARRANGEMENT_NOUNS.values())
+    topics.update(("floor", "ground", "ceiling"))
     return sorted(topics, key=len, reverse=True)
 
 
