@@ -68,7 +68,7 @@ COMBINED_CONCEPTS = {
     "donut block": {"donut block"},
     "ice block": {"ice block", "slippery block"},
     "on off block": {"on/off block", "on off block"},
-    "dotted line block": {"dotted-line block", "dotted line block"},
+    "dotted line block": {"dotted-line block", "dotted line block", "dotted block"},
     "fading platform": {"fading platform", "fading platforms"},
     "life energy": {"life energy", "health energy"},
     "weapon energy": {"weapon energy"},
