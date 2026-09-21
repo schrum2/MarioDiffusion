@@ -112,6 +112,12 @@ def _count_fixed(comp, fw, fh, scene_w, scene_h, wildcards):
     cols = [c for c, _ in comp]
     rows = [r for _, r in comp]
     c0, c1, r0, r1 = min(cols), max(cols), min(rows), max(rows)
+
+    # A filled block twice the footprint each way is one big enemy, not the four
+    # stamps it would tile into. big_form_blocks does the same for the 1x1 ones.
+    if (c1 - c0 + 1, r1 - r0 + 1) == (2 * fw, 2 * fh) and len(cells) == 4 * fw * fh:
+        return 1, 0
+
     total = broken = 0
     cr = r0
     while cr <= r1:

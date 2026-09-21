@@ -90,6 +90,7 @@ OBJ_META = {
     "Buzzy Beetle":        ("b", "#334488", CAT_ENEMY),
     "Lakitu":              ("L", "#DDAA00", CAT_ENEMY),
     "Lakitu's Cloud":      ("Â", "#CCCCAA", CAT_ENEMY),
+    "Lakitu Cloud":        ("Â", "#CCCCAA", CAT_ENEMY),  # decoder's actual name for this object
     "Banzai Bill":         ("Z", "#333333", CAT_ENEMY),
     "Bullet Bill Blaster": ("V", "#333333", CAT_ENEMY),
     "Magikoopa":           ("y", "#8844CC", CAT_ENEMY),
@@ -213,6 +214,7 @@ ASCII_REPLACEMENTS = {
     "Spike Top":               "s",  # → Spiny
     "Fish Bone":               "~",  # → Cheep Cheep
     "Lakitu's Cloud":          ";",  # → Clown Car
+    "Lakitu Cloud":            ";",  # → Clown Car
     "Jumping Machine":         "J",  # → Spring
     "Mushroom Trampoline":     "J",  # → Spring
     "ON/OFF Trampoline":       "J",  # → Spring
@@ -383,8 +385,9 @@ NAME_TO_ID = {
     # enemies
     "Goomba": 0, "Koopa": 1, "Piranha Plant": 2, "Piranha Flower": 2,
     "Hammer Bro": 3, "Thwomp": 12, "Bob-omb": 15, "Spiny": 25,
-    "Buzzy Beetle": 28, "Lakitu": 30, "Lakitu's Cloud": 31, "Banzai Bill": 32,
-    "Bullet Bill Blaster": 13, "Magikoopa": 39, "Spike Top": 40, "Boo": 41,
+    "Buzzy Beetle": 28, "Lakitu": 30, "Lakitu's Cloud": 31, "Lakitu Cloud": 31,
+    "Banzai Bill": 32, "Bullet Bill Blaster": 13, "Magikoopa": 39,
+    "Spike Top": 40, "Boo": 41,
     "Bowser": 62, "Bowser Jr.": 98, "Bowser Jr": 98, "Chain Chomp": 61,
     "Cheep Cheep": 56, "Blooper": 48, "Wiggler": 52, "Pokey": 78,
     "Piranha Creeper": 107, "Porcupuffer": 114, "Fish Bone": 103,

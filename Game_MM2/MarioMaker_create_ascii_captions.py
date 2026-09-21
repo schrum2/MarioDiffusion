@@ -21,6 +21,10 @@ PROPERTY_TAGS = {
 # Tiles that represent empty space and should never appear in a caption.
 EMPTY_TAGS = {"empty", "air"}
 
+# These two slots hold a different object per game style, a cape feather in one
+# and a super leaf in the next, so only the generic name is true everywhere.
+STYLE_SLOT_NAMES = {"E": "Style Power-Up", "z": "Style Ride"}
+
 # Level metadata fields to fold into the caption, paired with the word that
 # turns the raw value into a phrase. level_name is left out on purpose - it names
 # the source level, not its contents.
@@ -138,7 +142,7 @@ def get_char_names(tileset_path):
     for char, tags in data["tiles"].items():
         if not tags or any(t in EMPTY_TAGS for t in tags):
             continue
-        name = CHAR_TO_NAME.get(char)
+        name = STYLE_SLOT_NAMES.get(char) or CHAR_TO_NAME.get(char)
         if name is None:
             # A glyph toost has no name for. The last non-property tag names it,
             # so a boss (Bowser is [..., "boss", "bowser"]) isn't named "boss".
@@ -215,6 +219,9 @@ def get_solid_chars(tileset_path):
 def describe_quantity(count):
     # Coarse buckets like MarioDiffusion's, with a top "a ton of" tier and the
     # thresholds bumped up for the bigger Mario Maker scenes.
+    # A count of zero reads as "no", not "a few".
+    if count == 0:
+        return "no"
     if count == 1:
         return "one"
     if count == 2:

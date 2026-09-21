@@ -68,10 +68,10 @@ _MM2_GROUND_CELL = (6, 15)
 # longer needs that 2900-line C++ header at runtime -- it ships the data it needs.
 # Only enemies/items/bosses/platforms live here; pure tile objects (blocks, coins,
 # ground, pipes, ...) are drawn from the tilesheet (_MM2_TILESHEET_CELL / autotile)
-# and are intentionally absent. Piranha Plant (id 2) uses toost's OBJ_2A0 variant
-# (down-facing baseline form). Keep in sync with mm2_tileset_we.json's glyphs.
+# and are intentionally absent. Piranha Plant (id 2) uses toost's OBJ_2A6 variant,
+# the upright one, since A0/A2 lie on their side. Keep in sync with the tileset.
 _MM2_SPRITE_DATA = {
-    2: {"SMB1": (1168,488,32,16), "SMB3": (1184,856,32,16), "SMW": (896,1168,32,16), "NSMBU": (1136,1120,32,16), "SM3DW": (576,1168,32,16)},
+    2: {"SMB1": (1168,520,16,32), "SMB3": (1184,888,16,32), "SMW": (144,1200,16,32), "NSMBU": (192,1168,16,32), "SM3DW": (1216,384,16,32)},
     0: {"SMB1": (1216,1184,16,16), "SMB3": (656,1232,16,16), "SMW": (1312,1232,16,16), "NSMBU": (1264,736,16,16), "SM3DW": (848,1280,16,16)},
     1: {"SMB1": (1200,272,16,32), "SMB3": (1184,776,16,32), "SMW": (32,1200,16,32), "NSMBU": (80,1168,16,32), "SM3DW": (1072,704,16,64)},
     3: {"SMB1": (1200,552,16,32), "SMB3": (1184,952,16,32), "SMW": (192,1200,16,32), "NSMBU": (240,1168,16,32), "SM3DW": (960,288,16,64)},
