@@ -34,6 +34,7 @@ CATEGORY_TERMS = {
     "lava": {"lava"},
     "spring": {"spring", "springs"},
     "coin": {"coin", "coins"},
+    "vine": {"vine", "vines"},
 }
 
 # Context-sensitive category terms. These words should not be treated as standalone
@@ -283,7 +284,7 @@ def category_for_tile(description: str, tags: set[str]) -> set[str]:
         categories.add("platform")
     #if "block" in lowered or "brick" in lowered:
     #    categories.add("block")
-    for category in ("ladder", "water", "lava", "spring", "coin", "pipe"):
+    for category in ("ladder", "water", "lava", "spring", "coin", "pipe", "vine"):
         if category in lowered:
             categories.add(category)
     if "door" in tags or ("door" in lowered and "key door" not in lowered):
