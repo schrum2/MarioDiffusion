@@ -652,7 +652,7 @@ def coalesce(name, cells, out, ground=None):
 # ---------------------------------------------------------------------------
 # End-of-level goal synthesis (ASCII -> JSON)
 #
-# With --strip_goal training data the model produces levels with no 'G'. This
+# Training data carries no 'G', so the model produces levels without one. This
 # tacks a reachable finish onto the right edge: a flat ground runway flush with
 # the level's floor, with a goal standing on its first tile.
 # ---------------------------------------------------------------------------

@@ -85,7 +85,7 @@ _MM2_SPRITE_DATA = {
     20: {"SMB1": (816,1184,16,16), "SMB3": (1248,80,16,16), "SMW": (592,1312,16,16), "NSMBU": (144,1264,16,16), "SM3DW": (1296,240,16,16)},
     24: {"SMB1": (848,1184,16,16), "SMB3": (1248,112,16,16), "SMW": (624,1312,16,16), "NSMBU": (176,1264,16,16), "SM3DW": (1296,272,16,16)},
     25: {"SMB1": (864,1184,16,16), "SMB3": (1248,128,16,16), "SMW": (640,1312,16,16), "NSMBU": (192,1264,16,16), "SM3DW": (1296,288,16,16)},
-    27: {"SMB1": (864,240,16,176), "SMB3": (1008,0,32,32), "SMW": (864,1168,32,16), "NSMBU": (880,240,16,176), "SM3DW": (896,240,16,176)},
+    27: {"SMB1": (864,240,16,176), "SMB3": (1008,0,32,32), "SMW": (960,0,16,144), "NSMBU": (880,240,16,176), "SM3DW": (896,240,16,176)},
     28: {"SMB1": (928,1184,16,16), "SMB3": (1248,192,16,16), "SMW": (768,1312,16,16), "NSMBU": (256,1264,16,16), "SM3DW": (1296,352,16,16)},
     30: {"SMB1": (1168,584,16,32), "SMB3": (1200,952,16,32), "SMW": (208,1200,16,32), "NSMBU": (256,1168,16,32), "SM3DW": (1216,480,16,32)},
     32: {"SMB1": (560,288,64,64), "SMB3": (64,544,64,64), "SMW": (752,512,64,64), "NSMBU": (64,608,64,64), "SM3DW": (688,576,64,64)},
@@ -499,6 +499,44 @@ def _mm2_sheet_region(cell, cw, ch, gamestyle, theme=0):
     return sheet.crop((cx * tw, cy * tw, (cx + cw) * tw, (cy + ch) * tw))
 
 
+# Goal art per gamestyle, from toost's LevelDrawer::DrawGrd. Each style draws its
+# own thing -- SMB1 and NSMBU a 1x11 flagpole, SMW a 1x9 post (OBJ_27F), SMB3 a
+# 2x2 goal gate -- and every style swaps in the 2x4 castle axe (OBJ_27A) when the
+# theme is castle, which the ASCII grid records as a two wide goal block.
+_MM2_GOAL_SPRITES = {
+    "SMB1":  {"pole": (864,240,16,176), "axe": (976,0,32,64)},
+    "SMB3":  {"pole": (1008,0,32,32),   "axe": (976,64,32,64)},
+    "SMW":   {"pole": (960,0,16,144),   "axe": (976,320,32,64)},
+    "NSMBU": {"pole": (880,240,16,176), "axe": (976,128,32,64)},
+}
+
+
+def _mm2_draw_goals(grid, canvas, consumed, chars, gamestyle, ts):
+    """Stamp each block of 'G' as one goal, so a tall column is a pole and not a
+    stack of copies. A block wider than one cell is the castle axe."""
+    rects = _MM2_GOAL_SPRITES.get(gamestyle)
+    if _mm2_spritesheet is None or rects is None or "G" not in chars:
+        return
+    tid = chars.index("G")
+    h, w = len(grid), len(grid[0])
+    for cells in _mm2_components(grid, tid, consumed, h, w):
+        rs = [p[0] for p in cells]
+        cs = [p[1] for p in cells]
+        r0, r1, c0, c1 = min(rs), max(rs), min(cs), max(cs)
+        bw, bh = c1 - c0 + 1, r1 - r0 + 1
+        x, y, sw, sh = rects["axe"] if bw > 1 else rects["pole"]
+        sprite = _mm2_spritesheet.crop((x, y, x + sw, y + sh))
+        # SMB3's gate is wider than the column of glyphs, so it keeps its own
+        # size and hangs off the side rather than being squeezed into one cell.
+        if sw // 16 > bw:
+            _mm2_paste_region(canvas, sprite, c0, r0, sw // 16, sh // 16, ts)
+        else:
+            _mm2_paste_region(canvas, sprite, c0, r0, bw, bh, ts)
+        for r in range(r0, r1 + 1):
+            for c in range(c0, c1 + 1):
+                consumed[r][c] = True
+
+
 def _mm2_paste_region(canvas, region, c, r, cw, ch, ts):
     """Paste an RGBA tilesheet region covering cw x ch grid cells at (c, r).
 
@@ -676,6 +714,10 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
         grid = [[int(sample_index[r][c]) % n for c in range(w)] for r in range(h)]
         canvas = Image.new("RGB", (w * ts, h * ts), sky)
         consumed = [[False] * w for _ in range(h)]
+
+        # The goal comes first: it has no fixed footprint, so it can't go through
+        # the policies below.
+        _mm2_draw_goals(grid, canvas, consumed, chars, gamestyle, ts)
 
         # Pass 1: stamp multi-tile sprites across their connected glyph blocks.
         # Each multi-tile glyph follows one of three policies (see the glyph sets

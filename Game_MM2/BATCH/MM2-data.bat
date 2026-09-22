@@ -10,7 +10,7 @@ set SEED=%1
 if "%SEED%"=="" set SEED=0
 
 REM Build a sliding-window dataset from the ASCII levels
-python -m mm2pipeline_data dataset build --input Game_MM2\LEVELS\ascii --output_folder Game_MM2\DATA\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --sliding_window --stride 20
+python -m mm2pipeline_data dataset build --input Game_MM2\LEVELS\ascii --output_folder Game_MM2\DATA\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --sliding_window --stride 20 --strip_goal
 
 REM Generate deterministic captions for MM2
 python Game_MM2\MarioMaker_create_ascii_captions.py --dataset Game_MM2\DATA\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --output Game_MM2\DATA\MM2_LevelsAndCaptions-regular.json

@@ -74,7 +74,7 @@ REM 4. Window the ASCII into fixed-size tile-id scenes. metadata.json is picked
 REM    up automatically from the input folder (or pass --metadata explicitly).
 python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --sliding_window --stride 20
 
-REM    Useful options: --strip_goal (train without flagpoles), --window_h/--window_w,
+REM    Useful options: --no-strip_goal (leave the flagpoles in), --window_h/--window_w,
 REM    --min_tiles_pct (drop mostly-air windows; rejects go to *_dropped.json),
 REM    --with_images (crop the matching PNG slice per sample),
 REM    --captions (fold in deterministic captions; add --build_tokenizer for the .pkl).
@@ -153,8 +153,8 @@ python -m mm2pipeline_data dataset build --input out\ascii --output_folder datas
 REM Every 20-wide window across each level (no overlap).
 python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --sliding_window --stride 20
 
-REM Train without flagpoles, and crop the matching PNG slice per sample.
-python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --sliding_window --strip_goal --with_images
+REM Keep the flagpoles, and crop the matching PNG slice per sample.
+python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --sliding_window --no-strip_goal --with_images
 ```
 
 ### dataset split
