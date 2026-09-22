@@ -499,42 +499,101 @@ def _mm2_sheet_region(cell, cw, ch, gamestyle, theme=0):
     return sheet.crop((cx * tw, cy * tw, (cx + cw) * tw, (cy + ch) * tw))
 
 
-# Goal art per gamestyle, from toost's LevelDrawer::DrawGrd. Each style draws its
-# own thing -- SMB1 and NSMBU a 1x11 flagpole, SMW a 1x9 post (OBJ_27F), SMB3 a
-# 2x2 goal gate -- and every style swaps in the 2x4 castle axe (OBJ_27A) when the
-# theme is castle, which the ASCII grid records as a two wide goal block.
-_MM2_GOAL_SPRITES = {
-    "SMB1":  {"pole": (864,240,16,176), "axe": (976,0,32,64)},
-    "SMB3":  {"pole": (1008,0,32,32),   "axe": (976,64,32,64)},
-    "SMW":   {"pole": (960,0,16,144),   "axe": (976,320,32,64)},
-    "NSMBU": {"pole": (880,240,16,176), "axe": (976,128,32,64)},
+# Goal art per gamestyle, from toost's LevelDrawer::DrawGrd: SMB1 and NSMBU an 11
+# tall flagpole, SMB3 a floating 2x2 panel, SMW the tape strung between a light
+# post (27F) and a dark one (27G). Entries are (wide, tall, rows above the goal
+# line, pieces), a piece being a spritesheet rect and its offset in the art.
+# The flags sit at -1 since the pole plants in the ground row, not on top of it.
+_MM2_GOAL_ART = {
+    "SMB1":  (1, 11, -1, [((864,240,16,176), 0, 0)]),
+    "SMB3":  (2, 2, 5,   [((1008,0,32,32), 0, 0)]),
+    "SMW":   (3, 9, -1,  [((960,0,16,144), 0, 0),
+                          ((960,144,16,144), 32, 0),
+                          ((864,1168,32,16), 8, 8)]),
+    "NSMBU": (1, 11, -1, [((880,240,16,176), 0, 0)]),
 }
+# Castle levels use the axe (27A) instead, a two wide goal block in the grid.
+_MM2_CASTLE_AXE = {
+    "SMB1": (976,0,32,64), "SMB3": (976,64,32,64),
+    "SMW": (976,320,32,64), "NSMBU": (976,128,32,64),
+}
+# A castle goal stands on a bridge: 14 bridge cells left of the axe, one row down.
+_MM2_BRIDGE_CELL = (15, 15)
+_MM2_CASTLE_THEME = 2
+_MM2_BRIDGE_WIDTH = 14
+_mm2_goal_art_cache = {}
 
 
-def _mm2_draw_goals(grid, canvas, consumed, chars, gamestyle, ts):
-    """Stamp each block of 'G' as one goal, so a tall column is a pole and not a
-    stack of copies. A block wider than one cell is the castle axe."""
-    rects = _MM2_GOAL_SPRITES.get(gamestyle)
-    if _mm2_spritesheet is None or rects is None or "G" not in chars:
+def _mm2_goal_art(gamestyle, castle):
+    """Compose a style's goal into one sprite. Returns (rgba, w, h, lift) in
+    tiles, or None when the style has no art."""
+    key = (gamestyle, castle)
+    if key in _mm2_goal_art_cache:
+        return _mm2_goal_art_cache[key]
+
+    if castle:
+        rect = _MM2_CASTLE_AXE.get(gamestyle)
+        entry = (2, 4, 0, [(rect, 0, 0)]) if rect else None
+    else:
+        entry = _MM2_GOAL_ART.get(gamestyle)
+
+    art = None
+    if entry is not None and _mm2_spritesheet is not None:
+        tw, th, lift, pieces = entry
+        img = Image.new("RGBA", (tw * 16, th * 16), (0, 0, 0, 0))
+        for (x, y, w, h), dx, dy in pieces:
+            crop = _mm2_spritesheet.crop((x, y, x + w, y + h))
+            img.paste(crop, (dx, dy), crop)
+        art = (img, tw, th, lift)
+
+    _mm2_goal_art_cache[key] = art
+    return art
+
+
+def _mm2_draw_castle_bridge(canvas, grid, blank, c0, row, gamestyle, ts):
+    """Lay the bridge left of a castle goal, over open cells only. Lava is empty
+    space in the grid, so anything else there keeps its own tile."""
+    # A castle goal means the castle theme
+    plank = _mm2_sheet_region(_MM2_BRIDGE_CELL, 1, 1, gamestyle, _MM2_CASTLE_THEME)
+    if plank is None or not 0 <= row < len(grid):
         return
+    for c in range(max(0, c0 - _MM2_BRIDGE_WIDTH), c0):
+        if grid[row][c] in blank:
+            _mm2_paste_region(canvas, plank, c, row, 1, 1, ts)
+
+
+def _mm2_goal_blocks(grid, consumed, chars):
+    """Claim each block of 'G' and return them as (r0, r1, c0, c1) to paint later,
+    so nothing else puts the flat goal tile there."""
+    blocks = []
+    if "G" not in chars:
+        return blocks
     tid = chars.index("G")
     h, w = len(grid), len(grid[0])
     for cells in _mm2_components(grid, tid, consumed, h, w):
         rs = [p[0] for p in cells]
         cs = [p[1] for p in cells]
-        r0, r1, c0, c1 = min(rs), max(rs), min(cs), max(cs)
-        bw, bh = c1 - c0 + 1, r1 - r0 + 1
-        x, y, sw, sh = rects["axe"] if bw > 1 else rects["pole"]
-        sprite = _mm2_spritesheet.crop((x, y, x + sw, y + sh))
-        # SMB3's gate is wider than the column of glyphs, so it keeps its own
-        # size and hangs off the side rather than being squeezed into one cell.
-        if sw // 16 > bw:
-            _mm2_paste_region(canvas, sprite, c0, r0, sw // 16, sh // 16, ts)
-        else:
-            _mm2_paste_region(canvas, sprite, c0, r0, bw, bh, ts)
-        for r in range(r0, r1 + 1):
-            for c in range(c0, c1 + 1):
-                consumed[r][c] = True
+        for r, c in cells:
+            consumed[r][c] = True
+        blocks.append((min(rs), max(rs), min(cs), max(cs)))
+    return blocks
+
+
+def _mm2_draw_goals(canvas, blocks, grid, chars, gamestyle, ts):
+    """Paint the goals last, since the art overhangs the glyphs it came from and
+    has to sit on top. A block wider than one cell is a castle goal."""
+    blank = {i for i, ch in enumerate(chars) if ch in (" ", "-")}
+    for r0, r1, c0, c1 in blocks:
+        castle = c1 > c0
+        art = _mm2_goal_art(gamestyle, castle)
+        if art is None:
+            continue
+        sprite, tw, th, lift = art
+        # A clipped column gets a shorter flag, not one overflowing upward
+        th = min(th, r1 - r0 + 1) if lift <= 0 else th
+        if castle:
+            _mm2_draw_castle_bridge(canvas, grid, blank, c0, r1 + 1, gamestyle, ts)
+        _mm2_paste_region(canvas, sprite, c0, r1 - lift - th + 1, tw, th, ts)
 
 
 def _mm2_paste_region(canvas, region, c, r, cw, ch, ts):
@@ -715,9 +774,8 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
         canvas = Image.new("RGB", (w * ts, h * ts), sky)
         consumed = [[False] * w for _ in range(h)]
 
-        # The goal comes first: it has no fixed footprint, so it can't go through
-        # the policies below.
-        _mm2_draw_goals(grid, canvas, consumed, chars, gamestyle, ts)
+        # The goal has no fixed footprint, so claim its cells now and paint last
+        goal_blocks = _mm2_goal_blocks(grid, consumed, chars)
 
         # Pass 1: stamp multi-tile sprites across their connected glyph blocks.
         # Each multi-tile glyph follows one of three policies (see the glyph sets
@@ -797,6 +855,8 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
             for c in range(w):
                 if not consumed[r][c]:
                     canvas.paste(cell_tiles[grid[r][c]], (c * ts, r * ts))
+
+        _mm2_draw_goals(canvas, goal_blocks, grid, chars, gamestyle, ts)
 
         if prompts:
             sanitized_prompt = prompts[idx].replace(".", "")[:50]
