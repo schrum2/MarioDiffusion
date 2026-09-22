@@ -919,16 +919,16 @@ class TileViewer(tk.Tk):
         if astar_dir not in sys.path:
             sys.path.insert(0, astar_dir)
         try:
-            from astar_traversability_check import evaluate
+            from astar_traversability_check import evaluate, RENDER_GAME_TO_TRAV
             from astar_path_visualization import render_info
         except Exception as e:
             print(f"Could not import A* path tools: {e}")
             return None
 
-        # All three Mega Man variants (Simple/Full/Maker) share one traversability
-        # target name, "MM"; every other game uses its own render_name as-is.
+        # MM-Simple/Full share the "MM" traversability target; MMLV gets its own so A*
+        # can use the scene's spawn/exit tiles. Other games use render_name as-is.
         config = self._game_config()
-        trav_game = "MM" if config["is_megaman"] else config["render_name"]
+        trav_game = RENDER_GAME_TO_TRAV.get(config["render_name"], config["render_name"])
         try:
             ok, stats, info = evaluate(trav_game, scene, self.id_to_char,
                                        self.tile_descriptors, 100000, False, visualize=True)
