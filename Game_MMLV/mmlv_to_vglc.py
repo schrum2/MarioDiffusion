@@ -166,6 +166,9 @@ GIMMICK_E_TO_CHAR = {
     124:"I",   # Changkey fire spawner (reuses the tackle-fire sprite; the 'I' fire tile)
     11: "F",   # falling platform: a solid block that drops when stood on. Verified d6/e11
     43: "x",   # fan: blows Mega Man upward.
+    46: "X",   # checkpoint (respawn marker) -> the transparent, passable 'X' checkpoint tile. All
+               # orientations collapse to one tile; the 'q' field (absent/3/2 = standard/horizontal/
+               # vertical) records orientation but is not represented.
     13: "s",   # spring: bounces Mega Man upward when touched. Verified d6/e13 against a labelled
                # test level. (Distinct from d5 e13, an unrelated unidentified enemy id.)
     266:"T",   # teleporter (paired warp gimmick). All teleporters are 2x2 (see TWO_BY_TWO_E_IDS).

@@ -75,6 +75,10 @@ MM2_TAG_COLORS = [
 # the window (and everything packed inside it) never starts taller/wider
 # than the screen -- see _fit_window_to_screen.
 MAX_SCREEN_FRACTION = 0.90
+INITIAL_CANVAS_FRACTION = 0.72
+MIN_FONT_SIZE = 6
+MAX_FONT_SIZE = 48
+FONT_TO_TILE_RATIO = 3
 
 
 class TileViewer(tk.Tk):
@@ -114,9 +118,10 @@ class TileViewer(tk.Tk):
         # sure the whole window still fits once every widget is packed. ---
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
-        self.window_size = min(screen_width, screen_height) * 0.65
+        self.window_size = min(screen_width, screen_height) * INITIAL_CANVAS_FRACTION
         self.tile_size = int(self.window_size / 20)
-        self.font_size = max(self.tile_size // 4, 6)
+        self.font_size = max(self.tile_size // 3, MIN_FONT_SIZE)
+        self.font_size_var = tk.IntVar(value=self.font_size)
 
         # --- build the UI (scrollable, so low-resolution screens can still
         # reach every control -- see create_widgets) ---
@@ -205,6 +210,19 @@ class TileViewer(tk.Tk):
         tk.Button(checkbox_frame, text="Regenerate Caption", command=self.regenerate_caption).pack(side=tk.LEFT, padx=5)
         tk.Button(checkbox_frame, text="Toggle View Mode", command=self.toggle_view_mode).pack(side=tk.LEFT, padx=5)
         tk.Button(checkbox_frame, text="Toggle A* Path", command=self.toggle_astar_path).pack(side=tk.LEFT, padx=5)
+
+        font_frame = tk.Frame(root)
+        font_frame.pack(pady=(0, 2))
+        tk.Label(font_frame, text="Grid font size:").pack(side=tk.LEFT, padx=(5, 2))
+        self.font_size_scale = tk.Scale(
+            font_frame, from_=MIN_FONT_SIZE, to=MAX_FONT_SIZE,
+            orient=tk.HORIZONTAL, variable=self.font_size_var,
+            command=self._on_font_size_change, showvalue=False,
+            length=max(180, int(self.window_size * 0.25))
+        )
+        self.font_size_scale.pack(side=tk.LEFT)
+        self.font_size_value_label = tk.Label(font_frame, width=3, text=str(self.font_size))
+        self.font_size_value_label.pack(side=tk.LEFT, padx=(2, 5))
 
         # Toggle for the 'filter_reason' field carried by entries in the
         # *-filtered datasets (created by create_megaman_json_data.py's
@@ -464,6 +482,13 @@ class TileViewer(tk.Tk):
         self.geometry(f"{wanted_w}x{wanted_h}+{x}+{y}")
         self.minsize(480, 320)
         self.resizable(True, True)
+
+    def _on_font_size_change(self, value):
+        """Apply the slider value immediately to the visible grid."""
+        self.font_size = int(float(value))
+        self.font_size_value_label.config(text=str(self.font_size))
+        if self.dataset:
+            self.redraw()
 
     def bind_keys(self):
         self.bind("<Right>", lambda e: self.next_sample())
@@ -831,14 +856,14 @@ class TileViewer(tk.Tk):
             return [[(x1, y1), (x2, y1), (x2, y2), (x1, y2)]]  # full square
 
     def update_tile_and_canvas_size(self, scene):
-        """Update tile_size and canvas size so the level fits perfectly inside the window."""
+        """Size tiles from the font while keeping the scene within the window."""
         height = len(scene)
         width = len(scene[0])
         tile_size_h = int(self.window_size // height)
         tile_size_w = int(self.window_size // width)
-        self.tile_size = min(tile_size_h, tile_size_w)
+        max_tile_size = self.font_size * FONT_TO_TILE_RATIO
+        self.tile_size = min(tile_size_h, tile_size_w, max_tile_size)
         self.canvas.config(width=self.tile_size * width, height=self.tile_size * height)
-        self.font_size = max(self.tile_size // 3, 6)  # smaller font relative to tile size
 
     # --- Real source-image view (MM2 only) ---------------------------------
     def show_real_image(self):
@@ -923,16 +948,16 @@ class TileViewer(tk.Tk):
         if astar_dir not in sys.path:
             sys.path.insert(0, astar_dir)
         try:
-            from astar_traversability_check import evaluate
+            from astar_traversability_check import evaluate, RENDER_GAME_TO_TRAV
             from astar_path_visualization import render_info
         except Exception as e:
             print(f"Could not import A* path tools: {e}")
             return None
 
-        # All three Mega Man variants (Simple/Full/Maker) share one traversability
-        # target name, "MM"; every other game uses its own render_name as-is.
+        # MM-Simple/Full share the "MM" traversability target; MMLV gets its own so A*
+        # can use the scene's spawn/exit tiles. Other games use render_name as-is.
         config = self._game_config()
-        trav_game = "MM" if config["is_megaman"] else config["render_name"]
+        trav_game = RENDER_GAME_TO_TRAV.get(config["render_name"], config["render_name"])
         try:
             ok, stats, info = evaluate(trav_game, scene, self.id_to_char,
                                        self.tile_descriptors, 100000, False, visualize=True)
@@ -943,8 +968,9 @@ class TileViewer(tk.Tk):
             print("No A* path to draw for this scene.")
             return None
         print(f"A* path: {'traversable' if ok else 'NOT traversable'}  ({stats})")
-        # game doubles as the render-target name render_info expects.
-        return render_info(scene, game, info)
+        # Render with the selected game's own tileset (the Mega Man variants share
+        # one traversability target but each renders with its own tiles).
+        return render_info(scene, config["render_name"], info)
 
     def _astar_path_for_scene(self, scene, spawn=None, orb=None):
         """Run A* on a single scene and return (pil_image_or_None, solved, stats).

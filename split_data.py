@@ -10,6 +10,45 @@ from captions.MM_caption_match import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
 """
 COMMAND LINE: python split_data.py --json_file SMB1_LevelsAndCaptions-regular-test.json --train_pct 0.8 --val_pct 0.1 --test_pct 0.1
 """
+
+# Keys holding deterministically generated captions: "caption" is the legacy single caption,
+# "deterministic_captions" the list written by --caption-mode keyed. These are the only captions
+# worded from the fixed topic vocabulary, so they are the only ones coverage can be checked
+# against; captions under any other key come from an LLM, which words scenes freely.
+DETERMINISTIC_CAPTION_KEYS = ("caption", "deterministic_captions")
+
+
+def caption_text(entry, caption_key):
+    """Lowercased text of one entry's captions under caption_key.
+
+    The key holds either a single caption string ("caption") or a list of them
+    ("deterministic_captions"); an entry lacking the key contributes no text.
+    """
+    value = entry.get(caption_key)
+    if isinstance(value, str):
+        return value.lower()
+    if isinstance(value, list):
+        return " ".join(str(item) for item in value).lower()
+    return ""
+
+
+def detect_caption_key(dataset):
+    """Which deterministic caption key the dataset uses, or None if it carries neither.
+
+    Datasets captioned in "legacy" mode carry a "caption" string; "keyed" mode stores a list under
+    "deterministic_captions" instead. None means the dataset has only LLM-written captions (or no
+    captions), which coverage cannot be checked against.
+    """
+    present = set()
+    for entry in dataset:
+        if isinstance(entry, dict):
+            present.update(entry.keys())
+    for key in DETERMINISTIC_CAPTION_KEYS:
+        if key in present:
+            return key
+    return None
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Split a levels+captions dataset into train/val/test sets.")
     parser.add_argument("--json_file", type=str, required=True, help="Path to dataset JSON file")
@@ -59,24 +98,30 @@ def split_dataset(json_path, train_pct, val_pct, test_pct):
     return train_path, val_path, test_path
 
 
-def verify_coverage(required_structures):
+def verify_coverage(required_structures, caption_key):
     """
     Verifies that each split contains the required structures. If a split is missing a required structure,
     swaps entries from other splits to ensure coverage.
 
     Args:
-        dataset (list): The full dataset.
-        train_split (list): The training split.
-        val_split (list): The validation split.
-        test_split (list): The test split.
         required_structures (list): List of required structures to verify.
+        caption_key (str or None): Deterministic caption key the dataset uses (see
+            detect_caption_key). None means there is none to check against, so the check is
+            skipped instead of reporting every structure as missing.
 
     Returns:
         tuple: Updated train, validation, and test splits.
     """
-    
     # Split the dataset
     train_path, val_path, test_path = split_dataset(args.json_file, args.train_pct, args.val_pct, args.test_pct)
+
+    # Without deterministic captions there is no fixed vocabulary to look for, so there is
+    # nothing meaningful to enforce and every structure would otherwise report as missing.
+    if caption_key is None:
+        keys = " or ".join(f"'{key}'" for key in DETERMINISTIC_CAPTION_KEYS)
+        print("No deterministic captions found, no coverage check performed.")
+        required_structures = []
+
     
     def check_coverage(split, required_structures):
         """Checks which required structures are present in a split."""
@@ -84,7 +129,7 @@ def verify_coverage(required_structures):
             structure: False for structure in required_structures
         }
         for entry in split:
-            caption = entry.get("caption", "").lower()
+            caption = caption_text(entry, caption_key)
             for structure in required_structures:
                 if structure in caption:
                     structure_flags[structure] = True
@@ -93,7 +138,7 @@ def verify_coverage(required_structures):
     def find_and_swap(source_split, target_split, missing_structure):
         """Finds an entry with the missing structure in the source split and swaps it with an entry in the target split."""
         for i, entry in enumerate(source_split):
-            caption = entry.get("caption", "").lower()
+            caption = caption_text(entry, caption_key)
             if missing_structure in caption:
                 # Swap the entry
                 target_split.append(source_split.pop(i))
@@ -116,7 +161,7 @@ def verify_coverage(required_structures):
     coverable = []
     for structure in required_structures:
         total = sum(1 for split in splits.values() for entry in split
-                    if structure in (entry.get("caption") or "").lower())
+                    if structure in caption_text(entry, caption_key))
         if total < len(splits):
             where = "absent from the dataset" if total == 0 else f"present in only {total} entries"
             print(f"WARNING: required structure '{structure}' is {where}; it cannot be placed "
@@ -153,11 +198,11 @@ def verify_coverage(required_structures):
 
     return splits["train"], splits["val"], splits["test"]
 
-def upside_down_pipes(dataset):
+def upside_down_pipes(dataset, caption_key):
     """Checks for upside-down pipes in the dataset.
     Returns True if any upside-down pipes are found, False otherwise."""
     for entry in dataset:
-        caption = entry.get("caption", "").lower()
+        caption = caption_text(entry, caption_key)
         if "upside down pipe" in caption:
             return True
     return False
@@ -165,13 +210,16 @@ def upside_down_pipes(dataset):
 if __name__ == "__main__":
     args = parse_args()
     random.seed(args.seed)
+    with open(args.json_file, 'r', encoding='utf-8') as f:
+        full_dataset = json.load(f)
+    # Where the deterministic captions live, since --caption-mode keyed stores them under
+    # "deterministic_captions" instead of "caption".
+    caption_key = detect_caption_key(full_dataset)
     # Choose the correct topic keywords based on the game
     if args.game.lower() == "mario":
         required_structures = MARIO_TOPIC_KEYWORDS
         required_structures = [kw for kw in required_structures if "broken" not in kw]
-        with open(args.json_file, 'r') as f:
-            full_dataset = json.load(f)
-        if not upside_down_pipes(full_dataset):
+        if not upside_down_pipes(full_dataset, caption_key):
             required_structures = [kw for kw in required_structures if "upside down pipe" not in kw]
     elif args.game.lower() == "loderunner" or args.game.lower() == "lr":
         required_structures = LR_TOPIC_KEYWORDS
@@ -184,4 +232,4 @@ if __name__ == "__main__":
         required_structures = []
     else:
         raise ValueError("Unsupported game specified")
-    train_split, val_split, test_split = verify_coverage(required_structures)
+    train_split, val_split, test_split = verify_coverage(required_structures, caption_key)

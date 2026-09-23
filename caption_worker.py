@@ -23,7 +23,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from llm_ascii_to_caption import DEFAULT_MODELS, llm_caption
+from llm_ascii_to_caption import DEFAULT_MODELS, TokenUsage, llm_caption
+from util.token_tracking import log_run as log_token_run
 
 
 def get_work(coordinator: str, worker_id: str, llm: str, model: str, n: int) -> dict:
@@ -114,6 +115,26 @@ def main():
     )
 
     done_count = 0
+    # Backend-reported token totals for this worker's lifetime, so each machine in a
+    # distributed run reports what it actually spent.
+    worker_usage = TokenUsage()
+    worker_usage_scenes = 0
+    start_time = time.time()
+
+    def report_worker_usage():
+        print(f"[worker {worker_id}] Token usage for this worker: "
+              f"{worker_usage.summary(worker_usage_scenes)}")
+        # One row per worker process, in the same token_usage.csv a single-machine run
+        # writes. The game/dataset columns stay blank here: a worker is handed individual
+        # scenes by the coordinator and never sees which dataset they came from.
+        log_token_run(
+            usage=worker_usage,
+            scenes=worker_usage_scenes,
+            started_at=start_time,
+            args=args,
+            script="caption_worker",
+            extra={"model": model, "worker_id": worker_id},
+        )
 
     while True:
         try:
@@ -166,6 +187,7 @@ def main():
                 f"with {model}..."
             )
 
+            scene_usage = TokenUsage()
             try:
                 captions = llm_caption(
                     item["scene_str"],
@@ -177,8 +199,11 @@ def main():
                     num_captions=item["num_captions"],
                     vocab_extra=item.get("prompt_vocab", []),
                     rule_extra=item.get("prompt_rules", []),
+                    usage=scene_usage,
                 )
             except Exception as exc:
+                # A failed scene still burned whatever it spent before blowing up.
+                worker_usage.add(scene_usage)
                 # Do not kill the worker. The coordinator's lease will eventually
                 # reclaim this job if it remains assigned.
                 print(
@@ -186,6 +211,13 @@ def main():
                     "Continuing with the next job."
                 )
                 continue
+
+            worker_usage.add(scene_usage)
+            worker_usage_scenes += 1
+            print(
+                f"[worker {worker_id}] Scene {index} tokens: {scene_usage.summary()} "
+                f"| worker total: {worker_usage.summary(worker_usage_scenes)}"
+            )
 
             if len(captions) != item["num_captions"]:
                 print(
@@ -222,12 +254,15 @@ def main():
                         f"[worker {worker_id}] Coordinator sent the final shutdown message. "
                         "Exiting cleanly."
                     )
+                    report_worker_usage()
                     return
             else:
                 print(
                     f"[worker {worker_id}] Coordinator did not accept scene {index}: "
                     f"{result.get('error', 'unknown error')}"
                 )
+
+    report_worker_usage()
 
 
 if __name__ == "__main__":

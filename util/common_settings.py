@@ -48,7 +48,7 @@ MM_SIMPLE_TILESET = 'Game_MM/MM-Simple-tileset.json'
 
 # Mega Man Maker (MMLV) shares Mega Man's scene shape and pixel dim, but its tileset is the
 # full VGLC set plus the conveyor-belt tiles ('>' / 'E'), so it has 2 extra tile types.
-MMLV_TILE_COUNT = 51
+MMLV_TILE_COUNT = 52
 MMLV_TILESET = 'Game_MMLV/MMLV.json'
 
 # The single master metadata sidecar for downloaded Mega Man Maker levels: a global file in

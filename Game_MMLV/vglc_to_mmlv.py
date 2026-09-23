@@ -156,6 +156,18 @@ def fan(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def checkpoint(x: int, y: int) -> List[str]:
+    # Checkpoint / respawn marker, gimmick id 46. Verified d6/e46 against a labelled test level.
+    # A standard (non-oriented) checkpoint: the orientation is the 'q' field (absent = standard,
+    # q=3 horizontal, q=2 vertical), which the single 'X' checkpoint tile doesn't distinguish, so
+    # the reverse always emits the standard one.
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="46.000000"',
+        f'd{x},{y}="6.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def rising_platform(x: int, y: int) -> List[str]:
     # Rising platform, gimmick id 10: a 2-wide solid block that rises. Verified d6/e10 against a
     # labelled test level. Emits the real e10 object; since it is multi-tile (2-wide, see
@@ -483,6 +495,7 @@ CHAR_MAP = {
     'E': conveyor_left,
     'F': falling_platform,
     'x': fan,
+    'X': checkpoint,
     's': spring,
     'G': fire_emitter_right,
     'J': fire_emitter_left,
