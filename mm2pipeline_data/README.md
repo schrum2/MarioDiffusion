@@ -75,7 +75,9 @@ REM    up automatically from the input folder (or pass --metadata explicitly).
 python -m mm2pipeline_data dataset build --input out\ascii --output_folder dataset.json --sliding_window --stride 20
 
 REM    Useful options: --no-strip_goal (leave the flagpoles in), --window_h/--window_w,
-REM    --min_tiles_pct (drop mostly-air windows; rejects go to *_dropped.json),
+REM    --filters (pick which filters run, or 'none'), --min_tiles_pct /
+REM    --max_solid_pct / --min_playable_tiles (their thresholds; every
+REM    rejected window goes to *-filtered.json tagged with its filter_reasons),
 REM    --with_images (crop the matching PNG slice per sample),
 REM    --captions (fold in deterministic captions; add --build_tokenizer for the .pkl).
 

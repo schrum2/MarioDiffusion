@@ -218,6 +218,91 @@ def count_non_air_tiles(scene, empty_id, extra_id):
     )
 
 
+# Copied from create_megaman_json_data.py so both games filter the same way.
+def border_flood_fill_count(scene, blocking_ids, void_ids=frozenset()):
+    """ 
+    Count how many tiles are reachable by a fill seeded from
+    every open tile the player could enter the scene from.
+
+    Used to filter out scenes that are completely blocked in
+    """
+    height = len(scene)
+    width = len(scene[0]) if height else 0
+    if not width:
+        return 0
+
+    visited = [[False] * width for _ in range(height)]
+    stack = []
+
+    def seed(x, y):
+        if not visited[y][x] and scene[y][x] not in blocking_ids:
+            visited[y][x] = True
+            stack.append((x, y))
+
+    # Literal grid border: ceiling, floor, and the left/right columns.
+    for x in range(width):
+        seed(x, 0)
+        seed(x, height - 1)
+    for y in range(height):
+        seed(0, y)
+        seed(width - 1, y)
+
+    # Openings onto the off-screen void: any open tile next to null padding is also an
+    # entrance (e.g. an open ceiling sitting under padding rows, or padding along a side).
+    if void_ids:
+        for y in range(height):
+            for x in range(width):
+                if scene[y][x] in void_ids:
+                    for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                        if 0 <= nx < width and 0 <= ny < height:
+                            seed(nx, ny)
+
+    count = 0
+    while stack:
+        x, y = stack.pop()
+        count += 1
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if 0 <= nx < width and 0 <= ny < height and not visited[ny][nx]                     and scene[ny][nx] not in blocking_ids:
+                visited[ny][nx] = True
+                stack.append((nx, ny))
+    return count
+
+
+# Most fundamental reason first, like create_megaman_json_data.py.
+FILTER_REASONS = ("insufficient_playable_area", "mostly_solid", "low_content")
+
+
+def detect_wall_ids(tileset_path, tile_to_id):
+    # Solid tiles that aren't platforms: what blocks the fill, and what
+    # --max_solid_pct counts. Read from tags so another tileset still works.
+    with open(tileset_path, encoding="utf-8") as f:
+        tiles = json.load(f)["tiles"]
+    return {tile_to_id[ch] for ch, tags in tiles.items()
+            if ch in tile_to_id and "solid" in tags
+            and "platform" not in tags and "passable" not in tags}
+
+
+def scene_filter_reasons(scene, active, wall_ids, void_ids, empty_id, extra_id,
+                         min_tiles, min_playable, max_solid):
+    """Every reason to cut this window, in FILTER_REASONS order. An empty list
+    means keep it. `active` is the subset of FILTER_REASONS to check."""
+    reasons = []
+    cells = len(scene) * len(scene[0]) if scene else 0
+
+    if "insufficient_playable_area" in active and min_playable > 0:
+        # Padding blocks the fill, but is also a way in from off the level
+        if border_flood_fill_count(scene, wall_ids | void_ids, void_ids) < min_playable:
+            reasons.append("insufficient_playable_area")
+    if "mostly_solid" in active and max_solid is not None and cells:
+        # Share of the whole window, so half sky and half rock doesn't count
+        walls = sum(1 for row in scene for tid in row if tid in wall_ids)
+        if walls >= (max_solid / 100.0) * cells:
+            reasons.append("mostly_solid")
+    if "low_content" in active and count_non_air_tiles(scene, empty_id, extra_id) < min_tiles:
+        reasons.append("low_content")
+    return reasons
+
+
 def parse_source_file(file_path):
     """
     Split a file into per-level row lists keyed by their "(source_num)" header,
@@ -517,12 +602,23 @@ def main_build(argv=None):
                         help="Drop samples where non-air tiles (sky and unknown "
                              "tiles don't count) make up less than this percent of "
                              "the window. Default: 7 (i.e. 7%%).")
-    parser.add_argument("--dropped_output", default=None,
+    parser.add_argument("--filters", nargs="+", default=list(FILTER_REASONS),
+                        choices=list(FILTER_REASONS) + ["none"],
+                        help="Which filters to run. Default: all of them. Pass "
+                             "'none' to keep every window.")
+    parser.add_argument("--max_solid_pct", type=float, default=90.0,
+                        help="Filter windows that are this percent solid wall or "
+                             "more. Default: 90.")
+    parser.add_argument("--min_playable_tiles", type=int, default=10,
+                        help="Filter windows where a fill from the border reaches "
+                             "fewer open tiles than this, which catches sealed-in "
+                             "scenes. 0 disables the check. Default: 10.")
+    parser.add_argument("--filtered_output", default=None,
                         help="Where to write a second dataset holding the samples "
-                             "rejected by --min_tiles_pct. Default: '<output>_dropped.json'. "
-                             "Pass --no_dropped to skip writing it.")
-    parser.add_argument("--no_dropped", action="store_true",
-                        help="Don't write the 'dropped' dataset of below-min_tiles_pct samples.")
+                             "the filters rejected. Default: '<output>-filtered.json'. "
+                             "Pass --no_filtered to skip writing it.")
+    parser.add_argument("--no_filtered", action="store_true",
+                        help="Don't write the filtered dataset.")
     parser.add_argument("--allow_sliced_objects", action="store_true",
                         help="Keep window positions that cut an object in half. Off "
                              "by default, since those samples teach the model that "
@@ -597,7 +693,9 @@ def main_build(argv=None):
     if args.convert_to_vglc:
         converter_mod = load_repo_module("ascii_to_vglc.py", "ascii_to_vglc")
 
-    keep_dropped = not args.no_dropped
+    keep_dropped = not args.no_filtered
+    wall_ids = detect_wall_ids(tileset_path, tile_to_id)
+    active_filters = set() if "none" in args.filters else set(args.filters)
 
     # --with_images setup: locate the rendered PNGs and a place to write crops.
     Image = None
@@ -623,16 +721,17 @@ def main_build(argv=None):
         # Crops for the dropped dataset go in a parallel sibling folder so they
         # never get mixed in with the real samples.
         if keep_dropped:
-            dropped_image_out_dir = image_out_dir.parent / f"{image_out_dir.name}_dropped"
+            dropped_image_out_dir = image_out_dir.parent / f"{image_out_dir.name}_filtered"
             dropped_image_out_dir.mkdir(parents=True, exist_ok=True)
 
     input_files = collect_input_files(args.input)
     level_metadata = load_level_metadata(args.metadata, args.input)
     dataset = []
-    dataset_dropped = []     # samples rejected by --min_tiles, kept for inspection
+    dataset_dropped = []     # samples the filters rejected, kept for inspection
+    reason_counts = {r: 0 for r in FILTER_REASONS}
     processed = 0
     skipped = 0
-    dropped_min_samples = 0  # samples set aside for being under --min_tiles
+    dropped_min_samples = 0  # samples the filters set aside
     windows_sliced = 0       # positions skipped to keep objects whole
     objects_cropped = 0      # half-objects wiped by the level's vertical crop
     levels_without_boxes = 0  # levels whose metadata has no boxes yet
@@ -677,6 +776,9 @@ def main_build(argv=None):
                     while rows and not rows[0].strip():
                         rows.pop(0)
                     if len(rows) > WINDOW_H:
+                        # TODO: always the bottom 20 rows, so a 27 row level
+                        # loses its top 7, about a fifth of which is real tiles.
+                        # Own issue -- changing it moves every window.
                         rows = rows[-WINDOW_H:]
                     empty_char = default_empty_char
                     # That crop cuts across the level, so it can halve an object
@@ -734,19 +836,26 @@ def main_build(argv=None):
                         if level_img is not None:
                             level_img.close()
                         continue
-                    # Split the windows: enough non-air tiles -> keep, otherwise
-                    # set aside for the dropped dataset.
+                    # Split the windows: no filter reasons -> keep, otherwise set
+                    # aside with the reasons for the filtered dataset.
                     kept = []
                     dropped_windows = []
                     for x, scene in windows:
-                        if count_non_air_tiles(scene, empty_id, extra_id) >= min_tiles:
-                            kept.append((x, scene))
+                        reasons = scene_filter_reasons(
+                            scene, active_filters, wall_ids, {extra_id}, empty_id, extra_id,
+                            min_tiles, args.min_playable_tiles, args.max_solid_pct)
+                        if reasons:
+                            dropped_windows.append((x, scene, reasons))
+                            # A window can trip several, so these sum higher
+                            for r in reasons:
+                                reason_counts[r] += 1
                         else:
-                            dropped_windows.append((x, scene))
+                            kept.append((x, scene))
                     dropped_min_samples += len(dropped_windows)
-                    dropped_samples = [(f"{full_name}_{i}", x, scene) for i, (x, scene) in enumerate(dropped_windows)]
+                    # Numbered on their own, so these don't match the dataset's
+                    dropped_samples = [(f"{full_name}_{i}", x, scene, r) for i, (x, scene, r) in enumerate(dropped_windows)]
                     samples = [(f"{full_name}_{i}", x, scene) for i, (x, scene) in enumerate(kept)]
-                    suffix = f", {len(dropped_windows)} under {min_tiles} tiles dropped" if dropped_windows else ""
+                    suffix = f", {len(dropped_windows)} filtered" if dropped_windows else ""
                     print(f"  [OK] {full_name} ({len(samples)} windows{suffix})")
                 else:
                     scene, best_x = extract_best_window(rows, tile_to_id, extra_tile=extra_tile, empty_char=empty_char)
@@ -756,10 +865,15 @@ def main_build(argv=None):
                         if level_img is not None:
                             level_img.close()
                         continue
-                    if count_non_air_tiles(scene, empty_id, extra_id) < min_tiles:
-                        print(f"  [OK] {full_name} (under {min_tiles} tiles, dropped)")
+                    reasons = scene_filter_reasons(
+                        scene, active_filters, wall_ids, {extra_id}, empty_id, extra_id,
+                        min_tiles, args.min_playable_tiles, args.max_solid_pct)
+                    if reasons:
+                        print(f"  [OK] {full_name} (filtered: {', '.join(reasons)})")
                         dropped_min_samples += 1
-                        dropped_samples = [(full_name, best_x, scene)]
+                        for r in reasons:
+                            reason_counts[r] += 1
+                        dropped_samples = [(full_name, best_x, scene, reasons)]
                     else:
                         samples = [(full_name, best_x, scene)]
                         print(f"  [OK] {full_name}")
@@ -774,13 +888,14 @@ def main_build(argv=None):
                     dataset.append(entry)
 
                 if keep_dropped:
-                    for sample_name, x, scene in dropped_samples:
+                    for sample_name, x, scene, reasons in dropped_samples:
                         entry, saved = build_sample_entry(
                             sample_name, x, scene, args.with_images, Image,
                             level_img, ppt, dropped_image_out_dir, file_stem,
                             meta=file_meta, blanked=blanked)
                         if saved:
                             dropped_images_saved += 1
+                        entry["filter_reasons"] = reasons
                         dataset_dropped.append(entry)
 
                 processed += len(samples)
@@ -809,19 +924,19 @@ def main_build(argv=None):
 
     # Save the companion "dropped" dataset of below-min_tiles_pct samples.
     dropped_file = None
-    if keep_dropped:
-        if args.dropped_output:
-            dropped_file = Path(args.dropped_output)
+    if keep_dropped and dataset_dropped:
+        if args.filtered_output:
+            dropped_file = Path(args.filtered_output)
         else:
-            dropped_file = output_file.parent / f"{output_file.stem}_dropped{output_file.suffix}"
+            dropped_file = output_file.parent / f"{output_file.stem}-filtered{output_file.suffix}"
         dropped_file.parent.mkdir(parents=True, exist_ok=True)
         with open(dropped_file, "w", encoding="utf-8") as f:
             json.dump(dataset_dropped, f, indent=2)
 
     print(f"\nCompleted! Packaged {processed} items into {output_file} ({skipped} skipped).")
     if dropped_min_samples:
-        print(f"Dropped for --min_tiles_pct ({args.min_tiles_pct:g}%, "
-              f"{min_tiles} tiles): {dropped_min_samples} sample(s).")
+        tally = ", ".join(f"{r}={reason_counts[r]}" for r in FILTER_REASONS)
+        print(f"Filtered {dropped_min_samples} sample(s) ({tally}).")
     if windows_sliced:
         print(f"Skipped {windows_sliced} window(s) that would have cut an object in half.")
     if objects_cropped:
@@ -829,13 +944,13 @@ def main_build(argv=None):
     if levels_without_boxes:
         print(f"{levels_without_boxes} level(s) had no object boxes and went unchecked; "
               f"re-run 'json-to-ascii' to refresh the metadata.")
-    if keep_dropped:
-        print(f"Dropped dataset: {len(dataset_dropped)} sample(s) written to {dropped_file}.")
+    if dropped_file:
+        print(f"Filtered dataset: {len(dataset_dropped)} sample(s) written to {dropped_file}.")
     if args.with_images:
         print(f"Image crops: {images_saved} saved to {image_out_dir} "
               f"({images_missing} level(s) had no image on this machine).")
         if keep_dropped:
-            print(f"Dropped image crops: {dropped_images_saved} saved to {dropped_image_out_dir}.")
+            print(f"Filtered image crops: {dropped_images_saved} saved to {dropped_image_out_dir}.")
 
     # Build the caption tokenizer from what we just captioned, so a captioned
     # dataset and its vocabulary come out of a single build.
