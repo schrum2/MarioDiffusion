@@ -787,9 +787,7 @@ def main_build(argv=None):
                     while rows and not rows[0].strip():
                         rows.pop(0)
                     if len(rows) > WINDOW_H:
-                        # TODO: always the bottom 20 rows, so a 27 row level
-                        # loses its top 7, about a fifth of which is real tiles.
-                        # Own issue -- changing it moves every window.
+                        # Bottom rows: any other band cuts the floor off
                         rows = rows[-WINDOW_H:]
                     empty_char = default_empty_char
                     # That crop cuts across the level, so it can halve an object
