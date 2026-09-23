@@ -55,9 +55,22 @@ _PIPE_DIR_CHAR = {'R': '→', 'L': '←', 'U': '↑', 'D': '↓'}
 # ---------------------------------------------------------------------------
 # Tile size helper — uses w/h from JSON directly (already tile counts)
 # ---------------------------------------------------------------------------
+# toost draws these at a constant size and never sizes them by the record's
+# w/h, so those fields aren't a footprint -- the clown car only reads h to shift
+# itself up. Sizes taken from LevelDrawer.cpp's object switch.
+_FIXED_SIZE = {
+    "Clown Car": (2, 2),
+    "Lakitu Cloud": (2, 1),
+    "Lakitu's Cloud": (2, 1),
+}
+
+
 def obj_tile_size(obj: dict):
     """(w, h) in tiles. Pipes use h as length regardless of direction; the
     cross-section is always 2."""
+    fixed = _FIXED_SIZE.get(obj.get("name"))
+    if fixed:
+        return fixed
     if obj.get("name") == "Pipe":
         direction = _pipe_direction(obj.get("flag", 0))
         length = max(1, obj.get("h", 1))
@@ -217,19 +230,31 @@ def build_ascii_grid(level):
             grid[max_ty - 1 - row_game][col] = ch
 
     BG_TYPES = {"Semisolid Platform","Mushroom Platform"}
+    # Terrain goes down before the objects standing on it. Ground used to be
+    # painted last (normalize_level appends it) and was cutting holes in
+    # anything it overlapped, e.g. the bottom rows of a saw sitting on a floor.
+    TERRAIN_TYPES = {"Ground","Goal"}
 
-    for pass_n in range(2):
-        for obj in objects:
+    # Smallest first inside a layer, so a 1x1 can't punch a hole in something
+    # bigger. A coin that lands inside another object's box wasn't placed there
+    # in the editor anyway, but a broken pipe reads as the wrong shape.
+    order = sorted(objects, key=lambda o: obj_tile_size(o)[0] * obj_tile_size(o)[1])
+
+    for pass_n in range(3):
+        for obj in order:
             obj_name = obj.get("name","_unknown")
 
             # No glyph -> dropped (an empty string would misalign the row).
             if obj_name in ASCII_DROP:
                 continue
 
-            is_bg = obj_name in BG_TYPES
-            if pass_n == 0 and not is_bg:
-                continue
-            if pass_n == 1 and is_bg:
+            if obj_name in BG_TYPES:
+                layer = 0
+            elif obj_name in TERRAIN_TYPES:
+                layer = 1
+            else:
+                layer = 2
+            if layer != pass_n:
                 continue
 
             char,_,_ = get_meta(resolve_obj_name(obj_name, level.get("gamestyle_raw", 0)))

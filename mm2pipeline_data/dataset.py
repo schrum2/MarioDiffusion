@@ -273,8 +273,8 @@ FILTER_REASONS = ("insufficient_playable_area", "mostly_solid", "low_content")
 
 
 def detect_wall_ids(tileset_path, tile_to_id):
-    # Solid tiles that aren't platforms: what blocks the fill, and what
-    # --max_solid_pct counts. Read from tags so another tileset still works.
+    # What the fill can't get through. Platforms are out: you can stand on a
+    # semisolid or jump up through it. Read from tags so another tileset works.
     with open(tileset_path, encoding="utf-8") as f:
         tiles = json.load(f)["tiles"]
     return {tile_to_id[ch] for ch, tags in tiles.items()
@@ -282,8 +282,18 @@ def detect_wall_ids(tileset_path, tile_to_id):
             and "platform" not in tags and "passable" not in tags}
 
 
-def scene_filter_reasons(scene, active, wall_ids, void_ids, empty_id, extra_id,
-                         min_tiles, min_playable, max_solid):
+def detect_bulk_ids(tileset_path, tile_to_id):
+    # What --max_solid_pct counts: terrain you can't see past. Platforms are in
+    # here even though you can pass them -- a window that is nearly all
+    # semisolid slab is as empty of interest as one that is nearly all ground.
+    with open(tileset_path, encoding="utf-8") as f:
+        tiles = json.load(f)["tiles"]
+    return {tile_to_id[ch] for ch, tags in tiles.items()
+            if ch in tile_to_id and ("solid" in tags or "platform" in tags)}
+
+
+def scene_filter_reasons(scene, active, wall_ids, bulk_ids, void_ids, empty_id,
+                         extra_id, min_tiles, min_playable, max_solid):
     """Every reason to cut this window, in FILTER_REASONS order. An empty list
     means keep it. `active` is the subset of FILTER_REASONS to check."""
     reasons = []
@@ -295,8 +305,8 @@ def scene_filter_reasons(scene, active, wall_ids, void_ids, empty_id, extra_id,
             reasons.append("insufficient_playable_area")
     if "mostly_solid" in active and max_solid is not None and cells:
         # Share of the whole window, so half sky and half rock doesn't count
-        walls = sum(1 for row in scene for tid in row if tid in wall_ids)
-        if walls >= (max_solid / 100.0) * cells:
+        bulk = sum(1 for row in scene for tid in row if tid in bulk_ids)
+        if bulk >= (max_solid / 100.0) * cells:
             reasons.append("mostly_solid")
     if "low_content" in active and count_non_air_tiles(scene, empty_id, extra_id) < min_tiles:
         reasons.append("low_content")
@@ -695,6 +705,7 @@ def main_build(argv=None):
 
     keep_dropped = not args.no_filtered
     wall_ids = detect_wall_ids(tileset_path, tile_to_id)
+    bulk_ids = detect_bulk_ids(tileset_path, tile_to_id)
     active_filters = set() if "none" in args.filters else set(args.filters)
 
     # --with_images setup: locate the rendered PNGs and a place to write crops.
@@ -842,7 +853,7 @@ def main_build(argv=None):
                     dropped_windows = []
                     for x, scene in windows:
                         reasons = scene_filter_reasons(
-                            scene, active_filters, wall_ids, {extra_id}, empty_id, extra_id,
+                            scene, active_filters, wall_ids, bulk_ids, {extra_id}, empty_id, extra_id,
                             min_tiles, args.min_playable_tiles, args.max_solid_pct)
                         if reasons:
                             dropped_windows.append((x, scene, reasons))
@@ -866,7 +877,7 @@ def main_build(argv=None):
                             level_img.close()
                         continue
                     reasons = scene_filter_reasons(
-                        scene, active_filters, wall_ids, {extra_id}, empty_id, extra_id,
+                        scene, active_filters, wall_ids, bulk_ids, {extra_id}, empty_id, extra_id,
                         min_tiles, args.min_playable_tiles, args.max_solid_pct)
                     if reasons:
                         print(f"  [OK] {full_name} (filtered: {', '.join(reasons)})")
