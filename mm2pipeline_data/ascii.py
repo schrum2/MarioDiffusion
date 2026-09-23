@@ -480,11 +480,11 @@ COALESCE_POLICY = {
     "Swinging Claw":      (_FIXED, 3, 4),   # confirmed
     "Skewer":             (_FIXED, 4, 4),
     "Donut":              (_FIXED, 3, 3),   # id 82 Donut Block Platform
-    "Boom Boom":          (_FIXED, 2, 2),   # assumed
-    "Banzai Bill":        (_FIXED, 2, 2),   # assumed
-    "Angry Sun":          (_FIXED, 2, 2),   # assumed
-    "Clown Car":          (_FIXED, 2, 2),   # assumed
-    "Lakitu's Cloud":     (_FIXED, 2, 1),   # confirmed, 32x16
+    "Boom Boom":          (_FIXED, 2, 2),   # confirmed
+    "Banzai Bill":        (_FIXED, 4, 4),   # confirmed, never smaller
+    "Angry Sun":          (_FIXED, 2, 2),   # confirmed
+    "Clown Car":          (_FIXED, 2, 2),   # confirmed
+    "Lakitu's Cloud":     (_FIXED, 2, 1),   # confirmed
     "Door":               (_FIXED, 1, 2),   # pairing the halves stops mispairing
     # Wiggler/Chain Chomp deliberately absent: 1x1 in real data and often in rows.
     # Bowser Jr. is absent for the same reason. It was assumed to be 2x2, but the
@@ -629,6 +629,11 @@ def coalesce(name, cells, out, ground=None):
 
         if kind == _FIXED:
             fw, fh = policy[1], policy[2]
+            # Twice the footprint each way, filled, is the big form of the
+            # enemy rather than four of them.
+            if (c1 - c0 + 1, r1 - r0 + 1) == (2 * fw, 2 * fh) and len(comp) == 4 * fw * fh:
+                out.append(make_object(name, c0, r0, 2 * fw, 2 * fh))
+                continue
             cr = r0
             while cr <= r1:                # cr is each stamp's bottom row
                 cc = c0

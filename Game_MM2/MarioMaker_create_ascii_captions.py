@@ -389,8 +389,7 @@ def classify_arrangement(cells):
 def big_form_blocks(scene, id_to_char, loose_chars):
     """Find the big variant of an enemy, which paints an exact 2x2 square of its
     glyph, so it reads as one big goomba instead of four normal ones."""
-    # Only captions know this. COALESCE_POLICY and count_structures still split a
-    # big enemy four ways, so the .swe export and the metrics need the same rule.
+    # A lone 2x2 blob is one big enemy about 93% of the time in the data.
     # Bowser Jr.'s policy also has its big form as the base; the real base is 1x1.
     blocks = {}
     for char in sorted(loose_chars):
