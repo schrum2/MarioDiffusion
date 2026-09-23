@@ -691,8 +691,10 @@ class TileViewer(tk.Tk):
         phrase_colors = {}
         if 'details' in sample:
             for phrase in sample['details']:
+                # Phrases open with a capital, so match on the lowered text
+                lowered = phrase.lower()
                 for topic in TOPIC_KEYWORDS:
-                    if topic in phrase:
+                    if topic.lower() in lowered:
                         phrase_colors[phrase] = topic_colors[topic]
                         break  # stop at the first matching topic
         return phrase_colors
@@ -771,7 +773,9 @@ class TileViewer(tk.Tk):
                         coords = []
                         for point in triangles[i]:
                             coords.extend(point)
-                        self.canvas.create_polygon(*coords, fill=phrase_colors[phrase], outline="")
+                        # A phrase no topic matched still has tiles, so grey them
+                        self.canvas.create_polygon(
+                            *coords, fill=phrase_colors.get(phrase, "#999999"), outline="")
 
                 self.canvas.create_text(
                     x * self.tile_size + self.tile_size // 2,
@@ -1097,9 +1101,13 @@ class TileViewer(tk.Tk):
             block_chars = get_block_chars(self.tileset_path)
             solid_chars = get_solid_chars(self.tileset_path)
             loose_chars = get_loose_chars(self.tileset_path)
+            # Only if the stored caption has it, so the two still match.
+            meta = metadata_phrases(sample)
+            if not (meta and str(sample.get('caption', '')).startswith(meta[0])):
+                meta = []
             caption, details = mm2_assign_caption(
                 sample['scene'], self.id_to_char, char_names, ground_chars,
-                meta_phrases=metadata_phrases(sample), debug=True, return_details=True,
+                meta_phrases=meta, debug=True, return_details=True,
                 block_chars=block_chars, solid_chars=solid_chars, loose_chars=loose_chars
             )
 

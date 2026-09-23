@@ -9,7 +9,7 @@ Two subcommands when run as a module:
 headers), crops each level to a WINDOW_H x WINDOW_W window (best window, or every
 window with --sliding_window) and emits a grid of tile ids. Per-level metadata
 (the metadata.json sidecar written by ``mm2pipeline_data.ascii to-ascii``) is folded
-into each sample, the goal can be stripped with --strip_goal, mostly-air windows
+into each sample, the goal is stripped unless --no-strip_goal, mostly-air windows
 are diverted to a companion "dropped" dataset, and --with_images crops the
 matching slice of each level's rendered PNG. ``split`` shuffles a dataset and
 writes -train / -validate / -test files next to it.
@@ -334,7 +334,7 @@ def detect_empty_char(tileset_path):
 def detect_goal_chars(tileset_path):
     # Characters the tileset tags as the level goal/flagpole. Falls back to the
     # native MM2 glyph 'G' when the tileset carries no goal tag (e.g. the
-    # smb/extended tilesets), so --strip_goal still works on raw MM2 input.
+    # smb/extended tilesets), so goal stripping still works on raw MM2 input.
     with open(tileset_path, encoding="utf-8") as f:
         tiles = json.load(f)["tiles"]
     goal = {ch for ch, tags in tiles.items() if "goal" in tags or "flagpole" in tags}
@@ -508,10 +508,11 @@ def main_build(argv=None):
                         help="Collect every window position as a separate sample instead of keeping only the best window.")
     parser.add_argument("--stride", type=int, default=None,
                         help="Step size (in tiles) between windows when --sliding_window is active. Default: the window width (no overlap).")
-    parser.add_argument("--strip_goal", action="store_true",
-                        help="Replace the goal/flagpole tile with air (the empty "
-                             "tile) before windowing, so levels are encoded without "
-                             "their end goal.")
+    parser.add_argument("--strip_goal", action=argparse.BooleanOptionalAction, default=True,
+                        help="Replace the goal/flagpole tiles with air. On by "
+                             "default: the goal belongs to the level, not to a 20 "
+                             "wide slice of it, and ascii-to-json puts one back. "
+                             "Pass --no-strip_goal to leave them in.")
     parser.add_argument("--min_tiles_pct", type=float, default=7.0,
                         help="Drop samples where non-air tiles (sky and unknown "
                              "tiles don't count) make up less than this percent of "
@@ -553,10 +554,11 @@ def main_build(argv=None):
                              "the input folder (or next to a single input file) is "
                              "picked up automatically.")
     parser.add_argument("--captions", action="store_true",
-                        help="Assign a deterministic, rule-based caption to every "
-                             "sample -- a ground/floor summary plus per-tile counts "
-                             "and blob callouts, read from the tileset tags and the "
-                             "level metadata -- and store it in the 'caption' field.")
+                        help="Write a rule-based caption to the 'caption' field: the "
+                             "floor, the shapes built on it, and per-tile counts.")
+    parser.add_argument("--caption_metadata", action="store_true",
+                        help="Prepend the level's style, theme, difficulty and tags. "
+                             "None of it shows up in the tiles.")
     parser.add_argument("--build_tokenizer", action="store_true",
                         help="After captioning, build the caption tokenizer vocabulary "
                              "from the dataset and save it as a .pkl. Requires --captions.")
@@ -802,7 +804,8 @@ def main_build(argv=None):
     if args.captions:
         captioner = load_repo_module(os.path.join("Game_MM2", "MarioMaker_create_ascii_captions.py"),
                                      "MarioMaker_create_ascii_captions")
-        captioner.generate_captions(str(output_file), tileset_path, str(output_file))
+        captioner.generate_captions(str(output_file), tileset_path, str(output_file),
+                                    include_metadata=args.caption_metadata)
 
     # Save the companion "dropped" dataset of below-min_tiles_pct samples.
     dropped_file = None

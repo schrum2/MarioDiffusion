@@ -13,7 +13,7 @@ set SEED=%2
 if "%SEED%"=="" set SEED=0
 
 REM Build a sliding-window dataset from the ASCII levels
-python -m mm2pipeline_data dataset build --input MM2_Data\ascii --output_folder datasets\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --sliding_window --stride 20
+python -m mm2pipeline_data dataset build --input MM2_Data\ascii --output_folder datasets\MM2_Levels-regular.json --tileset Game_MM2\mm2_tileset_we.json --sliding_window --stride 20 --strip_goal
 
 REM Caption every scene with a local Ollama LLM
 python Game_MM2\MarioMaker_llm_captions.py --game MM2 --dataset datasets\MM2_Levels-regular.json --output datasets\MM2_LevelsAndCaptions-regular.json --backend ollama --model %MODEL% --grid-format tokens --num-captions 1 --caption-mode legacy
