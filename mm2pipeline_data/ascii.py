@@ -138,6 +138,7 @@ def obj_anchor(obj: dict):
 # Level normalization + ASCII grid construction
 # ---------------------------------------------------------------------------
 _SLOPE_NAMES = frozenset({"Slight Slope", "Steep Slope"})
+_LAKITU_CLOUD_NAMES = frozenset({"Lakitu Cloud", "Lakitu's Cloud"})
 
 
 def normalize_level(lvl):
@@ -146,6 +147,14 @@ def normalize_level(lvl):
     lvl["_normalized"] = True
 
     objects = lvl.get("objects", [])
+
+    # Lakitus come with their own cloud, so drop that one or it folds to the
+    # clown car and every lakitu ends up sitting in one. A cloud placed on its
+    # own is left alone, since Mario can ride it -- it needs its own tile.
+    ridden = {(o["x"], o["y"]) for o in objects if o.get("name") == "Lakitu"}
+    if ridden:
+        objects = [o for o in objects if o.get("name") not in _LAKITU_CLOUD_NAMES
+                   or (o["x"], o["y"]) not in ridden]
 
     for g in lvl.get("ground", []):
         objects.append({
