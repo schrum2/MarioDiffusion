@@ -74,7 +74,17 @@ if "%TYPE%" NEQ "llm" (
 
 REM LevelsAndCaptions captions come from real scenes. Multi-width datasets automatically recreate
 REM each caption at its source scene's width; single-width datasets keep the old fixed width.
-python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json %DATA_PATH%.json --output_dir samples-from-real-%DATA%-captions --game %GAME% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SOURCE_KEYS_ARG%
+REM LLM captions are only evaluated on the held-out test split.
+REM The output dir name stays the same for LLM data so evaluate_metrics.py still finds it;
+REM caption_source.txt records which file the samples actually came from.
+set REAL_CAPTIONS_JSON=%DATA_PATH%.json
+if /I "%TYPE%"=="llm" set REAL_CAPTIONS_JSON=%TEST_DATA%
+set REAL_CAPTIONS_DIR=samples-from-real-%DATA%-captions
+python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json %REAL_CAPTIONS_JSON% --output_dir %REAL_CAPTIONS_DIR% --game %GAME% %DESCRIBE_ABSENCE_FLAG% %CAPTION_SOURCE_KEYS_ARG%
+if exist "%MODEL_PATH%\%REAL_CAPTIONS_DIR%" (
+    > "%MODEL_PATH%\%REAL_CAPTIONS_DIR%\caption_source.txt" echo Samples generated from captions in: %REAL_CAPTIONS_JSON%
+    if defined CAPTION_SOURCE_KEYS >> "%MODEL_PATH%\%REAL_CAPTIONS_DIR%\caption_source.txt" echo Caption source keys: !CAPTION_SOURCE_KEYS:~1!
+)
 if /I "%COMPARE_CHECKPOINTS%"=="yes" (
     python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json %DATA_PATH%.json --compare_checkpoints --game %GAME% %DESCRIBE_ABSENCE_FLAG%
     python evaluate_caption_adherence.py --model_path %MODEL_PATH% --save_as_json --json %TEST_DATA% --compare_checkpoints --game %GAME% %DESCRIBE_ABSENCE_FLAG%

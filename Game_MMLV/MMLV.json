@@ -35,7 +35,7 @@
         "+": ["passable", "collectable", "powerup"],
         "*": ["passable", "collectable", "powerup"],
         "P": ["passable", "empty", "spawn"],
-        "Z": ["passable", "collectable", "powerup"],
+        "Z": ["passable", "empty", "exit"],
         ">": ["solid", "conveyor"],
         "E": ["solid", "conveyor"],
         "T": ["passable", "movable"],

@@ -35,12 +35,18 @@ import MegaManState as mm
 
 MegaManState = mm.MegaManState
 
+# Mega Man Maker tile chars marking the level's Player Start and exit (orb/balloon).
+# For game "MMLV", A* starts on the spawn tile and ends on the exit tile when the scene
+# has them, and falls back to auto-placing a spawn/orb (like "MM") when it doesn't.
+MMLV_SPAWN_EXIT = ('P', 'Z')
+
 # Default tileset per game (the one each dataset is normally created with).
 DEFAULT_TILESETS = {
     "Mario": common_settings.MARIO_TILESET,
     "MM2": common_settings.MM2_TILESET,
     "LR": common_settings.LR_TILESET,
     "MM": common_settings.MM_SIMPLE_TILESET,
+    "MMLV": common_settings.MMLV_TILESET,
 }
 
 
@@ -322,6 +328,22 @@ def mm_traversable(scene, id_to_char, descs, budget, visualize=False, spawn=None
     return reached, stats, info
 
 
+def find_mmlv_spawn_exit(scene, id_to_char):
+    """Return the (x, y) cells of the MMLV spawn and exit tiles (MMLV_SPAWN_EXIT), each
+    None when absent. Takes the first spawn and the last exit in row-major order, the
+    same picks MegaManState's getSpawnFromVGLC/find_orb make."""
+    spawn_char, exit_char = MMLV_SPAWN_EXIT
+    spawn = exit_ = None
+    for y, row in enumerate(scene):
+        for x, v in enumerate(row):
+            ch = id_to_char[v]
+            if ch == spawn_char and spawn is None:
+                spawn = (x, y)
+            elif ch == exit_char:
+                exit_ = (x, y)
+    return spawn, exit_
+
+
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
@@ -353,8 +375,9 @@ def evaluate(game, scene, id_to_char, descs, budget, allow_weird, visualize=Fals
     """Return (traversable, stats, path_info). path_info is None unless visualize=True
     (or the game short-circuits, e.g. an LR scene with no gold).
 
-    spawn/orb are MM-only optional (x, y) cells used as the start and goal; they are
-    ignored for Mario and LR."""
+    spawn/orb are MM/MMLV-only optional (x, y) cells used as the start and goal; they
+    are ignored for Mario and LR. For MMLV, any not given explicitly are taken from the
+    scene's MMLV_SPAWN_EXIT tiles, and auto-placed only if those are absent too."""
     if game == "Mario":
         return mario_traversable(scene, id_to_char, descs, budget, visualize=visualize)
     if game == "MM2":
@@ -365,6 +388,11 @@ def evaluate(game, scene, id_to_char, descs, budget, allow_weird, visualize=Fals
     if game == "MM":
         return mm_traversable(scene, id_to_char, descs, budget, visualize=visualize,
                               spawn=spawn, orb=orb)
+    if game == "MMLV":
+        tile_spawn, tile_exit = find_mmlv_spawn_exit(scene, id_to_char)
+        return mm_traversable(scene, id_to_char, descs, budget, visualize=visualize,
+                              spawn=tile_spawn if spawn is None else spawn,
+                              orb=tile_exit if orb is None else orb)
     raise ValueError(f"Unknown game: {game}")
 
 
@@ -375,7 +403,7 @@ def untraversable_indices(scenes, game, id_to_char, tile_descriptors,
     Intended for filtering un-winnable level slices out of a generated dataset: feed it
     the encoded scenes plus the same tileset mappings they were encoded with, and remove
     the returned indices (in descending order) from the dataset. game is the
-    evaluate()-style name ("Mario", "LR", "MM")."""
+    evaluate()-style name ("Mario", "LR", "MM", "MMLV")."""
     bad = []
     for idx, scene in enumerate(scenes):
         ok, _stats, _info = evaluate(game, scene, id_to_char, tile_descriptors,
@@ -392,13 +420,13 @@ def _render_target(game, tileset_path):
         if base == os.path.basename(common_settings.MMLV_TILESET):
             return "MMLV"
         return "MM-Full" if base == os.path.basename(common_settings.MM_FULL_TILESET) else "MM-Simple"
-    return game  # "Mario" / "LR"
+    return game  # "Mario" / "LR" / "MMLV"
 
 
 # Render-style game names (as used by run_diffusion and the GUIs) -> the game names
 # evaluate() understands. The render name itself doubles as visualize_path's target.
 RENDER_GAME_TO_TRAV = {"Mario": "Mario", "MM2": "MM2", "LR": "LR",
-                       "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MM"}
+                       "MM-Simple": "MM", "MM-Full": "MM", "MMLV": "MMLV"}
 
 
 def astar_path_image(scene, game, id_to_char, tile_descriptors, budget=100000,
@@ -447,7 +475,7 @@ def main():
     parser = argparse.ArgumentParser(description="Determine Level Traversability")
     parser.add_argument('--level_json', type=str, required=True,
                         help="Path to the JSON file containing the level(s) to evaluate")
-    parser.add_argument('--game', type=str, required=True, choices=["Mario", "MM2", "LR", "MM"],
+    parser.add_argument('--game', type=str, required=True, choices=["Mario", "MM2", "LR", "MM", "MMLV"],
                         help="The game the level belongs to; determines how traversability is measured")
     parser.add_argument('--tileset', type=str, default=None,
                         help="Tileset JSON used to encode the scenes (defaults to the game's standard tileset)")
