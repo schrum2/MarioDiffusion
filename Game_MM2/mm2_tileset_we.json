@@ -73,6 +73,7 @@
         "[" : ["passable", "interactive", "climbable", "vine"],
         "]" : ["passable", "platform", "one way"],
         ";" : ["passable", "vehicle", "clown car"],
+        "C" : ["passable", "vehicle", "lakitu cloud"],
         ")" : ["solid", "hazard", "shooter", "cannon"]
     }
 }

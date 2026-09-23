@@ -22,7 +22,7 @@ python Game_MM2\create_random_test_captions.py --save_file datasets\MM2_RandomTe
 python Game_MM2\split_data.py --json_file datasets\MM2_LevelsAndCaptions-regular.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MM2
 
 set GAME=MM2
-set NUM_TILES=67
+set NUM_TILES=68
 set JSON_TRAIN=datasets\MM2_LevelsAndCaptions-regular-train.json
 set JSON_VAL=datasets\MM2_LevelsAndCaptions-regular-validate.json
 set JSON_TEST=datasets\MM2_LevelsAndCaptions-regular-test.json

@@ -484,6 +484,7 @@ COALESCE_POLICY = {
     "Banzai Bill":        (_FIXED, 2, 2),   # assumed
     "Angry Sun":          (_FIXED, 2, 2),   # assumed
     "Clown Car":          (_FIXED, 2, 2),   # assumed
+    "Lakitu's Cloud":     (_FIXED, 2, 1),   # confirmed, 32x16
     "Door":               (_FIXED, 1, 2),   # pairing the halves stops mispairing
     # Wiggler/Chain Chomp deliberately absent: 1x1 in real data and often in rows.
     # Bowser Jr. is absent for the same reason. It was assumed to be 2x2, but the

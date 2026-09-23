@@ -89,8 +89,8 @@ OBJ_META = {
     "Spiny":               ("s", "#CC2222", CAT_ENEMY),
     "Buzzy Beetle":        ("b", "#334488", CAT_ENEMY),
     "Lakitu":              ("L", "#DDAA00", CAT_ENEMY),
-    "Lakitu's Cloud":      ("Â", "#CCCCAA", CAT_ENEMY),
-    "Lakitu Cloud":        ("Â", "#CCCCAA", CAT_ENEMY),  # decoder's actual name for this object
+    "Lakitu's Cloud":      ("C", "#CCCCAA", CAT_ENEMY),
+    "Lakitu Cloud":        ("C", "#CCCCAA", CAT_ENEMY),  # decoder's actual name for this object
     "Banzai Bill":         ("Z", "#333333", CAT_ENEMY),
     "Bullet Bill Blaster": ("V", "#333333", CAT_ENEMY),
     "Magikoopa":           ("y", "#8844CC", CAT_ENEMY),
@@ -213,8 +213,6 @@ GROUND_CHAR  = "#"
 ASCII_REPLACEMENTS = {
     "Spike Top":               "s",  # → Spiny
     "Fish Bone":               "~",  # → Cheep Cheep
-    "Lakitu's Cloud":          ";",  # → Clown Car
-    "Lakitu Cloud":            ";",  # → Clown Car
     "Jumping Machine":         "J",  # → Spring
     "Mushroom Trampoline":     "J",  # → Spring
     "ON/OFF Trampoline":       "J",  # → Spring

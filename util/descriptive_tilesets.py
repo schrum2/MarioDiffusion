@@ -142,7 +142,7 @@ MM_SIMPLE_TILESET_DICT = {
     }
 }
 
-# Mario Maker 2 tileset: all 67 tiles (MM2_TILE_COUNT in common_settings.py), derived from
+# Mario Maker 2 tileset: all 68 tiles (MM2_TILE_COUNT in common_settings.py), derived from
 # mm2_tileset_we.json's structural tags. Note MM2's tileset has no "spawn" or "null" tagged
 # tile -- unlike MM/MMLV, it doesn't encode player spawn or out-of-bounds space as a grid tile.
 MM2_TILESET_DICT = {
@@ -220,6 +220,7 @@ MM2_TILESET_DICT = {
         "[": "Passable, climbable vine",
         "]": "Passable one-way platform",
         ";": "Passable Clown Car vehicle",
+        "C": "Passable Lakitu's Cloud vehicle",
         ")": "Solid cannon (shoots projectiles)",
     }
 }
