@@ -24,7 +24,7 @@ from util.descriptive_tilesets import GAMES
 CATEGORY_TERMS = {
     "enemy": {"enemy", "enemies", "foe", "foes"},
     "hazard": {"hazard", "hazards", "danger", "dangers", "obstacle", "obstacles", "spikes", "spike", "spiked", "trap", "traps"},
-    "powerup": {"powerup", "powerups", "power", "powers", "collectible", "collectibles", "item", "items", "pickup", "pickups"},
+    "powerup": {"powerup", "powerups", "power", "powers", "item", "items", "pickup", "pickups"}, # "collectible", "collectibles", 
     "platform": {"platform", "platforms"},
     # "block": {"block", "blocks", "brick", "bricks"}, # These are just the general floor tiles. They are so common that specifically mentioning them is not useful.
     "ladder": {"ladder", "ladders"},
@@ -71,7 +71,7 @@ COMBINED_CONCEPTS = {
     "dotted line block": {"dotted-line block", "dotted line block", "dotted block"},
     "fading platform": {"fading platform", "fading platforms"},
     "life energy": {"life energy", "health energy"},
-    "weapon energy": {"weapon energy"},
+    "weapon energy": {"weapon energy", "energy pickup"},
     "extra life": {"extra life", "1 up", "1-up"},
     "magnet beam": {"magnet beam"},
     "yashichi": {"yashichi"},
@@ -79,7 +79,7 @@ COMBINED_CONCEPTS = {
 
 COMBINED_CATEGORY_CONCEPTS = {
     "fire hazard": {
-        "fire hazard", "flame hazard", "fire hazards", "flame hazards", "burner hazard",
+        "fire hazard", "flame hazard", "fire hazards", "flame hazards", "burner hazard", "fire emitter", "flame emitter"
     },
 }
 
@@ -249,7 +249,7 @@ def matching_phrases(description: str, tags: set[str]) -> set[str]:
     for concept, alternatives in COMBINED_CONCEPTS.items():
         if any(phrase_present(tokenize(lowered), alternative) for alternative in alternatives):
             phrases.add(concept)
-    if "disappearing" in lowered or "reappearing" in lowered:
+    if "disappearing" in lowered or "reappearing" in lowered or "flickering platform" in lowered:
         phrases.add("fading platform")
     categories = category_for_tile(description, tags)
     for category, alternatives in SPECIFICITY_PHRASES.items():
@@ -278,7 +278,8 @@ def category_for_tile(description: str, tags: set[str]) -> set[str]:
     is_coin = "coin" in lowered
     is_spring = "spring" in lowered
     is_p_switch = "p switch" in lowered
-    if ("powerup" in tags or "power-up" in tags or "collectable" in tags) and not is_coin and not is_spring and not is_p_switch and not is_platform:
+    # removed: or "collectable" in tags
+    if ("powerup" in tags or "power-up" in tags) and not is_coin and not is_spring and not is_p_switch and not is_platform:
         categories.add("powerup")
     if is_platform or "moving" in tags and "platform" in lowered:
         categories.add("platform")
