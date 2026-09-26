@@ -293,6 +293,24 @@ def category_for_tile(description: str, tags: set[str]) -> set[str]:
     return categories
 
 
+def mm2_entry_categories(entry: dict) -> set:
+    """Liquid from the header. Lava is water that kills you, so either counts."""
+    if (entry.get("theme") == "Underwater" or entry.get("liquid_start_height")
+            or entry.get("liquid_end_height")):
+        return {"water", "lava"}
+    return set()
+
+
+# Only games with something the tiles can't show need one of these.
+ENTRY_CATEGORIES = {"MM2": mm2_entry_categories}
+
+
+def entry_categories(game: str, entry: dict) -> set:
+    """Categories that take from the level header, not its tiles."""
+    hook = ENTRY_CATEGORIES.get(game)
+    return hook(entry) if hook else set()
+
+
 def build_vocabulary(game: str, id_to_char: dict[int, str], tile_descriptors: dict) -> dict:
     """Build category and tile-specific concepts from the registered game tileset."""
     descriptions = GAMES[game]["tiles"]["tiles"]
@@ -315,11 +333,13 @@ def scene_characters(scene: list[list[int]], id_to_char: dict[int, str]) -> Coun
     return Counter(id_to_char[tile] for row in scene for tile in row if tile in id_to_char)
 
 
-def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, str], vocabulary: dict) -> dict:
-    """Return interpretable coverage, precision, and grounding scores in [0, 1]."""
+def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, str], vocabulary: dict,
+                  extra_categories: set | None = None) -> dict:
+    """Return interpretable coverage, precision, and grounding scores in [0, 1].
+    extra_categories are ones the header knows about."""
     tokens = tokenize(caption)
     present = scene_characters(scene, id_to_char)
-    present_categories = set()
+    present_categories = set(extra_categories or ())
     present_tiles = set(present)
     for char in present_tiles:
         present_categories.update(vocabulary["tiles"].get(char, {}).get("categories", set()))
@@ -604,7 +624,8 @@ def main() -> dict:
         for caption in captions:
             if not isinstance(caption, str):
                 continue
-            result = score_caption(caption, entry["scene"], id_to_char, vocabulary)
+            result = score_caption(caption, entry["scene"], id_to_char, vocabulary,
+                                   entry_categories(args.game, entry))
             result["caption"] = caption
             caption_scores.append(result)
             scores.append(result["overall"])

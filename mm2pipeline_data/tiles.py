@@ -89,8 +89,8 @@ OBJ_META = {
     "Spiny":               ("s", "#CC2222", CAT_ENEMY),
     "Buzzy Beetle":        ("b", "#334488", CAT_ENEMY),
     "Lakitu":              ("L", "#DDAA00", CAT_ENEMY),
-    "Lakitu's Cloud":      ("C", "#CCCCAA", CAT_ENEMY),
-    "Lakitu Cloud":        ("C", "#CCCCAA", CAT_ENEMY),  # decoder's actual name for this object
+    "Lakitu's Cloud":      ("Â", "#CCCCAA", CAT_ENEMY),
+    "Lakitu Cloud":        ("Â", "#CCCCAA", CAT_ENEMY),  # decoder's actual name for this object
     "Banzai Bill":         ("Z", "#333333", CAT_ENEMY),
     "Bullet Bill Blaster": ("V", "#333333", CAT_ENEMY),
     "Magikoopa":           ("y", "#8844CC", CAT_ENEMY),
@@ -279,6 +279,8 @@ ASCII_REPLACEMENTS = {
 ASCII_DROP = {
     "Castle Bridge",   # the goal-castle bridge is generated automatically
     "Key", "Arrow", "Water Marker", "Reel Camera", "Sound Effect",
+    # SMM:WE has no rideable cloud, and a lakitu already carries its own.
+    "Lakitu's Cloud", "Lakitu Cloud",
     "Player", "Track", "Starting Arrow", 
 }
 

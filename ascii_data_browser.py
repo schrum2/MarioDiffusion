@@ -1609,7 +1609,13 @@ class TileViewer(tk.Tk):
         # tile, but the converter reads it as Goal Ground, so treat it as empty space.
         char_grid = scene_to_ascii(self.merge_selected_scenes(), self.id_to_char, shorten=False)
         ascii_text = "\n".join(row.replace("_", " ") for row in char_grid)
-        level_json = ascii_to_level(ascii_text, source_file=name)
+        # Liquid comes from the first scene, all after share the same. 
+        first = self.dataset[self.added_sample_indexes[0]] if self.added_sample_indexes else {}
+        level_json = ascii_to_level(
+            ascii_text, source_file=name,
+            liquid_start_height=first.get("liquid_start_height", 0),
+            liquid_end_height=first.get("liquid_end_height", 0),
+            liquid_speed_raw=first.get("liquid_speed_raw", 0))
 
         now = datetime.now()
         s0, dropped = build_world(

@@ -60,8 +60,6 @@ _PIPE_DIR_CHAR = {'R': '→', 'L': '←', 'U': '↑', 'D': '↓'}
 # itself up. Sizes taken from LevelDrawer.cpp's object switch.
 _FIXED_SIZE = {
     "Clown Car": (2, 2),
-    "Lakitu Cloud": (2, 1),
-    "Lakitu's Cloud": (2, 1),
 }
 
 
@@ -138,7 +136,6 @@ def obj_anchor(obj: dict):
 # Level normalization + ASCII grid construction
 # ---------------------------------------------------------------------------
 _SLOPE_NAMES = frozenset({"Slight Slope", "Steep Slope"})
-_LAKITU_CLOUD_NAMES = frozenset({"Lakitu Cloud", "Lakitu's Cloud"})
 
 
 def normalize_level(lvl):
@@ -147,14 +144,6 @@ def normalize_level(lvl):
     lvl["_normalized"] = True
 
     objects = lvl.get("objects", [])
-
-    # Lakitus come with their own cloud, so drop that one or it folds to the
-    # clown car and every lakitu ends up sitting in one. A cloud placed on its
-    # own is left alone, since Mario can ride it -- it needs its own tile.
-    ridden = {(o["x"], o["y"]) for o in objects if o.get("name") == "Lakitu"}
-    if ridden:
-        objects = [o for o in objects if o.get("name") not in _LAKITU_CLOUD_NAMES
-                   or (o["x"], o["y"]) not in ridden]
 
     for g in lvl.get("ground", []):
         objects.append({
@@ -343,6 +332,10 @@ def level_metadata(lvl):
         "gamestyle": lvl.get("gamestyle"),
         "theme": lvl.get("theme"),
         "tags": lvl.get("tags", []),
+        # No tiles for liquid, so metadata is how it travels
+        "liquid_start_height": lvl.get("liquid_start_height", 0),
+        "liquid_end_height": lvl.get("liquid_end_height", 0),
+        "liquid_speed_raw": lvl.get("liquid_speed_raw", 0),
         "indivisible_objects": indivisible_object_boxes(lvl),
     }
 
@@ -484,7 +477,6 @@ COALESCE_POLICY = {
     "Banzai Bill":        (_FIXED, 4, 4),   # confirmed, never smaller
     "Angry Sun":          (_FIXED, 2, 2),   # confirmed
     "Clown Car":          (_FIXED, 2, 2),   # confirmed
-    "Lakitu's Cloud":     (_FIXED, 2, 1),   # confirmed
     "Door":               (_FIXED, 1, 2),   # pairing the halves stops mispairing
     # Wiggler/Chain Chomp deliberately absent: 1x1 in real data and often in rows.
     # Bowser Jr. is absent for the same reason. It was assumed to be 2x2, but the
@@ -722,8 +714,13 @@ def _append_end_goal(ground, width):
     return runway_left, floor, runway
 
 
+LIQUID_MODES = {0: "Static", 1: "Rising or Falling", 2: "Rising and Falling"}
+LIQUID_SPEEDS = {0: "None", 1: "x1", 2: "x2", 3: "x3"}
+
+
 def ascii_to_level(text, source_file=None, *, gamestyle_raw=22349, theme_raw=0,
-                   timer=300):
+                   timer=300, liquid_start_height=0, liquid_end_height=0,
+                   liquid_mode_raw=0, liquid_speed_raw=0):
     rows, width = parse_ascii(text)
     height = len(rows)
 
@@ -842,13 +839,13 @@ def ascii_to_level(text, source_file=None, *, gamestyle_raw=22349, theme_raw=0,
         "autoscroll_type_raw": 0,
         "orientation": "Horizontal",
         "orientation_raw": 0,
-        "liquid_start_height": 0,
-        "liquid_end_height": 0,
-        "liquid_mode": "None",
-        "liquid_speed": "x1",
+        "liquid_start_height": liquid_start_height,
+        "liquid_end_height": liquid_end_height,
+        "liquid_mode": LIQUID_MODES.get(liquid_mode_raw, "Static"),
+        "liquid_speed": LIQUID_SPEEDS.get(liquid_speed_raw, "None"),
         "boundary_type": "Built Above Line",
-        "liquid_mode_raw": 0,
-        "liquid_speed_raw": 0,
+        "liquid_mode_raw": liquid_mode_raw,
+        "liquid_speed_raw": liquid_speed_raw,
         "boundary_type_raw": 0,
         # Boundaries are in pixels (16 px / tile), per toost.
         "right_boundary": width * GROUND_TILE_PX,

@@ -127,6 +127,20 @@ def metadata_phrases(item):
     return phrases
 
 
+def liquid_phrase(item):
+    """The level's liquid. Castle means lava, everything else water."""
+    start = item.get("liquid_start_height") or 0
+    end = item.get("liquid_end_height") or 0
+    if not start and not end:
+        return None
+    name = "lava" if item.get("theme") == "Castle" else "water"
+    if end > start:
+        return f"Rising {name} across the lower rows"
+    if end < start:
+        return f"Falling {name} across the lower rows"
+    return f"{name.capitalize()} across the lower rows"
+
+
 def build_id_to_char(tileset_path):
     with open(tileset_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -766,6 +780,10 @@ def generate_captions(dataset_path, tileset_path, output_path,
         is_dict = isinstance(item, dict)
         scene = item["scene"] if is_dict else item
         meta_phrases = metadata_phrases(item) if is_dict and include_metadata else []
+        # Part of the scene, so not behind --include-metadata
+        liquid = liquid_phrase(item) if is_dict else None
+        if liquid:
+            meta_phrases = meta_phrases + [liquid]
         caption = assign_caption(scene, id_to_char, char_names, ground_chars,
                                  meta_phrases, block_chars=block_chars,
                                  solid_chars=solid_chars, loose_chars=loose_chars)
