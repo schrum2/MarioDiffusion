@@ -7,9 +7,9 @@ REM python llm_ascii_to_caption.py --levels Game_MMLV\DATA\MMLV_LevelsAndCaption
 
 REM python split_data.py --json_file Game_MMLV\DATA\MMLV_LevelsAndCaptions-llm.json --train_pct 0.9 --val_pct 0.05 --test_pct 0.05 --seed 42 --game MMLV
 
-call train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 300 1 no no gemma4:12b_captions
-call train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 300 3 no no gemma4:12b_captions
-call train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 300 5 no no gemma4:12b_captions
+REM call train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 300 1 no no gemma4:12b_captions
+REM call train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 300 3 no no gemma4:12b_captions
+REM call train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 300 5 no no gemma4:12b_captions
 
 
 call train-diffusion.bat 0 MMLV llm MMLV CLIP single none 0 300 1 no no qwen3.5:9b_captions
