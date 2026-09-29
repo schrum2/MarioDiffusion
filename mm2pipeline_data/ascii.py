@@ -55,9 +55,20 @@ _PIPE_DIR_CHAR = {'R': '→', 'L': '←', 'U': '↑', 'D': '↓'}
 # ---------------------------------------------------------------------------
 # Tile size helper — uses w/h from JSON directly (already tile counts)
 # ---------------------------------------------------------------------------
+# toost draws these at a constant size and never sizes them by the record's
+# w/h, so those fields aren't a footprint -- the clown car only reads h to shift
+# itself up. Sizes taken from LevelDrawer.cpp's object switch.
+_FIXED_SIZE = {
+    "Clown Car": (2, 2),
+}
+
+
 def obj_tile_size(obj: dict):
     """(w, h) in tiles. Pipes use h as length regardless of direction; the
     cross-section is always 2."""
+    fixed = _FIXED_SIZE.get(obj.get("name"))
+    if fixed:
+        return fixed
     if obj.get("name") == "Pipe":
         direction = _pipe_direction(obj.get("flag", 0))
         length = max(1, obj.get("h", 1))
@@ -217,19 +228,31 @@ def build_ascii_grid(level):
             grid[max_ty - 1 - row_game][col] = ch
 
     BG_TYPES = {"Semisolid Platform","Mushroom Platform"}
+    # Terrain goes down before the objects standing on it. Ground used to be
+    # painted last (normalize_level appends it) and was cutting holes in
+    # anything it overlapped, e.g. the bottom rows of a saw sitting on a floor.
+    TERRAIN_TYPES = {"Ground","Goal"}
 
-    for pass_n in range(2):
-        for obj in objects:
+    # Smallest first inside a layer, so a 1x1 can't punch a hole in something
+    # bigger. A coin that lands inside another object's box wasn't placed there
+    # in the editor anyway, but a broken pipe reads as the wrong shape.
+    order = sorted(objects, key=lambda o: obj_tile_size(o)[0] * obj_tile_size(o)[1])
+
+    for pass_n in range(3):
+        for obj in order:
             obj_name = obj.get("name","_unknown")
 
             # No glyph -> dropped (an empty string would misalign the row).
             if obj_name in ASCII_DROP:
                 continue
 
-            is_bg = obj_name in BG_TYPES
-            if pass_n == 0 and not is_bg:
-                continue
-            if pass_n == 1 and is_bg:
+            if obj_name in BG_TYPES:
+                layer = 0
+            elif obj_name in TERRAIN_TYPES:
+                layer = 1
+            else:
+                layer = 2
+            if layer != pass_n:
                 continue
 
             char,_,_ = get_meta(resolve_obj_name(obj_name, level.get("gamestyle_raw", 0)))
@@ -309,6 +332,10 @@ def level_metadata(lvl):
         "gamestyle": lvl.get("gamestyle"),
         "theme": lvl.get("theme"),
         "tags": lvl.get("tags", []),
+        # No tiles for liquid, so metadata is how it travels
+        "liquid_start_height": lvl.get("liquid_start_height", 0),
+        "liquid_end_height": lvl.get("liquid_end_height", 0),
+        "liquid_speed_raw": lvl.get("liquid_speed_raw", 0),
         "indivisible_objects": indivisible_object_boxes(lvl),
     }
 
@@ -446,10 +473,10 @@ COALESCE_POLICY = {
     "Swinging Claw":      (_FIXED, 3, 4),   # confirmed
     "Skewer":             (_FIXED, 4, 4),
     "Donut":              (_FIXED, 3, 3),   # id 82 Donut Block Platform
-    "Boom Boom":          (_FIXED, 2, 2),   # assumed
-    "Banzai Bill":        (_FIXED, 2, 2),   # assumed
-    "Angry Sun":          (_FIXED, 2, 2),   # assumed
-    "Clown Car":          (_FIXED, 2, 2),   # assumed
+    "Boom Boom":          (_FIXED, 2, 2),   # confirmed
+    "Banzai Bill":        (_FIXED, 4, 4),   # confirmed, never smaller
+    "Angry Sun":          (_FIXED, 2, 2),   # confirmed
+    "Clown Car":          (_FIXED, 2, 2),   # confirmed
     "Door":               (_FIXED, 1, 2),   # pairing the halves stops mispairing
     # Wiggler/Chain Chomp deliberately absent: 1x1 in real data and often in rows.
     # Bowser Jr. is absent for the same reason. It was assumed to be 2x2, but the
@@ -594,6 +621,11 @@ def coalesce(name, cells, out, ground=None):
 
         if kind == _FIXED:
             fw, fh = policy[1], policy[2]
+            # Twice the footprint each way, filled, is the big form of the
+            # enemy rather than four of them.
+            if (c1 - c0 + 1, r1 - r0 + 1) == (2 * fw, 2 * fh) and len(comp) == 4 * fw * fh:
+                out.append(make_object(name, c0, r0, 2 * fw, 2 * fh))
+                continue
             cr = r0
             while cr <= r1:                # cr is each stamp's bottom row
                 cc = c0
@@ -682,8 +714,13 @@ def _append_end_goal(ground, width):
     return runway_left, floor, runway
 
 
+LIQUID_MODES = {0: "Static", 1: "Rising or Falling", 2: "Rising and Falling"}
+LIQUID_SPEEDS = {0: "None", 1: "x1", 2: "x2", 3: "x3"}
+
+
 def ascii_to_level(text, source_file=None, *, gamestyle_raw=22349, theme_raw=0,
-                   timer=300):
+                   timer=300, liquid_start_height=0, liquid_end_height=0,
+                   liquid_mode_raw=0, liquid_speed_raw=0):
     rows, width = parse_ascii(text)
     height = len(rows)
 
@@ -802,13 +839,13 @@ def ascii_to_level(text, source_file=None, *, gamestyle_raw=22349, theme_raw=0,
         "autoscroll_type_raw": 0,
         "orientation": "Horizontal",
         "orientation_raw": 0,
-        "liquid_start_height": 0,
-        "liquid_end_height": 0,
-        "liquid_mode": "None",
-        "liquid_speed": "x1",
+        "liquid_start_height": liquid_start_height,
+        "liquid_end_height": liquid_end_height,
+        "liquid_mode": LIQUID_MODES.get(liquid_mode_raw, "Static"),
+        "liquid_speed": LIQUID_SPEEDS.get(liquid_speed_raw, "None"),
         "boundary_type": "Built Above Line",
-        "liquid_mode_raw": 0,
-        "liquid_speed_raw": 0,
+        "liquid_mode_raw": liquid_mode_raw,
+        "liquid_speed_raw": liquid_speed_raw,
         "boundary_type_raw": 0,
         # Boundaries are in pixels (16 px / tile), per toost.
         "right_boundary": width * GROUND_TILE_PX,

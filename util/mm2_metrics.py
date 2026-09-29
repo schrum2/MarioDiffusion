@@ -29,16 +29,11 @@ from mm2pipeline_data.ascii import (COALESCE_POLICY, PLATFORM_MIN_SIZE,
 _FIXED, _BBOX, _MUSHROOM, _HRUN, _VRUN, _PIPE = (
     "fixed", "bbox", "mushroom", "hrun", "vrun", "pipe")
 
-# Footprint corrections to COALESCE_POLICY from component-shape stats over the
-# real training data: interior Banzai Bill blobs are 4x4, not the assumed 2x2.
-FOOTPRINT_OVERRIDES = {
-    "Banzai Bill": (4, 4),
-}
+# Corrections for footprints COALESCE_POLICY gets wrong. Nothing needs one.
+FOOTPRINT_OVERRIDES = {}
 
-# Footprints too variable to judge (Clown Car many sizes, lone Goomba's Shoe
-# common). Totals reported, nothing flagged broken. Bowser Jr. used to be here
-# too, but it has no footprint at all now that we know it is 1x1.
-UNCHECKED_FEATURES = {"Clown Car", "Goomba's Shoe"}
+# Footprints too variable to judge. Totals reported, nothing flagged broken.
+UNCHECKED_FEATURES = {"Goomba's Shoe"}
 
 # Blocks that can hold an item; an item glyph painted above one is its contents.
 CONTAINER_CHARS = {"B", "?", "h"}

@@ -582,7 +582,7 @@ def _mm2_goal_blocks(grid, consumed, chars):
 def _mm2_draw_goals(canvas, blocks, grid, chars, gamestyle, ts):
     """Paint the goals last, since the art overhangs the glyphs it came from and
     has to sit on top. A block wider than one cell is a castle goal."""
-    blank = {i for i, ch in enumerate(chars) if ch in (" ", "-")}
+    blank = {i for i, ch in enumerate(chars) if ch == " "}   # '-' is a Lift, not air
     for r0, r1, c0, c1 in blocks:
         castle = c1 > c0
         art = _mm2_goal_art(gamestyle, castle)

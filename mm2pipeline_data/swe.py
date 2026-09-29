@@ -124,7 +124,7 @@ OBJ_ID_MAP = {
     28:  "obj_buzzybeetle_res",     # Buzzy Beetle
     29:  "obj_block_hidden_res",    # Hidden Block
     30:  "obj_lakitu_res",          # Lakitu
-    31:  "obj_clown_res",           # Lakitu's Cloud -> Clown Car (nearest rideable vehicle)
+    31:  None,                      # Lakitu's Cloud (no SMM:WE object, dropped)
     32:  "obj_billbanzai_res",      # Banzai Bill
     33:  "obj_1up_res",             # 1-Up Mushroom
     34:  "obj_fireflower_res",      # Fire Flower
@@ -885,11 +885,13 @@ def build_metadata(j, *, user, name, desc, date_str, time_str):
         size = (max(cols) + 2) * PX if cols else FIELD_HEIGHT_TILES * PX
 
     # Liquid / water level.
+    # SWE stores the surface in pixels from the top: start, limit, speed
+    def liquid_px(height):
+        return (FIELD_HEIGHT_TILES - (height or 1)) * PX
+
     liquid_start = j.get("liquid_start_height", 0)
-    if liquid_start:
-        wl = (FIELD_HEIGHT_TILES - liquid_start) * PX
-    else:
-        wl = (FIELD_HEIGHT_TILES - 1) * PX
+    wl = liquid_px(liquid_start)
+    wl_limit = liquid_px(j.get("liquid_end_height", 0) or liquid_start)
     wl_speed_map = {0: 0.0, 1: 0.2, 2: 0.4, 3: 0.6}
     wl_speed = wl_speed_map.get(j.get("liquid_speed_raw", 0), 0.0)
 
@@ -916,7 +918,7 @@ def build_metadata(j, *, user, name, desc, date_str, time_str):
         "user": user,
         "time": time_str,
         "gametheme": THEME_MAP.get(theme_raw, "overworld"),
-        "wl_limit": wl,
+        "wl_limit": wl_limit,
         "o_conditions": 0,
         "timer": j.get("timer", 0),
     }

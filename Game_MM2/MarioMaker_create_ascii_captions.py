@@ -127,6 +127,20 @@ def metadata_phrases(item):
     return phrases
 
 
+def liquid_phrase(item):
+    """The level's liquid. Castle means lava, everything else water."""
+    start = item.get("liquid_start_height") or 0
+    end = item.get("liquid_end_height") or 0
+    if not start and not end:
+        return None
+    name = "lava" if item.get("theme") == "Castle" else "water"
+    if end > start:
+        return f"Rising {name} across the lower rows"
+    if end < start:
+        return f"Falling {name} across the lower rows"
+    return f"{name.capitalize()} across the lower rows"
+
+
 def build_id_to_char(tileset_path):
     with open(tileset_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -389,8 +403,7 @@ def classify_arrangement(cells):
 def big_form_blocks(scene, id_to_char, loose_chars):
     """Find the big variant of an enemy, which paints an exact 2x2 square of its
     glyph, so it reads as one big goomba instead of four normal ones."""
-    # Only captions know this. COALESCE_POLICY and count_structures still split a
-    # big enemy four ways, so the .swe export and the metrics need the same rule.
+    # A lone 2x2 blob is one big enemy about 93% of the time in the data.
     # Bowser Jr.'s policy also has its big form as the base; the real base is 1x1.
     blocks = {}
     for char in sorted(loose_chars):
@@ -767,6 +780,10 @@ def generate_captions(dataset_path, tileset_path, output_path,
         is_dict = isinstance(item, dict)
         scene = item["scene"] if is_dict else item
         meta_phrases = metadata_phrases(item) if is_dict and include_metadata else []
+        # Part of the scene, so not behind --include-metadata
+        liquid = liquid_phrase(item) if is_dict else None
+        if liquid:
+            meta_phrases = meta_phrases + [liquid]
         caption = assign_caption(scene, id_to_char, char_names, ground_chars,
                                  meta_phrases, block_chars=block_chars,
                                  solid_chars=solid_chars, loose_chars=loose_chars)

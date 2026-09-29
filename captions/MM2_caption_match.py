@@ -89,6 +89,10 @@ def phrase_topic(phrase, name_lookup=None):
     if p == "full ground floor" or p == "scattered ground" or p.startswith("ground floor with"):
         return "ground", "ground"
 
+    # No tile to match this off
+    if p.endswith("across the lower rows"):
+        return "liquid", "count"
+
     if p.startswith("a blob of "):
         name = name_lookup.get(p[len("a blob of "):])
         if name:

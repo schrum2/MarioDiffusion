@@ -213,8 +213,6 @@ GROUND_CHAR  = "#"
 ASCII_REPLACEMENTS = {
     "Spike Top":               "s",  # → Spiny
     "Fish Bone":               "~",  # → Cheep Cheep
-    "Lakitu's Cloud":          ";",  # → Clown Car
-    "Lakitu Cloud":            ";",  # → Clown Car
     "Jumping Machine":         "J",  # → Spring
     "Mushroom Trampoline":     "J",  # → Spring
     "ON/OFF Trampoline":       "J",  # → Spring
@@ -281,6 +279,8 @@ ASCII_REPLACEMENTS = {
 ASCII_DROP = {
     "Castle Bridge",   # the goal-castle bridge is generated automatically
     "Key", "Arrow", "Water Marker", "Reel Camera", "Sound Effect",
+    # SMM:WE has no rideable cloud, and a lakitu already carries its own.
+    "Lakitu's Cloud", "Lakitu Cloud",
     "Player", "Track", "Starting Arrow", 
 }
 
