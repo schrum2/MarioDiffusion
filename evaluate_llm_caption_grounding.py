@@ -60,7 +60,7 @@ COMBINED_CONCEPTS = {
     # concept so the scene is counted once, while accepting common caption wording.
     "disappearing block": {
         "disappearing block", "reappearing block", "fading platform",
-        "flickering platform", "flickering platforms",
+        "flickering platform", "flickering platforms", "disappearing platform"
     },
     "moving lift": {"moving block", "moving platform", "moving lift", "lift"},
     "falling platform": {"falling platform"},
