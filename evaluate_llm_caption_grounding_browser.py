@@ -17,12 +17,14 @@ import tkinter as tk
 from ascii_data_browser import TileViewer
 from util.common_settings import GAME_CLI_CHOICES
 from captions.util import extract_tileset
+from evaluate_llm_caption_grounding import build_vocabulary, entry_categories, score_caption
 
 
 class GroundingReviewViewer(TileViewer):
     """TileViewer with a score explanation panel for grounding-evaluation JSON."""
 
     def __init__(self, dataset_path, game):
+        self.grounding_game = game
         super().__init__(dataset_path=dataset_path, game=game)
 
         self.attr_var.set("scores")
@@ -30,17 +32,23 @@ class GroundingReviewViewer(TileViewer):
 
         review_frame = tk.LabelFrame(self.scroll_frame, text="Grounding Review")
         review_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(2, 8))
-        review_frame.grid_rowconfigure(0, weight=1)
+        review_frame.grid_rowconfigure(1, weight=1)
         review_frame.grid_columnconfigure(0, weight=1)
+        self.regenerate_grounding_button = tk.Button(
+            review_frame, text="Regenerate Grounding Overview",
+            command=self.regenerate_grounding_overview,
+        )
+        self.regenerate_grounding_button.grid(row=0, column=0, columnspan=2, sticky="w", padx=4, pady=(4, 0))
         self.review_text = tk.Text(review_frame, height=10, width=100, wrap=tk.WORD,
                                    state=tk.DISABLED)
-        self.review_text.grid(row=0, column=0, sticky="nsew", padx=(4, 0), pady=4)
+        self.review_text.grid(row=1, column=0, sticky="nsew", padx=(4, 0), pady=4)
         review_scrollbar = tk.Scrollbar(review_frame, orient=tk.VERTICAL,
                                         command=self.review_text.yview)
-        review_scrollbar.grid(row=0, column=1, sticky="ns", padx=(0, 4), pady=4)
+        review_scrollbar.grid(row=1, column=1, sticky="ns", padx=(0, 4), pady=4)
         self.review_text.configure(yscrollcommand=review_scrollbar.set)
         self.scroll_canvas.bind("<Configure>", self._fit_review_panel, add="+")
         self._fit_review_panel()
+        self.vocabulary = build_vocabulary(game, self.id_to_char, self.tile_descriptors)
         self.redraw()
 
     def _fit_review_panel(self, event=None):
@@ -63,6 +71,7 @@ class GroundingReviewViewer(TileViewer):
         self.dataset_path = dataset_path
         self.dataset = summary["entries"]
         _, self.id_to_char, self.char_to_id, self.tile_descriptors = extract_tileset(tileset_path)
+        self.vocabulary = build_vocabulary(self.grounding_game, self.id_to_char, self.tile_descriptors)
         self.color_map = self._build_color_map()
         self.current_sample_idx = 0
         self.current_caption_idx = 0
@@ -242,6 +251,26 @@ class GroundingReviewViewer(TileViewer):
         if not hasattr(self, "review_text") or not self.dataset:
             return
         score = self._review_value(self.dataset[self.current_sample_idx])
+        self.review_text.configure(state=tk.NORMAL)
+        self.review_text.delete("1.0", tk.END)
+        self.review_text.insert("1.0", self._format_review(score))
+        self.review_text.configure(state=tk.DISABLED)
+
+    def regenerate_grounding_overview(self):
+        """Rescore the selected caption with the current grounding code in memory."""
+        if not self.dataset:
+            return
+        sample = self.dataset[self.current_sample_idx]
+        saved_score = self._review_value(sample)
+        caption = saved_score.get("caption", "") if saved_score else ""
+        if not caption:
+            score = None
+        else:
+            score = score_caption(
+                caption, sample["scene"], self.id_to_char, self.vocabulary,
+                entry_categories(self.grounding_game, sample),
+            )
+            score["caption"] = caption
         self.review_text.configure(state=tk.NORMAL)
         self.review_text.delete("1.0", tk.END)
         self.review_text.insert("1.0", self._format_review(score))
