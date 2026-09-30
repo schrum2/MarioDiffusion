@@ -78,7 +78,6 @@ COMBINED_CONCEPTS = {
     "weapon energy": {"weapon energy", "energy pickup"},
     "extra life": {"extra life", "1 up", "1-up"},
     "magnet beam": {"magnet beam"},
-    "yashichi": {"yashichi"},
 }
 
 COMBINED_CATEGORY_CONCEPTS = {
@@ -88,7 +87,7 @@ COMBINED_CATEGORY_CONCEPTS = {
 }
 
 POWERUP_COMPOUND_CONCEPTS = {
-    "life energy", "weapon energy", "extra life", "magnet beam", "yashichi",
+    "life energy", "weapon energy", "extra life", "magnet beam",
 }
 
 # Modifier+noun phrases provide bonus specificity but are never required for the
