@@ -56,7 +56,12 @@ SPECIFIC_TERM_EXCLUSIONS = {
 COMBINED_CONCEPTS = {
     "breakable block": {"breakable block", "breakable brick", "brick block"},
     "transparent block": {"secret block", "transparent block"},
-    "disappearing block": {"disappearing block", "reappearing block"},
+    # These are alternate names for the same Mega Man tile. Keep one canonical
+    # concept so the scene is counted once, while accepting common caption wording.
+    "disappearing block": {
+        "disappearing block", "reappearing block", "fading platform",
+        "flickering platform", "flickering platforms",
+    },
     "moving lift": {"moving block", "moving platform", "moving lift", "lift"},
     "falling platform": {"falling platform"},
     "fake block": {"fake block"},
@@ -69,7 +74,6 @@ COMBINED_CONCEPTS = {
     "ice block": {"ice block", "slippery block"},
     "on off block": {"on/off block", "on off block"},
     "dotted line block": {"dotted-line block", "dotted line block", "dotted block"},
-    "fading platform": {"fading platform", "fading platforms"},
     "life energy": {"life energy", "health energy"},
     "weapon energy": {"weapon energy", "energy pickup"},
     "extra life": {"extra life", "1 up", "1-up"},
@@ -249,8 +253,8 @@ def matching_phrases(description: str, tags: set[str]) -> set[str]:
     for concept, alternatives in COMBINED_CONCEPTS.items():
         if any(phrase_present(tokenize(lowered), alternative) for alternative in alternatives):
             phrases.add(concept)
-    if "disappearing" in lowered or "reappearing" in lowered or "flickering platform" in lowered:
-        phrases.add("fading platform")
+    if "disappearing" in lowered or "reappearing" in lowered or "fading platform" in lowered or "flickering platform" in lowered:
+        phrases.add("disappearing block")
     categories = category_for_tile(description, tags)
     for category, alternatives in SPECIFICITY_PHRASES.items():
         if category not in categories:
@@ -344,7 +348,7 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     for char in present_tiles:
         present_categories.update(vocabulary["tiles"].get(char, {}).get("categories", set()))
     if any(
-        char in present_tiles and "fading platform" in info["phrases"]
+        char in present_tiles and "disappearing block" in info["phrases"]
         for char, info in vocabulary["tiles"].items()
     ):
         present_categories.add("platform")
