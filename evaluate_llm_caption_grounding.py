@@ -493,7 +493,10 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
     present_compounds = sorted({
         concept for info in vocabulary["tiles"].values()
         for concept in info["phrases"]
-        if concept in COMBINED_CONCEPTS and any(
+        # Power-up subtype names (for example "weapon energy") are useful
+        # specificity evidence, but the generic power-up category is enough
+        # to cover a present subtype in the caption.
+        if concept in COMBINED_CONCEPTS and concept not in POWERUP_COMPOUND_CONCEPTS and any(
             char in present_tiles for char, tile_info in vocabulary["tiles"].items()
             if concept in tile_info["phrases"]
         )
