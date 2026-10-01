@@ -175,6 +175,8 @@ GIMMICK_E_TO_CHAR = {
     65: "T",   # teleporter, another variant (same m/n partner-link + f style fields as e266).
     252:"T",   # teleporter, another variant. Every teleporter id carries the m/n partner-link
                # fields and occupies a full 2x2 footprint (see TWO_BY_TWO_E_IDS).
+    26: "T",   # The most common teleporter id (~6.2k objects in ~1.1k levels); m/n is its destination point,
+               # which may be bare air rather than a partner teleporter.
     76: "B",   # 2-wide x 1-tall weapon-specific breakable block (see TWO_WIDE_E_IDS: expands one
                # tile left). Weapon-specific like e27/e28; required weapon is 'o', doesn't affect decode.
     10: "R",   # 2-wide x 1-tall solid RISING platform -> the 'R' rising-platform tile (first-class,
@@ -246,7 +248,7 @@ LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
 # just that one cell and the other three tiles read as gaps. mmlv_to_grid expands each of
 # these to the full 2x2 by also filling the tiles directly above, directly left, and
 # diagonally up-left with the same char.
-TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186, 256, 252, 266, 65}
+TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186, 256, 252, 266, 65, 26}
 
 # d == 6 gimmick ids that are 2-wide x 1-tall horizontal blocks. Like the 2x2 blocks these
 # are stored as a single object at the block's RIGHT tile, so on their own they decode to
