@@ -25,6 +25,7 @@ from PIL import Image, ImageDraw
 
 from level_dataset import visualize_samples
 import util.common_settings as common_settings
+from astar_traversability_check import state_xy, replay_path
 
 
 # game_render name -> (tile count for one-hot, pixel size of each tile)
@@ -43,32 +44,6 @@ _PATH_COLOR = (220, 30, 30, 255)
 _START_COLOR = (40, 200, 60, 255)
 _GOAL_COLOR = (40, 120, 255, 255)
 _UNREACHABLE_COLOR = (255, 140, 0, 255)   # gold the spawn can't reach, crossed out
-
-
-def state_xy(state):
-    """Return a state's (x, y), tolerating both naming conventions in the state files.
-
-    MarioState/MegaManState expose .x/.y; LodeRunnerState exposes .currentX/.currentY.
-    """
-    if hasattr(state, "currentX"):
-        return state.currentX, state.currentY
-    return state.x, state.y
-
-
-def replay_path(start, solution):
-    """Replay the action list from start, collecting the (x, y) at every step.
-
-    Returns a list of (x, y) in the state files' own coordinate space (which, for
-    Mario, is the buffered grid -- callers apply the offset when drawing).
-    """
-    positions = [state_xy(start)]
-    current = start
-    for action in solution or []:
-        current = current.get_successor(action)
-        if current is None:        # shouldn't happen for a real solution, but be safe
-            break
-        positions.append(state_xy(current))
-    return positions
 
 
 def render_scene_image(scene, game_render):

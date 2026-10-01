@@ -29,6 +29,10 @@ BOSS_CHAR = 'S'
 #one are dropped by the contains_teleporter filter unless --include_teleporters is passed.
 TELEPORTER_CHARS = ('T',)
 
+#Scan modes whose samples are fixed windows of the level (source coords + a known size), so
+#MMLV scenes can be checked against the whole level's A* path (see annotate_level_path).
+LEVEL_PATH_SCAN_MODES = ('screen_grid', 'snap', 'sliding_window')
+
 
 #This enum is for the readability of the direction enum
 class Axis(Enum):
@@ -196,6 +200,7 @@ def parse_args():
     #The A* traversability filter is on by default now (also feeds the low-content check in apply_filters); --no_traversable_filter turns the hard filter off.
     parser.add_argument('--no_traversable_filter', dest='traversable_only', action='store_false', default=True, help='Disable filtering out A*-untraversable scenes (this filter is ON by default). The A* path length is still computed for the low-content rescue check regardless.')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by the traversability check (higher = more thorough, slower)')
+    parser.add_argument('--level_budget', type=int, default=300000, help='MMLV only: A* state-expansion budget for the whole-level spawn -> exit/boss search. Scenes its solution path passes through are always kept and marked traversable.')
     parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window', 'snap', 'screen_grid', 'whole'], help='How to extract samples: path follower (default), sliding window, snap (variable-dimension wide+tall scans that snap to valid content), screen_grid (tile the level into a 2x2 (or screens_x x screens_y) grid of Mega Man Maker screens, keeping windows where at least 3/4 of the quadrants are occupied, with null padding on top to reach target_height -- e.g. target 32x32 -> 32x28 content + 4 pad rows), or whole (one sample = the entire level trimmed to its content bounding box, kept at its natural variable size)')
     parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
     parser.add_argument('--stride_y', type=int, default=1, help='How far the sliding window moves in the vertical direction during level scanning (sliding_window/snap modes only; must be >= 1)')
@@ -271,6 +276,59 @@ def border_flood_fill_count(scene, blocking_ids, void_ids=frozenset()):
 FILTER_REASONS = ("not_traversable", "insufficient_playable_area",
                   "too_many_enemies", "moving_ground", "contains_teleporter", "low_content")
 
+def _astar_module():
+    astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
+    if astar_dir not in sys.path:
+        sys.path.insert(0, astar_dir)
+    import astar_traversability_check
+    return astar_traversability_check
+
+
+def annotate_level_path(level, source_coords, window_sizes, level_tile_to_id, level_id_to_char,
+                        tile_descriptors, null_char, budget):
+    """Run A* across one whole MMLV level (spawn -> exit, or boss) and return, per sample, its
+    'traversability' record: whether the level was beaten, which goal was used, and whether
+    the solution path passes through the sample's window (source coords + window size).
+    scene_traversable is left None; the per-scene A* fills it for scenes not on the path."""
+    width = max(len(row) for row in level)
+    null_id = level_tile_to_id.get(null_char, 0)
+    encoded = [[level_tile_to_id.get(ch, null_id) for ch in row.ljust(width, null_char)]
+               for row in level]
+    beaten, goal, path = _astar_module().mmlv_level_path(encoded, level_id_to_char,
+                                                         tile_descriptors, budget)
+    return [{"level_traversable": beaten,
+             "level_goal": goal,
+             "on_level_path": any(x0 <= x < x0 + w and y0 <= y < y0 + h for x, y in path),
+             "scene_traversable": None}
+            for (x0, y0), (w, h) in zip(source_coords, window_sizes)]
+
+
+def on_level_path(sample):
+    """True if the parent level's A* solution path passes through this scene (MMLV only)."""
+    return sample.get("traversability", {}).get("on_level_path", False)
+
+
+def scene_astar(all_samples, indices, id_to_char, tile_descriptors, budget):
+    """Run the per-scene A* (auto-placed spawn/orb) on all_samples[indices] and return
+    ({idx: reached}, {idx: path_length}). Samples carrying MMLV level-path info get the
+    result recorded as their scene_traversable / traversable fields."""
+    traversable_flags, path_lengths = {}, {}
+    if not indices:
+        return traversable_flags, path_lengths
+    evaluate = _astar_module().evaluate
+    #A* is the slow step. Wrap it in a progress bar so long filtering runs over large
+    #datasets show throughput/ETA instead of hanging silently.
+    for i in tqdm(indices, total=len(indices), desc="A* traversability", unit="scene"):
+        s = all_samples[i]
+        ok, stats, _info = evaluate("MM", s["scene"], id_to_char, tile_descriptors, budget, False)
+        traversable_flags[i] = ok
+        path_lengths[i] = stats.get("path_length")
+        if "traversability" in s:
+            s["traversability"]["scene_traversable"] = ok
+            s["traversable"] = ok
+    return traversable_flags, path_lengths
+
+
 def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only=True,
                   budget=100000, max_enemies=8, exclude_moving_ground=True,
                   exclude_teleporters=True,
@@ -295,7 +353,11 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
     low_content reason is dropped and, absent any other reason, the scene is kept. A* is the
     expensive step, so it only runs where it can change the outcome: on every scene when
     traversable_only is set, but otherwise only on scenes whose sole reason is low_content
-    (the only case the rescue can affect)."""
+    (the only case the rescue can affect).
+
+    MMLV scenes carry their parent level's A* result (see annotate_level_path). A scene the
+    level's solution path passes through is kept no matter what -- no filter applies to it.
+    Every other MMLV scene always gets the per-scene A* so its scene_traversable is set."""
     wall_ids = {tid for tid, ch in id_to_char.items()
                 if "solid" in tile_descriptors.get(ch, []) and "penetrable" not in tile_descriptors.get(ch, [])}
     null_ids = {tid for tid, ch in id_to_char.items() if "null" in tile_descriptors.get(ch, [])}
@@ -346,27 +408,20 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
     #is off, A* can *only* rescue a scene whose sole problem is low_content -- a scene with any
     #other reason stays filtered regardless -- so we run it just on those. evaluate() is the
     #traversability dispatcher; call it directly to get both the reached flag and path length.
+    #Scenes the parent level's A* solution path passes through are known-traversable and kept
+    #no matter what, so they never need the per-scene A*. Off-path MMLV scenes always get it,
+    #filter or not, so their scene_traversable field is filled in.
+    on_path = {i for i, s in enumerate(all_samples) if on_level_path(s)}
     if traversable_only:
-        astar_indices = range(len(all_samples))
+        astar_indices = [i for i in range(len(all_samples)) if i not in on_path]
     else:
-        astar_indices = [i for i, r in enumerate(base_reasons) if r == ["low_content"]]
+        astar_indices = sorted(({i for i, r in enumerate(base_reasons) if r == ["low_content"]}
+                                | {i for i, s in enumerate(all_samples) if "traversability" in s})
+                               - on_path)
 
-    traversable_flags = {}   # idx -> reached-goal bool (only for scenes A* was run on)
-    path_lengths = {}        # idx -> A* solution length (or None)
-    if astar_indices:
-        astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
-        if astar_dir not in sys.path:
-            sys.path.insert(0, astar_dir)
-        from astar_traversability_check import evaluate
-        #A* is the slow step (see docstring). Wrap it in a progress bar so long filtering
-        #runs over large datasets show throughput/ETA instead of hanging silently. len()
-        #works for both the range (traversable_only) and the list of low_content indices.
-        for i in tqdm(astar_indices, total=len(astar_indices),
-                      desc="A* traversability", unit="scene"):
-            ok, stats, _info = evaluate("MM", all_samples[i]["scene"], id_to_char,
-                                        tile_descriptors, budget, False)
-            traversable_flags[i] = ok
-            path_lengths[i] = stats.get("path_length")
+    #idx -> reached-goal bool / A* solution length (only for scenes A* was run on)
+    traversable_flags, path_lengths = scene_astar(all_samples, astar_indices, id_to_char,
+                                                  tile_descriptors, budget)
 
     kept = []
     filtered = []
@@ -375,6 +430,10 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
     reason_counts = {r: 0 for r in FILTER_REASONS}
 
     for idx, s in enumerate(all_samples):
+        if idx in on_path:
+            kept.append(s)
+            continue
+
         #Collect *every* reason this scene trips, in FILTER_REASONS (priority) order.
         reasons = list(base_reasons[idx])
 
@@ -439,7 +498,15 @@ def main():
     _, id_to_char, tile_to_id, tile_descriptors = extract_tileset(args.tileset)
     null_chars = [key for key, value in tile_descriptors.items() if 'null' in value]
     wall_chars = [key for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
-    
+
+    #MMLV scenes are judged by their parent level's A* path (see annotate_level_path), which
+    #needs the real spawn/exit/boss tiles -- so it encodes levels with this untouched copy of
+    #the tileset mapping, not the grouped/stripped one the scenes are written with.
+    level_path_mode = (os.path.basename(args.tileset) == os.path.basename(common_settings.MMLV_TILESET)
+                       and args.scan_mode in LEVEL_PATH_SCAN_MODES)
+    level_tile_to_id, level_id_to_char = dict(tile_to_id), dict(id_to_char)
+    level_null_char = null_chars[0] if null_chars else '@'
+
     if args.group_encodings:
         tile_to_id, id_to_char = create_tile_to_id(args.tileset, tile_descriptors)
 
@@ -474,8 +541,9 @@ def main():
     direction_captions = args.direction_captions
 
     all_samples = []
-    seen_samples = set()
+    seen_samples = {}   # dedup key -> index of the kept copy in all_samples
     duplicates_removed = 0
+    levels_beaten = levels_path_checked = 0
 
     for i in range(len(levels)):
         #Source filename for this level, tagged onto every sample below so a bad scene
@@ -486,6 +554,9 @@ def main():
         #Metadata record for this level (None for non-MMLV levels or ids missing from the
         #sidecar); attached to every sample cut from this level below.
         mmlv_meta = level_metadata.get(str(mmlv_id)) if mmlv_id is not None else None
+        #(width, height) of each sample's window in the level, starting at its source
+        #coords -- set by the scan modes that support the level-path check.
+        window_sizes = None
 
         try:
             if args.scan_mode == 'snap':
@@ -519,6 +590,8 @@ def main():
                 json_caption_data = h_json + v_json
                 source_coords = h_coords + v_coords
                 scan_mode_tags = (["snap_wide"] * len(h_samples)) + (["snap_tall"] * len(v_samples))
+                window_sizes = ([(args.target_width, nav_height)] * len(h_samples)
+                                + [(nav_width, v_screen_height)] * len(v_samples))
             elif args.scan_mode == 'sliding_window':
                 samples, json_caption_data, source_coords = sliding_window_samples(
                     levels[i], tile_to_id, nav_width, nav_height, null_chars,
@@ -526,6 +599,7 @@ def main():
                     x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 scan_mode_tags = ["sliding_window"] * len(samples)
+                window_sizes = [(nav_width, nav_height)] * len(samples)
             elif args.scan_mode == 'whole':
                 # One sample = the entire level trimmed to its content bounding box,
                 # kept at its natural (variable) size. Air/null border is cut off;
@@ -573,6 +647,7 @@ def main():
                     x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 scan_mode_tags = ["screen_grid"] * len(samples)
+                window_sizes = [(screens_x * screen_w, content_h)] * len(samples)
             elif i == 7:
                 samples, json_caption_data, source_coords = parse_level(
                     tile_to_id, levels[i], nav_width, nav_height,
@@ -603,7 +678,18 @@ def main():
 
         print(f"Level {i} parsed successfully: {len(samples)} samples")
 
-        for sample, json_data, (src_x, src_y), mode_tag in zip(samples, json_caption_data, source_coords, scan_mode_tags):
+        #MMLV: run A* across the whole level (spawn -> exit/boss) and mark which scenes its
+        #solution path passes through. None for other games/modes (no fields added).
+        level_path_info = [None] * len(samples)
+        if level_path_mode and window_sizes is not None and samples:
+            level_path_info = annotate_level_path(
+                levels[i], source_coords, window_sizes, level_tile_to_id, level_id_to_char,
+                tile_descriptors, level_null_char, args.level_budget)
+            levels_path_checked += 1
+            levels_beaten += int(level_path_info[0]["level_traversable"])
+
+        for sample, json_data, (src_x, src_y), mode_tag, path_info in zip(
+                samples, json_caption_data, source_coords, scan_mode_tags, level_path_info):
 
             #json_data is None when directional captions are off (see parse_level /
             #snap_window_samples). Fall back to sentinel directions so the dedup key
@@ -618,13 +704,7 @@ def main():
                     json_data["exit_direction"]
                 )
 
-            if key in seen_samples:
-                duplicates_removed += 1
-                continue
-
-            seen_samples.add(key)
-
-            all_samples.append({
+            entry = {
                 "scene": sample,
                 "data": json_data,
                 "source_level": source_level_name,
@@ -633,10 +713,31 @@ def main():
                 "scan_mode": mode_tag,
                 "mmlvID": mmlv_id,
                 "metadata": mmlv_meta
-            })
+            }
+            if path_info is not None:
+                #traversable: on the level's solution path, or (filled in later by the
+                #per-scene A*) traversable on its own.
+                entry["traversable"] = True if path_info["on_level_path"] else None
+                entry["traversability"] = path_info
+
+            if key in seen_samples:
+                duplicates_removed += 1
+                #Scenes on a level's solution path are always kept, so a duplicate that is on
+                #a path replaces a kept copy that isn't.
+                kept_idx = seen_samples[key]
+                if on_level_path(entry) and not on_level_path(all_samples[kept_idx]):
+                    all_samples[kept_idx] = entry
+                continue
+
+            seen_samples[key] = len(all_samples)
+            all_samples.append(entry)
 
     print(f"Removed {duplicates_removed} duplicate samples")
     print(f"Final dataset size: {len(all_samples)}")
+    if levels_path_checked:
+        n_on_path = sum(on_level_path(s) for s in all_samples)
+        print(f"Level A* (spawn -> exit/boss): {levels_beaten}/{levels_path_checked} levels beaten; "
+              f"{n_on_path}/{len(all_samples)} scenes on a solution path (always kept)")
 
     #Time the filtering + save stage. The A* traversability pass runs on every scene here
     #and dominates the runtime, so report how long it takes to produce the final datasets.
@@ -650,6 +751,10 @@ def main():
         print("scan_mode=whole: skipping window-oriented quality/traversability filters")
     elif args.no_filter:
         print("--no_filter: skipping all quality/playable-area filtering")
+        #Still fill in scene_traversable for off-path MMLV scenes.
+        scene_astar(all_samples,
+                    [i for i, s in enumerate(all_samples) if "traversability" in s and not on_level_path(s)],
+                    id_to_char, tile_descriptors, args.budget)
     else:
         all_samples, filtered_samples = apply_filters(
             all_samples, id_to_char, tile_descriptors,

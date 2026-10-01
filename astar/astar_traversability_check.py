@@ -139,6 +139,32 @@ def translate_scene(scene, id_to_char, tile_descriptors, tile_fn):
 # ---------------------------------------------------------------------------
 # Per-game traversability
 # ---------------------------------------------------------------------------
+def state_xy(state):
+    """Return a state's (x, y), tolerating both naming conventions in the state files.
+
+    MarioState/MegaManState expose .x/.y; LodeRunnerState exposes .currentX/.currentY.
+    """
+    if hasattr(state, "currentX"):
+        return state.currentX, state.currentY
+    return state.x, state.y
+
+
+def replay_path(start, solution):
+    """Replay the action list from start, collecting the (x, y) at every step.
+
+    Returns a list of (x, y) in the state files' own coordinate space (which, for
+    Mario, is the buffered grid).
+    """
+    positions = [state_xy(start)]
+    current = start
+    for action in solution or []:
+        current = current.get_successor(action)
+        if current is None:        # shouldn't happen for a real solution, but be safe
+            break
+        positions.append(state_xy(current))
+    return positions
+
+
 def _path_info(start, solution, search, x_offset=0, y_offset=0, goal=None):
     """Bundle the bits the visualizer needs (replay start, path, explored cells).
 
@@ -421,6 +447,23 @@ def untraversable_indices(scenes, game, id_to_char, tile_descriptors,
         if not ok:
             bad.append(idx)
     return bad
+
+
+def mmlv_level_path(level, id_to_char, tile_descriptors, budget=300000):
+    """Run A* across a whole MMLV level from its spawn to its exit (or boss) and return
+    (beaten, goal, path_cells).
+
+    goal is the char of the goal tile used ('Z' exit or 'S' boss), or "auto" when the
+    level has neither and the orb was auto-placed. path_cells is the set of (x, y) cells
+    the solution path visits, in the level's own coordinates (empty when not beaten).
+    Scenes cut from the level can then be checked against it by their source window."""
+    _, goal_cell = find_mmlv_spawn_exit(level, id_to_char)
+    goal = "auto" if goal_cell is None else id_to_char[level[goal_cell[1]][goal_cell[0]]]
+    beaten, _stats, info = evaluate("MMLV", level, id_to_char, tile_descriptors,
+                                    budget, False, visualize=True)
+    if not beaten or info is None:
+        return False, goal, set()
+    return True, goal, set(replay_path(info["start"], info["solution"]))
 
 
 def _render_target(game, tileset_path):
