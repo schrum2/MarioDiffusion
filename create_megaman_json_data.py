@@ -20,6 +20,9 @@ SNAP_H_PAD_ROWS = 2
 
 
 SPAWN_EXIT_CHARS = ('P', 'Z')
+#The MMLV boss tile. Like the spawn/exit markers it is level-goal metadata, so it is folded back
+#into the generic enemy 'a' (what bosses decoded to before 'S' existed) unless --keep_spawn_exit
+BOSS_CHAR = 'S'
 
 #The teleporter tile ('T'). Its "movable" descriptor is shared with the pushable block 'D',
 #so it's matched by char rather than descriptor (mirrors SPAWN_EXIT_CHARS). Scenes containing
@@ -189,7 +192,7 @@ def parse_args():
     parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width for path mode.')
     parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
-    parser.add_argument('--keep_spawn_exit', action='store_true', help="Keep the player spawn ('P') and exit orb ('Z') tiles in the output scenes. By default these markers are stripped (encoded as air) since they are level metadata, not geometry to be learned.")
+    parser.add_argument('--keep_spawn_exit', action='store_true', help="Keep the player spawn ('P'), exit orb ('Z') and boss ('S') tiles in the output scenes. By default the spawn/exit markers are stripped (encoded as air) and bosses become the generic enemy 'a', since they are level metadata, not geometry to be learned.")
     #The A* traversability filter is on by default now (also feeds the low-content check in apply_filters); --no_traversable_filter turns the hard filter off.
     parser.add_argument('--no_traversable_filter', dest='traversable_only', action='store_false', default=True, help='Disable filtering out A*-untraversable scenes (this filter is ON by default). The A* path length is still computed for the low-content rescue check regardless.')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by the traversability check (higher = more thorough, slower)')
@@ -454,6 +457,10 @@ def main():
         if strip_chars:
             print(f"Stripping spawn/exit tiles {sorted(strip_chars)} -> air id {air_id} "
                   f"(pass --keep_spawn_exit to retain them)")
+        if BOSS_CHAR in tile_to_id and 'a' in tile_to_id:
+            tile_to_id[BOSS_CHAR] = tile_to_id['a']
+            print(f"Encoding boss tile '{BOSS_CHAR}' as the generic enemy 'a' "
+                  f"(pass --keep_spawn_exit to retain it)")
 
     #We literally only need level overrides for 1-7, every other level parses as expected
     overrides_1_7 = [120, 121, 122, 123, 182] #Needed to avoid an early turn leading to a split path, and to prevent the level from turning back around to go back to the start

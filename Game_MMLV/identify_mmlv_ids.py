@@ -29,7 +29,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mmlv_to_vglc import (parse_mmlv, classify, mmlv_to_grid,
                           ENEMY_E_TO_CHAR, GIMMICK_E_TO_CHAR, PICKUP_E_TO_CHAR,
-                          BOSS_E_TO_CHAR, WATER_E_IDS)
+                          WATER_E_IDS)
 
 
 def is_fallback(cell) -> bool:
@@ -48,7 +48,7 @@ def is_fallback(cell) -> bool:
     if dc == 7:
         return ei not in PICKUP_E_TO_CHAR
     if dc == 8:
-        return ei not in BOSS_E_TO_CHAR
+        return False    # doors/orb/balloon via BOSS_E_TO_CHAR; every other d8 id is a boss 'S'
     return False
 
 

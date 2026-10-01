@@ -39,6 +39,9 @@ MegaManState = mm.MegaManState
 # For game "MMLV", A* starts on the spawn tile and ends on the exit tile when the scene
 # has them, and falls back to auto-placing a spawn/orb (like "MM") when it doesn't.
 MMLV_SPAWN_EXIT = ('P', 'Z')
+# Most MMLV levels have no exit orb and end at a boss fight instead, so with no exit tile
+# the goal is the boss tile (the one farthest from the spawn when there are several).
+MMLV_BOSS = 'S'
 
 # Default tileset per game (the one each dataset is normally created with).
 DEFAULT_TILESETS = {
@@ -331,9 +334,11 @@ def mm_traversable(scene, id_to_char, descs, budget, visualize=False, spawn=None
 def find_mmlv_spawn_exit(scene, id_to_char):
     """Return the (x, y) cells of the MMLV spawn and exit tiles (MMLV_SPAWN_EXIT), each
     None when absent. Takes the first spawn and the last exit in row-major order, the
-    same picks MegaManState's getSpawnFromVGLC/find_orb make."""
+    same picks MegaManState's getSpawnFromVGLC/find_orb make. With no exit tile, the
+    exit is the MMLV_BOSS tile farthest from the spawn (the last one with no spawn)."""
     spawn_char, exit_char = MMLV_SPAWN_EXIT
     spawn = exit_ = None
+    bosses = []
     for y, row in enumerate(scene):
         for x, v in enumerate(row):
             ch = id_to_char[v]
@@ -341,6 +346,11 @@ def find_mmlv_spawn_exit(scene, id_to_char):
                 spawn = (x, y)
             elif ch == exit_char:
                 exit_ = (x, y)
+            elif ch == MMLV_BOSS:
+                bosses.append((x, y))
+    if exit_ is None and bosses:
+        exit_ = bosses[-1] if spawn is None else max(
+            bosses, key=lambda b: (b[0] - spawn[0]) ** 2 + (b[1] - spawn[1]) ** 2)
     return spawn, exit_
 
 
