@@ -464,12 +464,16 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
           f"({', '.join(f'{r}={reason_counts[r]}' for r in FILTER_REASONS)}).")
     return kept, filtered
 
-def extract_mmlv_id(filename):
-    """Pull the Mega Man Maker level ID out of an MMLV-derived ASCII filename.
-    If the filename stem is entirely digits it is an MMLV level and we return the ID 
-    as an int; otherwise it is not MMLV-derived and we return None so no mmlvID is logged."""
+def parse_mmlv_level_name(filename):
+    """Pull (mmlv_id, blob_index) out of an MMLV-derived ASCII filename.
+    A stem that is entirely digits is a whole MMLV level: (id, None). '<id>_<k>' is blob k of a
+    discontiguous level split by Game_MMLV/bulk_mmlv_to_vglc.py: (id, k). Anything else is not
+    MMLV-derived: (None, None), so no mmlvID is logged."""
     stem = Path(filename).stem
-    return int(stem) if stem.isdigit() else None
+    base, _, blob = stem.partition("_")
+    if base.isdigit() and (not blob or blob.isdigit()):
+        return int(base), (int(blob) if blob else None)
+    return None, None
 
 
 def main():
@@ -550,7 +554,7 @@ def main():
         #can be traced back to exactly where it came from. Falls back to the index if
         #level_files is ever shorter than levels for some reason.
         source_level_name = level_files[i].name if i < len(level_files) else f"level_{i}"
-        mmlv_id = extract_mmlv_id(source_level_name)
+        mmlv_id, blob_index = parse_mmlv_level_name(source_level_name)
         #Metadata record for this level (None for non-MMLV levels or ids missing from the
         #sidecar); attached to every sample cut from this level below.
         mmlv_meta = level_metadata.get(str(mmlv_id)) if mmlv_id is not None else None
@@ -714,6 +718,11 @@ def main():
                 "mmlvID": mmlv_id,
                 "metadata": mmlv_meta
             }
+            if mmlv_id is not None:
+                #Blob of a discontiguous level (Game_MMLV/bulk_mmlv_to_vglc.py), named <id>_<k>;
+                #source_x/source_y are then relative to the blob, not the original level.
+                entry["discontiguous_source"] = blob_index is not None
+                entry["blob_index"] = blob_index
             if path_info is not None:
                 #traversable: on the level's solution path, or (filled in later by the
                 #per-scene A*) traversable on its own.
