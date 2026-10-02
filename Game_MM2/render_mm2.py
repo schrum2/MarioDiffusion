@@ -180,6 +180,22 @@ _MM2_PIPE_LOC = [(14, 0), (14, 2), (11, 0), (13, 0), (12, 0), (14, 1)]
 _MM2_BOSS_GLYPHS = {"X", "x", "!", "Z", "A", ";", "z"}  # Bowser, Bowser Jr, Boom Boom, Banzai Bill, Angry Sun, Clown Car, Goomba's Shoe / Yoshi's Egg
 _MM2_TILED_GLYPHS = {"t", "%", "j", "0", "f"}       # Thwomp, Saw, Swinging Claw, Skewer, Checkpoint
 
+# A Clown Car is anything from 2x2 to 4x7 in the data, so a big block is still one car.
+_MM2_VARIABLE_SIZE_GLYPHS = {";"}
+
+
+def _mm2_stored_footprint(glyph):
+    """The footprint mm2_metrics records for this glyph, or None when there isn't a
+    dependable one to go on."""
+    from util.mm2_metrics import FEATURE_POLICIES, UNCHECKED_FEATURES
+    entry = FEATURE_POLICIES.get(glyph)
+    if entry is None or glyph in _MM2_VARIABLE_SIZE_GLYPHS:
+        return None
+    name, policy = entry
+    if policy[0] != "fixed" or name in UNCHECKED_FEATURES:
+        return None
+    return policy[1], policy[2]
+
 
 def _load_mm2_spritesheet():
     """Load img/spritesheet.png once into the module-level cache.
@@ -800,17 +816,28 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
                 if len(cells) < 0.5 * bw * bh:
                     continue
 
+                # Decided per blob; the next one of this glyph works it out again.
+                is_several = False
+                stamp_w, stamp_h = tw, th
+
                 if is_boss:
                     # One sprite scaled to the ENTIRE block, so a 2x2 and a 4x4
                     # Bowser each render as a single (correspondingly sized) boss
                     # instead of bailing to a grid of 1x1 tiles. Covers the bbox.
-                    _mm2_paste_region(canvas, sprite, c0, r0, bw, bh, ts)
-                    for y in range(r0, r1 + 1):
-                        for x in range(c0, c1 + 1):
-                            consumed[y][x] = True
-                    continue
+                    # Unless the block is several of them in a row: three Banzai Bills
+                    # make a 12x4 block, and one sprite stretched over that looks awful.
+                    stored = _mm2_stored_footprint(glyph)
+                    is_several = bool(stored) and not (bw in (stored[0], 2 * stored[0])
+                                                       and bh in (stored[1], 2 * stored[1]))
+                    if not is_several:
+                        _mm2_paste_region(canvas, sprite, c0, r0, bw, bh, ts)
+                        for y in range(r0, r1 + 1):
+                            for x in range(c0, c1 + 1):
+                                consumed[y][x] = True
+                        continue
+                    stamp_w, stamp_h = stored
 
-                if is_tiled:
+                if is_tiled or is_several:
                     # Fixed footprint: a block larger than tw x th is several
                     # adjacent copies (two 2x2 Thwomps side by side make a 4x2
                     # block -> two stamps), so tile footprint-sized stamps across
@@ -819,13 +846,13 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
                     while cr <= r1:
                         cc = c0
                         while cc <= c1:
-                            sw, sh = min(tw, c1 - cc + 1), min(th, r1 - cr + 1)
+                            sw, sh = min(stamp_w, c1 - cc + 1), min(stamp_h, r1 - cr + 1)
                             _mm2_paste_region(canvas, sprite, cc, cr, sw, sh, ts)
                             for y in range(cr, cr + sh):
                                 for x in range(cc, cc + sw):
                                     consumed[y][x] = True
-                            cc += tw
-                        cr += th
+                            cc += stamp_w
+                        cr += stamp_h
                     continue
 
                 # Default "anchor": a block bigger than the footprint in either
