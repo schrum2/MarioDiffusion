@@ -175,6 +175,8 @@ GIMMICK_E_TO_CHAR = {
     65: "T",   # teleporter, another variant (same m/n partner-link + f style fields as e266).
     252:"T",   # teleporter, another variant. Every teleporter id carries the m/n partner-link
                # fields and occupies a full 2x2 footprint (see TWO_BY_TWO_E_IDS).
+    26: "T",   # The most common teleporter id (~6.2k objects in ~1.1k levels); m/n is its destination point,
+               # which may be bare air rather than a partner teleporter.
     76: "B",   # 2-wide x 1-tall weapon-specific breakable block (see TWO_WIDE_E_IDS: expands one
                # tile left). Weapon-specific like e27/e28; required weapon is 'o', doesn't affect decode.
     10: "R",   # 2-wide x 1-tall solid RISING platform -> the 'R' rising-platform tile (first-class,
@@ -204,8 +206,9 @@ PICKUP_E_TO_CHAR = {
 # d == 8 (bosses / boss doors / level orb): the 'e' subtype id -> VGLC char,
 # from the boss table in the .mmlv format reference.  Only id 15 is the actual
 # level-exit orb, so 'Z' (the MM.json "level exit / final goal") is reserved for
-# it; boss doors decode to the passable-door tile and the boss spawns themselves
-# decode to a generic enemy.
+# it; boss doors decode to the passable-door tile and every other d8 id (the boss
+# spawns themselves) decodes to the boss tile 'S'. Most levels have no exit orb and
+# end when the boss is beaten, so 'S' marks the level goal for A*.
 BOSS_E_TO_CHAR = {
     15: "Z",   # Energy Element / MM1 Exit Orb  -> the level exit
     0:  "D",   # Vertical Boss Door, real-level id (also the no-'e' default). Same 2x4 footprint
@@ -245,7 +248,7 @@ LAVA_E_IDS = set(range(1095, 1103))  # 1095-1102
 # just that one cell and the other three tiles read as gaps. mmlv_to_grid expands each of
 # these to the full 2x2 by also filling the tiles directly above, directly left, and
 # diagonally up-left with the same char.
-TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186, 256, 252, 266, 65}
+TWO_BY_TWO_E_IDS = {27, 45, 93, 205, 206, 186, 256, 252, 266, 65, 26}
 
 # d == 6 gimmick ids that are 2-wide x 1-tall horizontal blocks. Like the 2x2 blocks these
 # are stored as a single object at the block's RIGHT tile, so on their own they decode to
@@ -418,7 +421,7 @@ def classify(cell: dict) -> str:
         if dc == 7:                                 # pickup (energy/life/1-up/tank …)
             return PICKUP_E_TO_CHAR.get(ei, "w")
         if dc == 8:                                 # level orb (e=15), boss door, or boss
-            return BOSS_E_TO_CHAR.get(ei, "a")      # unmapped boss spawn -> generic enemy
+            return BOSS_E_TO_CHAR.get(ei, "S")      # every other d8 id is a boss -> boss tile
         return "a"                                  # unknown object class
 
     # Tile layer ('i' field)

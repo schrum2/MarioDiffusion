@@ -16,7 +16,7 @@ REM download a ton of levels from MMLV
 python Game_MMLV\bulk_mmlv_download.py --target %LVL_TARGET%
 python log_timestamp.py --log_file %TIMING_LOG% --event "bulk download"
 
-REM convert to VGLC ASCII
+REM convert to VGLC ASCII (discontiguous levels are split into their contiguous blobs, with whole copies in Game_MMLV\MMLV_Levels_Discontiguous; add --keep_discontiguous to keep them whole)
 python Game_MMLV\bulk_mmlv_to_vglc.py --output Game_MMLV\MMLV_Levels
 python log_timestamp.py --log_file %TIMING_LOG% --event "MMLV to VGLC conversion"
 

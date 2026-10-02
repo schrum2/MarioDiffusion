@@ -14,7 +14,7 @@
         "d": [4, 5], "h": [4, 6],
         "=": [0, 9], "s": [2, 4], "V": [2, 5], "Y": [2, 6],
         "K": [2, 7], "R": [2, 8], "G": [4, 9], "J": [4, 10],
-        "X": [2, 9]
+        "X": [2, 9], "S": [4, 8]
     },
     "tiles" : {
         "-": ["passable", "empty"],
@@ -68,6 +68,7 @@
         "R": ["solid", "moving", "penetrable"],
         "G": ["passable", "hazard"],
         "J": ["passable", "hazard"],
-        "X": ["passable", "checkpoint"]
+        "X": ["passable", "checkpoint"],
+        "S": ["enemy", "damaging", "boss"]
     }
 }
