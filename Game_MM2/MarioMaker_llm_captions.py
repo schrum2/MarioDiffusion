@@ -290,11 +290,11 @@ WHAT TO AVOID
 # Sample captions used only to show the model the JSON array shape. They are
 # sliced to the requested caption count when building the example.
 _EXAMPLE_CAPTIONS = [
-    "ascending staircase. two goombas. one pipe right.",
-    "a short level with a rising staircase, a couple of goombas, and a pipe near the end.",
     "the level begins on flat ground before climbing a set of steps toward the right side. two goombas patrol the lower section, and a pipe sits near the far right edge of the level.",
-    "flat ground, a pipe, and a couple of enemies.",
+    "a short level with a rising staircase, a couple of goombas, and a pipe near the end.",
     "rising terrain on the right with goombas below and a pipe at the far end.",
+    "ascending staircase. two goombas. one pipe right.",
+    "flat ground, a pipe, and a couple of enemies.",
 ]
 
 
@@ -312,12 +312,12 @@ def _build_task_section(num_captions):
         f"Write {num_captions} different captions for this same level. All {num_captions} must be "
         "accurate, but they must vary WIDELY from each other in length, level of detail, and "
         "register, so that together they cover the range of ways a human might describe this level:\n\n"
-        "- one or two should be terse, tag-like phrases separated by periods (similar to keyword "
-        "lists), covering only the 2-4 most prominent features\n"
+        "- one or two should be a more detailed, descriptive paragraph that walks through the "
+        "level's layout and notable features in order\n"
         "- one or two should be a plain casual sentence or two, in normal prose, that a person "
         "might type quickly\n"
-        "- one or two should be a more detailed, descriptive paragraph that walks through the "
-        "level's layout and notable features in order\n\n"
+        "- one or two should be terse, tag-like phrases separated by periods (similar to keyword "
+        "lists), covering only the 2-4 most prominent features\n\n"
         f"Across the {num_captions} captions, vary which features get emphasized — they don't all "
         "need to mention everything, but none should contradict another or invent something not "
         f"present. Keep all {num_captions} lowercase except for proper nouns inherent to object "
@@ -327,9 +327,9 @@ def _build_task_section(num_captions):
 
 def _build_output_section(num_captions):
     if num_captions == 1:
-        # The single-caption task asks for the detailed paragraph style, so show
-        # that example rather than the terse tag-like first entry.
-        entries = [_EXAMPLE_CAPTIONS[2]]
+        # The single-caption task asks for the detailed paragraph style, which is
+        # already the first example.
+        entries = [_EXAMPLE_CAPTIONS[0]]
     else:
         n_example = min(num_captions, len(_EXAMPLE_CAPTIONS))
         entries = list(_EXAMPLE_CAPTIONS[:n_example])
