@@ -710,15 +710,15 @@ def main_build(argv=None):
                         help="Keep window positions that cut an object in half. Off "
                              "by default, since those samples teach the model that "
                              "half a Saw is valid level content.")
-    parser.add_argument("--slice_policy", choices=["skip", "expand", "carve"], default="skip",
-                        help="What to do with a window that would cut an object. "
-                             "'skip' drops the position and relies on the other windows "
-                             "covering the level. 'expand' widens the window until the "
-                             "object is whole, which keeps the content but makes that "
-                             "scene wider than --window_w. 'carve' widens it the same "
-                             "way and then drops redundant columns (ones inside a run of "
-                             "three identical columns) to get back to --window_w, "
-                             "skipping the window when there aren't enough to spare.")
+    parser.add_argument("--slice_policy", choices=["skip", "expand", "carve"], default=None,
+                        help="What to do with a window that would cut an object. 'carve' "
+                             "(the default) widens the window until the object is whole, "
+                             "then drops redundant columns (ones inside a run of three "
+                             "identical columns) to get back to --window_w, dropping the "
+                             "window only when there aren't enough to spare. 'skip' drops "
+                             "the position outright and relies on the other windows "
+                             "covering the level. 'expand' widens without trimming back, "
+                             "which leaves that scene wider than --window_w.")
     parser.add_argument("--with_images", action="store_true",
                         help="For every tile sample, also crop the matching "
                              f"{WINDOW_W}x{WINDOW_H}-tile region out of the level's "
@@ -767,7 +767,11 @@ def main_build(argv=None):
     # Convert the percentage threshold into a tile count against the actual window size.
     min_tiles = math.ceil((args.min_tiles_pct / 100.0) * WINDOW_H * WINDOW_W)
 
-    if args.with_images and args.slice_policy != "skip":
+    # The image crop is one contiguous strip of the level, which a widened or carved
+    # window isn't, so pictures quietly pin the policy back to 'skip'.
+    if args.slice_policy is None:
+        args.slice_policy = "skip" if args.with_images else "carve"
+    elif args.with_images and args.slice_policy != "skip":
         parser.error("--with_images needs --slice_policy skip: the image crop is one "
                      "contiguous strip of the level, which a widened or carved window "
                      "no longer is.")
