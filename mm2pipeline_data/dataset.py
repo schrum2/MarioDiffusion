@@ -124,6 +124,64 @@ def window_slices_object(x, boxes, window_w=None):
     return False
 
 
+def redundant_columns(columns, protected):
+    """Columns sitting inside a run of three or more identical ones, skipping any a
+    protected box occupies. Dropping one of those shortens a flat stretch or a patch
+    of sky; needing a run of three is what keeps a 2-wide pipe from losing a half."""
+    out = []
+    for i in range(1, len(columns) - 1):
+        if i not in protected and columns[i - 1] == columns[i] == columns[i + 1]:
+            out.append(i)
+    return out
+
+
+def carve_window(padded, left, right, boxes, target_w):
+    """Trim a widened span back to target_w by dropping redundant columns, so an
+    object that would have been cut fits in a normal-width scene instead. Returns the
+    columns to keep, or None when there isn't enough redundancy to get there."""
+    columns = [tuple(row[c] for row in padded) for c in range(left, right)]
+    protected = {c - left for box in boxes
+                 for c in range(box["x"], box["x"] + box["w"])
+                 if left <= c < right}
+    need = len(columns) - target_w
+    if need <= 0:
+        return list(range(left, right))
+
+    removable = redundant_columns(columns, protected)
+    if len(removable) < need:
+        return None
+    # Spread the drops over the run so one flat stretch doesn't absorb all of them
+    step = len(removable) / need
+    drop = set()
+    for i in range(need):
+        drop.add(removable[int(i * step)])
+    for i in removable:                 # int() can land twice on a short list
+        if len(drop) == need:
+            break
+        drop.add(i)
+    return [left + i for i in range(len(columns)) if i not in drop]
+
+
+def widen_window(x, boxes, level_width, window_w=None):
+    """Grow a window sideways until every protected box it touches sits inside it
+    whole. Returns (left, right), clamped to the level, so a box the level itself
+    cut off can still leave the window short."""
+    left = x
+    right = x + (WINDOW_W if window_w is None else window_w)
+    growing = True
+    while growing:
+        growing = False
+        for box in boxes:
+            box_left = box["x"]
+            box_right = box_left + box["w"]
+            if box_left < right and box_right > left:   # they overlap at all...
+                if box_left < left:                     # ...so take the whole box in
+                    left, growing = box_left, True
+                if box_right > right:
+                    right, growing = box_right, True
+    return max(0, left), min(level_width, right)
+
+
 def erase_cropped_remnants(rows, boxes, top_cut, empty_char):
     """Blanks whatever's left of a protected box once the level is cropped to
     WINDOW_H rows, since there's no other window to fall back on here."""
@@ -152,13 +210,15 @@ def erase_cropped_remnants(rows, boxes, top_cut, empty_char):
 
 
 def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty_char="-",
-                        protected_boxes=()):
+                        protected_boxes=(), slice_policy="skip"):
     """Slide a WINDOW_H x WINDOW_W window across the level and return every window
     as a list of (x, scene) pairs, where x is the game-grid column of the
     window's left edge (needed to crop the matching slice of the level image).
     Air-only windows are dropped so empty gaps don't end up in the dataset.
-    Positions that would cut one of protected_boxes are skipped -- sliding gives
-    us more windows than we need. Returns (windows, skipped)."""
+    A position that would cut one of protected_boxes is either skipped, since sliding
+    gives us more windows than we need, or widened until the whole object is inside,
+    depending on slice_policy. Widening makes a scene wider than WINDOW_W, so it is
+    not the default. Returns (windows, skipped, carved)."""
     extra_id = tile_to_id.get(extra_tile, 0)
     empty_id = tile_to_id.get(empty_char, 0)
 
@@ -183,27 +243,44 @@ def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty
 
     # An object wider than the window can never fit, so protecting it is pointless.
     boxes = [b for b in protected_boxes if b["w"] <= WINDOW_W]
-    intact_xs = [x for x in xs if not window_slices_object(x, boxes)]
-    skipped = len(xs) - len(intact_xs)
-    xs = intact_xs
+    skipped = 0
+    carved = 0
+    spans = []                  # the columns each window keeps, left to right
+    for x in xs:
+        if slice_policy == "skip":
+            if window_slices_object(x, boxes):
+                skipped += 1
+                continue
+            spans.append(list(range(x, x + WINDOW_W)))
+            continue
+        left, right = widen_window(x, boxes, width)
+        if slice_policy == "expand":
+            spans.append(list(range(left, right)))
+            continue
+        cols = carve_window(padded, left, right, boxes, WINDOW_W)
+        if cols is None:        # not enough slack to carve it back down
+            skipped += 1
+            continue
+        if right - left > WINDOW_W:
+            carved += 1
+        spans.append(cols)
 
     scenes = []
-    for x in xs:
+    for cols in spans:
         scene = []
         has_content = False
-        for y in range(WINDOW_H):
-            row_slice = padded[y][x : x + WINDOW_W]
+        for row in padded[:WINDOW_H]:
             id_row = []
-            for ch in row_slice:
-                tid = tile_to_id.get(ch, extra_id)
+            for c in cols:
+                tid = tile_to_id.get(row[c], extra_id)
                 id_row.append(tid)
                 if tid != empty_id:
                     has_content = True
             scene.append(id_row)
         if has_content:
-            scenes.append((x, scene))
+            scenes.append((cols[0], scene))
 
-    return scenes, skipped
+    return scenes, skipped, carved
 
 
 def count_non_air_tiles(scene, empty_id, extra_id):
@@ -633,6 +710,15 @@ def main_build(argv=None):
                         help="Keep window positions that cut an object in half. Off "
                              "by default, since those samples teach the model that "
                              "half a Saw is valid level content.")
+    parser.add_argument("--slice_policy", choices=["skip", "expand", "carve"], default="skip",
+                        help="What to do with a window that would cut an object. "
+                             "'skip' drops the position and relies on the other windows "
+                             "covering the level. 'expand' widens the window until the "
+                             "object is whole, which keeps the content but makes that "
+                             "scene wider than --window_w. 'carve' widens it the same "
+                             "way and then drops redundant columns (ones inside a run of "
+                             "three identical columns) to get back to --window_w, "
+                             "skipping the window when there aren't enough to spare.")
     parser.add_argument("--with_images", action="store_true",
                         help="For every tile sample, also crop the matching "
                              f"{WINDOW_W}x{WINDOW_H}-tile region out of the level's "
@@ -680,6 +766,11 @@ def main_build(argv=None):
     stride = args.stride if args.stride is not None else WINDOW_W
     # Convert the percentage threshold into a tile count against the actual window size.
     min_tiles = math.ceil((args.min_tiles_pct / 100.0) * WINDOW_H * WINDOW_W)
+
+    if args.with_images and args.slice_policy != "skip":
+        parser.error("--with_images needs --slice_policy skip: the image crop is one "
+                     "contiguous strip of the level, which a widened or carved window "
+                     "no longer is.")
 
     if args.with_images and args.convert_to_vglc:
         parser.error("--with_images cannot be combined with --convert_to_vglc: "
@@ -744,6 +835,7 @@ def main_build(argv=None):
     skipped = 0
     dropped_min_samples = 0  # samples the filters set aside
     windows_sliced = 0       # positions skipped to keep objects whole
+    windows_carved = 0       # positions widened then trimmed back by dropping spare columns
     objects_cropped = 0      # half-objects wiped by the level's vertical crop
     levels_without_boxes = 0  # levels whose metadata has no boxes yet
 
@@ -835,10 +927,12 @@ def main_build(argv=None):
                 samples = []
                 dropped_samples = []
                 if args.sliding_window:
-                    windows, sliced = extract_all_windows(
+                    windows, sliced, carved = extract_all_windows(
                         rows, tile_to_id, extra_tile=extra_tile, stride=stride,
-                        empty_char=empty_char, protected_boxes=protected_boxes)
+                        empty_char=empty_char, protected_boxes=protected_boxes,
+                        slice_policy=args.slice_policy)
                     windows_sliced += sliced
+                    windows_carved += carved
                     if not windows:
                         print(f"  [SKIP] {full_name} (empty)")
                         skipped += 1
@@ -946,8 +1040,12 @@ def main_build(argv=None):
     if dropped_min_samples:
         tally = ", ".join(f"{r}={reason_counts[r]}" for r in FILTER_REASONS)
         print(f"Filtered {dropped_min_samples} sample(s) ({tally}).")
+    if windows_carved:
+        print(f"Carved {windows_carved} window(s) back to {WINDOW_W} wide by dropping "
+              f"redundant columns, keeping content that would otherwise have been dropped.")
     if windows_sliced:
-        print(f"Skipped {windows_sliced} window(s) that would have cut an object in half.")
+        print(f"Dropped {windows_sliced} sample(s): the window cut an object and "
+              f"{'there were too few spare columns to carve it back' if args.slice_policy == 'carve' else 'the position was skipped'}.")
     if objects_cropped:
         print(f"Erased {objects_cropped} object(s) the level's height crop cut in half.")
     if levels_without_boxes:
