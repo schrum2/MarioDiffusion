@@ -22,12 +22,12 @@ That is deliberately crude -- real draw is not linear in utilization, and an idl
 GPU still pulls non-zero power that this scores as zero. Treat it as an
 order-of-magnitude figure, good for comparing runs against each other, not as a
 measurement. Every raw input (mean utilization, sample count, duration, power
-limit) is written to the CSV so a better power model can be applied later without
-re-running anything.
+limit) is written to the report so a better power model can be applied later
+without re-running anything.
 
 If NVML power telemetry *is* available (a datacenter GPU, or an older driver),
 codecarbon's measured GPU energy is used instead and the heuristic is skipped --
-the `gpu_source` column records which path was taken.
+the `gpu_source` field records which path was taken.
 
 Usage
 -----
@@ -50,24 +50,25 @@ A script that parses arguments before the decorated function is called (train_ml
 parses at module level, then calls the decorated train()) must register the flag in
 its own parser, since argparse sees sys.argv before this decorator can strip it.
 
-Either way one row is appended to energy_summary.csv, and codecarbon's own
-emissions.csv is still written alongside it, unchanged, for full provenance.
+Either way the run is recorded as the "energy" section of a JSON report (see
+util/run_report.py), together with any token spend the run reported. The report
+sits beside what the run produced: a script calls run_report.set_path() once it
+knows where that is (train_diffusion.py uses <output_dir>/energy_report.json).
+codecarbon's own emissions.csv is still written to the working directory,
+unchanged, for full provenance; the report's run_id joins to it.
 """
 
-import csv
-import os
 import sys
 import threading
 import time
 from datetime import datetime
 from functools import wraps
 
+from util import run_report
+
 # How often to poll NVML for utilization. Utilization queries are cheap and only a
 # running sum is kept, so this stays inexpensive across multi-hour training runs.
 SAMPLE_SECONDS = 1.0
-
-# Written to the current working directory, beside codecarbon's emissions.csv.
-OUTPUT_FILE = "energy_summary.csv"
 
 # Opt-in switch for the full breakdown; the default is a single line.
 DETAIL_FLAG = "--energy_detail"
@@ -94,12 +95,11 @@ FIELDNAMES = [
     "total_energy_kwh",
     "co2eq_kg",
     "note",
-    "command",
 ]
 
-# Decimal places per column. Raw floats would otherwise land in the CSV at full
-# repr precision ("3.8740779444601186e-05"), which is unreadable in a spreadsheet
-# and implies far more precision than the underlying measurement has.
+# Decimal places per field. Raw floats would otherwise land in the report at full
+# repr precision ("3.8740779444601186e-05"), which implies far more precision than
+# the underlying measurement has.
 _PLACES = {
     "duration_seconds": 2,
     "cpu_energy_kwh": 9,
@@ -201,28 +201,14 @@ def _format_duration(seconds):
     return f"{hours:d}:{minutes:02d}:{secs:02d}"
 
 
-def _csv_row(summary):
-    """
-    Projects the summary onto FIELDNAMES, rendering floats in plain decimal at a
-    sensible precision rather than at full repr precision / in scientific notation.
-    """
-    row = {}
+def _report_section(summary):
+    """Projects the summary onto FIELDNAMES, rounding floats to a sensible precision."""
+    section = {}
     for field in FIELDNAMES:
         value = summary[field]
         places = _PLACES.get(field)
-        row[field] = f"{value:.{places}f}" if places is not None else value
-    return row
-
-
-def _write_row(row):
-    # Append, writing the header only when creating the file, so repeated runs
-    # accumulate in one CSV the way codecarbon's emissions.csv does.
-    write_header = not os.path.exists(OUTPUT_FILE)
-    with open(OUTPUT_FILE, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
-        if write_header:
-            writer.writeheader()
-        writer.writerow(row)
+        section[field] = round(value, places) if places is not None else value
+    return section
 
 
 # Resolved once per process: the flag is stripped from sys.argv the first time it
@@ -248,7 +234,7 @@ def _pop_detail_flag():
     return _detail_requested
 
 
-def _print_oneline(summary):
+def _print_oneline(summary, report_path):
     """The default end-of-run message: energy, in one line."""
     cpu_ram = summary["cpu_energy_kwh"] + summary["ram_energy_kwh"]
     source = summary["gpu_source"]
@@ -261,14 +247,14 @@ def _print_oneline(summary):
 
     print(f"[CodeCarbon] energy: CPU+RAM {cpu_ram:.6f} kWh {tail}"
           f" = {summary['total_energy_kwh']:.6f} kWh"
-          f" ({summary['co2eq_kg']:.6f} kg CO2e)")
+          f" ({summary['co2eq_kg']:.6f} kg CO2e) -> {report_path}")
 
 
 def _component_line(label, energy_kwh, power_w, detail):
     return f"  {label:<11}{energy_kwh:>11.6f} kWh {power_w:>7.1f} W   {detail}".rstrip()
 
 
-def _print_summary(summary):
+def _print_summary(summary, report_path):
     """The single end-of-run message. Everything else is silenced."""
     width = 62
     rule = "-" * width
@@ -319,7 +305,7 @@ def _print_summary(summary):
         lines.append(f"  GPU is a heuristic: avg util x "
                      f"{summary['gpu_power_limit_total_w']:.0f} W limit x time.")
 
-    lines += [f"  Raw values appended to {OUTPUT_FILE}", "=" * width, ""]
+    lines += [f"  Raw values appended to {report_path}", "=" * width, ""]
     print("\n".join(lines))
 
 
@@ -328,11 +314,12 @@ def track_energy(project_name):
     Decorator measuring whole-run energy for the wrapped call.
 
     Runs codecarbon (CPU/RAM, and GPU where NVML supports it) alongside a GPU
-    utilization sampler, then prints one summary and appends one row to
-    energy_summary.csv. codecarbon's periodic logging is silenced so completion
-    produces a single message rather than a running commentary.
+    utilization sampler, then prints one summary and appends this run to the JSON
+    report (util/run_report.py), along with any sections the wrapped function added
+    to it. codecarbon's periodic logging is silenced so completion produces a single
+    message rather than a running commentary.
 
-    Both the summary and the CSV row are emitted from a finally block, so they
+    Both the summary and the report are emitted from a finally block, so they
     still appear if the wrapped function raises or calls sys.exit().
     """
     def decorator(fn):
@@ -348,8 +335,9 @@ def track_energy(project_name):
             # catches it too, leaving the summary below as the only output.
             logging.getLogger("codecarbon").setLevel(logging.ERROR)
 
-            # Record what was actually typed before the flag is stripped out.
-            command = " ".join(sys.argv)
+            # Opened before the flag is stripped out, so the report records what was
+            # actually typed.
+            run_report.open_run()
             show_detail = _pop_detail_flag()
 
             nvml = _open_nvml()
@@ -431,15 +419,10 @@ def track_energy(project_name):
                 summary = {
                     "start_time": started_at.strftime("%Y-%m-%dT%H:%M:%S"),
                     "end_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                    # codecarbon's own run_id for this run, so a row here joins
+                    # codecarbon's own run_id for this run, so a report entry joins
                     # exactly to its emissions.csv row instead of by timestamp
                     # proximity (the two are written moments apart).
                     "run_id": str(getattr(data, "run_id", "")),
-                    # Two runs of the same script share a project_name and differ
-                    # only by timestamp, which makes rows hard to tell apart. The
-                    # command line carries --output_dir, --json and the rest, so
-                    # each row says which configuration produced it.
-                    "command": command,
                     "project_name": project_name,
                     "duration_seconds": round(duration, 2),
                     "cpu_energy_kwh": cpu_energy,
@@ -451,8 +434,9 @@ def track_energy(project_name):
                     "gpu_energy_kwh": gpu_energy,
                     "gpu_power_w": _mean_power_w(gpu_energy, duration),
                     "gpu_source": gpu_source,
-                    "gpu_mean_util_percent": ";".join(f"{u:.2f}" for u in mean_utils),
-                    "gpu_power_limit_w": ";".join(f"{p:.1f}" for p in power_limits),
+                    # One entry per GPU.
+                    "gpu_mean_util_percent": [round(u, 2) for u in mean_utils],
+                    "gpu_power_limit_w": [round(p, 1) for p in power_limits],
                     "gpu_samples": samples,
                     "measured_energy_kwh": measured_energy,
                     "total_energy_kwh": total_energy,
@@ -460,16 +444,22 @@ def track_energy(project_name):
                     "note": note,
                 }
 
-                _write_row(_csv_row(summary))
+                # Never raises: failing to write a bookkeeping file should not
+                # mask the real error of a run that is already unwinding.
+                try:
+                    run_report.add_section("energy", _report_section(summary))
+                    report_path = run_report.close_run()
+                except Exception as exc:
+                    report_path = f"(not saved: {exc})"
 
-                # Extra derived values the printed summary wants but the CSV
+                # Extra derived values the printed summary wants but the report
                 # keeps in per-GPU form.
                 summary["gpu_mean_util_percent_mean"] = mean_util_overall
                 summary["gpu_power_limit_total_w"] = sum(power_limits)
 
                 if show_detail:
-                    _print_summary(summary)
+                    _print_summary(summary, report_path)
                 else:
-                    _print_oneline(summary)
+                    _print_oneline(summary, report_path)
         return wrapper
     return decorator

@@ -34,6 +34,7 @@ from models.pipeline_loader import get_pipeline
 from create_ascii_captions import assign_caption
 import astar.astar_traversability_check
 from util.energy_tracking import track_energy
+from util import run_report
 
 
 # REVISION CANDIDATE: mse_loss, reconstruction_loss, and combined_loss are self-contained
@@ -342,7 +343,7 @@ def infer_global_step_from_log(log_file):
 
 # Measures whole-run energy (codecarbon for CPU/RAM, plus a utilization-based GPU
 # estimate since this hardware exposes no NVML power telemetry), prints one summary on
-# completion and appends a row to energy_summary.csv. See util/energy_tracking.py.
+# completion and saves it to <output_dir>/energy_report.json. See util/energy_tracking.py.
 @track_energy(project_name="train_diffusion")
 def main():
     args = parse_args()
@@ -396,7 +397,11 @@ def main():
     else:
         os.makedirs(args.output_dir)
         resume_training = False
-    
+
+    # Energy report lives with the model it measured; a resumed run adds to its history.
+    run_report.set_path(os.path.join(args.output_dir, run_report.MODEL_REPORT_NAME),
+                        append=resume_training)
+
     if args.negative_prompt_training and not args.text_conditional:
         raise ValueError("Negative prompt training requires text conditioning to be enabled")
     

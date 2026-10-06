@@ -25,6 +25,11 @@ import urllib.request
 
 from llm_ascii_to_caption import DEFAULT_MODELS, TokenUsage, llm_caption
 from util.token_tracking import log_run as log_token_run
+from util import run_report
+
+# A worker is handed individual scenes and never sees which dataset they came from, so its
+# report can't sit beside one. Every worker run on a machine appends to this file instead.
+WORKER_REPORT = "caption_worker.costs.json"
 
 
 def get_work(coordinator: str, worker_id: str, llm: str, model: str, n: int) -> dict:
@@ -124,9 +129,10 @@ def main():
     def report_worker_usage():
         print(f"[worker {worker_id}] Token usage for this worker: "
               f"{worker_usage.summary(worker_usage_scenes)}")
-        # One row per worker process, in the same token_usage.csv a single-machine run
-        # writes. The game/dataset columns stay blank here: a worker is handed individual
-        # scenes by the coordinator and never sees which dataset they came from.
+        # One run per worker process. The game/dataset settings are absent here: a worker
+        # is handed individual scenes by the coordinator and never sees which dataset they
+        # came from.
+        run_report.set_path(WORKER_REPORT)
         log_token_run(
             usage=worker_usage,
             scenes=worker_usage_scenes,
