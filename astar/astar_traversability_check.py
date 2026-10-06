@@ -451,19 +451,19 @@ def untraversable_indices(scenes, game, id_to_char, tile_descriptors,
 
 def mmlv_level_path(level, id_to_char, tile_descriptors, budget=300000):
     """Run A* across a whole MMLV level from its spawn to its exit (or boss) and return
-    (beaten, goal, path_cells).
+    (beaten, goal, path).
 
     goal is the char of the goal tile used ('Z' exit or 'S' boss), or "auto" when the
-    level has neither and the orb was auto-placed. path_cells is the set of (x, y) cells
-    the solution path visits, in the level's own coordinates (empty when not beaten).
-    Scenes cut from the level can then be checked against it by their source window."""
+    level has neither and the orb was auto-placed. path is the solution path's (x, y)
+    cells in order, in the level's own coordinates (empty when not beaten). Scenes cut
+    from the level can then be checked against it by their source window."""
     _, goal_cell = find_mmlv_spawn_exit(level, id_to_char)
     goal = "auto" if goal_cell is None else id_to_char[level[goal_cell[1]][goal_cell[0]]]
     beaten, _stats, info = evaluate("MMLV", level, id_to_char, tile_descriptors,
                                     budget, False, visualize=True)
     if not beaten or info is None:
-        return False, goal, set()
-    return True, goal, set(replay_path(info["start"], info["solution"]))
+        return False, goal, []
+    return True, goal, replay_path(info["start"], info["solution"])
 
 
 def _render_target(game, tileset_path):

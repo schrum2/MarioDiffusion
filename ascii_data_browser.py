@@ -707,7 +707,7 @@ class TileViewer(tk.Tk):
         # plain one; fall back to the plain render if the path can't be produced.
         image = None
         if getattr(self, 'show_astar_path', False):
-            image = self._astar_overlay_image(sample['scene'])
+            image = self._astar_overlay_image(sample['scene'], sample)
 
         if image is None:
             try:
@@ -941,9 +941,13 @@ class TileViewer(tk.Tk):
         return True
 
     # --- A* path overlay -----------------------------------------------------
-    def _astar_overlay_image(self, scene):
+    def _astar_overlay_image(self, scene, sample=None):
         """Render scene with its A* path and explored cells.
-        Returns a PIL image, or None if the path can't be produced."""
+        Returns a PIL image, or None if the path can't be produced.
+
+        If sample is an MMLV dataset entry whose parent level's A* solution path passes
+        through it, the stored path (traversability["level_path"]) is drawn as-is instead
+        of re-running A* on the scene alone."""
         astar_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astar")
         if astar_dir not in sys.path:
             sys.path.insert(0, astar_dir)
@@ -954,9 +958,15 @@ class TileViewer(tk.Tk):
             print(f"Could not import A* path tools: {e}")
             return None
 
+        config = self._game_config()
+        level_path = ((sample.get("traversability") or {}).get("level_path")
+                      if isinstance(sample, dict) else None)
+        if level_path:
+            print(f"A* path: whole-level solution path through this scene ({len(level_path)} cells)")
+            return render_info(scene, config["render_name"], {"kind": "cells", "cells": level_path})
+
         # MM-Simple/Full share the "MM" traversability target; MMLV gets its own so A*
         # can use the scene's spawn/exit tiles. Other games use render_name as-is.
-        config = self._game_config()
         trav_game = RENDER_GAME_TO_TRAV.get(config["render_name"], config["render_name"])
         try:
             ok, stats, info = evaluate(trav_game, scene, self.id_to_char,

@@ -74,7 +74,7 @@ def render_scene_image(scene, game_render):
 
 
 def visualize_path(scene, game_render, start, solution, visited=None,
-                   x_offset=0, y_offset=0, show_visited=True, goal=None):
+                   x_offset=0, y_offset=0, show_visited=True, goal=None, positions=None):
     """Return a PIL image of the scene with the A* path (and explored cells) drawn on.
 
     scene        : raw 2D tile-id array (original encoding, used only for rendering)
@@ -86,6 +86,8 @@ def visualize_path(scene, game_render, start, solution, visited=None,
                         (Mario buffers the grid, so it passes -BUFFER_WIDTH for x)
     goal         : explicit (x, y) goal cell to mark in blue (e.g. the placed MM orb), so
                    it shows even when unreachable; None falls back to the end of the path
+    positions    : the path as (x, y) cells in order, drawn instead of replaying
+                   start/solution (e.g. a whole-level path stored in a scene's metadata)
     """
     _, tile_size = _RENDER_INFO[game_render]
     base = render_scene_image(scene, game_render).convert("RGBA")
@@ -117,13 +119,22 @@ def visualize_path(scene, game_render, start, solution, visited=None,
             draw.line([(x1, y0), (x0, y1)], fill=_VISITED_COLOR, width=line_w)
 
     # Solution path as a polyline through cell centers, clipped to the visible scene.
-    positions = replay_path(start, solution)
+    if positions is None:
+        positions = replay_path(start, solution)
     drawn = [(x + x_offset, y + y_offset) for (x, y) in positions]
     drawn = [(x, y) for (x, y) in drawn if in_bounds(x, y)]
-    if len(drawn) >= 2:
-        path_w = max(2, tile_size // 5)
-        centers = [cell_center(x, y) for (x, y) in drawn]
-        draw.line(centers, fill=_PATH_COLOR, width=path_w, joint="curve")
+    # A step moves at most 2 cells, so a bigger jump between consecutive drawn cells means
+    # the path left the visible scene and came back: break the line there.
+    runs = [[]]
+    for prev, cur in zip([None] + drawn, drawn):
+        if prev is not None and max(abs(cur[0] - prev[0]), abs(cur[1] - prev[1])) > 2:
+            runs.append([])
+        runs[-1].append(cur)
+    path_w = max(2, tile_size // 5)
+    for run in runs:
+        if len(run) >= 2:
+            draw.line([cell_center(x, y) for (x, y) in run], fill=_PATH_COLOR,
+                      width=path_w, joint="curve")
 
     # Start (green) and goal (blue) markers.
     def dot(x, y, color):
@@ -232,7 +243,12 @@ def render_info(scene, game_render, info, show_visited=True):
 
     {info} is the path_info dict produced by astar_traversability_check.evaluate():
     a "tree" kind (LodeRunner reachability spanning tree) or a "path" kind (a replayed
-    A* solution path, the default for Mario/Mega Man)."""
+    A* solution path, the default for Mario/Mega Man). A "cells" kind draws a path given
+    directly as (x, y) cells, e.g. the whole-level path stored in an MMLV scene's
+    traversability["level_path"]."""
+    if info.get("kind") == "cells":
+        return visualize_path(scene, game_render, None, None, show_visited=False,
+                              positions=info["cells"])
     if info.get("kind") == "tree":
         return visualize_spanning_tree(
             scene, game_render, info["start"], info["edges"],

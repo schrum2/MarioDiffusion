@@ -284,23 +284,35 @@ def _astar_module():
     return astar_traversability_check
 
 
-def annotate_level_path(level, source_coords, window_sizes, level_tile_to_id, level_id_to_char,
+def annotate_level_path(level, source_coords, windows, level_tile_to_id, level_id_to_char,
                         tile_descriptors, null_char, budget):
     """Run A* across one whole MMLV level (spawn -> exit, or boss) and return, per sample, its
-    'traversability' record: whether the level was beaten, which goal was used, and whether
-    the solution path passes through the sample's window (source coords + window size).
-    scene_traversable is left None; the per-scene A* fills it for scenes not on the path."""
+    'traversability' record: whether the level was beaten, which goal was used, whether the
+    solution path passes through the sample's window, and level_path -- the path's cells inside
+    the window, in order, as [x, y] in the sample's own scene coordinates (so the data browser can
+    draw the real path instead of re-running A* on the scene). A path that leaves the window and
+    comes back shows up as a jump of more than 2 cells between consecutive points.
+
+    windows[i] is (width, height, scene_dx, scene_dy): the window starts at source_coords[i] in
+    the level, and level cell (x, y) lands at scene cell (x - x0 + scene_dx, y - y0 + scene_dy)
+    once the scan mode's padding is added. scene_traversable is left None; the per-scene A*
+    fills it for scenes not on the path."""
     width = max(len(row) for row in level)
     null_id = level_tile_to_id.get(null_char, 0)
     encoded = [[level_tile_to_id.get(ch, null_id) for ch in row.ljust(width, null_char)]
                for row in level]
     beaten, goal, path = _astar_module().mmlv_level_path(encoded, level_id_to_char,
                                                          tile_descriptors, budget)
-    return [{"level_traversable": beaten,
-             "level_goal": goal,
-             "on_level_path": any(x0 <= x < x0 + w and y0 <= y < y0 + h for x, y in path),
-             "scene_traversable": None}
-            for (x0, y0), (w, h) in zip(source_coords, window_sizes)]
+    records = []
+    for (x0, y0), (w, h, dx, dy) in zip(source_coords, windows):
+        cells = [[x - x0 + dx, y - y0 + dy] for x, y in path
+                 if x0 <= x < x0 + w and y0 <= y < y0 + h]
+        records.append({"level_traversable": beaten,
+                        "level_goal": goal,
+                        "on_level_path": bool(cells),
+                        "scene_traversable": None,
+                        "level_path": cells})
+    return records
 
 
 def on_level_path(sample):
@@ -558,9 +570,10 @@ def main():
         #Metadata record for this level (None for non-MMLV levels or ids missing from the
         #sidecar); attached to every sample cut from this level below.
         mmlv_meta = level_metadata.get(str(mmlv_id)) if mmlv_id is not None else None
-        #(width, height) of each sample's window in the level, starting at its source
-        #coords -- set by the scan modes that support the level-path check.
-        window_sizes = None
+        #(width, height, scene_dx, scene_dy) of each sample's window in the level, starting at
+        #its source coords, plus where the window's top-left lands in the output scene once
+        #padding is added -- set by the scan modes that support the level-path check.
+        windows = None
 
         try:
             if args.scan_mode == 'snap':
@@ -594,8 +607,8 @@ def main():
                 json_caption_data = h_json + v_json
                 source_coords = h_coords + v_coords
                 scan_mode_tags = (["snap_wide"] * len(h_samples)) + (["snap_tall"] * len(v_samples))
-                window_sizes = ([(args.target_width, nav_height)] * len(h_samples)
-                                + [(nav_width, v_screen_height)] * len(v_samples))
+                windows = ([(args.target_width, nav_height, 0, args.target_height % 14)] * len(h_samples)
+                           + [(nav_width, v_screen_height, 0, v_top_pad)] * len(v_samples))
             elif args.scan_mode == 'sliding_window':
                 samples, json_caption_data, source_coords = sliding_window_samples(
                     levels[i], tile_to_id, nav_width, nav_height, null_chars,
@@ -603,7 +616,9 @@ def main():
                     x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 scan_mode_tags = ["sliding_window"] * len(samples)
-                window_sizes = [(nav_width, nav_height)] * len(samples)
+                #sliding_window_samples centers the window horizontally and pads on top.
+                windows = [(nav_width, nav_height, (args.target_width - nav_width) // 2,
+                            args.target_height - nav_height)] * len(samples)
             elif args.scan_mode == 'whole':
                 # One sample = the entire level trimmed to its content bounding box,
                 # kept at its natural (variable) size. Air/null border is cut off;
@@ -651,7 +666,7 @@ def main():
                     x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 scan_mode_tags = ["screen_grid"] * len(samples)
-                window_sizes = [(screens_x * screen_w, content_h)] * len(samples)
+                windows = [(screens_x * screen_w, content_h, 0, top_pad)] * len(samples)
             elif i == 7:
                 samples, json_caption_data, source_coords = parse_level(
                     tile_to_id, levels[i], nav_width, nav_height,
@@ -685,9 +700,9 @@ def main():
         #MMLV: run A* across the whole level (spawn -> exit/boss) and mark which scenes its
         #solution path passes through. None for other games/modes (no fields added).
         level_path_info = [None] * len(samples)
-        if level_path_mode and window_sizes is not None and samples:
+        if level_path_mode and windows is not None and samples:
             level_path_info = annotate_level_path(
-                levels[i], source_coords, window_sizes, level_tile_to_id, level_id_to_char,
+                levels[i], source_coords, windows, level_tile_to_id, level_id_to_char,
                 tile_descriptors, level_null_char, args.level_budget)
             levels_path_checked += 1
             levels_beaten += int(level_path_info[0]["level_traversable"])
