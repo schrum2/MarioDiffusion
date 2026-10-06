@@ -128,6 +128,29 @@ def compute_size_buckets(sizes, num_buckets, factor=1):
     return merged
 
 
+def level_content_bounds(rows, empty_chars="-@"):
+    """Return (left, top, right, bottom), inclusive, of one ASCII level's content bounding
+    box or None for a level with no content at all. level_content_box cuts this box out."""
+    rows = [r.rstrip("\r\n") for r in rows]
+    empty = set(empty_chars)
+
+    def row_has_content(r):
+        return any(ch not in empty for ch in r)
+
+    # Vertical extent: first and last rows that hold any non-empty tile.
+    top = next((i for i, r in enumerate(rows) if row_has_content(r)), None)
+    if top is None:
+        return None
+    bottom = next(i for i in range(len(rows) - 1, -1, -1) if row_has_content(rows[i]))
+
+    # Horizontal extent: leftmost and rightmost columns holding a non-empty tile
+    # across the content rows.
+    content_rows = [r for r in rows[top: bottom + 1] if row_has_content(r)]
+    left = min(next(j for j, ch in enumerate(r) if ch not in empty) for r in content_rows)
+    right = max(max(j for j, ch in enumerate(r) if ch not in empty) for r in content_rows)
+    return left, top, right, bottom
+
+
 def level_content_box(rows, empty_chars="-@", fill=None):
     """Return one ASCII level's CONTENT bounding box as a list of equal-width strings.
 
@@ -145,32 +168,14 @@ def level_content_box(rows, empty_chars="-@", fill=None):
     null, so the default treats both as empty.
     """
     rows = [r.rstrip("\r\n") for r in rows]
-    empty = set(empty_chars)
     if fill is None:
         fill = empty_chars[0] if empty_chars else " "
-
-    def row_has_content(r):
-        return any(ch not in empty for ch in r)
-
-    # Vertical extent: first and last rows that hold any non-empty tile.
-    top = next((i for i, r in enumerate(rows) if row_has_content(r)), None)
-    if top is None:
+    bounds = level_content_bounds(rows, empty_chars)
+    if bounds is None:
         return []
-    bottom = next(i for i in range(len(rows) - 1, -1, -1) if row_has_content(rows[i]))
-    content_rows = rows[top: bottom + 1]
-
-    # Horizontal extent: leftmost and rightmost columns holding a non-empty tile
-    # across the content rows.
-    left = min(
-        next(j for j, ch in enumerate(r) if ch not in empty)
-        for r in content_rows if row_has_content(r)
-    )
-    right = max(
-        max(j for j, ch in enumerate(r) if ch not in empty)
-        for r in content_rows if row_has_content(r)
-    )
+    left, top, right, bottom = bounds
     width = right - left + 1
-    return [r[left: right + 1].ljust(width, fill) for r in content_rows]
+    return [r[left: right + 1].ljust(width, fill) for r in rows[top: bottom + 1]]
 
 
 def level_dimensions(rows, empty_chars="-@"):
