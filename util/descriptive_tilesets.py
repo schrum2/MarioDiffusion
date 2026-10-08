@@ -231,12 +231,17 @@ MM2_TILESET_DICT = {
 # Other games don't need this and should leave GAMES[...]["prompt_rules"] as [].
 MM2_MULTI_TILE_RULE = (
     "MULTI-TILE OBJECTS: Many object types occupy more than one grid cell per placed "
-    "instance, appearing as a contiguous block of identical cells (e.g. pipes, bullet "
-    "bill blasters, bridges, platforms). Treat one contiguous block of the same tile "
-    "type as ONE object, not one object per cell -- unless the block's shape clearly "
-    "looks like several same-size chunks repeated side by side, in which case count each "
-    "repeated chunk as its own object. If two blocks of the same tile type are not "
-    "touching, they are separate objects."
+    "instance, appearing as a contiguous block of identical cells. This covers at least "
+    "pipes, bullet bill blasters, bridges, lifts, mushroom platforms, semisolid platforms, "
+    "snake blocks, track blocks, conveyor belts, half-collision platforms, donut block "
+    "platforms, clouds, lava lifts, thwomps, angry suns, skewers, goal poles, vines and "
+    "fire bars. Treat one contiguous block of the same tile type as ONE object, not one "
+    "object per cell -- unless the block's shape clearly looks like several same-size "
+    "chunks repeated side by side, in which case count each repeated chunk as its own "
+    "object. If two blocks of the same tile type are not touching, they are separate "
+    "objects. When you can't tell whether a block is one object or several, use what you "
+    "know about the sizes that object actually takes in the Mario Maker 2 editor, and "
+    "when still unsure prefer the smaller count."
 )
 
 # Registry of captionable games, keyed by the --game CLI value. Each entry carries:

@@ -83,6 +83,18 @@ DEFAULT_MODELS = {
 # Prompt construction
 # ---------------------------------------------------------------------------
 
+# Sample captions used only to show the model the JSON array shape and the spread of
+# styles. They stay clear of any one game's objects, and are sliced to the requested count.
+_EXAMPLE_CAPTIONS = [
+    "the floor runs flat along the left before stepping up toward the right side. two ground "
+    "enemies patrol the lower stretch, and a warp sits near the far edge.",
+    "a short climb to the right with a couple of enemies below and a warp at the end.",
+    "rising ground on the right, enemies underneath, a warp at the far end.",
+    "ascending staircase. two ground enemies. one warp right.",
+    "flat ground, a warp, and a couple of enemies.",
+]
+
+
 def build_system_prompt(num_captions: int, game_name: str,
                         vocab_extra: list[str] = (), rule_extra: list[str] = ()) -> str:
     """
@@ -102,6 +114,7 @@ def build_system_prompt(num_captions: int, game_name: str,
     # Built outside the f-string: a literal backslash (the \n here) can't appear inside an
     # f-string's {...} expression part on Python < 3.12, which is what caused the SyntaxError.
     vocab_section = f"\n{vocab_block}\n" if vocab_block else ""
+    example = json.dumps(_EXAMPLE_CAPTIONS[:num_captions], ensure_ascii=False)
 
     return f"""
 You are a {game_name} captioning agent; given an ASCII (or tokenized) grid representation of a
@@ -122,7 +135,10 @@ prominent features.
 just describe the level with words.
 - Your captions should primarily focus on level structure, and features in the level, typically
 with relative locations, although not explicitly required. Mention specific structures/features like
-platforms, enemies, corridors, etc.
+floors, ceilings, gaps, hills, staircases, slopes, platforms, bridges, walls, pillars, towers,
+chambers and enclosed rooms, along with their direction when it matters, plus the enemies, hazards,
+collectibles and traversal elements sitting on them and roughly where those are.
+- Use rough quantities for anything above three (a few, several, many) rather than exact counts.
 - Caption the level like you're writing a prompt to generate it; this means specificity and directness is essential.
 - All of the levels you're captioning are roughly square shaped; don't call them "wide" or "tall", as they're square.
 This vocabulary could be used for certain structures within the level, like a short horizontal corridor/thin vertical shaft.
@@ -142,9 +158,18 @@ no commentary, no keys other than the array itself.
 - Do not include any dashes or semicolons within a caption. The only punctuation you should
 use are commas and periods (, and .). Keep commas rare and only within a single
 phrase, and do not chain multiple distinct ideas together with commas.
-- Encapsulate each distinct idea or feature in its own concentrated phrase ended by a
-period, rather than stringing many ideas into one run-on sentence. Your captions should still vary
-freely in tone, length, and wordiness, never homogeneous in format or structure.
+- In the shorter captions, encapsulate each distinct idea or feature in its own concentrated
+phrase ended by a period, rather than stringing many ideas into one run-on sentence. The detailed
+caption is the exception and may run as connected prose. Your captions should still vary freely in
+tone, length, and wordiness, never homogeneous in format or structure.
+- Keep every caption lowercase, apart from proper nouns that belong to an object's name.
+- This is only to show the shape, do not reuse the content: {example}
+
+AVOID:
+- Don't discuss gameplay, difficulty, quality, fun, or what the designer intended.
+- Don't address the player or write in second person.
+- Don't give exact coordinates or walk through the grid tile by tile.
+- Don't mention a feature that isn't there. Describing what is absent is still describing it.
 
 REMINDERS:
 - Make sure your captions are each NOTICEABLY DISTINCT from one another in length, tone, and specificity:
