@@ -4,7 +4,7 @@ from pathlib import Path
 import util.common_settings as common_settings
 from captions.util import extract_tileset
 from create_level_json_data import load_levels
-from util.size_utils import level_content_box
+from util.size_utils import level_content_box, level_content_bounds
 from enum import Enum
 import os
 import sys
@@ -20,18 +20,14 @@ SNAP_H_PAD_ROWS = 2
 
 
 SPAWN_EXIT_CHARS = ('P', 'Z')
-#The MMLV boss tile. Like the spawn/exit markers it is level-goal metadata, so it is folded back
-#into the generic enemy 'a' (what bosses decoded to before 'S' existed) unless --keep_spawn_exit
+#The MMLV boss tile. Kept by default; like the spawn/exit markers it is level-goal metadata, so
+#--strip_spawn_exit folds it back into the generic enemy 'a' (what bosses decoded to before 'S')
 BOSS_CHAR = 'S'
 
 #The teleporter tile ('T'). Its "movable" descriptor is shared with the pushable block 'D',
 #so it's matched by char rather than descriptor (mirrors SPAWN_EXIT_CHARS). Scenes containing
 #one are dropped by the contains_teleporter filter unless --include_teleporters is passed.
 TELEPORTER_CHARS = ('T',)
-
-#Scan modes whose samples are fixed windows of the level (source coords + a known size), so
-#MMLV scenes can be checked against the whole level's A* path (see annotate_level_path).
-LEVEL_PATH_SCAN_MODES = ('screen_grid', 'snap', 'sliding_window')
 
 
 #This enum is for the readability of the direction enum
@@ -196,7 +192,7 @@ def parse_args():
     parser.add_argument('--target_width', type=int, default=common_settings.MEGAMAN_WIDTH, help='Output scene width (e.g., 16 or 32). Navigation still uses the screen width for path mode.')
     parser.add_argument('--faithful_vertical', action='store_true', help='Fill the rows above the navigation window with real level content instead of null padding (auto-enabled when --target_height exceeds the default square).')
     parser.add_argument('--group_encodings', action='store_true', help='Group the tile encodings by type to reduce the total number')
-    parser.add_argument('--keep_spawn_exit', action='store_true', help="Keep the player spawn ('P'), exit orb ('Z') and boss ('S') tiles in the output scenes. By default the spawn/exit markers are stripped (encoded as air) and bosses become the generic enemy 'a', since they are level metadata, not geometry to be learned.")
+    parser.add_argument('--strip_spawn_exit', dest='keep_spawn_exit', action='store_false', help="Strip the player spawn ('P') and exit orb ('Z') markers (encoded as air) and turn bosses ('S') into the generic enemy 'a', treating them as level metadata rather than geometry to be learned. By default they are kept.")
     #The A* traversability filter is on by default now (also feeds the low-content check in apply_filters); --no_traversable_filter turns the hard filter off.
     parser.add_argument('--no_traversable_filter', dest='traversable_only', action='store_false', default=True, help='Disable filtering out A*-untraversable scenes (this filter is ON by default). The A* path length is still computed for the low-content rescue check regardless.')
     parser.add_argument('--budget', type=int, default=100000, help='A* state-expansion budget per scene used by the traversability check (higher = more thorough, slower)')
@@ -206,7 +202,7 @@ def parse_args():
     parser.add_argument('--stride_y', type=int, default=1, help='How far the sliding window moves in the vertical direction during level scanning (sliding_window/snap modes only; must be >= 1)')
     parser.add_argument('--stride_x', type=int, default=1, help='How far the sliding window moves in the horizontal direction during level scanning (sliding_window/snap modes only; must be >= 1)')
     parser.add_argument('--max_enemies', type=int, default=8, help='Filter out scenes with more than this many enemy tiles. Omit to disable.')
-    parser.add_argument('--include_moving_ground', action='store_true', help='Include scenes containing moving-ground/platform tiles (e.g. "M"). By default these are excluded since their motion is not represented in the static scene graphics.')
+    parser.add_argument('--exclude_moving_ground', dest='include_moving_ground', action='store_false', help='Filter out scenes containing moving-ground/platform tiles (e.g. "M"), since their motion is not represented in the static scene graphics. By default they are included.')
     parser.add_argument('--include_teleporters', action='store_true', help='Include scenes containing the teleporter tile ("T"). By default these are excluded (contains_teleporter filter) since a teleporter destination is off-scene and not represented in the static scene.')
     parser.add_argument('--min_content_pct', type=float, default=7, help='Filter out scenes where less than this percent of tiles are real content (not empty/passable/null). E.g. 15 requires at least 15%% non-empty tiles.')
     parser.add_argument('--min_playable_tiles', type=int, default=10, help='Filter out scenes where a flood fill starting from the border reaches fewer than this many open (non-wall, non-null) tiles -- i.e. scenes with almost no playable area connected to their edges. Default 10 (out of 224 in a 16x14 scene); set to 0 to disable.')
@@ -284,23 +280,35 @@ def _astar_module():
     return astar_traversability_check
 
 
-def annotate_level_path(level, source_coords, window_sizes, level_tile_to_id, level_id_to_char,
+def annotate_level_path(level, source_coords, windows, level_tile_to_id, level_id_to_char,
                         tile_descriptors, null_char, budget):
     """Run A* across one whole MMLV level (spawn -> exit, or boss) and return, per sample, its
-    'traversability' record: whether the level was beaten, which goal was used, and whether
-    the solution path passes through the sample's window (source coords + window size).
-    scene_traversable is left None; the per-scene A* fills it for scenes not on the path."""
+    'traversability' record: whether the level was beaten, which goal was used, whether the
+    solution path passes through the sample's window, and level_path -- the path's cells inside
+    the window, in order, as [x, y] in the sample's own scene coordinates (so the data browser can
+    draw the real path instead of re-running A* on the scene). A path that leaves the window and
+    comes back shows up as a jump of more than 2 cells between consecutive points.
+
+    windows[i] is (width, height, scene_dx, scene_dy): the window starts at source_coords[i] in
+    the level, and level cell (x, y) lands at scene cell (x - x0 + scene_dx, y - y0 + scene_dy)
+    once the scan mode's padding is added. scene_traversable is left None; the per-scene A*
+    fills it for scenes not on the path."""
     width = max(len(row) for row in level)
     null_id = level_tile_to_id.get(null_char, 0)
     encoded = [[level_tile_to_id.get(ch, null_id) for ch in row.ljust(width, null_char)]
                for row in level]
     beaten, goal, path = _astar_module().mmlv_level_path(encoded, level_id_to_char,
                                                          tile_descriptors, budget)
-    return [{"level_traversable": beaten,
-             "level_goal": goal,
-             "on_level_path": any(x0 <= x < x0 + w and y0 <= y < y0 + h for x, y in path),
-             "scene_traversable": None}
-            for (x0, y0), (w, h) in zip(source_coords, window_sizes)]
+    records = []
+    for (x0, y0), (w, h, dx, dy) in zip(source_coords, windows):
+        cells = [[x - x0 + dx, y - y0 + dy] for x, y in path
+                 if x0 <= x < x0 + w and y0 <= y < y0 + h]
+        records.append({"level_traversable": beaten,
+                        "level_goal": goal,
+                        "on_level_path": bool(cells),
+                        "scene_traversable": None,
+                        "level_path": cells})
+    return records
 
 
 def on_level_path(sample):
@@ -503,19 +511,18 @@ def main():
     null_chars = [key for key, value in tile_descriptors.items() if 'null' in value]
     wall_chars = [key for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value))]
 
-    #MMLV scenes are judged by their parent level's A* path (see annotate_level_path), which
-    #needs the real spawn/exit/boss tiles -- so it encodes levels with this untouched copy of
-    #the tileset mapping, not the grouped/stripped one the scenes are written with.
-    level_path_mode = (os.path.basename(args.tileset) == os.path.basename(common_settings.MMLV_TILESET)
-                       and args.scan_mode in LEVEL_PATH_SCAN_MODES)
+    #MMLV scenes are judged by their parent level's A* path (see annotate_level_path), in every
+    #scan mode. That needs the real spawn/exit/boss tiles -- so it encodes levels with this
+    #untouched copy of the tileset mapping, not the grouped/stripped one the scenes are written with.
+    level_path_mode = os.path.basename(args.tileset) == os.path.basename(common_settings.MMLV_TILESET)
     level_tile_to_id, level_id_to_char = dict(tile_to_id), dict(id_to_char)
     level_null_char = null_chars[0] if null_chars else '@'
 
     if args.group_encodings:
         tile_to_id, id_to_char = create_tile_to_id(args.tileset, tile_descriptors)
 
-    # Strip the spawn/exit markers, and remap their chars to the air id unless --keep_spawn_exit
-    # find_start still scans the raw 'P' char, so spawn detection is unaffected
+    # With --strip_spawn_exit, remap the spawn/exit markers' chars to the air id (they are kept
+    # by default). find_start still scans the raw 'P' char, so spawn detection is unaffected
     if not args.keep_spawn_exit:
         air_id = tile_to_id.get('-')
         if air_id is None:
@@ -526,12 +533,10 @@ def main():
         for ch in strip_chars:
             tile_to_id[ch] = air_id
         if strip_chars:
-            print(f"Stripping spawn/exit tiles {sorted(strip_chars)} -> air id {air_id} "
-                  f"(pass --keep_spawn_exit to retain them)")
+            print(f"--strip_spawn_exit: stripping spawn/exit tiles {sorted(strip_chars)} -> air id {air_id}")
         if BOSS_CHAR in tile_to_id and 'a' in tile_to_id:
             tile_to_id[BOSS_CHAR] = tile_to_id['a']
-            print(f"Encoding boss tile '{BOSS_CHAR}' as the generic enemy 'a' "
-                  f"(pass --keep_spawn_exit to retain it)")
+            print(f"--strip_spawn_exit: encoding boss tile '{BOSS_CHAR}' as the generic enemy 'a'")
 
     #We literally only need level overrides for 1-7, every other level parses as expected
     overrides_1_7 = [120, 121, 122, 123, 182] #Needed to avoid an early turn leading to a split path, and to prevent the level from turning back around to go back to the start
@@ -558,9 +563,10 @@ def main():
         #Metadata record for this level (None for non-MMLV levels or ids missing from the
         #sidecar); attached to every sample cut from this level below.
         mmlv_meta = level_metadata.get(str(mmlv_id)) if mmlv_id is not None else None
-        #(width, height) of each sample's window in the level, starting at its source
-        #coords -- set by the scan modes that support the level-path check.
-        window_sizes = None
+        #(width, height, scene_dx, scene_dy) of each sample's window in the level, starting at
+        #its source coords, plus where the window's top-left lands in the output scene once
+        #padding is added -- set by every scan mode, for the level-path check.
+        windows = None
 
         try:
             if args.scan_mode == 'snap':
@@ -594,8 +600,8 @@ def main():
                 json_caption_data = h_json + v_json
                 source_coords = h_coords + v_coords
                 scan_mode_tags = (["snap_wide"] * len(h_samples)) + (["snap_tall"] * len(v_samples))
-                window_sizes = ([(args.target_width, nav_height)] * len(h_samples)
-                                + [(nav_width, v_screen_height)] * len(v_samples))
+                windows = ([(args.target_width, nav_height, 0, args.target_height % 14)] * len(h_samples)
+                           + [(nav_width, v_screen_height, 0, v_top_pad)] * len(v_samples))
             elif args.scan_mode == 'sliding_window':
                 samples, json_caption_data, source_coords = sliding_window_samples(
                     levels[i], tile_to_id, nav_width, nav_height, null_chars,
@@ -603,7 +609,9 @@ def main():
                     x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 scan_mode_tags = ["sliding_window"] * len(samples)
-                window_sizes = [(nav_width, nav_height)] * len(samples)
+                #sliding_window_samples centers the window horizontally and pads on top.
+                windows = [(nav_width, nav_height, (args.target_width - nav_width) // 2,
+                            args.target_height - nav_height)] * len(samples)
             elif args.scan_mode == 'whole':
                 # One sample = the entire level trimmed to its content bounding box,
                 # kept at its natural (variable) size. Air/null border is cut off;
@@ -618,8 +626,11 @@ def main():
                 encoded = [[tile_to_id.get(ch, null_id) for ch in row] for row in box]
                 samples = [encoded]
                 json_caption_data = [None]
-                source_coords = [(0, 0)]
+                #Source coords are the box's top-left in the level (where the trim started).
+                left, top, _, _ = level_content_bounds(levels[i], empty_chars=empty_chars)
+                source_coords = [(left, top)]
                 scan_mode_tags = ["whole"]
+                windows = [(len(box[0]), len(box), 0, 0)]
             elif args.scan_mode == 'screen_grid':
                 #32x32-style scenes built from the Mega Man Maker screen grid. Each MMLV
                 #screen is nav_width x nav_height (16x14), and the converter fills whole
@@ -651,7 +662,7 @@ def main():
                     x_stride=args.stride_x, y_stride=args.stride_y
                 )
                 scan_mode_tags = ["screen_grid"] * len(samples)
-                window_sizes = [(screens_x * screen_w, content_h)] * len(samples)
+                windows = [(screens_x * screen_w, content_h, 0, top_pad)] * len(samples)
             elif i == 7:
                 samples, json_caption_data, source_coords = parse_level(
                     tile_to_id, levels[i], nav_width, nav_height,
@@ -664,6 +675,9 @@ def main():
                     direction_captions=direction_captions
                 )
                 scan_mode_tags = ["path"] * len(samples)
+                #The path follower centers its nav window horizontally and pads on top.
+                windows = [(nav_width, nav_height, (args.target_width - nav_width) // 2,
+                            args.target_height - nav_height)] * len(samples)
             else:
                 samples, json_caption_data, source_coords = parse_level(
                     tile_to_id, levels[i], nav_width, nav_height,
@@ -675,6 +689,8 @@ def main():
                     direction_captions=direction_captions
                 )
                 scan_mode_tags = ["path"] * len(samples)
+                windows = [(nav_width, nav_height, (args.target_width - nav_width) // 2,
+                            args.target_height - nav_height)] * len(samples)
 
         except ValueError as e:
             print(f"Skipping level {i}: {e}")
@@ -685,9 +701,9 @@ def main():
         #MMLV: run A* across the whole level (spawn -> exit/boss) and mark which scenes its
         #solution path passes through. None for other games/modes (no fields added).
         level_path_info = [None] * len(samples)
-        if level_path_mode and window_sizes is not None and samples:
+        if level_path_mode and windows is not None and samples:
             level_path_info = annotate_level_path(
-                levels[i], source_coords, window_sizes, level_tile_to_id, level_id_to_char,
+                levels[i], source_coords, windows, level_tile_to_id, level_id_to_char,
                 tile_descriptors, level_null_char, args.level_budget)
             levels_path_checked += 1
             levels_beaten += int(level_path_info[0]["level_traversable"])
@@ -725,8 +741,10 @@ def main():
                 entry["blob_index"] = blob_index
             if path_info is not None:
                 #traversable: on the level's solution path, or (filled in later by the
-                #per-scene A*) traversable on its own.
-                entry["traversable"] = True if path_info["on_level_path"] else None
+                #per-scene A*) traversable on its own. A whole-mode sample IS the level, so
+                #it is traversable exactly when the level was beaten.
+                entry["traversable"] = True if path_info["on_level_path"] else (
+                    False if args.scan_mode == 'whole' else None)
                 entry["traversability"] = path_info
 
             if key in seen_samples:

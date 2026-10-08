@@ -16,10 +16,11 @@ from util.plotter import Plotter
 import random
 import models.text_model as text_model
 from util.energy_tracking import track_energy
+from util import run_report
 
 # Measures energy of the training loop (codecarbon for CPU/RAM, plus a utilization-based
 # GPU estimate since this hardware exposes no NVML power telemetry), prints one summary on
-# completion and appends a row to energy_summary.csv. See util/energy_tracking.py.
+# completion and saves it to <output_dir>/energy_report.json. See util/energy_tracking.py.
 @track_energy(project_name="train_mlm")
 def train(model, train_loader, val_loader, criterion, optimizer, device, epochs, tokenizer, patience=20):
     global args
@@ -30,6 +31,7 @@ def train(model, train_loader, val_loader, criterion, optimizer, device, epochs,
     # Create output directory if it doesn't exist
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
+    run_report.set_path(os.path.join(args.output_dir, run_report.MODEL_REPORT_NAME))
 
     # Create log files
     log_file = os.path.join(args.output_dir, f"mlm_training_log_{formatted_date}.jsonl")

@@ -30,6 +30,7 @@ import ollama
 from tqdm import tqdm
 from util.energy_tracking import track_energy
 from util.token_tracking import log_run as log_token_run
+from util import run_report
 
 from create_level_json_data import load_levels
 from captions.util import extract_tileset
@@ -1224,7 +1225,8 @@ def parse_args():
 
 # Measures whole-run energy (codecarbon for CPU/RAM, plus a utilization-based GPU
 # estimate since this hardware exposes no NVML power telemetry), prints one summary on
-# completion and appends a row to energy_summary.csv. See util/energy_tracking.py.
+# completion and saves it, with the token usage, to the dataset's .costs.json report. See
+# util/energy_tracking.py and util/run_report.py.
 @track_energy(project_name="llm_ascii_to_caption")
 def main() -> list[list[str]]:
 
@@ -1266,6 +1268,12 @@ def main() -> list[list[str]]:
 
     checkpoint_path = default_checkpoint_path(args.output, args.shard_index, args.shard_count)
     resume = resolve_resume(checkpoint_path, args.force_resume, args.force_restart)
+
+    # Energy and tokens land in one report beside the dataset (X-llm.json ->
+    # X-llm.costs.json). Derived from the checkpoint so each shard gets its own report. A
+    # resumed run adds to the report's history; a fresh one starts it over, like the
+    # checkpoint itself.
+    run_report.set_path(run_report.dataset_report_path(checkpoint_path), append=resume)
 
     already_done = load_checkpoint(checkpoint_path) if resume else {}
     prior_usage = TokenUsage()
@@ -1386,7 +1394,7 @@ def main() -> list[list[str]]:
     finally:
         writer.close()
         progress.close()
-        # Written from the finally block, like the energy row, so a run killed partway
+        # Recorded from the finally block, like the energy, so a run killed partway
         # through (Ctrl-C, a backend failing mid-dataset) still records what it spent
         # rather than losing the accounting for every scene it did finish.
         log_token_run(

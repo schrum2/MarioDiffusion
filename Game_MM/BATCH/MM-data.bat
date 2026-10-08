@@ -7,7 +7,7 @@ set simple_out=Game_MM/DATA/MM-Simple_LevelsAndCaptions
 set full_out=Game_MM/DATA/MM-Full_LevelsAndCaptions
 
 :: Convert Mega Man raw level data to JSON
-python create_megaman_json_data.py --output Game_MM/DATA/MM-Full_Levels.json --direction_captions --no_filter --include_moving_ground
+python create_megaman_json_data.py --output Game_MM/DATA/MM-Full_Levels.json --direction_captions --no_filter
 python create_megaman_json_data.py --output Game_MM/DATA/MM-Simple_Levels.json --direction_captions --no_filter --group_encodings 
 
 :: Generate captions for Mega Man
