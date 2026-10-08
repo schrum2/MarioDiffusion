@@ -54,7 +54,7 @@ SPECIFIC_TERM_EXCLUSIONS = {
 # intentionally too broad, while "breakable block" and "moving platform" carry
 # useful information about the scene.
 COMBINED_CONCEPTS = {
-    "breakable block": {"breakable block", "breakable brick", "brick block"},
+    "breakable block": {"breakable block", "breakable brick", "brick block", "breakable terrain"},
     "transparent block": {"secret block", "transparent block"},
     # These are alternate names for the same Mega Man tile. Keep one canonical
     # concept so the scene is counted once, while accepting common caption wording.
@@ -102,7 +102,7 @@ SPECIFICITY_PHRASES = {
         "large powerup", "small powerup", "large power", "small power",
         "weapon powerup", "weapon power", "life powerup", "life power",
         "health powerup", "health power", "large pickup", "small pickup",
-        "weapon pickup", "life pickup", "health pickup",
+        "weapon pickup", "life pickup", "health pickup", "energy pack", "health pack"
     },
 }
 
