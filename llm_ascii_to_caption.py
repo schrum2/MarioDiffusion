@@ -113,6 +113,11 @@ RULES:
 while remaining accurate. Make the diversity noticeable, including short and long captions, playfully
 descriptive captions and monotone, serious captions, and so on. E.g., in some captions, include specific
 enemy names while in others refer to them as ground enemies/flying enemies, etc.
+- Spread the captions across these styles, in this order: the first should be a detailed,
+descriptive paragraph that walks through the level's layout and notable features in order, the
+next one or two a plain casual sentence or two in normal prose that a person might type quickly,
+and the last one or two terse tag-like phrases separated by periods, covering only the 2-4 most
+prominent features.
 - Do not mention specific tile types in your answer that you see in the tile set (raw symbols/tokens),
 just describe the level with words.
 - Your captions should primarily focus on level structure, and features in the level, typically
@@ -320,11 +325,12 @@ def build_token_dict_string(id_to_char: dict[int, str], char_to_token: dict[str,
     return "\n".join(lines)
 
 
-def scene_to_tokens(scene: list[list[int]], char_to_token: dict[str, str], unknown_char: str = "?") -> str:
+def scene_to_tokens(scene: list[list[int]], id_to_char: dict[int, str], char_to_token: dict[str, str],
+                    unknown_char: str = "?") -> str:
     """Render a scene as a space-separated grid of 'T<NN>' tokens instead of raw ASCII."""
     unknown = char_to_token.get(unknown_char, "T??")
     return "\n".join(
-        " ".join(char_to_token.get(str(tile), unknown) for tile in row)
+        " ".join(char_to_token.get(id_to_char.get(tile, unknown_char), unknown) for tile in row)
         for row in scene
     )
 
@@ -1228,6 +1234,11 @@ def main() -> list[list[str]]:
     # Token-grid rendering setup (only built if requested, to avoid the extra work otherwise).
     char_to_token = build_char_to_token(id_to_char) if args.grid_format == "tokens" else None
 
+    # The scene-independent half of the prompt. Kept out here so the context-window probe
+    # below measures the whole thing rather than just the per-scene part.
+    prompt_overhead = (build_system_prompt(args.num_captions, game_name, prompt_vocab, prompt_rules)
+                       + build_caption_reminder(args.num_captions))
+
     checkpoint_path = default_checkpoint_path(args.output, args.shard_index, args.shard_count)
     resume = resolve_resume(checkpoint_path, args.force_resume, args.force_restart)
 
@@ -1272,19 +1283,22 @@ def main() -> list[list[str]]:
         for i, (scene, label, attrs) in progress:
 
             scene_str = "\n".join(scene_to_ASCII(scene, id_to_char, null_ids))
+            filtered_tiles = filter_tile_set(scene_str, tile_names)
             if args.grid_format == "tokens":
-                grid_for_prompt = scene_to_tokens(scene, char_to_token)
+                grid_for_prompt = scene_to_tokens(scene, id_to_char, char_to_token)
+                # The grid is tokens now, so the tile set has to be keyed by token too. A
+                # char key points at nothing the model can see in the grid.
+                filtered_tiles = {char_to_token[char]: desc for char, desc in filtered_tiles.items()}
             else:
                 grid_for_prompt = scene_str
-
-            filtered_tiles = filter_tile_set(scene_str, tile_names)
 
             det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors, names=tile_names)
 
             # Context-window sizing only matters for the local Ollama backend.
             num_ctx = args.num_ctx
             if args.llm == "ollama":
-                probe_prompt = grid_for_prompt + json.dumps(filtered_tiles) + det_caption
+                probe_prompt = (prompt_overhead + grid_for_prompt + json.dumps(filtered_tiles)
+                                + det_caption)
                 num_ctx, fits = fit_num_ctx(probe_prompt, args.num_ctx, args.max_num_ctx,
                                             args.max_tokens, args.grid_format)
                 if not fits:

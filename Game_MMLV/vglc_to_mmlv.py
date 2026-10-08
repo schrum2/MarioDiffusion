@@ -295,6 +295,18 @@ def orb_tile(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
+def boss(x: int, y: int) -> List[str]:
+    # Boss, d8. Every non-door/orb/balloon d8 id decodes to the one boss tile 'S', so the
+    # specific boss is lost; emit e5, the boss id found in the most corpus levels, facing left
+    # (b=-1, as nearly all placed bosses are).
+    return [
+        f'o{x},{y}="9999.000000"',
+        f'e{x},{y}="5.000000"',
+        f'd{x},{y}="8.000000"',
+        f'b{x},{y}="-1.000000"',
+        f'a{x},{y}="1.000000"',
+    ]
+
 def player_tile(x: int, y: int) -> List[str]:
     spawn_y = max(0, y - TILE_PX)
     return [
@@ -506,6 +518,7 @@ CHAR_MAP = {
     '~': water_tile,
     '!': lava_tile,
     'Z': orb_tile,
+    'S': boss,
     'P': player_tile,
     'C': hazard_emitter,
     'I': enemy_tackle_fire,
