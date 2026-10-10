@@ -143,6 +143,7 @@ collectibles and traversal elements sitting on them and roughly where those are.
 - Caption the level like you're writing a prompt to generate it; this means specificity and directness is essential.
 - All of the levels you're captioning are roughly square shaped; don't call them "wide" or "tall", as they're square.
 This vocabulary could be used for certain structures within the level, like a short horizontal corridor/thin vertical shaft.
+- {build_structure_clause()}
 {rules_block}
 
 ORIENTATION: The first grid row is the TOP of the level and the last row is the BOTTOM; gravity points
@@ -195,6 +196,20 @@ def build_caption_reminder(num_captions: int) -> str:
     "present in horizontal (always left-to-right) level scenes. Don't explicitly state that a level is left-to-right; that information is already known."
     )
 
+
+def build_structure_clause() -> str:
+    '''
+    Extra guidance pertaining to how to describe/classify
+    raised/tiered structures within a level, particularly platforms, which
+    have their own distinct criteria in the deterministic captions.
+    Included as a RULES bullet by build_system_prompt.
+    '''
+
+    return ('When describing multi-tiered levels with structures at different heights, you must\n'
+            'be precise and consistent in the way you describe the structures in the scene. A "platform"\n'
+            'is a row of contiguous solid tiles that is raised above the true level\'s floor. A platform MUST\n'
+            'have empty space both above AND below it. Even if there is a cliff/tier of tiles that juts up at some\n'
+            'point, it is NOT a platform if it consists of solid blocks underneath.')
 
 def build_avoidance_clause(bad_chars: set) -> str:
     """Build a CRITICAL clause banning every non-ASCII character seen so far this run.
@@ -596,31 +611,82 @@ def filter_tile_set(scene: str, tileset: dict) -> dict:
 _METADATA_SKIP_TAGS = {"null", "empty", "ground", "spawn"}
 
 
-def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], char_to_id: dict[str, int],
-                          tile_descriptors: dict, names: dict, describe_locations: bool = False,
-                          describe_absence: bool = False, data: dict = None) -> str:
+def build_deterministic_captioner(game_key: str, tileset_path: str):
     """
-    Build a block of pre-computed structural metadata for an integer tile-id scene, to feed
-    the LLM as grounding context.
+    Return a function (scene, attrs) -> str that writes the game's rule-based caption for a
+    scene, using the same captioner and settings as that game's create_ascii_captions script.
 
-    The metadata is purely mechanical fact about the grid that the LLM can lean on instead of
-    re-deriving it from the raw ASCII:
+    Each game's captioner lives in its own module with its own signature, so the import and
+    any one-time tileset prep happen here, once per run, rather than per scene. attrs is the
+    scene's extra dataset fields from load_dataset (MM/MMLV read "data"; MM2 reads its liquid
+    fields). Returns None for a game with no captioner, and deterministic_caption then
+    sends the metadata alone.
+    """
+    if game_key in ("MM-Simple", "MM-Full"):
+        from MM_create_ascii_captions import assign_caption
+        _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
+        # describe_locations=False matches MM_create_ascii_captions' CLI.
+        return lambda scene, attrs: assign_caption(scene, id_to_char, char_to_id, tile_descriptors,
+                                                   False, False, (attrs or {}).get("data"))
+
+    if game_key == "MMLV":
+        from MMLV_create_ascii_captions import assign_caption, SPECIFIC
+        _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
+        # SPECIFIC names the individual enemy/door types, which gives the LLM more to work with.
+        return lambda scene, attrs: assign_caption(scene, id_to_char, char_to_id, tile_descriptors,
+                                                   True, False, (attrs or {}).get("data"),
+                                                   detail=SPECIFIC)
+
+    if game_key == "MM2":
+        from Game_MM2 import MarioMaker_create_ascii_captions as mm2
+        id_to_char = mm2.build_id_to_char(tileset_path)
+        char_names = mm2.get_char_names(tileset_path)
+        _, _, ground_chars = mm2.get_tile_categories(tileset_path)
+        block_chars = mm2.get_block_chars(tileset_path)
+        solid_chars = mm2.get_solid_chars(tileset_path)
+        loose_chars = mm2.get_loose_chars(tileset_path)
+
+        def caption_mm2(scene, attrs):
+            # The liquid phrase is part of the scene, so it's always included (not behind
+            # --include-metadata), same as MarioMaker_create_ascii_captions.generate_captions.
+            liquid = mm2.liquid_phrase(attrs) if attrs else None
+            return mm2.assign_caption(scene, id_to_char, char_names, ground_chars,
+                                      [liquid] if liquid else [], block_chars=block_chars,
+                                      solid_chars=solid_chars, loose_chars=loose_chars)
+        return caption_mm2
+
+    return None
+
+
+def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], char_to_id: dict[str, int],
+                          tile_descriptors: dict, names: dict, captioner=None, attrs: dict = None) -> str:
+    """
+    Build the grounding block for an integer tile-id scene: the game's rule-based caption,
+    then pre-computed structural metadata.
+
+    The deterministic caption (if captioner is given) is the same caption the game's
+    create_ascii_captions script writes. The metadata is purely mechanical fact about the
+    grid that the LLM can lean on instead of re-deriving it from the raw ASCII:
       - raw occupied-cell counts per object tile type (readable names)
       - terrain top-of-column heights (structural solid tiles, ignoring enemies/hazards)
       - floor / ceiling analysis (top and bottom rows)
-      - left / center / right region column boundaries
+      - left / right region column boundaries
 
     Args:
         scene: 2D grid of integer tile ids (the raw scene, not the ASCII decode).
         id_to_char, char_to_id, tile_descriptors: tileset maps from extract_tileset.
         names: the game's descriptive tileset dict (char -> readable description) used to render
             the object-count lines with human names.
-        describe_locations / describe_absence / data: kept for signature compatibility with the
-            caller; this metadata builder doesn't use them.
+        captioner: function (scene, attrs) -> str from build_deterministic_captioner, or None
+            to leave the caption out.
+        attrs: the scene's extra dataset fields from load_dataset, passed to captioner.
 
     Returns:
-        A multi-line metadata string.
+        A multi-line string: the deterministic caption (when available), then the metadata.
     """
+    caption_block = ""
+    if captioner is not None:
+        caption_block = f"Deterministic caption:\n  {captioner(scene, attrs).strip()}\n\n"
 
     def is_null(tile: int) -> bool:
         return "null" in tile_descriptors.get(id_to_char.get(tile), set())
@@ -699,12 +765,13 @@ def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], ch
 
     ceiling = edge_summary(scene[0])
 
-    left_end = width // 3
-    center_end = 2 * width // 3
-    regions = (f"left=cols 1-{left_end}, center=cols {left_end + 1}-{center_end}, "
-               f"right=cols {center_end + 1}-{width}")
+    center_col = width // 2
+    
+    
+    regions = (f"left=cols 1-{center_col}, right=cols {center_col + 1}-{width}")
 
     return (
+        f"{caption_block}"
         "Object tile counts (raw occupied cells per type, one placed object may span several cells):\n"
         f"{count_lines}\n\n"
         f"Ground surface profile per column (columns 1-{width} left to right; each value is how "
@@ -1048,6 +1115,9 @@ def llm_caption(scene: str, deterministic: str, game: str = "Mega Man", tileset:
         "For grounding and reference, here is pre-computed structural metadata for this level. Treat it as "
         "accurate, stay consistent with it, and don't invent features it doesn't support or "
         "re-count terrain from the grid yourself. How to read it:\n"
+        "- The deterministic caption (when present) is a rule-based caption of this level built "
+        "straight from the tiles. Its facts are reliable, so cover the same features, but its wording "
+        "is rigid and formulaic. Don't copy its phrasing or phrase order; rewrite it naturally.\n"
         "- Object tile counts are RAW occupied-cell counts, NOT object counts. One placed thing "
         "can span many cells, so a large count usually means one big feature, not many separate "
         "ones. Use rough quantities, never exact tile numbers.\n"
@@ -1055,13 +1125,13 @@ def llm_caption(scene: str, deterministic: str, game: str = "Mega Man", tileset:
         "how high the lowest standable floor sits in that column (rising values = steps/hills, a "
         "flat run = flat ground), while 'wall' marks a solid blocked column and 'pit' marks a column "
         "with no safe footing (an open drop, or a floor sealed off by hazards). It only tracks the "
-        "lowest floor, so read the grid for raised platforms or overhead structures above it. This output "
+        "lowest floor, so read the grid for platforms or overhead structures above it. This output "
         "should shape your classification of the ground, not simply the tiles at the very bottom row. "
         "Keep in mind that the player always moves left-to-right in non-vertical segments, so base "
         "your ascending vs descending structure analysis based on this. DO NOT explicitly mention 'ground levels' "
         "in your captions; use the data to inform your natural captions.\n"
         "- Ceiling describes the top row's overhead terrain; region boundaries map columns to "
-        "left/center/right.\n"
+        "left/right.\n"
         "Still write the captions in your own words per the rules above:\n"
         f"{deterministic}"
     )
@@ -1243,6 +1313,7 @@ def main() -> list[list[str]]:
     prompt_rules = game.get("prompt_rules", [])   # e.g. MM2's multi-tile-object dedup note
 
     _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
+    det_captioner = build_deterministic_captioner(args.game, tileset_path)
 
     null_ids = frozenset(tid for tid, ch in id_to_char.items() if "null" in tile_descriptors.get(ch, set()))
 
@@ -1325,7 +1396,8 @@ def main() -> list[list[str]]:
             else:
                 grid_for_prompt = scene_str
 
-            det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors, names=tile_names)
+            det_caption = deterministic_caption(scene, id_to_char, char_to_id, tile_descriptors,
+                                                names=tile_names, captioner=det_captioner, attrs=attrs)
 
             # Context-window sizing only matters for the local Ollama backend.
             num_ctx = args.num_ctx
