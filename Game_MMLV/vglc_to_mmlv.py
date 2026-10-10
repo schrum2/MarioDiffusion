@@ -6,10 +6,28 @@ Convert a VGLC Mega Man ASCII level (.txt) to a Mega Man Maker level (.mmlv).
 
 from __future__ import annotations
 import argparse
+import json
 from pathlib import Path
 from typing import List
 
 TILE_PX = 16
+
+# Wall-mounted Beaks decode to 'c' whichever way they faced (mmlv_to_vglc drops the 'b'
+# field), so their facing is re-inferred from the wall they hang on. Shared by this
+# converter (to set 'b') and the tile renderers (to mirror the sprite).
+BEAK_CHAR = 'c'
+with open(Path(__file__).with_name("MMLV.json")) as _f:
+    SOLID_CHARS = {ch for ch, props in json.load(_f)["tiles"].items() if "solid" in props}
+
+
+def beak_faces_right(rows, r: int, c: int, solid) -> bool:
+    """True if the Beak at rows[r][c] hangs on a wall to its left with open space to its
+    right. Anything else (wall on the right, walls on both sides, no wall) keeps the
+    left-facing default. `rows` holds chars or tile ids; `solid` is the matching set."""
+    row = rows[r]
+    left = row[c - 1] if c > 0 else None
+    right = row[c + 1] if c + 1 < len(row) else None
+    return left in solid and right not in solid
 
 
 def solid_block(x: int, y: int) -> List[str]:
@@ -351,12 +369,15 @@ def enemy_octopus_ud(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
-def enemy_beak(x: int, y: int) -> List[str]:
+def enemy_beak(x: int, y: int, faces_right: bool = False) -> List[str]:
+    # NOTE: b denotes whether the beak is facing left or right;
+    # -1.0000 = left, no b field = right
+    # convert() picks the facing via beak_faces_right().
     return [
         f'o{x},{y}="9999.000000"',
         f'e{x},{y}="2.000000"',
         f'd{x},{y}="5.000000"',
-        f'b{x},{y}="-1.000000"',
+        *([] if faces_right else [f'b{x},{y}="-1.000000"']),
         f'a{x},{y}="1.000000"',
     ]
 
@@ -777,7 +798,9 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
                 continue
 
             emitter = CHAR_MAP.get(ch)
-            if emitter is None:
+            if ch == BEAK_CHAR:
+                out.extend(enemy_beak(x, y, beak_faces_right(rows, row_idx, col_idx, SOLID_CHARS)))
+            elif emitter is None:
                 # Unknown char — treat as air
                 pass
             else:

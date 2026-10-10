@@ -4,7 +4,8 @@ import os
 import sys
 from PIL import Image, ImageTk
 
-from level_dataset import mario_tiles, lr_tiles, mm_tiles
+from level_dataset import mario_tiles, lr_tiles, mm_tiles, mm_beak_ids
+from Game_MMLV.vglc_to_mmlv import beak_faces_right
 from Game_MM2.render_mm2 import mm2_tiles
 from util.sampler import scene_to_ascii
 
@@ -101,6 +102,10 @@ class LevelEditor:
         palette_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.tile_images = self._load_tile_images(game)
+        # Right-facing Beaks are drawn mirrored (see _cell_image); ids are None for other games.
+        self.beak_id, self.solid_ids = mm_beak_ids(game)
+        if self.beak_id is not None:
+            self.flipped_beak = self.tile_images[self.beak_id].transpose(Image.FLIP_LEFT_RIGHT)
         self.tile_photo_images = []
         self.palette_photo_images = []
 
@@ -119,7 +124,7 @@ class LevelEditor:
                 )
                 frame.grid(row=r, column=c, padx=1, pady=1)
 
-                photo = ImageTk.PhotoImage(self.tile_images[tile_id])
+                photo = ImageTk.PhotoImage(self._cell_image(r, c))
                 self.tile_photo_images.append(photo)
                 label = tk.Label(frame, image=photo, borderwidth=0)
                 label.image = photo
@@ -232,13 +237,23 @@ class LevelEditor:
         for (row, col) in self.selected_cells:
             self._paint_cell(row, col, tile_id)
 
+    def _cell_image(self, row, col):
+        tile_id = self.scene[row][col]
+        if tile_id == self.beak_id and beak_faces_right(self.scene, row, col, self.solid_ids):
+            return self.flipped_beak
+        return self.tile_images[tile_id]
+
     def _paint_cell(self, row, col, tile_id):
         self.scene[row][col] = tile_id
-        photo = ImageTk.PhotoImage(self.tile_images[tile_id])
-        self.tile_photo_images.append(photo)
-        label = self.cell_labels[(row, col)]
-        label.config(image=photo)
-        label.image = photo
+        # A Beak's facing depends on its left/right neighbors, so redraw those too.
+        for c in (col - 1, col, col + 1):
+            if (row, c) not in self.cell_labels:
+                continue
+            photo = ImageTk.PhotoImage(self._cell_image(row, c))
+            self.tile_photo_images.append(photo)
+            label = self.cell_labels[(row, c)]
+            label.config(image=photo)
+            label.image = photo
 
     # ------------------------------------------------------------------ save/cancel
 
