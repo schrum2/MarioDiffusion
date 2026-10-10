@@ -263,22 +263,53 @@ _MM_GAME_ALIASES = {
     "Mega Man (Maker)": "MMLV",
 }
 
-def mm_beak_ids(game):
-    """(Beak tile id, solid tile ids) for a Mega Man tileset, or (None, set()) for any game
-    without a Beak glyph (non-Mega Man games, MM-Simple). Accepts the mm_tiles() codes or
-    the editors' display names. The renderers use these with beak_faces_right() to mirror
-    right-facing Beaks."""
-    from Game_MMLV.vglc_to_mmlv import BEAK_CHAR
+# The spike sprite points up; rotations giving the other directions.
+_SPIKE_ROTATIONS = {
+    'down': Image.ROTATE_180,
+    'left': Image.ROTATE_90,     # counterclockwise
+    'right': Image.ROTATE_270,
+}
+
+def mm_tile_picker(game, tile_images):
+    """Return pick(grid, row, col) -> the sprite to draw for that cell of a tile-id grid.
+
+    Beaks and spikes carry no facing in the ASCII ('c' / 'H' either way), so for Mega Man
+    tilesets their sprite is mirrored/rotated by the blocks around them (beak_faces_right /
+    spike_direction, the same rules vglc_to_mmlv uses to write the .mmlv). Every other tile,
+    and every tile of a non-Mega Man game, is drawn as-is. Accepts the mm_tiles() codes or
+    the editors' display names.
+    """
+    def plain(grid, row, col):
+        return tile_images[int(grid[row][col]) % len(tile_images)]
+
     game = _MM_GAME_ALIASES.get(game, game)
     if game not in MM_TILESETS:
-        return None, set()
+        return plain
+
+    from Game_MMLV.vglc_to_mmlv import BEAK_CHAR, SPIKE_CHAR, beak_faces_right, spike_direction
     with open(MM_TILESETS[game], "r") as f:
         tileset = json.load(f)
     chars = _tileset_chars(tileset)
-    if BEAK_CHAR not in chars:
-        return None, set()
     solid = {i for i, ch in enumerate(chars) if "solid" in tileset["tiles"].get(ch, [])}
-    return chars.index(BEAK_CHAR), solid
+
+    beak_id = chars.index(BEAK_CHAR) if BEAK_CHAR in chars else None
+    spike_id = chars.index(SPIKE_CHAR) if SPIKE_CHAR in chars else None
+    spike_anchors = solid - {spike_id}
+    flipped_beak = (tile_images[beak_id].transpose(Image.FLIP_LEFT_RIGHT)
+                    if beak_id is not None else None)
+    rotated_spikes = ({d: tile_images[spike_id].transpose(t) for d, t in _SPIKE_ROTATIONS.items()}
+                      if spike_id is not None else {})
+
+    def pick(grid, row, col):
+        tile_id = int(grid[row][col]) % len(tile_images)
+        if tile_id == beak_id and beak_faces_right(grid, row, col, solid):
+            return flipped_beak
+        if tile_id == spike_id:
+            return rotated_spikes.get(spike_direction(grid, row, col, spike_anchors),
+                                      tile_images[tile_id])
+        return tile_images[tile_id]
+
+    return pick
 
 def mm_tiles(game):
     """
@@ -391,11 +422,8 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
         else:
             raise ValueError(f"Unsupported game or dimensions: {game} {height}x{width}")
 
-        # The Beak sprite faces left; mirror it where the Beak hangs on a wall to its left.
-        beak_id, solid_ids = mm_beak_ids(game)
-        if beak_id is not None:
-            from Game_MMLV.vglc_to_mmlv import beak_faces_right
-            flipped_beak = tile_images[beak_id].transpose(Image.FLIP_LEFT_RIGHT)
+        # Orients Mega Man Beaks/spikes by their neighbors; plain lookup for everything else.
+        pick_tile = mm_tile_picker(game, tile_images)
 
         for i, sample_index in enumerate(sample_indices):
             # Create a blank image to hold the tile-based visualization
@@ -404,10 +432,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
 
             for row in range(height):
                 for col in range(width):
-                    tile_id = int(sample_index[row, col] % len(tile_images))  # Ensure tile_id is within bounds
-                    tile_image = tile_images[tile_id]
-                    if tile_id == beak_id and beak_faces_right(sample_index, row, col, solid_ids):
-                        tile_image = flipped_beak
+                    tile_image = pick_tile(sample_index, row, col)
                     composite_image.paste(tile_image, (col * tile_size, row * tile_size))
 
             # Determine the file name based on the prompt

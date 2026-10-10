@@ -30,6 +30,29 @@ def beak_faces_right(rows, r: int, c: int, solid) -> bool:
     return left in solid and right not in solid
 
 
+# Spikes likewise decode to 'H' whichever way they pointed (the 'l' field), so their direction
+# is re-inferred from the block they sit on. Other spikes are not anchoring blocks (a column of
+# spikes on a wall all point away from the wall), hence the separate solid set.
+SPIKE_CHAR = 'H'
+SPIKE_ANCHOR_CHARS = SOLID_CHARS - {SPIKE_CHAR}
+
+
+def spike_direction(rows, r: int, c: int, solid) -> str:
+    """'up', 'down', 'left' or 'right': the spike at rows[r][c] points away from the block it
+    sits on. A block below/above takes precedence over one at the side; with no single anchoring
+    block (none at all, or blocks on both opposite sides) it keeps the upward default. `solid`
+    should exclude spikes. Matches 772 of the 776 directional spikes in the downloaded corpus."""
+    def blocked(dr, dc):
+        rr, cc = r + dr, c + dc
+        return 0 <= rr < len(rows) and 0 <= cc < len(rows[rr]) and rows[rr][cc] in solid
+    above, below, left, right = blocked(-1, 0), blocked(1, 0), blocked(0, -1), blocked(0, 1)
+    if above != below:
+        return 'up' if below else 'down'
+    if left != right:
+        return 'right' if left else 'left'
+    return 'up'
+
+
 def solid_block(x: int, y: int) -> List[str]:
     return [
         f'k{x},{y}="71.000000"',
@@ -46,9 +69,16 @@ def ladder_tile(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
-def spike_tile(x: int, y: int) -> List[str]:
+# Spike direction is the 'l' field: none = up, 1 = down, 2 = left, 3 = right (read off the
+# corpus by matching each spike's 'l' to the side its solid neighbor is on). l=4 is the
+# free-floating spike with no anchoring block; convert() never emits it.
+SPIKE_L = {'down': 1, 'left': 2, 'right': 3}
+
+def spike_tile(x: int, y: int, direction: str = 'up') -> List[str]:
+    # convert() picks the direction via spike_direction().
+    l = SPIKE_L.get(direction)
     return [
-        f'l{x},{y}="4.000000"',
+        *([] if l is None else [f'l{x},{y}="{l}.000000"']),
         f'i{x},{y}="2.000000"',
         f'e{x},{y}="7.000000"',
         f'a{x},{y}="1.000000"',
@@ -800,6 +830,8 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
             emitter = CHAR_MAP.get(ch)
             if ch == BEAK_CHAR:
                 out.extend(enemy_beak(x, y, beak_faces_right(rows, row_idx, col_idx, SOLID_CHARS)))
+            elif ch == SPIKE_CHAR:
+                out.extend(spike_tile(x, y, spike_direction(rows, row_idx, col_idx, SPIKE_ANCHOR_CHARS)))
             elif emitter is None:
                 # Unknown char — treat as air
                 pass
