@@ -8,6 +8,21 @@ BUFFER_WIDTH = 15
 # so real Mario tiles are never mistaken for it.
 HAZARD = 13
 
+# Semisolid platforms, lifts and one-way walls. You jump up through them and walk
+# through the sides, but you land on top, so they stop a fall and nothing else.
+PLATFORM = 14
+
+# Doors and warp pipes. Solid, since you step into one rather than through it, and
+# reaching one ends the search because it leads out of the scene.
+WARP = 15
+
+# Springs. You land on one like a platform, but jumping off it throws you higher than
+# your own jump, which is how levels get you over a wall a jump can't clear.
+SPRING = 16
+
+# Tiles up from a spring, against 5 for a jump. An estimate, not a measured height.
+SPRING_JUMP = 10
+
 LENIENCY_TILES = {
     0: 0.0,    # solid
     1: 0.0,    # breakable
@@ -23,6 +38,9 @@ LENIENCY_TILES = {
     11: -1.0,  # red koopas + paratroopas
     12: -1.0,  # spiny + winged spiny
     13: 0.0,   # static hazard (spikes/saws)
+    14: 0.0,   # semisolid platform
+    15: 0.0,   # door / warp pipe
+    16: 0.0,   # spring
 }
 
 
@@ -41,6 +59,9 @@ NEGATIVE_SPACE_TILES = {
     11: 0,  # red koopas + paratroopas
     12: 0,  # spiny + winged spiny
     13: 1,  # static hazard occupies space (non-passable)
+    14: 0,  # you can move through a platform, you just can't fall through it
+    15: 1,  # a warp is a wall you step into, so it blocks like one
+    16: 0,  # a spring is passable like a platform, and stops a fall the same way
 }
 
 
@@ -57,7 +78,8 @@ class MM2State:
         """Default constructor: start at top-left, two tiles above the floor."""
         return cls(level, 0, 0, 2)
 
-    # simple greedy heuristic: horizontal distance from Mario to the right edge (flagpole)
+    # Simple greedy heuristic: horizontal distance to the right edge. A warp is a goal
+    # too, so this overshoots when one is behind Mario, costing expansions not answers.
     def moveRight(self):
         return len(self.level[0]) - self.x
 
@@ -148,6 +170,29 @@ class MM2State:
     def is_hazard(self, x, y):
         return self.inBounds(x, y) and self.tileAtPosition(x, y) == HAZARD
 
+    def is_platform(self, x, y):
+        return self.inBounds(x, y) and self.tileAtPosition(x, y) == PLATFORM
+
+    def is_warp(self, x, y):
+        return self.inBounds(x, y) and self.tileAtPosition(x, y) == WARP
+
+    def is_spring(self, x, y):
+        return self.inBounds(x, y) and self.tileAtPosition(x, y) == SPRING
+
+    def at_warp(self, x=None, y=None):
+        """True when a door or pipe is close enough to step into, from where the agent
+        is or from a given cell. Adjacent counts, since a warp can't be walked into."""
+        x = self.x if x is None else x
+        y = self.y if y is None else y
+        return any(self.is_warp(x + dx, y + dy)
+                   for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)))
+
+    def standable(self, x, y):
+        """True when the cell below (x, y) holds the agent up."""
+        return self.inBounds(x, y + 1) and (not self.passable(x, y + 1)
+                                            or self.is_platform(x, y + 1)
+                                            or self.is_spring(x, y + 1))
+
     def get_successor(self, action):
         """Return the next state, or None if the action is not legal here."""
         newJumpVelocity = self.jumpVelocity
@@ -159,10 +204,15 @@ class MM2State:
             return None
 
         if newJumpVelocity == 0:  # Not mid-jump
-            if self.passable(newMarioX, newMarioY + 1):  # Falling
+            # A platform or spring below catches the fall even though it is passable.
+            if (self.passable(newMarioX, newMarioY + 1)
+                    and not self.is_platform(newMarioX, newMarioY + 1)
+                    and not self.is_spring(newMarioX, newMarioY + 1)):  # Falling
                 newMarioY += 1  # Fall down
             elif action.getDirection() == self.MarioAction.DIRECTION.JUMP:  # Start jump
-                newJumpVelocity = 5  # Accelerate up
+                # A spring throws you further than your legs do
+                newJumpVelocity = (SPRING_JUMP
+                                   if self.is_spring(newMarioX, newMarioY + 1) else 5)
         elif action.getDirection() == self.MarioAction.DIRECTION.JUMP:
             return None  # Can't jump mid-jump. Reduces search space.
 
@@ -216,8 +266,9 @@ class MM2State:
         return possible
 
     def isGoal(self):
-        """True once Mario reaches the last x coordinate in the level."""
-        return self.isGoalX(self.x)
+        """True once Mario reaches the last x coordinate, or touches a warp, which
+        leads out whether or not the far end is in the scene."""
+        return self.isGoalX(self.x) or self.at_warp()
 
     def stepCost(self):
         return 1

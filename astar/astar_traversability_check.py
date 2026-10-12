@@ -28,7 +28,7 @@ from captions.util import extract_tileset
 import util.common_settings as common_settings
 from AStarSearch import AStarSearch
 from MarioState import MarioState, BUFFER_WIDTH
-from MM2State import MM2State, HAZARD
+from MM2State import MM2State, HAZARD, PLATFORM, WARP, SPRING
 import LodeRunnerState as lr
 from LodeRunnerState import LodeRunnerState
 import MegaManState as mm
@@ -67,10 +67,24 @@ def mario_tile(descs):
     return 2 if ("passable" in descs or "enemy" in descs) else 0
 
 
+# Tags for anything you can stand on in at least one of its states, so a donut block
+# or a switched-on toggle block counts the same as a semisolid.
+MM2_STANDABLE_TAGS = ("platform", "falling", "togglable")
+
+
 def mm2_tile(descs):
     """Descriptors -> MM2State tile ids. Walkable-through (empty, coins, items) and
-    enemies -> passable(2); static hazards (spikes, saws) -> HAZARD; everything else
-    (ground, blocks, pipes) -> solid(0)."""
+    enemies -> passable(2); static hazards (spikes, saws) -> HAZARD; anything in
+    MM2_STANDABLE_TAGS -> PLATFORM, which you stand on but can still jump up through;
+    doors and pipes -> WARP, a wall that ends the search; springs -> SPRING, a platform
+    you bounce off; everything else (ground, blocks) -> solid(0)."""
+    # First, since a door is tagged passable and a pipe solid, but either is an exit
+    if "warp" in descs:
+        return WARP
+    if "spring" in descs:
+        return SPRING
+    if any(tag in descs for tag in MM2_STANDABLE_TAGS):
+        return PLATFORM
     if "passable" in descs or "enemy" in descs:
         return 2
     if "hazard" in descs or "damaging" in descs:
@@ -223,22 +237,56 @@ def mario_traversable(scene, id_to_char, descs, budget, visualize=False):
     return reached, stats, info
 
 
+def mm2_stood_up(start, solution):
+    """True when the agent is held up somewhere along the path, or reaches a warp.
+    isGoal only wants the last column, so a drop through open air scores one on the way
+    past, and a run airborne throughout fell through the scene rather than crossing it."""
+    for x, y in replay_path(start, solution):
+        if start.standable(x, y) or start.at_warp(x, y):
+            return True
+    return False
+
+
 def mm2_traversable(scene, id_to_char, descs, budget, visualize=False):
-    """Mario Maker 2 traversability: reach the right edge via MM2State, where static
-    hazards are deadly (can't be passed through or stood on)."""
+    """Mario Maker 2 traversability: reach the right edge, or a door or warp pipe,
+    via MM2State, where static hazards are deadly (can't be passed through or stood
+    on)."""
     grid = translate_scene(scene, id_to_char, descs, mm2_tile)
     grid = MM2State.preProcessLevel(grid)
     width = len(scene[0])
     grid = [row[BUFFER_WIDTH:BUFFER_WIDTH + width] for row in grid]
     height = len(grid)
 
+    # A wall on the right edge puts the goal out of reach, so trailing dead columns go
+    # and the rightmost open one becomes the goal. Trimming the left would shift every x.
+    edge = MM2State(grid, 0, 0, 0)
+    def column_open(x):
+        return any(edge.passable(x, y) and not edge.is_hazard(x, y)
+                   for y in range(height))
+    last = width - 1
+    while last > 0 and not column_open(last):
+        last -= 1
+    if not column_open(last):
+        # Nowhere to be at all, and without this the trim leaves the one column the
+        # agent would start on and count as the goal.
+        return False, {"reached_goal": False, "expanded": 0,
+                       "note": "no open cell"}, None
+    if last < width - 1:
+        grid = [row[:last + 1] for row in grid]
+
+    # Any open cell starts, not just a standable one, since a mid-level window is
+    # entered in mid-air. Ground up first, and a walled-off column 0 moves right.
     scanner = MM2State(grid, 0, 0, 0)
-    def standable(y):
-        return (scanner.passable(0, y)
-                and scanner.inBounds(0, y + 1)
-                and not scanner.passable(0, y + 1)
-                and not scanner.is_hazard(0, y + 1))
-    starts = [MM2State(grid, 0, 0, y) for y in reversed(range(height)) if standable(y)]
+    def enterable(x, y):
+        return (scanner.passable(x, y)
+                and not scanner.is_hazard(x, y)
+                and not scanner.is_hazard(x, y + 1))
+    starts = []
+    for x in range(len(grid[0])):
+        starts = [MM2State(grid, 0, x, y) for y in reversed(range(height))
+                  if enterable(x, y)]
+        if starts:
+            break
     if not starts:
         starts = [MM2State.from_level(grid)]
 
@@ -252,7 +300,8 @@ def mm2_traversable(scene, id_to_char, descs, budget, visualize=False):
         except RuntimeError:
             over_budget = True
             break
-        if sol is not None:
+        # A solution that never stands up is a fall, so try the next start instead.
+        if sol is not None and mm2_stood_up(start, sol):
             reached, solution, winning_start = True, sol, start
             break
 
@@ -464,6 +513,23 @@ def mmlv_level_path(level, id_to_char, tile_descriptors, budget=300000):
     if not beaten or info is None:
         return False, goal, []
     return True, goal, replay_path(info["start"], info["solution"])
+
+
+def mm2_level_path(level, id_to_char, tile_descriptors, budget=300000):
+    """Run A* across a whole MM2 level and return (beaten, path), path being the
+    solution's (x, y) cells in the level's own coordinates (empty when it wasn't beaten).
+
+    Nothing to find first, unlike mmlv_level_path: MM2 walks in on the left edge, so a
+    scene's multi-start scan works on the level too. Beaten covers reaching a warp, so a
+    level that pipes into a sub-area counts, but its path stops at the pipe and leaves
+    the windows past it to their own search."""
+    beaten, _stats, info = evaluate("MM2", level, id_to_char, tile_descriptors,
+                                    budget, False, visualize=True)
+    if not beaten or info is None:
+        return False, []
+    # mm2_traversable crops the state buffer back off, so the replayed cells are
+    # already in the level's coordinates and need no offset
+    return True, replay_path(info["start"], info["solution"])
 
 
 def _render_target(game, tileset_path):

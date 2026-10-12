@@ -9,9 +9,10 @@ Two subcommands when run as a module:
 headers), crops each level to a WINDOW_H x WINDOW_W window (best window, or every
 window with --sliding_window) and emits a grid of tile ids. Per-level metadata
 (the metadata.json sidecar written by ``mm2pipeline_data.ascii to-ascii``) is folded
-into each sample, the goal is stripped unless --no-strip_goal, mostly-air windows
-are diverted to a companion "dropped" dataset, and --with_images crops the
-matching slice of each level's rendered PNG. ``split`` shuffles a dataset and
+into each sample, the goal is stripped unless --no-strip_goal, windows the filters
+reject are diverted to a companion "dropped" dataset, and --with_images crops the
+matching slice of each level's rendered PNG. One of those filters is an A* run that
+drops windows the player could not get across, which is on by default. ``split`` shuffles a dataset and
 writes -train / -validate / -test files next to it.
 """
 
@@ -212,8 +213,9 @@ def erase_cropped_remnants(rows, boxes, top_cut, empty_char):
 def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty_char="-",
                         protected_boxes=(), slice_policy="skip"):
     """Slide a WINDOW_H x WINDOW_W window across the level and return every window
-    as a list of (x, scene) pairs, where x is the game-grid column of the
-    window's left edge (needed to crop the matching slice of the level image).
+    as a list of (x, scene, cols) triples, where x is the game-grid column of
+    the window's left edge (needed to crop the matching slice of the level image)
+    and cols is every level column the window kept, left to right.
     Air-only windows are dropped so empty gaps don't end up in the dataset.
     A position that would cut one of protected_boxes is either skipped, since sliding
     gives us more windows than we need, or widened until the whole object is inside,
@@ -278,7 +280,9 @@ def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty
                     has_content = True
             scene.append(id_row)
         if has_content:
-            scenes.append((cols[0], scene))
+            # Carving can leave the columns non-contiguous, so the left edge alone
+            # isn't enough to put a level column on a scene column
+            scenes.append((cols[0], scene, cols))
 
     return scenes, skipped, carved
 
@@ -346,7 +350,8 @@ def border_flood_fill_count(scene, blocking_ids, void_ids=frozenset()):
 
 
 # Most fundamental reason first, like create_megaman_json_data.py.
-FILTER_REASONS = ("insufficient_playable_area", "mostly_solid", "low_content")
+FILTER_REASONS = ("not_traversable", "insufficient_playable_area", "mostly_solid",
+                  "low_content")
 
 
 def detect_wall_ids(tileset_path, tile_to_id):
@@ -388,6 +393,78 @@ def scene_filter_reasons(scene, active, wall_ids, bulk_ids, void_ids, empty_id,
     if "low_content" in active and count_non_air_tiles(scene, empty_id, extra_id) < min_tiles:
         reasons.append("low_content")
     return reasons
+
+
+# ---------------------------------------------------------------------------
+# A* traversability (--no_traversable_filter)
+# ---------------------------------------------------------------------------
+
+def _astar_module():
+    # astar/ isn't a package, so it goes on the path first. Imported lazily because
+    # the rest of this file is stdlib only and the filter can be turned off.
+    astar_dir = str(paths.repo_path("astar"))
+    if astar_dir not in sys.path:
+        sys.path.insert(0, astar_dir)
+    import astar_traversability_check
+    return astar_traversability_check
+
+
+def load_tile_descriptors(path):
+    """Char -> its tag set, which is what the A* code reads to decide what a tile does."""
+    with open(path, encoding="utf-8") as f:
+        return {ch: set(tags) for ch, tags in json.load(f)["tiles"].items()}
+
+
+def chars_by_id(tile_to_id):
+    """tile_to_id turned around, since A* indexes the other way."""
+    chars = [None] * len(tile_to_id)
+    for ch, tid in tile_to_id.items():
+        chars[tid] = ch
+    return chars
+
+
+def window_traversable(record):
+    """Traversable when the level's own solution path crosses the window, or when the
+    window was beaten on its own."""
+    return bool(record["on_level_path"] or record["scene_traversable"])
+
+
+def scene_only_traversability(reached):
+    """The same record shape for a window with no parent level path to check against,
+    which is every window in best-window mode."""
+    return {"level_traversable": None, "on_level_path": False,
+            "scene_traversable": reached, "level_path": []}
+
+
+def annotate_level_path(rows, windows, tile_to_id, extra_id, empty_char, id_to_char,
+                        tile_descriptors, budget):
+    """Search the whole level once and return, per window, whether the level was beaten,
+    whether the path crosses that window, and the cells inside it as [x, y] in the
+    window's own coordinates. scene_astar fills scene_traversable in after."""
+    # Padded and cropped the way the windows are, so a level column sits on the same
+    # tile a window sees and there is no offset between the two
+    width = max((len(r) for r in rows), default=0)
+    padded = _pad_rows(rows, width, empty_char)[:WINDOW_H]
+    level = [[tile_to_id.get(ch, extra_id) for ch in row] for row in padded]
+    beaten, path = _astar_module().mm2_level_path(level, id_to_char, tile_descriptors,
+                                                 budget)
+    records = []
+    for _x, _scene, cols in windows:
+        at = {c: i for i, c in enumerate(cols)}
+        cells = [[at[x], y] for x, y in path if x in at]
+        records.append({"level_traversable": beaten,
+                        "on_level_path": bool(cells),
+                        "scene_traversable": None,
+                        "level_path": cells})
+    return records
+
+
+def scene_astar(scenes, id_to_char, tile_descriptors, budget):
+    """Whether each scene is beatable on its own, for the windows a level path
+    missed. Either the level was never beaten, or the path went around them."""
+    evaluate = _astar_module().evaluate
+    return [evaluate("MM2", scene, id_to_char, tile_descriptors, budget, False)[0]
+            for scene in scenes]
 
 
 def parse_source_file(file_path):
@@ -700,6 +777,18 @@ def main_build(argv=None):
                         help="Filter windows where a fill from the border reaches "
                              "fewer open tiles than this, which catches sealed-in "
                              "scenes. 0 disables the check. Default: 10.")
+    # The A* filter is one of --filters, so this is just the short way to drop it.
+    parser.add_argument("--no_traversable_filter", dest="traversable_only",
+                        action="store_false", default=True,
+                        help="Don't filter out windows A* can't get through. The "
+                             "filter is on by default.")
+    parser.add_argument("--budget", type=int, default=100000,
+                        help="A* state-expansion budget for a single window. "
+                             "Default: 100000.")
+    parser.add_argument("--level_budget", type=int, default=300000,
+                        help="A* budget for the one search across the whole level. "
+                             "Windows its solution path crosses are kept without a "
+                             "search of their own. Default: 300000.")
     parser.add_argument("--filtered_output", default=None,
                         help="Where to write a second dataset holding the samples "
                              "the filters rejected. Default: '<output>-filtered.json'. "
@@ -802,6 +891,12 @@ def main_build(argv=None):
     wall_ids = detect_wall_ids(tileset_path, tile_to_id)
     bulk_ids = detect_bulk_ids(tileset_path, tile_to_id)
     active_filters = set() if "none" in args.filters else set(args.filters)
+    if not args.traversable_only:
+        active_filters.discard("not_traversable")
+    astar_active = "not_traversable" in active_filters
+    # A* reads chars and their tags, not ids, so it needs both sides of the tileset
+    id_to_char = chars_by_id(tile_to_id) if astar_active else None
+    tile_descriptors = load_tile_descriptors(tileset_path) if astar_active else None
 
     # --with_images setup: locate the rendered PNGs and a place to write crops.
     Image = None
@@ -842,6 +937,8 @@ def main_build(argv=None):
     windows_carved = 0       # positions widened then trimmed back by dropping spare columns
     objects_cropped = 0      # half-objects wiped by the level's vertical crop
     levels_without_boxes = 0  # levels whose metadata has no boxes yet
+    levels_beaten = 0        # levels A* crossed, or reached a warp in
+    windows_on_path = 0      # windows the level path crossed, so they skipped a search
 
     for input_file in input_files:
         raw_levels = parse_source_file(input_file)
@@ -943,25 +1040,44 @@ def main_build(argv=None):
                         if level_img is not None:
                             level_img.close()
                         continue
+                    # One search across the level, then a search each for only the
+                    # windows its path never reached.
+                    if astar_active:
+                        trav = annotate_level_path(
+                            rows, windows, tile_to_id, extra_id, empty_char,
+                            id_to_char, tile_descriptors, args.level_budget)
+                        levels_beaten += int(trav[0]["level_traversable"])
+                        off_path = [i for i, r in enumerate(trav)
+                                    if not r["on_level_path"]]
+                        for i, ok in zip(off_path, scene_astar(
+                                [windows[i][1] for i in off_path], id_to_char,
+                                tile_descriptors, args.budget)):
+                            trav[i]["scene_traversable"] = ok
+                        windows_on_path += len(windows) - len(off_path)
+                    else:
+                        trav = [None] * len(windows)
                     # Split the windows: no filter reasons -> keep, otherwise set
                     # aside with the reasons for the filtered dataset.
                     kept = []
                     dropped_windows = []
-                    for x, scene in windows:
+                    for (x, scene, _cols), path_info in zip(windows, trav):
                         reasons = scene_filter_reasons(
                             scene, active_filters, wall_ids, bulk_ids, {extra_id}, empty_id, extra_id,
                             min_tiles, args.min_playable_tiles, args.max_solid_pct)
+                        # A* is the most fundamental reason, so it goes at the front
+                        if path_info is not None and not window_traversable(path_info):
+                            reasons.insert(0, "not_traversable")
                         if reasons:
-                            dropped_windows.append((x, scene, reasons))
+                            dropped_windows.append((x, scene, reasons, path_info))
                             # A window can trip several, so these sum higher
                             for r in reasons:
                                 reason_counts[r] += 1
                         else:
-                            kept.append((x, scene))
+                            kept.append((x, scene, path_info))
                     dropped_min_samples += len(dropped_windows)
                     # Numbered on their own, so these don't match the dataset's
-                    dropped_samples = [(f"{full_name}_{i}", x, scene, r) for i, (x, scene, r) in enumerate(dropped_windows)]
-                    samples = [(f"{full_name}_{i}", x, scene) for i, (x, scene) in enumerate(kept)]
+                    dropped_samples = [(f"{full_name}_{i}", x, scene, r, p) for i, (x, scene, r, p) in enumerate(dropped_windows)]
+                    samples = [(f"{full_name}_{i}", x, scene, p) for i, (x, scene, p) in enumerate(kept)]
                     suffix = f", {len(dropped_windows)} filtered" if dropped_windows else ""
                     print(f"  [OK] {full_name} ({len(samples)} windows{suffix})")
                 else:
@@ -975,27 +1091,40 @@ def main_build(argv=None):
                     reasons = scene_filter_reasons(
                         scene, active_filters, wall_ids, bulk_ids, {extra_id}, empty_id, extra_id,
                         min_tiles, args.min_playable_tiles, args.max_solid_pct)
+                    # Only one window here, so there is no level path to check it
+                    # against and it gets searched on its own.
+                    path_info = None
+                    if astar_active:
+                        path_info = scene_only_traversability(scene_astar(
+                            [scene], id_to_char, tile_descriptors, args.budget)[0])
+                        if not window_traversable(path_info):
+                            reasons.insert(0, "not_traversable")
                     if reasons:
                         print(f"  [OK] {full_name} (filtered: {', '.join(reasons)})")
                         dropped_min_samples += 1
                         for r in reasons:
                             reason_counts[r] += 1
-                        dropped_samples = [(full_name, best_x, scene, reasons)]
+                        dropped_samples = [(full_name, best_x, scene, reasons, path_info)]
                     else:
-                        samples = [(full_name, best_x, scene)]
+                        samples = [(full_name, best_x, scene, path_info)]
                         print(f"  [OK] {full_name}")
 
-                for sample_name, x, scene in samples:
+                for sample_name, x, scene, path_info in samples:
                     entry, saved = build_sample_entry(
                         sample_name, x, scene, args.with_images, Image,
                         level_img, ppt, image_out_dir, file_stem, meta=file_meta,
                         blanked=blanked)
                     if saved:
                         images_saved += 1
+                    if path_info is not None:
+                        # level_path is kept so a viewer can draw the real path
+                        # instead of searching the scene over again
+                        entry["traversability"] = path_info
+                        entry["traversable"] = window_traversable(path_info)
                     dataset.append(entry)
 
                 if keep_dropped:
-                    for sample_name, x, scene, reasons in dropped_samples:
+                    for sample_name, x, scene, reasons, path_info in dropped_samples:
                         entry, saved = build_sample_entry(
                             sample_name, x, scene, args.with_images, Image,
                             level_img, ppt, dropped_image_out_dir, file_stem,
@@ -1003,6 +1132,9 @@ def main_build(argv=None):
                         if saved:
                             dropped_images_saved += 1
                         entry["filter_reasons"] = reasons
+                        if path_info is not None:
+                            entry["traversability"] = path_info
+                            entry["traversable"] = window_traversable(path_info)
                         dataset_dropped.append(entry)
 
                 processed += len(samples)
@@ -1050,6 +1182,11 @@ def main_build(argv=None):
     if windows_sliced:
         print(f"Dropped {windows_sliced} sample(s): the window cut an object and "
               f"{'there were too few spare columns to carve it back' if args.slice_policy == 'carve' else 'the position was skipped'}.")
+    # Best-window mode never searches a whole level, so there is nothing to report
+    if astar_active and args.sliding_window:
+        print(f"A* got across or to a warp in {levels_beaten} level(s); "
+              f"{windows_on_path} window(s) sat on a level's solution path and were "
+              f"kept without their own search.")
     if objects_cropped:
         print(f"Erased {objects_cropped} object(s) the level's height crop cut in half.")
     if levels_without_boxes:
