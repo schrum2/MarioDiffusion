@@ -4,7 +4,7 @@ import os
 import sys
 from PIL import Image, ImageTk
 
-from level_dataset import mario_tiles, lr_tiles, mm_tiles
+from level_dataset import mario_tiles, lr_tiles, mm_tiles, mm_tile_picker
 from Game_MM2.render_mm2 import mm2_tiles
 from util.sampler import scene_to_ascii
 
@@ -101,6 +101,8 @@ class LevelEditor:
         palette_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.tile_images = self._load_tile_images(game)
+        # Orients Mega Man Beaks/spikes by their neighbors (see _cell_image).
+        self._pick_tile = mm_tile_picker(game, self.tile_images)
         self.tile_photo_images = []
         self.palette_photo_images = []
 
@@ -119,7 +121,7 @@ class LevelEditor:
                 )
                 frame.grid(row=r, column=c, padx=1, pady=1)
 
-                photo = ImageTk.PhotoImage(self.tile_images[tile_id])
+                photo = ImageTk.PhotoImage(self._cell_image(r, c))
                 self.tile_photo_images.append(photo)
                 label = tk.Label(frame, image=photo, borderwidth=0)
                 label.image = photo
@@ -232,13 +234,20 @@ class LevelEditor:
         for (row, col) in self.selected_cells:
             self._paint_cell(row, col, tile_id)
 
+    def _cell_image(self, row, col):
+        return self._pick_tile(self.scene, row, col)
+
     def _paint_cell(self, row, col, tile_id):
         self.scene[row][col] = tile_id
-        photo = ImageTk.PhotoImage(self.tile_images[tile_id])
-        self.tile_photo_images.append(photo)
-        label = self.cell_labels[(row, col)]
-        label.config(image=photo)
-        label.image = photo
+        # Beak/spike orientation depends on the neighboring cells, so redraw those too.
+        for r, c in ((row, col), (row, col - 1), (row, col + 1), (row - 1, col), (row + 1, col)):
+            if (r, c) not in self.cell_labels:
+                continue
+            photo = ImageTk.PhotoImage(self._cell_image(r, c))
+            self.tile_photo_images.append(photo)
+            label = self.cell_labels[(r, c)]
+            label.config(image=photo)
+            label.image = photo
 
     # ------------------------------------------------------------------ save/cancel
 

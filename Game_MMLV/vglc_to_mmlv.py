@@ -6,10 +6,51 @@ Convert a VGLC Mega Man ASCII level (.txt) to a Mega Man Maker level (.mmlv).
 
 from __future__ import annotations
 import argparse
+import json
 from pathlib import Path
 from typing import List
 
 TILE_PX = 16
+
+# Wall-mounted Beaks decode to 'c' whichever way they faced (mmlv_to_vglc drops the 'b'
+# field), so their facing is re-inferred from the wall they hang on. Shared by this
+# converter (to set 'b') and the tile renderers (to mirror the sprite).
+BEAK_CHAR = 'c'
+with open(Path(__file__).with_name("MMLV.json")) as _f:
+    SOLID_CHARS = {ch for ch, props in json.load(_f)["tiles"].items() if "solid" in props}
+
+
+def beak_faces_right(rows, r: int, c: int, solid) -> bool:
+    """True if the Beak at rows[r][c] hangs on a wall to its left with open space to its
+    right. Anything else (wall on the right, walls on both sides, no wall) keeps the
+    left-facing default. `rows` holds chars or tile ids; `solid` is the matching set."""
+    row = rows[r]
+    left = row[c - 1] if c > 0 else None
+    right = row[c + 1] if c + 1 < len(row) else None
+    return left in solid and right not in solid
+
+
+# Spikes likewise decode to 'H' whichever way they pointed (the 'l' field), so their direction
+# is re-inferred from the block they sit on. Other spikes are not anchoring blocks (a column of
+# spikes on a wall all point away from the wall), hence the separate solid set.
+SPIKE_CHAR = 'H'
+SPIKE_ANCHOR_CHARS = SOLID_CHARS - {SPIKE_CHAR}
+
+
+def spike_direction(rows, r: int, c: int, solid) -> str:
+    """'up', 'down', 'left' or 'right': the spike at rows[r][c] points away from the block it
+    sits on. A block below/above takes precedence over one at the side; with no single anchoring
+    block (none at all, or blocks on both opposite sides) it keeps the upward default. `solid`
+    should exclude spikes. Matches 772 of the 776 directional spikes in the downloaded corpus."""
+    def blocked(dr, dc):
+        rr, cc = r + dr, c + dc
+        return 0 <= rr < len(rows) and 0 <= cc < len(rows[rr]) and rows[rr][cc] in solid
+    above, below, left, right = blocked(-1, 0), blocked(1, 0), blocked(0, -1), blocked(0, 1)
+    if above != below:
+        return 'up' if below else 'down'
+    if left != right:
+        return 'right' if left else 'left'
+    return 'up'
 
 
 def solid_block(x: int, y: int) -> List[str]:
@@ -28,9 +69,16 @@ def ladder_tile(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
-def spike_tile(x: int, y: int) -> List[str]:
+# Spike direction is the 'l' field: none = up, 1 = down, 2 = left, 3 = right (read off the
+# corpus by matching each spike's 'l' to the side its solid neighbor is on). l=4 is the
+# free-floating spike with no anchoring block; convert() never emits it.
+SPIKE_L = {'down': 1, 'left': 2, 'right': 3}
+
+def spike_tile(x: int, y: int, direction: str = 'up') -> List[str]:
+    # convert() picks the direction via spike_direction().
+    l = SPIKE_L.get(direction)
     return [
-        f'l{x},{y}="4.000000"',
+        *([] if l is None else [f'l{x},{y}="{l}.000000"']),
         f'i{x},{y}="2.000000"',
         f'e{x},{y}="7.000000"',
         f'a{x},{y}="1.000000"',
@@ -351,12 +399,15 @@ def enemy_octopus_ud(x: int, y: int) -> List[str]:
         f'a{x},{y}="1.000000"',
     ]
 
-def enemy_beak(x: int, y: int) -> List[str]:
+def enemy_beak(x: int, y: int, faces_right: bool = False) -> List[str]:
+    # NOTE: b denotes whether the beak is facing left or right;
+    # -1.0000 = left, no b field = right
+    # convert() picks the facing via beak_faces_right().
     return [
         f'o{x},{y}="9999.000000"',
         f'e{x},{y}="2.000000"',
         f'd{x},{y}="5.000000"',
-        f'b{x},{y}="-1.000000"',
+        *([] if faces_right else [f'b{x},{y}="-1.000000"']),
         f'a{x},{y}="1.000000"',
     ]
 
@@ -777,7 +828,11 @@ def convert(lines: List[str], level_name: str = "Generated", author: str = "conv
                 continue
 
             emitter = CHAR_MAP.get(ch)
-            if emitter is None:
+            if ch == BEAK_CHAR:
+                out.extend(enemy_beak(x, y, beak_faces_right(rows, row_idx, col_idx, SOLID_CHARS)))
+            elif ch == SPIKE_CHAR:
+                out.extend(spike_tile(x, y, spike_direction(rows, row_idx, col_idx, SPIKE_ANCHOR_CHARS)))
+            elif emitter is None:
                 # Unknown char — treat as air
                 pass
             else:

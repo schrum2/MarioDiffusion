@@ -22,6 +22,16 @@ _sprite_sheet = None
 _sprite_sheet_name = None
 
 
+def _tileset_chars(tileset):
+    """A loaded tileset's glyphs in encoded tile-id order."""
+    if "tile_to_id" in tileset:
+        return [
+            char for char, _ in sorted(
+                tileset["tile_to_id"].items(), key=lambda item: int(item[1])
+            )
+        ]
+    return sorted(tileset["tiles"])
+
 def load_tile_coordinates(tileset_path):
     """Return sprite-sheet coordinates in the same order as encoded tile ids.
 
@@ -35,14 +45,7 @@ def load_tile_coordinates(tileset_path):
     if coordinates is None:
         raise ValueError(f"Tileset {tileset_path} is missing tile_coordinates")
 
-    if "tile_to_id" in tileset:
-        tile_chars = [
-            char for char, _ in sorted(
-                tileset["tile_to_id"].items(), key=lambda item: int(item[1])
-            )
-        ]
-    else:
-        tile_chars = sorted(tileset["tiles"])
+    tile_chars = _tileset_chars(tileset)
 
     missing = [char for char in tile_chars if char not in coordinates]
     if missing:
@@ -247,6 +250,67 @@ def lr_tiles():
     return LR_tile_images
 
 
+MM_TILESETS = {
+    "MM-Full": common_settings.MM_FULL_TILESET,
+    "MMLV": common_settings.MMLV_TILESET,
+    "MM-Simple": common_settings.MM_SIMPLE_TILESET,
+}
+
+# UI display names / spellings the editors pass for the Mega Man tilesets.
+_MM_GAME_ALIASES = {
+    "Mega Man (Simple)": "MM-Simple", "MM-simple": "MM-Simple",
+    "Mega Man (Full)": "MM-Full", "MM-full": "MM-Full",
+    "Mega Man (Maker)": "MMLV",
+}
+
+# The spike sprite points up; rotations giving the other directions.
+_SPIKE_ROTATIONS = {
+    'down': Image.ROTATE_180,
+    'left': Image.ROTATE_90,     # counterclockwise
+    'right': Image.ROTATE_270,
+}
+
+def mm_tile_picker(game, tile_images):
+    """Return pick(grid, row, col) -> the sprite to draw for that cell of a tile-id grid.
+
+    Beaks and spikes carry no facing in the ASCII ('c' / 'H' either way), so for Mega Man
+    tilesets their sprite is mirrored/rotated by the blocks around them (beak_faces_right /
+    spike_direction, the same rules vglc_to_mmlv uses to write the .mmlv). Every other tile,
+    and every tile of a non-Mega Man game, is drawn as-is. Accepts the mm_tiles() codes or
+    the editors' display names.
+    """
+    def plain(grid, row, col):
+        return tile_images[int(grid[row][col]) % len(tile_images)]
+
+    game = _MM_GAME_ALIASES.get(game, game)
+    if game not in MM_TILESETS:
+        return plain
+
+    from Game_MMLV.vglc_to_mmlv import BEAK_CHAR, SPIKE_CHAR, beak_faces_right, spike_direction
+    with open(MM_TILESETS[game], "r") as f:
+        tileset = json.load(f)
+    chars = _tileset_chars(tileset)
+    solid = {i for i, ch in enumerate(chars) if "solid" in tileset["tiles"].get(ch, [])}
+
+    beak_id = chars.index(BEAK_CHAR) if BEAK_CHAR in chars else None
+    spike_id = chars.index(SPIKE_CHAR) if SPIKE_CHAR in chars else None
+    spike_anchors = solid - {spike_id}
+    flipped_beak = (tile_images[beak_id].transpose(Image.FLIP_LEFT_RIGHT)
+                    if beak_id is not None else None)
+    rotated_spikes = ({d: tile_images[spike_id].transpose(t) for d, t in _SPIKE_ROTATIONS.items()}
+                      if spike_id is not None else {})
+
+    def pick(grid, row, col):
+        tile_id = int(grid[row][col]) % len(tile_images)
+        if tile_id == beak_id and beak_faces_right(grid, row, col, solid):
+            return flipped_beak
+        if tile_id == spike_id:
+            return rotated_spikes.get(spike_direction(grid, row, col, spike_anchors),
+                                      tile_images[tile_id])
+        return tile_images[tile_id]
+
+    return pick
+
 def mm_tiles(game):
     """
     Maps tile ids to 16x16 pixel sprites cropped from a Mega Man sprite sheet.
@@ -268,11 +332,7 @@ def mm_tiles(game):
         _sprite_sheet_name = sheet #Done to ensure we can change the sprite sheet after code execution
         _sprite_sheet = Image.open(sheet)
 
-    tileset_path = {
-        "MM-Full": common_settings.MM_FULL_TILESET,
-        "MMLV": common_settings.MMLV_TILESET,
-        "MM-Simple": common_settings.MM_SIMPLE_TILESET,
-    }.get(game)
+    tileset_path = MM_TILESETS.get(game)
     if tileset_path is None:
         raise ValueError(f"Unsupported Mega Man game: {game}")
     MM_tile_coordinates = load_tile_coordinates(tileset_path)
@@ -361,7 +421,10 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
             tile_size = common_settings.MM_TILE_PIXEL_DIM
         else:
             raise ValueError(f"Unsupported game or dimensions: {game} {height}x{width}")
-        
+
+        # Orients Mega Man Beaks/spikes by their neighbors; plain lookup for everything else.
+        pick_tile = mm_tile_picker(game, tile_images)
+
         for i, sample_index in enumerate(sample_indices):
             # Create a blank image to hold the tile-based visualization
             height, width = sample_index.shape
@@ -369,8 +432,7 @@ def visualize_samples(samples, output_dir=None, use_tiles=True, start_index=0, b
 
             for row in range(height):
                 for col in range(width):
-                    tile_id = int(sample_index[row, col] % len(tile_images))  # Ensure tile_id is within bounds
-                    tile_image = tile_images[tile_id]
+                    tile_image = pick_tile(sample_index, row, col)
                     composite_image.paste(tile_image, (col * tile_size, row * tile_size))
 
             # Determine the file name based on the prompt

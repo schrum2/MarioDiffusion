@@ -39,6 +39,7 @@ from urllib.parse import parse_qs, quote, urlparse
 from llm_ascii_to_caption import (
     DEFAULT_MODELS,
     CheckpointWriter,
+    build_deterministic_captioner,
     default_checkpoint_path,
     deterministic_caption,
     filter_tile_set,
@@ -612,6 +613,7 @@ def main():
     prompt_rules = game.get("prompt_rules", [])
 
     _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
+    det_captioner = build_deterministic_captioner(args.game, tileset_path)
     null_ids = frozenset(
         tid for tid, ch in id_to_char.items()
         if "null" in tile_descriptors.get(ch, set())
@@ -630,7 +632,8 @@ def main():
             "scene_str": scene_str,
             "tileset": filter_tile_set(scene_str, tile_names),
             "deterministic": deterministic_caption(
-                scene, id_to_char, char_to_id, tile_descriptors, names=tile_names
+                scene, id_to_char, char_to_id, tile_descriptors, names=tile_names,
+                captioner=det_captioner, attrs=attrs,
             ),
             "game_name": game_name,
             "prompt_vocab": prompt_vocab,
