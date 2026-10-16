@@ -626,6 +626,30 @@ def _mm2_paste_region(canvas, region, c, r, cw, ch, ts):
     canvas.paste(region, (c * ts, r * ts), region)
 
 
+def _mm2_stamp_spans(lo, hi, size, from_high=False):
+    """(start, length) spans covering lo..hi at footprint size, with one short
+    leftover when it doesn't divide evenly. from_high puts that leftover first."""
+    full, rem = divmod(hi - lo + 1, size)
+    if not full:
+        return [(lo, hi - lo + 1)]          # narrower than one footprint
+    start = lo + rem if from_high else lo
+    spans = [(start + i * size, size) for i in range(full)]
+    if not rem:
+        return spans
+    return [(lo, rem)] + spans if from_high else spans + [(start + full * size, rem)]
+
+
+def _mm2_paste_clipped(canvas, region, c, r, cw, ch, tw, th, ts, keep_bottom=False):
+    """Paste a tw x th sprite into a cw x ch opening, cropping rather than squashing
+    when the opening is smaller. keep_bottom cuts the top, not the feet."""
+    if region is not None and (cw, ch) != (tw, th):
+        rw, rh = region.size
+        pw, ph = max(1, round(rw * cw / tw)), max(1, round(rh * ch / th))
+        top = rh - ph if keep_bottom else 0
+        region = region.crop((0, top, pw, top + ph))
+    _mm2_paste_region(canvas, region, c, r, cw, ch, ts)
+
+
 def _mm2_autotile(grid, canvas, consumed, chars, gamestyle, ts):
     """Render multi-tile tile-structures with edge-aware tiles, marking consumed.
 
@@ -802,6 +826,9 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
             glyph = glyph_of.get(tid)
             is_boss = glyph in _MM2_BOSS_GLYPHS
             is_tiled = glyph in _MM2_TILED_GLYPHS
+            # Claw 'j' draws 3x5 over a 3x4 object, so the measured footprint wins
+            if not is_boss:
+                tw, th = _mm2_stored_footprint(glyph) or (tw, th)
             # Fixes enemies that should be 2x1 being squished down into a 1x1
             narrow_single = not is_boss and not is_tiled and tw * th <= 2
             for cells in _mm2_components(grid, tid, consumed, h, w):
@@ -819,6 +846,9 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
                 # Decided per blob; the next one of this glyph works it out again.
                 is_several = False
                 stamp_w, stamp_h = tw, th
+                # A filled block dividing evenly is that many objects, not one big
+                exact = (len(cells) == bw * bh and bw % tw == 0 and bh % th == 0
+                         and (bw > tw or bh > th))
 
                 if is_boss:
                     # One sprite scaled to the ENTIRE block, so a 2x2 and a 4x4
@@ -837,22 +867,18 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
                         continue
                     stamp_w, stamp_h = stored
 
-                if is_tiled or is_several:
+                if is_tiled or is_several or exact:
                     # Fixed footprint: a block larger than tw x th is several
-                    # adjacent copies (two 2x2 Thwomps side by side make a 4x2
-                    # block -> two stamps), so tile footprint-sized stamps across
-                    # it. A block smaller than the footprint clamps to one stamp.
-                    cr = r0
-                    while cr <= r1:
-                        cc = c0
-                        while cc <= c1:
-                            sw, sh = min(stamp_w, c1 - cc + 1), min(stamp_h, r1 - cr + 1)
-                            _mm2_paste_region(canvas, sprite, cc, cr, sw, sh, ts)
+                    # adjacent copies, so tile stamps across it. Rows pack from the
+                    # bottom, leaving any leftover where the height crop cuts.
+                    for cr, sh in _mm2_stamp_spans(r0, r1, stamp_h, from_high=True):
+                        for cc, sw in _mm2_stamp_spans(c0, c1, stamp_w):
+                            # A short row is the cropped one, so keep the feet
+                            _mm2_paste_clipped(canvas, sprite, cc, cr, sw, sh,
+                                               stamp_w, stamp_h, ts, sh != stamp_h)
                             for y in range(cr, cr + sh):
                                 for x in range(cc, cc + sw):
                                     consumed[y][x] = True
-                            cc += stamp_w
-                        cr += stamp_h
                     continue
 
                 # Default "anchor": a block bigger than the footprint in either

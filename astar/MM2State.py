@@ -8,19 +8,18 @@ BUFFER_WIDTH = 15
 # so real Mario tiles are never mistaken for it.
 HAZARD = 13
 
-# Semisolid platforms, lifts and one-way walls. You jump up through them and walk
-# through the sides, but you land on top, so they stop a fall and nothing else.
+# Semisolid platforms, lifts and one-way walls. Passable from every side, but they
+# stop a fall: you land on top and jump straight back up through.
 PLATFORM = 14
 
-# Doors and warp pipes. Solid, since you step into one rather than through it, and
-# reaching one ends the search because it leads out of the scene.
+# Doors and warp pipes. Solid like any wall, and reaching one ends the search since
+# it leads out of the scene.
 WARP = 15
 
-# Springs. You land on one like a platform, but jumping off it throws you higher than
-# your own jump, which is how levels get you over a wall a jump can't clear.
+# Springs. Stand on one like a platform; a jump off it clears walls your own cannot.
 SPRING = 16
 
-# Tiles up from a spring, against 5 for a jump. An estimate, not a measured height.
+# Tiles a spring throws you, against 5 for a jump. Estimated, not measured.
 SPRING_JUMP = 10
 
 LENIENCY_TILES = {
@@ -78,8 +77,8 @@ class MM2State:
         """Default constructor: start at top-left, two tiles above the floor."""
         return cls(level, 0, 0, 2)
 
-    # Simple greedy heuristic: horizontal distance to the right edge. A warp is a goal
-    # too, so this overshoots when one is behind Mario, costing expansions not answers.
+    # Greedy heuristic: horizontal distance to the right edge. Overshoots when the
+    # nearest goal is a warp behind Mario. Costs expansions, not answers.
     def moveRight(self):
         return len(self.level[0]) - self.x
 
@@ -180,8 +179,8 @@ class MM2State:
         return self.inBounds(x, y) and self.tileAtPosition(x, y) == SPRING
 
     def at_warp(self, x=None, y=None):
-        """True when a door or pipe is close enough to step into, from where the agent
-        is or from a given cell. Adjacent counts, since a warp can't be walked into."""
+        """True when a door or pipe is close enough to step into, from the agent's
+        own cell or from (x, y). Adjacent counts: a warp is solid."""
         x = self.x if x is None else x
         y = self.y if y is None else y
         return any(self.is_warp(x + dx, y + dy)
@@ -204,13 +203,13 @@ class MM2State:
             return None
 
         if newJumpVelocity == 0:  # Not mid-jump
-            # A platform or spring below catches the fall even though it is passable.
+            # A platform or spring below stops the fall, passable or not
             if (self.passable(newMarioX, newMarioY + 1)
                     and not self.is_platform(newMarioX, newMarioY + 1)
                     and not self.is_spring(newMarioX, newMarioY + 1)):  # Falling
                 newMarioY += 1  # Fall down
             elif action.getDirection() == self.MarioAction.DIRECTION.JUMP:  # Start jump
-                # A spring throws you further than your legs do
+                # Off a spring instead of off the floor
                 newJumpVelocity = (SPRING_JUMP
                                    if self.is_spring(newMarioX, newMarioY + 1) else 5)
         elif action.getDirection() == self.MarioAction.DIRECTION.JUMP:
@@ -267,7 +266,7 @@ class MM2State:
 
     def isGoal(self):
         """True once Mario reaches the last x coordinate, or touches a warp, which
-        leads out whether or not the far end is in the scene."""
+        leads out of the scene."""
         return self.isGoalX(self.x) or self.at_warp()
 
     def stepCost(self):
