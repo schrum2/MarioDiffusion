@@ -14,24 +14,11 @@ from models.fdm_pipeline import FDMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
 from tqdm.auto import tqdm
 
-# TODO: Shouldn't this be moved to common_settings? Or is it basically already there?
-# Per-game (tileset, tile_count, width, height) defaults. Mirrors the --game
-# handling in train_diffusion.py so the two stay consistent.
-_GAME_SETTINGS = {
-    "Mario":     (common_settings.MARIO_TILESET, common_settings.MARIO_TILE_COUNT, common_settings.MARIO_WIDTH, common_settings.MARIO_HEIGHT),
-    "MM2":       (common_settings.MM2_TILESET, common_settings.MM2_TILE_COUNT, common_settings.MM2_WIDTH, common_settings.MM2_HEIGHT),
-    "LR":        (common_settings.LR_TILESET, common_settings.LR_TILE_COUNT, common_settings.LR_WIDTH, common_settings.LR_HEIGHT),
-    "MM-Simple": (common_settings.MM_SIMPLE_TILESET, common_settings.MM_SIMPLE_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
-    "MM-Full":   (common_settings.MM_FULL_TILESET, common_settings.MM_FULL_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
-    "MMLV":      (common_settings.MMLV_TILESET, common_settings.MMLV_TILE_COUNT, common_settings.MEGAMAN_WIDTH, common_settings.MEGAMAN_HEIGHT),
-}
-
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Evaluate tile type distribution across a dataset and/or model checkpoints. "
                     "Tile names are derived entirely from the tileset's descriptors, so this "
-                    "works for any game/tileset (original Mario, MM2, MM-Simple, MM-Full, Lode Runner)."
+                    "works for any game/tileset (original Mario, MM2, MM-Simple, MM-Full, MMLV, Lode Runner)."
     )
     parser.add_argument("--model_path", type=str, default=None, help="Path to the trained model directory")
     parser.add_argument("--json_path", type=str, default=None, help="Path to a single dataset JSON file. Used alone to evaluate tile distribution for that dataset, or together with --epoch_dir as the training-set baseline for the comparison plot.")
@@ -39,7 +26,7 @@ def parse_args():
     parser.add_argument("--num_samples", type=int, default=100, help="Number of levels to generate per checkpoint")
     parser.add_argument("--batch_size", type=int, default=25, help="Batch size for generation")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--game", type=str, default="Mario", choices=["Mario", "MM2", "LR", "MM-Simple", "MM-Full", "MMLV"], help="Which game's tileset/level dimensions to use. Fills in --tileset, --num_tiles, --width and --height unless those are given explicitly.")
+    parser.add_argument("--game", type=str, default="Mario", choices=common_settings.GAME_CLI_CHOICES, help="Which game's tileset/level dimensions to use. Fills in --tileset, --num_tiles, --width and --height unless those are given explicitly.")
     parser.add_argument("--num_tiles", type=int, default=None, help="Number of tile types (defaults to the --game value)")
     parser.add_argument("--tileset", type=str, default=None, help="Path to tileset JSON (defaults to the --game value)")
     parser.add_argument("--width", type=int, default=None, help="Width of generated levels (defaults to the --game value)")
@@ -49,17 +36,17 @@ def parse_args():
     parser.add_argument("--captions_json", type=str, default=None, help="Path to a dataset JSON file (list of {\"caption\": ...} entries). If given, a fixed set of captions sampled from it is used to condition generation for every checkpoint, instead of generating unconditionally.")
     args = parser.parse_args()
 
-    # Fill in tileset / tile count / dimensions from the chosen game, mirroring the
-    # --game handling in train_diffusion.py. Explicit CLI values take precedence.
-    tileset, tile_count, width, height = _GAME_SETTINGS[args.game]
+    # Fill in tileset / tile count / dimensions from the chosen game.
+    # Explicit CLI values take precedence.
+    game_config = common_settings.get_game_config(args.game)
     if args.tileset is None:
-        args.tileset = tileset
+        args.tileset = game_config["tileset"]
     if args.num_tiles is None:
-        args.num_tiles = tile_count
+        args.num_tiles = game_config["tile_count"]
     if args.width is None:
-        args.width = width
+        args.width = game_config["width"]
     if args.height is None:
-        args.height = height
+        args.height = game_config["height"]
 
     if not args.model_path and not args.json_path and not args.epoch_dir:
         parser.error("Provide --model_path, --json_path, or --epoch_dir (with --json_path).")
@@ -527,7 +514,7 @@ def evaluate_epoch_vs_dataset(epoch_dir, json_path, id_to_char, char_to_name, ti
         ordered,
         model_stats["tile_percentages"], dataset_stats["tile_percentages"],
         title=f"Tile Distribution: Model Output vs Training Dataset\n{subtitle}",
-        ylabel="Model % - Dataset % (tile occurrences)",
+        ylabel="% of tile occurrences",
         out_path=dist_plot_path,
     )
 
@@ -536,7 +523,7 @@ def evaluate_epoch_vs_dataset(epoch_dir, json_path, id_to_char, char_to_name, ti
         ordered,
         model_stats["scene_presence_percentages"], dataset_stats["scene_presence_percentages"],
         title=f"Scene Presence: Model Output vs Training Dataset\n{subtitle}",
-        ylabel="Model % - Dataset % (scenes containing tile)",
+        ylabel="% of scenes containing tile",
         out_path=presence_plot_path,
     )
 
