@@ -28,10 +28,11 @@ Each file is a level, each line is a row of tiles.
 Strips whitespace and ignores empty lines.
 Returns a list of levels, where each level is a list of strings.
 """
-def load_levels(levels_dir):
+def load_levels(levels_dir, verbose=True):
     levels = []
     for file in sorted(Path(levels_dir).glob("*.txt")):
-        print(f"Loading level file: {file}")
+        if verbose:
+            print(f"Loading level file: {file}")
         with open(file, 'r') as f:
             level = [line.strip() for line in f if line.strip()]
             levels.append(level)

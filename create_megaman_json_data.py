@@ -208,6 +208,7 @@ def parse_args():
     parser.add_argument('--min_playable_tiles', type=int, default=10, help='Filter out scenes where a flood fill starting from the border reaches fewer than this many open (non-wall, non-null) tiles -- i.e. scenes with almost no playable area connected to their edges. Default 10 (out of 224 in a 16x14 scene); set to 0 to disable.')
     parser.add_argument('--min_content_path_len', type=int, default=14, help='Low-content rescue: a scene flagged as low-content is kept anyway if the A* agent can traverse it along a path at least this many steps long (default 14, a little under the scene width). This spares genuinely sparse-but-playable scenes (e.g. spread-out parkour rooms). Set to 0 to disable the rescue.')
     parser.add_argument('--limit', type=int, default=None, help='Cap the number of kept samples saved to --output. Counts samples that pass filtering; level parsing stops once N are kept and the first N are written. Omit for no cap.')
+    parser.add_argument('--show_levels', action='store_true', help='Print the original per-level status lines (Level N parsed successfully: ...) instead of the default tqdm progress bar')
 
     args = parser.parse_args()
     if args.limit is not None and args.limit < 0:
@@ -324,10 +325,9 @@ def scene_astar(all_samples, indices, id_to_char, tile_descriptors, budget):
     if not indices:
         return traversable_flags, path_lengths
     evaluate = _astar_module().evaluate
-    #A* is the slow step. Wrap it in a progress bar so long filtering runs over large
-    #datasets show throughput/ETA instead of hanging silently.
-    #leave=False: this runs once per level, so finished bars would otherwise pile up.
-    for i in tqdm(indices, total=len(indices), desc="A* traversability", unit="scene", leave=False):
+    #A* is the slow step, but it runs once per level, so main()'s per-level progress bar
+    #covers it rather than a nested bar here.
+    for i in indices:
         s = all_samples[i]
         ok, stats, _info = evaluate("MM", s["scene"], id_to_char, tile_descriptors, budget, False)
         traversable_flags[i] = ok
@@ -475,7 +475,8 @@ def main():
 
     args = parse_args()
 
-    levels = load_levels(args.levels)
+    #Per-file "Loading level file" lines would bury the progress bar, so only with --show_levels.
+    levels = load_levels(args.levels, verbose=args.show_levels)
     #Mirrors load_levels' own sorted glob so level_files[i] is guaranteed to be the same
     #file that produced levels[i] -- gives us a real filename to tag samples with, without
     #needing to modify load_levels itself.
@@ -553,10 +554,32 @@ def main():
     duplicates_removed = 0
     levels_beaten = levels_path_checked = 0
 
+    def status(msg):
+        """Emit a routine per-level status line: shown only with --show_levels, otherwise the
+        progress bar conveys progress. Routed through tqdm.write so it never clobbers an active bar."""
+        if args.show_levels:
+            tqdm.write(msg)
+
+    #By default show a tqdm progress bar; --show_levels disables it and restores the original
+    #per-level prints. With --limit the scan stops once enough scenes are kept, so the bar
+    #tracks kept scenes toward the limit; otherwise it tracks levels.
+    if args.limit is not None:
+        pbar = tqdm(total=args.limit, desc="Extracting scenes", unit="scene", disable=args.show_levels)
+    else:
+        pbar = tqdm(total=len(levels), desc="Parsing levels", unit="level", disable=args.show_levels)
+
+    def show_progress(i, refresh=True):
+        """Postfix the bar with the level being scanned, the unique scenes gathered so far
+        (before filtering), and how many of them are kept. A dict keeps this order; tqdm
+        sorts keyword postfixes alphabetically."""
+        pbar.set_postfix({"level": f"{i + 1}/{len(levels)}", "samples": len(all_samples),
+                          "kept": n_kept}, refresh=refresh)
+
     for i in range(len(levels)):
         if args.limit is not None and n_kept >= args.limit:
-            print(f"--limit: {n_kept} kept samples reached; skipping the remaining {len(levels) - i} levels")
+            tqdm.write(f"--limit: {n_kept} kept samples reached; skipping the remaining {len(levels) - i} levels")
             break
+        show_progress(i)
 
         #Source filename for this level, tagged onto every sample below so a bad scene
         #can be traced back to exactly where it came from. Falls back to the index if
@@ -696,10 +719,14 @@ def main():
                             args.target_height - nav_height)] * len(samples)
 
         except ValueError as e:
-            print(f"Skipping level {i}: {e}")
+            #Skipped levels are worth surfacing even in bar mode, so route them through
+            #tqdm.write (rather than status()) so they show regardless of --show_levels.
+            tqdm.write(f"Skipping level {i}: {e}")
+            if args.limit is None:
+                pbar.update(1)
             continue
 
-        print(f"Level {i} parsed successfully: {len(samples)} samples")
+        status(f"Level {i} parsed successfully: {len(samples)} samples")
 
         #MMLV: run A* across the whole level (spawn -> exit/boss) and mark which scenes its
         #solution path passes through. None for other games/modes (no fields added).
@@ -792,6 +819,10 @@ def main():
         filter_time += time.perf_counter() - filter_start
         sample_reasons.extend(new_reasons)
         n_kept += sum(not r for r in new_reasons)
+        show_progress(i, refresh=False)
+        pbar.update(min(n_kept, args.limit) - pbar.n if args.limit is not None else 1)
+
+    pbar.close()
 
     print(f"Removed {duplicates_removed} duplicate samples")
     print(f"Unique scenes extracted: {len(all_samples)}")
