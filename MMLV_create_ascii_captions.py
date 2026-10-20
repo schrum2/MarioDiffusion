@@ -35,12 +35,6 @@ MAX_FLOOR_THICKNESS = 2
 # does not break a wall. Two rows is a doorway.
 MAX_IMPASSABLE_GAP = 1
 
-# Every scene is captioned at two levels of detail, and save_level_data writes both, so a
-# dataset carries a coarse and a fine wording of the same scene under one caption key.
-GENERIC = "generic"    # families: "one enemy", "one door", "one conveyor"
-SPECIFIC = "specific"  # members:  "one sniper joe", "one boss door", "one right conveyor"
-DETAIL_LEVELS = (GENERIC, SPECIFIC)
-
 
 def _pair(word):
     """Singular/plural pair for a phrase whose plural is just an s."""
@@ -69,11 +63,31 @@ ENEMY_NAMES = {
     "o": _pair("mambu spawner"),
     "p": _pair("footholder"),
     "r": _pair("sniper joe"),
+    "S": ("boss", "bosses"),
 }
 
-# Tile types that carry no phrase of their own in the Mega Man captioner. Each is counted and
-# named at both detail levels; the two wordings differ only where a family has more than one
-# member, which is why most rows repeat themselves.
+# Power-up and hazard identities, from Game_MMLV/MMLV.json and util/descriptive_tilesets.py.
+# Like the enemies, each is counted per tile under its own name instead of pooled into one
+# "powerups" or "hazards" phrase, the way the Mario Maker 2 captioner names every tile.
+POWERUP_NAMES = {
+    "W": _pair("large weapon energy"),
+    "w": _pair("small weapon energy"),
+    "L": _pair("large life energy"),
+    "l": _pair("small life energy"),
+    "+": _pair("1-up"),
+    "*": _pair("yashichi"),
+}
+
+HAZARD_NAMES = {
+    "H": _pair("spike"),
+    "!": _pair("lava tile"),
+    "C": _pair("hazard block"),
+    "G": _pair("right fire emitter"),
+    "J": _pair("left fire emitter"),
+}
+
+# Tile types that carry no phrase of their own in the Mega Man captioner, each counted and
+# named on its own.
 #
 # Conveyors and breakable blocks are solid, so they also take part in the floor, platform and
 # cluster logic further down. The count here is additional information about the same tiles,
@@ -84,27 +98,26 @@ ENEMY_NAMES = {
 # as objects by find_objects, so one 2x4 boss door reads as "one boss door" rather than
 # "several doors", and two teleporters placed side by side still read as two. The genuinely 1x1
 # types are counted tile by tile.
-TileType = namedtuple("TileType", "chars generic specific multi_tile")
+TileType = namedtuple("TileType", "chars names multi_tile")
 
 MMLV_TILE_TYPES = (
-    TileType(">",   _pair("conveyor"),        _pair("right conveyor"), True),
-    TileType("E",   _pair("conveyor"),        _pair("left conveyor"),  True),
-    TileType("VY",  _pair("door"),            _pair("key door"),       True),
-    TileType("D",   _pair("door"),            _pair("boss door"),      True),
-    TileType("T",   _pair("teleporter"),      _pair("teleporter"),     True),
-    TileType("=",   _pair("platform path"),   _pair("platform path"),  True),
-    TileType("K",   _pair("key"),             _pair("key"),            False),
-    TileType("X",   _pair("checkpoint"),      _pair("checkpoint"),     False),
-    TileType("s",   _pair("spring"),          _pair("spring"),         False),
-    TileType("x",   _pair("fan"),             _pair("fan"),            False),
-    TileType("Z",   _pair("level exit"),      _pair("level exit"),     False),
-    TileType("P",   _pair("spawn point"),     _pair("spawn point"),    False),
-    TileType("t",   _pair("fake block"),      _pair("fake block"),     False),
+    TileType(">",   _pair("right conveyor"),  True),
+    TileType("E",   _pair("left conveyor"),   True),
+    TileType("VY",  _pair("key door"),        True),
+    TileType("D",   _pair("boss door"),       True),
+    TileType("T",   _pair("teleporter"),      True),
+    TileType("=",   _pair("platform path"),   True),
+    TileType("K",   _pair("key"),             False),
+    TileType("X",   _pair("checkpoint"),      False),
+    TileType("s",   _pair("spring"),          False),
+    TileType("x",   _pair("fan"),             False),
+    TileType("Z",   _pair("level exit"),      False),
+    TileType("P",   _pair("spawn point"),     False),
+    TileType("t",   _pair("fake block"),      False),
 )
 
 # Moving platforms are found as horizontal runs rather than counted as tiles, so they are
-# labelled separately. The generic pass calls every run a moving platform; the specific pass
-# names the run after the tile it is built from.
+# labelled separately, each run named after the tile it is built from.
 MOVING_PLATFORM_NAMES = {
     "F": _pair("falling platform"),
     "M": _pair("moving platform"),
@@ -338,8 +351,8 @@ def find_tracks(scene, id_to_char, already_accounted):
 def find_objects(scene, id_to_char, chars, already_accounted):
     """One set of (row, col) per placed object of a multi-tile type, for each char in `chars`.
 
-    Each char is grouped on its own, so a key door touching a boss door is still two doors at
-    the generic level, where both count under the same name.
+    Each char is grouped on its own, so a vertical key door touching a horizontal one is still
+    two key doors, though both count under the same name.
     """
     objects = []
     for ch in chars:
@@ -841,34 +854,25 @@ def analyze_floor(scene, wall_ids, describe_absence, floor_row=FLOOR, ladder_ids
 
 
 def generate_captions(dataset_path, tileset_path, output_path, describe_locations=True, describe_absence=False,
-                      caption_mode="legacy", caption_key="deterministic_captions", details=DETAIL_LEVELS):
+                      caption_mode="legacy", caption_key="deterministic_captions"):
     """Processes the dataset and generates captions for each level scene."""
     # Load dataset
     with open(dataset_path, "r") as f:
         dataset = json.load(f)
     save_level_data(dataset, tileset_path, output_path, describe_locations, describe_absence,
-                    caption_mode=caption_mode, caption_key=caption_key, details=details)
+                    caption_mode=caption_mode, caption_key=caption_key)
     print(f"Captioned dataset saved to {output_path}")
 
 def save_level_data(dataset, tileset_path, output_path, describe_locations=True, describe_absence=False,
-                    caption_mode="legacy", caption_key="deterministic_captions", details=DETAIL_LEVELS):
-    """Add deterministic captions to every scene, one per entry in `details`.
+                    caption_mode="legacy", caption_key="deterministic_captions"):
+    """Add a deterministic caption to every scene.
 
-    "keyed" stores them as a list under caption_key (default "deterministic_captions"), which
-    is how a scene carries both the generic and the specific wording at once; level_dataset
-    pools a key's captions and draws one per access, so both wordings train the same model.
-    "legacy" has only the single "caption" string, so it stores the first requested detail
-    level and nothing else. Either way every other input attribute is copied through, so a
-    dataset that already carries metadata or LLM captions accumulates sources rather than
-    being replaced.
+    "keyed" stores it as a one-element list under caption_key (default
+    "deterministic_captions"), so a scene can carry captions from several sources at once;
+    "legacy" stores it in the single "caption" string. Either way every other input attribute
+    is copied through, so a dataset that already carries metadata or LLM captions accumulates
+    sources rather than being replaced.
     """
-    details = tuple(details)
-    if not details:
-        raise ValueError("details must name at least one detail level")
-    for level in details:
-        if level not in DETAIL_LEVELS:
-            raise ValueError(f"detail must be one of {DETAIL_LEVELS}, got {level!r}")
-
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
     # Generate captions
@@ -882,18 +886,17 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations=True,
         else:
             scene = combined_scene
             data = None
-        captions = [assign_caption(scene, id_to_char, char_to_id, tile_descriptors,
-                                   describe_locations, describe_absence, data, detail=level)
-                    for level in details]
+        caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors,
+                                 describe_locations, describe_absence, data)
 
         # Copy all input attributes (metadata + captions from other sources) so they carry
         # through; only the scene/caption fields below are (re)written.
         entry = dict(combined_scene) if is_dict else {}
         entry["scene"] = scene
         if caption_mode == "keyed":
-            entry[caption_key] = captions
+            entry[caption_key] = [caption]
         else:
-            entry["caption"] = captions[0]
+            entry["caption"] = caption
         captioned_dataset.append(entry)
 
     # Save new dataset with captions
@@ -1013,30 +1016,45 @@ def count_by_char(scene, char_to_id, chars, names, describe_absence, exclude=set
     return phrase, coords
 
 
-def describe_tile_type_counts(scene, id_to_char, char_to_id, detail, describe_absence,
-                              describe_locations=False, already_accounted=frozenset()):
-    """Phrases for the MMLV tile types that have no structural description of their own.
+def describe_named_counts(scene, char_to_id, family_ids, names_table, family_names, describe_absence):
+    """One counting phrase per named member of a tile family (enemies, power-ups, hazards),
+    with its coordinates: " two mets. one sniper joe."
 
-    At GENERIC detail the members of a family share one phrase ("two doors"); at SPECIFIC
-    detail each member is named ("one boss door. one key door."). Multi-tile types are
-    counted per placed object by find_objects rather than per tile.
+    Characters sharing a name in `names_table` are counted together (the two octopus battery
+    orientations are one enemy). A family member the table does not cover is still counted
+    under the family's own name, so a caption never silently drops a tile.
     """
-    if detail == GENERIC:
-        # Merge the family members, keeping the order of first appearance in the table.
-        merged = {}
-        order = []
-        for entry in MMLV_TILE_TYPES:
-            if entry.generic not in merged:
-                merged[entry.generic] = ["", entry.multi_tile]
-                order.append(entry.generic)
-            merged[entry.generic][0] += entry.chars
-            merged[entry.generic][1] = merged[entry.generic][1] or entry.multi_tile
-        groups = [(merged[k][0], k, merged[k][1]) for k in order]
-    else:
-        groups = [(e.chars, e.specific, e.multi_tile) for e in MMLV_TILE_TYPES]
-
+    by_name = {}
+    for ch, names in names_table.items():
+        if ch in char_to_id:
+            by_name[names] = by_name.get(names, "") + ch
     result = []
-    for chars, names, multi_tile in groups:
+    named_ids = set()
+    for names, chars in sorted(by_name.items()):
+        phrase, coords = count_by_char(scene, char_to_id, chars, names, describe_absence=False)
+        if phrase:
+            result.append((phrase, coords))
+        named_ids.update(char_to_id[ch] for ch in chars)
+
+    rest = [i for i in family_ids if i not in named_ids]
+    if rest:
+        singular, plural = family_names
+        phrase = count_caption_phrase(scene, rest, singular, plural, describe_absence=False)
+        if phrase:
+            result.append((phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in rest]))
+    if describe_absence and not result:
+        result.append((f" no {family_names[1]}.", []))
+    return result
+
+
+def describe_tile_type_counts(scene, id_to_char, char_to_id, describe_absence,
+                              describe_locations=False, already_accounted=frozenset()):
+    """Phrases for the MMLV tile types that have no structural description of their own,
+    each named on its own ("one boss door. one key door."). Multi-tile types are counted per
+    placed object by find_objects rather than per tile.
+    """
+    result = []
+    for chars, names, multi_tile in MMLV_TILE_TYPES:
         chars = [ch for ch in chars if ch in char_to_id]
         if not chars:
             continue
@@ -1053,15 +1071,12 @@ def describe_tile_type_counts(scene, id_to_char, char_to_id, detail, describe_ab
 
 
 def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_locations, describe_absence,
-                   data=None, debug=False, return_details=False, detail=GENERIC):
+                   data=None, debug=False, return_details=False):
     """Assigns a caption to a level scene based on its contents.
 
-    `detail` selects how finely tile families are named: GENERIC counts every enemy as an
-    enemy and every door as a door, SPECIFIC names the individual types. Everything
-    structural -- floor, walls, platforms, clusters -- is worded identically either way.
+    Every enemy, power-up, hazard and gimmick is named by its type ("two mets. one large life
+    energy. several spikes. one boss door.") rather than pooled into its family.
     """
-    if detail not in DETAIL_LEVELS:
-        raise ValueError(f"detail must be one of {DETAIL_LEVELS}, got {detail!r}")
     already_accounted = set()
     details = {} if return_details else None
     ladder_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'climbable' in value]
@@ -1070,7 +1085,6 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     empty_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'empty' in value] #Used for water ratio calculation
     water_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'water' in value] #Used for water ratio calculation
     hazard_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'hazard' in value]
-    moving_plat_ids = [char_to_id[key] for key, value in tile_descriptors.items() if 'moving' in value]
     wall_ids = [char_to_id[key] for key, value in tile_descriptors.items() if (('solid' in value) and ('penetrable' not in value) and ("hazard" not in value))]
     disappearing_ids = [char_to_id["A"]] if "A" in char_to_id else [] #There's nothing unique about the descriptors for disappearing blocks, so we just set it here
     #Ideas:
@@ -1115,39 +1129,14 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         exit_direction = None
 
 
-    # Count enemies. The generic pass lumps them together; the specific pass names each type,
-    # merging the characters that stand for the same enemy (the octopus battery orientations).
-    if detail == GENERIC:
-        enemy_phrase = count_caption_phrase(scene, enemy_ids, "enemy", "enemies", describe_absence=describe_absence)
-        add_to_caption(enemy_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in enemy_ids])
-    else:
-        by_name = {}
-        for ch, names in ENEMY_NAMES.items():
-            if ch in char_to_id:
-                by_name[names] = by_name.get(names, "") + ch
-        named_ids = set()
-        for names, chars in sorted(by_name.items()):
-            phrase, coords = count_by_char(scene, char_to_id, chars, names, describe_absence=False)
+    # Count enemies, power-ups and hazards, each type under its own name
+    for family_ids, names_table, family_names in (
+            (enemy_ids, ENEMY_NAMES, ("enemy", "enemies")),
+            (powerup_ids, POWERUP_NAMES, ("powerup", "powerups")),
+            (hazard_ids, HAZARD_NAMES, ("hazard", "hazards"))):
+        for phrase, coords in describe_named_counts(scene, char_to_id, family_ids, names_table,
+                                                    family_names, describe_absence):
             add_to_caption(phrase, coords)
-            named_ids.update(char_to_id[ch] for ch in chars)
-        # Any enemy character the name table does not cover is still counted, so the specific
-        # caption never silently drops an enemy.
-        rest = [i for i in enemy_ids if i not in named_ids]
-        present = any(t in enemy_ids for row in scene for t in row)
-        if rest:
-            add_to_caption(count_caption_phrase(scene, rest, "enemy", "enemies", describe_absence=False),
-                           [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in rest])
-        if describe_absence and not present:
-            add_to_caption(" no enemies.", [])
-
-
-    # Count powerups
-    powerup_phrase = count_caption_phrase(scene, powerup_ids, "powerup", "powerups", describe_absence=describe_absence)
-    add_to_caption(powerup_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in powerup_ids])
-
-    # Count hazards
-    hazard_phrase = count_caption_phrase(scene, hazard_ids, "hazard", "hazards", describe_absence=describe_absence)
-    add_to_caption(hazard_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in hazard_ids])
 
 
     # Count disappearing blocks
@@ -1156,7 +1145,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
     # Count the MMLV tile types that the Mega Man captioner has no phrase for at all
     for phrase, coords in describe_tile_type_counts(
-            scene, id_to_char, char_to_id, detail, describe_absence,
+            scene, id_to_char, char_to_id, describe_absence,
             describe_locations=describe_locations):
         add_to_caption(phrase, coords)
 
@@ -1227,24 +1216,20 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     # Platforms
     # Count moving platforms
     moving_plat_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="moving", min_run_length=1, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[ceiling_row] + floor_rows)
-    if detail == GENERIC:
-        moving_plat_phrase = describe_horizontal_lines(moving_plat_lines, "moving platform", describe_locations, describe_absence=describe_absence)
-        add_to_caption(moving_plat_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in moving_plat_ids])
-    else:
-        # Group the runs by the tile they are built from. A run is named after its leftmost
-        # tile; runs mixing two kinds of moving block are too rare to be worth splitting.
-        by_kind = {}
-        for y, start_x, end_x in moving_plat_lines:
-            kind = id_to_char[scene[y][start_x]]
-            by_kind.setdefault(kind, []).append((y, start_x, end_x))
-        for kind, lines in sorted(by_kind.items()):
-            singular, _plural = MOVING_PLATFORM_NAMES.get(kind, _pair("moving platform"))
-            # describe_horizontal_lines pluralises by appending an s, which is correct for
-            # every name in MOVING_PLATFORM_NAMES.
-            phrase = describe_horizontal_lines(lines, singular, describe_locations, describe_absence=False)
-            add_to_caption(phrase, [(y, x) for y, s, e in lines for x in range(s, e + 1)])
-        if not moving_plat_lines and describe_absence:
-            add_to_caption(" no moving platforms.", [])
+    # Group the runs by the tile they are built from. A run is named after its leftmost
+    # tile; runs mixing two kinds of moving block are too rare to be worth splitting.
+    by_kind = {}
+    for y, start_x, end_x in moving_plat_lines:
+        kind = id_to_char[scene[y][start_x]]
+        by_kind.setdefault(kind, []).append((y, start_x, end_x))
+    for kind, lines in sorted(by_kind.items()):
+        singular, _plural = MOVING_PLATFORM_NAMES.get(kind, _pair("moving platform"))
+        # describe_horizontal_lines pluralises by appending an s, which is correct for
+        # every name in MOVING_PLATFORM_NAMES.
+        phrase = describe_horizontal_lines(lines, singular, describe_locations, describe_absence=False)
+        add_to_caption(phrase, [(y, x) for y, s, e in lines for x in range(s, e + 1)])
+    if not moving_plat_lines and describe_absence:
+        add_to_caption(" no moving platforms.", [])
 
     #Count regular platforms
     platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[ceiling_row] + floor_rows)
@@ -1308,11 +1293,6 @@ if __name__ == "__main__":
                         help="Leave the coarse position (\"at left\") off the phrases that carry one, "
                              "such as platforms, block clusters and breakable blocks. Positions are "
                              "included by default.")
-    parser.add_argument("--detail", choices=list(DETAIL_LEVELS) + ["both"], default="both",
-                        help="How finely tile types are named. 'generic' counts every enemy as an enemy and "
-                             "every door as a door; 'specific' names the individual types (sniper joe, boss "
-                             "door, right conveyor). 'both' (the default) writes one caption of each, which "
-                             "only --caption-mode keyed can store; legacy mode keeps the first.")
     parser.add_argument("--caption-mode", choices=["legacy", "keyed"], default="legacy",
                         help="Output schema. 'legacy' (default) writes the single 'caption' field. 'keyed' writes the caption as a "
                              "one-element list under --caption-key, so a scene can carry captions from several sources at once. Both "
@@ -1330,10 +1310,5 @@ if __name__ == "__main__":
         print("Error: One or more input files do not exist.")
         sys.exit(1)
 
-    details = DETAIL_LEVELS if args.detail == "both" else (args.detail,)
-    if args.caption_mode == "legacy" and len(details) > 1:
-        print("Note: legacy caption mode holds one caption, so only the generic one is written. "
-              "Use --caption-mode keyed to keep both.")
-
     generate_captions(dataset_file, tileset_file, output_file, args.describe_locations, args.describe_absence,
-                      caption_mode=args.caption_mode, caption_key=args.caption_key, details=details)
+                      caption_mode=args.caption_mode, caption_key=args.caption_key)

@@ -634,13 +634,12 @@ def build_deterministic_captioner(game_key: str, tileset_path: str):
                                                    False, False, (attrs or {}).get("data"))
 
     if game_key == "MMLV":
-        from MMLV_create_ascii_captions import assign_caption, SPECIFIC, MMLV_TILE_TYPES, find_objects
+        from MMLV_create_ascii_captions import assign_caption, MMLV_TILE_TYPES, find_objects
         _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
         def caption_mmlv(scene, attrs):
-            # SPECIFIC names the individual enemy/door types, which gives the LLM more to work with.
             return assign_caption(scene, id_to_char, char_to_id, tile_descriptors,
-                                  True, False, (attrs or {}).get("data"), detail=SPECIFIC)
+                                  True, False, (attrs or {}).get("data"))
 
         # Placed objects per multi-tile char, grouped the same way the caption counts them, so
         # deterministic_caption's tile counts agree with the caption (one boss door, not 8).
