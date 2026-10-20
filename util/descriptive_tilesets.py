@@ -228,7 +228,8 @@ MM2_TILESET_DICT = {
 # MM2's one unique extra RULE paragraph for the captioning prompt: many of its object types
 # occupy more than one grid cell per placed instance (pipes, platforms, blasters, etc.), so
 # without this the LLM tends to count one object per cell instead of per placed instance.
-# Other games don't need this and should leave GAMES[...]["prompt_rules"] as [].
+# MMLV has its own version below; games without multi-tile objects leave
+# GAMES[...]["prompt_rules"] as [].
 MM2_MULTI_TILE_RULE = (
     "MULTI-TILE OBJECTS: Many object types occupy more than one grid cell per placed "
     "instance, appearing as a contiguous block of identical cells. This covers at least "
@@ -242,6 +243,25 @@ MM2_MULTI_TILE_RULE = (
     "objects. When you can't tell whether a block is one object or several, use what you "
     "know about the sizes that object actually takes in the Mario Maker 2 editor, and "
     "when still unsure prefer the smaller count."
+)
+
+# MMLV's counterpart. Its multi-tile objects are few and their footprints are known exactly
+# (Game_MMLV/vglc_to_mmlv.py's MULTI_TILE_CHUNKS), so the rule spells out each size instead of
+# leaving the LLM to guess, and points it at the metadata's object counts, which come from
+# the same grouping as the deterministic caption (MMLV_create_ascii_captions.find_objects, via
+# llm_ascii_to_caption.build_deterministic_captioner).
+MMLV_MULTI_TILE_RULE = (
+    "MULTI-TILE OBJECTS: Some object types occupy more than one grid cell per placed "
+    "instance, so their cell counts overcount them; the metadata lists how many placed "
+    "objects each of these makes up, so count them by that. A teleporter is always a 2x2 block; a "
+    "boss door is a 2 wide by 4 tall or 4 wide by 2 tall block; a key door is a 1 wide by 3 "
+    "tall or 3 wide by 1 tall line. A block of these "
+    "larger than one footprint is several objects placed side by side, e.g. a 4x2 block of "
+    "teleporter cells is two teleporters. A moving platform track and a conveyor belt can run "
+    "to any length: one continuous line of track cells, including where it steps diagonally "
+    "or passes under its platform, is ONE track, and one continuous run of conveyor cells is "
+    "ONE conveyor. An object cut off by the edge of the grid still counts as one. The "
+    "deterministic caption counts these per object too, the same way."
 )
 
 # Registry of captionable games, keyed by the --game CLI value. Each entry carries:
@@ -276,7 +296,7 @@ GAMES = {
         "tiles": MMLV_TILESET_DICT,
         "tileset": MMLV_TILESET,
         "prompt_vocab": [],
-        "prompt_rules": [],
+        "prompt_rules": [MMLV_MULTI_TILE_RULE],
     },
     "MM2": {
         "name": "Mario Maker 2",

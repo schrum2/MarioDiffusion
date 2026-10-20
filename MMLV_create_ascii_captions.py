@@ -12,6 +12,7 @@ import os
 from collections import namedtuple
 
 from captions.util import extract_tileset, describe_quantity, count_caption_phrase, flood_fill
+from Game_MMLV.vglc_to_mmlv import MULTI_TILE_CHUNKS, find_char_chunks
 
 import util.common_settings as common_settings
 
@@ -78,10 +79,11 @@ ENEMY_NAMES = {
 # cluster logic further down. The count here is additional information about the same tiles,
 # not a replacement, in the same way that a footholder is both an enemy and a moving platform.
 # `multi_tile` marks the types that occupy more than one tile in Mega Man Maker, per the
-# footprint tables in Game_MMLV/mmlv_to_vglc.py: a boss door is 2x4, a key door 1x3 or 3x1, a
-# teleporter 2x2, and conveyors and platform tracks run to any length. Those are counted as
-# connected structures, so one 2x4 boss door reads as "one boss door" rather than "several
-# doors". The genuinely 1x1 types are counted tile by tile.
+# footprint tables in Game_MMLV/mmlv_to_vglc.py: a boss door is 2x4 or 4x2, a key door 1x3 or
+# 3x1, a teleporter 2x2, and conveyors and platform tracks run to any length. Those are counted
+# as objects by find_objects, so one 2x4 boss door reads as "one boss door" rather than
+# "several doors", and two teleporters placed side by side still read as two. The genuinely 1x1
+# types are counted tile by tile.
 TileType = namedtuple("TileType", "chars generic specific multi_tile")
 
 MMLV_TILE_TYPES = (
@@ -109,6 +111,16 @@ MOVING_PLATFORM_NAMES = {
     "R": _pair("rising platform"),
     "p": _pair("footholder platform"),
 }
+
+# The biggest single breakable block is 2x2, so a cluster of more cells than this has to be
+# several blocks: a thick wall or mass to dig through rather than one obstacle. Those clusters
+# are called large; the rest keep the plain cluster phrase.
+LARGE_CLUSTER_CELLS = 4
+
+# A moving platform sits on one node of its own track, and that node decodes to the platform
+# 'M' instead of '=', so 'M' joins the track on either side of it rather than splitting it.
+TRACK_CHAR = "="
+TRACK_CONNECTORS = "M"
 
 # This is used for describing locations, but it doesn't work well
 STANDARD_WIDTH = common_settings.MEGAMAN_WIDTH
@@ -253,17 +265,21 @@ def describe_horizontal_lines(lines, label, describe_locations, describe_absence
         return f" {describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count != 1 else ''}."
 
 
-def find_char_structures(scene, id_to_char, chars, already_accounted):
+def find_char_structures(scene, id_to_char, chars, already_accounted, diagonal=False):
     """Connected groups of tiles drawn from `chars`, as a list of sets of (row, col).
 
     find_solid_structures flood-fills by descriptor, which would pull key doors in with the
     breakable blocks and breakable blocks in with the terrain. This fills over an explicit
     set of characters instead, so a family of tiles can be recognised as its own structures
-    while still being made of solid tiles.
+    while still being made of solid tiles. `diagonal` also joins tiles that only touch at a
+    corner.
     """
     chars = set(chars)
     targets = {(r, c) for r, row in enumerate(scene) for c, t in enumerate(row)
                if id_to_char[t] in chars and (r, c) not in already_accounted}
+    steps = ((-1, 0), (1, 0), (0, -1), (0, 1))
+    if diagonal:
+        steps += ((-1, -1), (-1, 1), (1, -1), (1, 1))
     structures = []
     # Walk the tiles in reading order so the phrases come out left to right rather than in
     # whatever order the set happens to yield.
@@ -275,7 +291,7 @@ def find_char_structures(scene, id_to_char, chars, already_accounted):
         structure = {start}
         while stack:
             r, c = stack.pop()
-            for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            for dr, dc in steps:
                 neighbour = (r + dr, c + dc)
                 if neighbour in targets:
                     targets.discard(neighbour)
@@ -283,6 +299,58 @@ def find_char_structures(scene, id_to_char, chars, already_accounted):
                     stack.append(neighbour)
         structures.append(structure)
     return structures
+
+
+def find_footprint_objects(scene, id_to_char, ch, already_accounted):
+    """One set of (row, col) per placed object of a fixed-footprint tile: teleporter, boss door,
+    key door.
+
+    Flood fill would merge two teleporters placed side by side into one, so the cells are cut
+    into the footprints the reverse converter rebuilds objects from (MULTI_TILE_CHUNKS), trying
+    the shapes in its order. Cells left over belong to an object cropped by the scene edge or
+    partly drawn over by another tile; each connected piece of those still counts as one object.
+    """
+    rows = ["".join(id_to_char[t] for t in row) for row in scene]
+    claimed = set(already_accounted)
+    objects = []
+    for shape in MULTI_TILE_CHUNKS[ch]:
+        anchor_c, anchor_r = shape["anchor"]
+        anchors, members = find_char_chunks(rows, ch, shape["cells"], shape["anchor"], exclude=claimed)
+        for r, c in anchors:
+            top, left = r - anchor_r, c - anchor_c
+            objects.append({(top + dr, left + dc) for dc, dr in shape["cells"]})
+        claimed |= members
+    return objects + find_char_structures(scene, id_to_char, ch, claimed)
+
+
+def find_tracks(scene, id_to_char, already_accounted):
+    """One set of (row, col) per moving platform track, holding just its '=' cells.
+
+    A track can step diagonally, so corner contact keeps it in one piece, and the platform
+    riding it bridges the node it sits on (see TRACK_CONNECTORS).
+    """
+    pieces = find_char_structures(scene, id_to_char, TRACK_CHAR + TRACK_CONNECTORS,
+                                  already_accounted, diagonal=True)
+    tracks = [{(r, c) for r, c in piece if id_to_char[scene[r][c]] == TRACK_CHAR} for piece in pieces]
+    return [track for track in tracks if track]
+
+
+def find_objects(scene, id_to_char, chars, already_accounted):
+    """One set of (row, col) per placed object of a multi-tile type, for each char in `chars`.
+
+    Each char is grouped on its own, so a key door touching a boss door is still two doors at
+    the generic level, where both count under the same name.
+    """
+    objects = []
+    for ch in chars:
+        if ch in MULTI_TILE_CHUNKS:
+            objects += find_footprint_objects(scene, id_to_char, ch, already_accounted)
+        elif ch == TRACK_CHAR:
+            objects += find_tracks(scene, id_to_char, already_accounted)
+        else:
+            objects += find_char_structures(scene, id_to_char, ch, already_accounted)
+    # Left to right, as find_char_structures orders them, so the phrases keep that order.
+    return sorted(objects, key=lambda cells: min((c, r) for r, c in cells))
 
 
 def describe_structure_counts(structures, names, describe_locations=False):
@@ -316,14 +384,17 @@ def describe_structure_counts(structures, names, describe_locations=False):
 def describe_tile_structures(structures, singular, plural, describe_locations=False,
                              describe_absence=False):
     """Phrases for groups of one tile family: a lone tile keeps its own name, a group of two
-    or more becomes a cluster of them. Returns (phrase, coordinates) tuples.
+    or more becomes a cluster of them, and a cluster bigger than LARGE_CLUSTER_CELLS a large
+    cluster. Returns (phrase, coordinates) tuples.
     """
     singles = [s for s in structures if len(s) == 1]
-    clusters = [s for s in structures if len(s) > 1]
+    clusters = [s for s in structures if 1 < len(s) <= LARGE_CLUSTER_CELLS]
+    large = [s for s in structures if len(s) > LARGE_CLUSTER_CELLS]
     result = []
 
     for items, (one, many) in ((singles, (singular, plural)),
-                               (clusters, (singular + " cluster", singular + " clusters"))):
+                               (clusters, (singular + " cluster", singular + " clusters")),
+                               (large, ("large " + singular + " cluster", "large " + singular + " clusters"))):
         if not items:
             continue
         if describe_locations and coarse_locations:
@@ -948,7 +1019,7 @@ def describe_tile_type_counts(scene, id_to_char, char_to_id, detail, describe_ab
 
     At GENERIC detail the members of a family share one phrase ("two doors"); at SPECIFIC
     detail each member is named ("one boss door. one key door."). Multi-tile types are
-    counted as connected structures, one phrase per object rather than per tile.
+    counted per placed object by find_objects rather than per tile.
     """
     if detail == GENERIC:
         # Merge the family members, keeping the order of first appearance in the table.
@@ -970,7 +1041,7 @@ def describe_tile_type_counts(scene, id_to_char, char_to_id, detail, describe_ab
         if not chars:
             continue
         if multi_tile:
-            structures = find_char_structures(scene, id_to_char, chars, already_accounted)
+            structures = find_objects(scene, id_to_char, chars, already_accounted)
             phrases = describe_structure_counts(structures, names, describe_locations=describe_locations)
             if not phrases and describe_absence:
                 phrases = [(" no " + names[1] + ".", set())]

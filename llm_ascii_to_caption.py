@@ -621,6 +621,10 @@ def build_deterministic_captioner(game_key: str, tileset_path: str):
     scene's extra dataset fields from load_dataset (MM/MMLV read "data"; MM2 reads its liquid
     fields). Returns None for a game with no captioner, and deterministic_caption then
     sends the metadata alone.
+
+    A game whose objects can span several cells also gives its captioner a count_objects
+    attribute, scene -> {char: placed objects}, which deterministic_caption reports alongside
+    the raw cell counts.
     """
     if game_key in ("MM-Simple", "MM-Full"):
         from MM_create_ascii_captions import assign_caption
@@ -630,12 +634,20 @@ def build_deterministic_captioner(game_key: str, tileset_path: str):
                                                    False, False, (attrs or {}).get("data"))
 
     if game_key == "MMLV":
-        from MMLV_create_ascii_captions import assign_caption, SPECIFIC
+        from MMLV_create_ascii_captions import assign_caption, SPECIFIC, MMLV_TILE_TYPES, find_objects
         _, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
-        # SPECIFIC names the individual enemy/door types, which gives the LLM more to work with.
-        return lambda scene, attrs: assign_caption(scene, id_to_char, char_to_id, tile_descriptors,
-                                                   True, False, (attrs or {}).get("data"),
-                                                   detail=SPECIFIC)
+
+        def caption_mmlv(scene, attrs):
+            # SPECIFIC names the individual enemy/door types, which gives the LLM more to work with.
+            return assign_caption(scene, id_to_char, char_to_id, tile_descriptors,
+                                  True, False, (attrs or {}).get("data"), detail=SPECIFIC)
+
+        # Placed objects per multi-tile char, grouped the same way the caption counts them, so
+        # deterministic_caption's tile counts agree with the caption (one boss door, not 8).
+        multi_tile_chars = [ch for entry in MMLV_TILE_TYPES if entry.multi_tile for ch in entry.chars]
+        caption_mmlv.count_objects = lambda scene: {
+            ch: len(find_objects(scene, id_to_char, ch, set())) for ch in multi_tile_chars}
+        return caption_mmlv
 
     if game_key == "MM2":
         from Game_MM2 import MarioMaker_create_ascii_captions as mm2
@@ -667,7 +679,8 @@ def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], ch
     The deterministic caption (if captioner is given) is the same caption the game's
     create_ascii_captions script writes. The metadata is purely mechanical fact about the
     grid that the LLM can lean on instead of re-deriving it from the raw ASCII:
-      - raw occupied-cell counts per object tile type (readable names)
+      - occupied-cell counts per object tile type (readable names), with the placed-object
+        count first for multi-tile types when the captioner can count them
       - terrain top-of-column heights (structural solid tiles, ignoring enemies/hazards)
       - floor / ceiling analysis (top and bottom rows)
       - left / right region column boundaries
@@ -715,13 +728,27 @@ def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], ch
             if desc & _METADATA_SKIP_TAGS:
                 continue
             counts[char] += 1
+    count_objects = getattr(captioner, "count_objects", None)
+    objects = count_objects(scene) if count_objects else {}
+
+    def count_text(char: str, n: int) -> str:
+        if char not in objects:
+            return str(n)
+        k = objects[char]
+        return f"{k} object{'s' if k != 1 else ''} ({n} cell{'s' if n != 1 else ''})"
+
     if counts:
         count_lines = "\n".join(
-            f"  {names.get(char, char).split(':')[0].strip()}: {n}"
+            f"  {names.get(char, char).split(':')[0].strip()}: {count_text(char, n)}"
             for char, n in sorted(counts.items(), key=lambda kv: -kv[1])
         )
     else:
         count_lines = "  (none)"
+    if objects:
+        count_header = ("Object tile counts (occupied cells per type; for types where one placed "
+                        "object spans several cells, the number of placed objects comes first):")
+    else:
+        count_header = "Object tile counts (raw occupied cells per type, one placed object may span several cells):"
 
     # Per-column ground profile: the elevation of the LOWEST standable floor surface, found by
     # scanning up from the bottom. A solid tile is a surface only if the two cells above it are
@@ -772,7 +799,7 @@ def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], ch
 
     return (
         f"{caption_block}"
-        "Object tile counts (raw occupied cells per type, one placed object may span several cells):\n"
+        f"{count_header}\n"
         f"{count_lines}\n\n"
         f"Ground surface profile per column (columns 1-{width} left to right; each value is how "
         "many tiles the lowest standable floor sits above the bottom, 0=floor at the very bottom; "
