@@ -164,8 +164,7 @@ LEFT = STANDARD_WIDTH / 3
 RIGHT = STANDARD_WIDTH - LEFT
 
 # Something spanning more than this share of the scene's width is everywhere rather than in
-# one third of it, so it reads "across" instead of being placed by its midpoint, which put a
-# full-width platform "at center".
+# one third of it, so it reads "across" instead of being placed by its midpoint
 ACROSS_FRACTION = 2 / 3
 
 

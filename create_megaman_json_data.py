@@ -199,20 +199,20 @@ def parse_args():
     parser.add_argument('--level_budget', type=int, default=300000, help='MMLV only: A* state-expansion budget for the whole-level spawn -> exit/boss search. Scenes its solution path passes through are always kept and marked traversable.')
     parser.add_argument('--scan_mode', default='path', choices=['path', 'sliding_window', 'snap', 'screen_grid', 'whole'], help='How to extract samples: path follower (default), sliding window, snap (variable-dimension wide+tall scans that snap to valid content), screen_grid (tile the level into a 2x2 (or screens_x x screens_y) grid of Mega Man Maker screens, keeping windows where at least 3/4 of the quadrants are occupied, with null padding on top to reach target_height -- e.g. target 32x32 -> 32x28 content + 4 pad rows), or whole (one sample = the entire level trimmed to its content bounding box, kept at its natural variable size)')
     parser.add_argument('--direction_captions', action='store_true', help='Whether to include entrance/exit directional captions when creating datasets; defaults to False')
-    parser.add_argument('--stride_y', type=int, default=1, help='How far the sliding window moves in the vertical direction during level scanning (sliding_window/snap modes only; must be >= 1)')
-    parser.add_argument('--stride_x', type=int, default=1, help='How far the sliding window moves in the horizontal direction during level scanning (sliding_window/snap modes only; must be >= 1)')
+    parser.add_argument('--stride_y', type=int, default=None, help='How far the window moves in the vertical direction during level scanning (sliding_window/snap/screen_grid modes; must be >= 1). Defaults to 14 (one screen) for screen_grid and 1 otherwise.')
+    parser.add_argument('--stride_x', type=int, default=None, help='How far the window moves in the horizontal direction during level scanning (sliding_window/snap/screen_grid modes; must be >= 1). Defaults to 16 (one screen) for screen_grid and 1 otherwise.')
     parser.add_argument('--max_enemies', type=int, default=8, help='Filter out scenes with more than this many enemy tiles. Omit to disable.')
     parser.add_argument('--exclude_moving_ground', dest='include_moving_ground', action='store_false', help='Filter out scenes containing moving-ground/platform tiles (e.g. "M"), since their motion is not represented in the static scene graphics. By default they are included.')
     parser.add_argument('--include_teleporters', action='store_true', help='Include scenes containing the teleporter tile ("T"). By default these are excluded (contains_teleporter filter) since a teleporter destination is off-scene and not represented in the static scene.')
     parser.add_argument('--min_content_pct', type=float, default=7, help='Filter out scenes where less than this percent of tiles are real content (not empty/passable/null). E.g. 15 requires at least 15%% non-empty tiles.')
     parser.add_argument('--min_playable_tiles', type=int, default=10, help='Filter out scenes where a flood fill starting from the border reaches fewer than this many open (non-wall, non-null) tiles -- i.e. scenes with almost no playable area connected to their edges. Default 10 (out of 224 in a 16x14 scene); set to 0 to disable.')
     parser.add_argument('--min_content_path_len', type=int, default=14, help='Low-content rescue: a scene flagged as low-content is kept anyway if the A* agent can traverse it along a path at least this many steps long (default 14, a little under the scene width). This spares genuinely sparse-but-playable scenes (e.g. spread-out parkour rooms). Set to 0 to disable the rescue.')
-    parser.add_argument('--limit', type=int, default=None, help='Cap the number of kept samples saved to --output. Applied after filtering; the first N kept samples are written. Omit for no cap.')
+    parser.add_argument('--limit', type=int, default=None, help='Cap the number of kept samples saved to --output. Counts samples that pass filtering; level parsing stops once N are kept and the first N are written. Omit for no cap.')
 
     args = parser.parse_args()
     if args.limit is not None and args.limit < 0:
         parser.error("--limit must be >= 0")
-    if args.stride_x < 1 or args.stride_y < 1:
+    if (args.stride_x is not None and args.stride_x < 1) or (args.stride_y is not None and args.stride_y < 1):
         parser.error("--stride_x and --stride_y must be >= 1")
     return args
 
@@ -326,7 +326,8 @@ def scene_astar(all_samples, indices, id_to_char, tile_descriptors, budget):
     evaluate = _astar_module().evaluate
     #A* is the slow step. Wrap it in a progress bar so long filtering runs over large
     #datasets show throughput/ETA instead of hanging silently.
-    for i in tqdm(indices, total=len(indices), desc="A* traversability", unit="scene"):
+    #leave=False: this runs once per level, so finished bars would otherwise pile up.
+    for i in tqdm(indices, total=len(indices), desc="A* traversability", unit="scene", leave=False):
         s = all_samples[i]
         ok, stats, _info = evaluate("MM", s["scene"], id_to_char, tile_descriptors, budget, False)
         traversable_flags[i] = ok
@@ -341,9 +342,9 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
                   budget=100000, max_enemies=8, exclude_moving_ground=True,
                   exclude_teleporters=True,
                   min_content_pct=15, min_playable_tiles=10, min_content_path_len=14):
-    """Split all_samples into (kept, filtered). Each filtered sample is returned as a copy
-    tagged with a 'filter_reasons' key: the list of *every* reason it was cut (a subset of
-    FILTER_REASONS, in priority order), not just the first.
+    """Return, parallel to all_samples, the list of *every* reason each sample is cut (a
+    subset of FILTER_REASONS, in priority order), not just the first. An empty list means
+    the sample is kept.
 
     Filters, in priority order:
       not_traversable          -- A* orb check fails (only cuts when traversable_only is set)
@@ -431,15 +432,10 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
     traversable_flags, path_lengths = scene_astar(all_samples, astar_indices, id_to_char,
                                                   tile_descriptors, budget)
 
-    kept = []
-    filtered = []
-    #Per-reason tallies: a scene can trip several filters, so these can sum to more than the
-    #number of filtered scenes.
-    reason_counts = {r: 0 for r in FILTER_REASONS}
-
+    all_reasons = []
     for idx, s in enumerate(all_samples):
         if idx in on_path:
-            kept.append(s)
+            all_reasons.append([])
             continue
 
         #Collect *every* reason this scene trips, in FILTER_REASONS (priority) order.
@@ -460,17 +456,8 @@ def apply_filters(all_samples, id_to_char, tile_descriptors, *, traversable_only
                 and path_len is not None and path_len >= min_content_path_len:
             reasons.remove("low_content")
 
-        if not reasons:
-            kept.append(s)
-        else:
-            for r in reasons:
-                reason_counts[r] += 1
-            filtered.append({**s, "filter_reasons": reasons})
-
-    total_samples = len(all_samples)
-    print(f"Filtering: kept {len(kept)}/{total_samples}, removed {len(filtered)} "
-          f"({', '.join(f'{r}={reason_counts[r]}' for r in FILTER_REASONS)}).")
-    return kept, filtered
+        all_reasons.append(reasons)
+    return all_reasons
 
 def parse_mmlv_level_name(filename):
     """Pull (mmlv_id, blob_index) out of an MMLV-derived ASCII filename.
@@ -545,16 +532,32 @@ def main():
     # This has to be 14, the perceived height, rather than 16 (which includes void rows) in order to work
     nav_height = 14 # common_settings.MEGAMAN_HEIGHT
 
+    #screen_grid steps one Mega Man Maker screen at a time unless told otherwise; the other
+    #window scans step one tile at a time.
+    if args.stride_x is None:
+        args.stride_x = nav_width if args.scan_mode == 'screen_grid' else 1
+    if args.stride_y is None:
+        args.stride_y = nav_height if args.scan_mode == 'screen_grid' else 1
+
     faithful_vertical = args.faithful_vertical or (args.target_height > nav_width)
 
     direction_captions = args.direction_captions
 
     all_samples = []
     seen_samples = {}   # dedup key -> index of the kept copy in all_samples
+    #Parallel to all_samples once a level is filtered: every filter reason the scene trips
+    #(empty = kept). Filtering runs per level so n_kept is known and --limit can stop early.
+    sample_reasons = []
+    n_kept = 0
+    filter_time = 0.0
     duplicates_removed = 0
     levels_beaten = levels_path_checked = 0
 
     for i in range(len(levels)):
+        if args.limit is not None and n_kept >= args.limit:
+            print(f"--limit: {n_kept} kept samples reached; skipping the remaining {len(levels) - i} levels")
+            break
+
         #Source filename for this level, tagged onto every sample below so a bad scene
         #can be traced back to exactly where it came from. Falls back to the index if
         #level_files is ever shorter than levels for some reason.
@@ -637,7 +640,7 @@ def main():
                 #screens as either all-null ('@', a screen that doesn't exist) or real
                 #content. We tile the level with a window spanning screens_x x screens_y
                 #screens -- the non-padded content region -- moving in screen-sized strides
-                #(pass --stride_x 16 --stride_y 14 for the standard overlapping scan). A
+                #(16x14 by default; --stride_x/--stride_y override it). A
                 #window is kept only if at least 3/4 of its quadrants are occupied (no more
                 #than 1/4 of the screen-sized quadrants are null), then top_pad null rows are
                 #added on top so the final scene reaches target_height. Default 32x32: 2x2
@@ -754,46 +757,65 @@ def main():
                 kept_idx = seen_samples[key]
                 if on_level_path(entry) and not on_level_path(all_samples[kept_idx]):
                     all_samples[kept_idx] = entry
+                    #The copy came from an earlier, already-filtered level; on-path scenes
+                    #are always kept, so clear its reasons.
+                    if kept_idx < len(sample_reasons):
+                        n_kept += bool(sample_reasons[kept_idx])
+                        sample_reasons[kept_idx] = []
                 continue
 
             seen_samples[key] = len(all_samples)
             all_samples.append(entry)
 
+        #Filter this level's new scenes. The A* traversability pass dominates the runtime, so
+        #time it. The quality/traversability filters are tuned for small navigation-sized
+        #windows (e.g. max_enemies=8, min_content_pct=15) and would delete entire levels in
+        #whole mode, so they are not applied there. A whole level is kept as-is.
+        filter_start = time.perf_counter()
+        new_samples = all_samples[len(sample_reasons):]
+        if args.scan_mode == 'whole' or args.no_filter:
+            new_reasons = [[] for _ in new_samples]
+            if args.no_filter:
+                #Still fill in scene_traversable for off-path MMLV scenes.
+                scene_astar(new_samples,
+                            [j for j, s in enumerate(new_samples) if "traversability" in s and not on_level_path(s)],
+                            id_to_char, tile_descriptors, args.budget)
+        else:
+            new_reasons = apply_filters(
+                new_samples, id_to_char, tile_descriptors,
+                traversable_only=args.traversable_only, budget=args.budget,
+                max_enemies=args.max_enemies, exclude_moving_ground=not args.include_moving_ground,
+                exclude_teleporters=not args.include_teleporters,
+                min_content_pct=args.min_content_pct, min_playable_tiles=args.min_playable_tiles,
+                min_content_path_len=args.min_content_path_len,
+            )
+        filter_time += time.perf_counter() - filter_start
+        sample_reasons.extend(new_reasons)
+        n_kept += sum(not r for r in new_reasons)
+
     print(f"Removed {duplicates_removed} duplicate samples")
-    print(f"Final dataset size: {len(all_samples)}")
+    print(f"Unique scenes extracted: {len(all_samples)}")
     if levels_path_checked:
         n_on_path = sum(on_level_path(s) for s in all_samples)
         print(f"Level A* (spawn -> exit/boss): {levels_beaten}/{levels_path_checked} levels beaten; "
               f"{n_on_path}/{len(all_samples)} scenes on a solution path (always kept)")
 
-    #Time the filtering + save stage. The A* traversability pass runs on every scene here
-    #and dominates the runtime, so report how long it takes to produce the final datasets.
-    filter_start = time.perf_counter()
-
-    # The quality/traversability filters are tuned for small navigation-sized windows
-    # (e.g. max_enemies=8, min_content_pct=15) and would delete entire levels in whole
-    # mode, so they are not applied there. A whole level is kept as-is.
-    filtered_samples = []
+    #Each filtered scene is written as a copy tagged with its filter_reasons.
+    filtered_samples = [{**s, "filter_reasons": r} for s, r in zip(all_samples, sample_reasons) if r]
+    all_samples = [s for s, r in zip(all_samples, sample_reasons) if not r]
     if args.scan_mode == 'whole':
-        print("scan_mode=whole: skipping window-oriented quality/traversability filters")
+        print("scan_mode=whole: skipped window-oriented quality/traversability filters")
     elif args.no_filter:
-        print("--no_filter: skipping all quality/playable-area filtering")
-        #Still fill in scene_traversable for off-path MMLV scenes.
-        scene_astar(all_samples,
-                    [i for i, s in enumerate(all_samples) if "traversability" in s and not on_level_path(s)],
-                    id_to_char, tile_descriptors, args.budget)
+        print("--no_filter: skipped all quality/playable-area filtering")
     else:
-        all_samples, filtered_samples = apply_filters(
-            all_samples, id_to_char, tile_descriptors,
-            traversable_only=args.traversable_only, budget=args.budget,
-            max_enemies=args.max_enemies, exclude_moving_ground=not args.include_moving_ground,
-            exclude_teleporters=not args.include_teleporters,
-            min_content_pct=args.min_content_pct, min_playable_tiles=args.min_playable_tiles,
-            min_content_path_len=args.min_content_path_len,
-        )
+        #A scene can trip several filters, so these can sum to more than the number filtered.
+        reason_counts = {r: sum(r in rs for rs in sample_reasons) for r in FILTER_REASONS}
+        print(f"Filtering: kept {len(all_samples)}/{len(sample_reasons)}, removed {len(filtered_samples)} "
+              f"({', '.join(f'{r}={reason_counts[r]}' for r in FILTER_REASONS)}).")
+    print(f"Filtering took {filter_time:.1f}s ({filter_time / 60:.1f} min)")
 
-    #Cap the number of saved samples if requested. Applied after filtering so the limit
-    #counts only kept (quality-passing) samples; the first N are written.
+    #Cap the number of saved samples if requested. The scan stops at the first level that
+    #brings the kept count to the limit, so trim that level's overshoot; the first N are written.
     if args.limit is not None and len(all_samples) > args.limit:
         print(f"--limit: capping saved samples at {args.limit} (from {len(all_samples)})")
         all_samples = all_samples[:args.limit]
@@ -816,9 +838,6 @@ def main():
         with open(filtered_output, 'w') as f:
             json.dump(filtered_samples, f, indent=2)
         print(f"Saved {len(filtered_samples)} filtered samples to {filtered_output}")
-
-    elapsed = time.perf_counter() - filter_start
-    print(f"Filtering + save took {elapsed:.1f}s ({elapsed / 60:.1f} min)")
 
 def sliding_window_samples(level, tile_to_id, width, height, null_chars, out_width=None, out_height=None, x_stride = 1, y_stride = 1):
     out_width = out_width or width
