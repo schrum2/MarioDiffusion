@@ -320,6 +320,7 @@ set MLM_EPOCHS=300
 set MLM_CHECKPOINT=20
 set MLM_MAX_SEQ_LENGTH_FLAG=
 if /I "%GAME%"=="MM2" set MLM_MAX_SEQ_LENGTH_FLAG=--max_seq_length 200
+if /I "%GAME%"=="MMLV" set MLM_MAX_SEQ_LENGTH_FLAG=--max_seq_length 200
 if /I "%GAME%"=="LR" (
     REM Is 60,000 really correct?
     set MLM_EPOCHS=60000
