@@ -12,7 +12,8 @@ import os
 from collections import namedtuple
 
 from captions.util import extract_tileset, describe_quantity, count_caption_phrase, flood_fill
-from Game_MMLV.vglc_to_mmlv import MULTI_TILE_CHUNKS, find_char_chunks
+from Game_MMLV.vglc_to_mmlv import (MULTI_TILE_CHUNKS, SPIKE_ANCHOR_CHARS, SPIKE_CHAR,
+                                    find_char_chunks, spike_direction)
 
 import util.common_settings as common_settings
 
@@ -79,11 +80,32 @@ POWERUP_NAMES = {
 }
 
 HAZARD_NAMES = {
-    "H": _pair("spike"),
-    "!": _pair("lava tile"),
     "C": _pair("hazard block"),
     "G": _pair("right fire emitter"),
     "J": _pair("left fire emitter"),
+}
+
+# Lava is placed tile by tile, so each connected body of it is one pool, described by its
+# length instead of counted per tile: "one long lava pool at left." Lava floods down from its
+# surface (see flood_liquids_down in Game_MMLV/mmlv_to_vglc.py), so a pool's depth is
+# incidental and it is measured by width.
+LAVA_CHAR = "!"
+LAVA_NAMES = _pair("lava pool")
+
+# A lava pool or spike pit up to this wide is short, a wider one long, and one spanning the
+# whole scene full. Splits spike pits in 16x16 scenes about 60% short, 35% long, 5% full; no
+# downloaded level has lava yet, so pools borrow the same split.
+SHORT_STRIP_MAX = 3
+
+# Spikes point away from the block they sit on (spike_direction), which separates what they
+# are part of. Spikes pointing up either line a pit, boxed in by solid blocks at both ends, or
+# sit loose on the floor. A spike pit is one object per connected strip, described by its
+# width like a lava pool; every other spike is counted tile by tile, by the surface it is on.
+SPIKE_NAMES = {
+    "pit": _pair("spike pit"),
+    "floor": _pair("floor spike"),
+    "ceiling": _pair("ceiling spike"),
+    "wall": _pair("wall spike"),
 }
 
 # Tile types that carry no phrase of their own in the Mega Man captioner, each counted and
@@ -348,6 +370,70 @@ def find_tracks(scene, id_to_char, already_accounted):
     return [track for track in tracks if track]
 
 
+def find_spike_groups(scene, id_to_char, already_accounted):
+    """The scene's spikes as (kind, cells) pairs, kind being a SPIKE_NAMES key. A spike pit is
+    one pair per connected strip; every other spike is a pair of its own.
+
+    Spikes are split by the way they point first, so a pit is only ever made of upward spikes.
+    An upward strip is a pit when both of its ends are boxed in, by a solid block level with it
+    or just above it, or by the edge of the scene: it is sunk into or flush with the floor
+    rather than sitting on it.
+    """
+    rows = ["".join(id_to_char[t] for t in row) for row in scene]
+    width = len(rows[0]) if rows else 0
+    # Beyond the edge of the scene counts as solid: a spike there is anchored to a block the
+    # crop cut off, like a column of wall spikes whose wall is in the next scene over.
+    edge = "#"
+    padded = [edge * (width + 2)] + [edge + row + edge for row in rows] + [edge * (width + 2)]
+    by_kind = {"up": set(), "wall": set(), "ceiling": set()}
+    for r, row in enumerate(rows):
+        for c, ch in enumerate(row):
+            if ch != SPIKE_CHAR or (r, c) in already_accounted:
+                continue
+            direction = spike_direction(padded, r + 1, c + 1, SPIKE_ANCHOR_CHARS)
+            kind = {"up": "up", "down": "ceiling"}.get(direction, "wall")
+            by_kind[kind].add((r, c))
+
+    # The spike at either end of a column of wall spikes can rest on the floor or hang from the
+    # ceiling, which points it up or down, but it is still on the wall. A lone upward or
+    # downward spike directly above or below a wall spike, with no spike of its own kind beside
+    # it, counts as a wall spike.
+    changed = True
+    while changed:
+        changed = False
+        for kind in ("up", "ceiling"):
+            for r, c in sorted(by_kind[kind]):
+                beside = (r, c - 1) in by_kind[kind] or (r, c + 1) in by_kind[kind]
+                capping = (r - 1, c) in by_kind["wall"] or (r + 1, c) in by_kind["wall"]
+                if capping and not beside:
+                    by_kind[kind].discard((r, c))
+                    by_kind["wall"].add((r, c))
+                    changed = True
+
+    def strips(cells):
+        # Flood fill only within `cells`, so the other directions' spikes stay out.
+        others = {(r, c) for r, row in enumerate(rows) for c, _ in enumerate(row)} - cells
+        return find_char_structures(scene, id_to_char, SPIKE_CHAR, others)
+
+    def boxed_in(strip_rows, col):
+        if col < 0 or col >= width:
+            return True
+        return any(0 <= r < len(rows) and rows[r][col] in SPIKE_ANCHOR_CHARS
+                   for r in strip_rows | {min(strip_rows) - 1})
+
+    groups = []
+    for strip in strips(by_kind["up"]):
+        strip_rows = {r for r, _ in strip}
+        cols = [c for _, c in strip]
+        if boxed_in(strip_rows, min(cols) - 1) and boxed_in(strip_rows, max(cols) + 1):
+            groups.append(("pit", strip))
+        else:
+            groups += [("floor", {cell}) for cell in sorted(strip)]
+    for kind in ("ceiling", "wall"):
+        groups += [(kind, {cell}) for cell in sorted(by_kind[kind])]
+    return groups
+
+
 def find_objects(scene, id_to_char, chars, already_accounted):
     """One set of (row, col) per placed object of a multi-tile type, for each char in `chars`.
 
@@ -360,6 +446,8 @@ def find_objects(scene, id_to_char, chars, already_accounted):
             objects += find_footprint_objects(scene, id_to_char, ch, already_accounted)
         elif ch == TRACK_CHAR:
             objects += find_tracks(scene, id_to_char, already_accounted)
+        elif ch == SPIKE_CHAR:
+            objects += [cells for _kind, cells in find_spike_groups(scene, id_to_char, already_accounted)]
         else:
             objects += find_char_structures(scene, id_to_char, ch, already_accounted)
     # Left to right, as find_char_structures orders them, so the phrases keep that order.
@@ -1047,6 +1135,80 @@ def describe_named_counts(scene, char_to_id, family_ids, names_table, family_nam
     return result
 
 
+def strip_length_word(length, full_length):
+    """"short", "long" or "full" for a hazard strip of `length` along a scene side of
+    `full_length` tiles."""
+    if length >= full_length:
+        return "full"
+    return "long" if length > SHORT_STRIP_MAX else "short"
+
+
+def grouped_count_phrases(groups, names):
+    """One counting phrase per key of `groups`, a dict of (label prefix, location) -> list of
+    cell sets: " two long lava pools at left." Returns (phrase, coordinates) tuples."""
+    singular, plural = names
+    result = []
+    for (prefix, where), items in groups.items():
+        count = len(items)
+        label = plural if pluralize and count > 1 else singular
+        if prefix:
+            label = f"{prefix} {label}"
+        text = f" {describe_quantity(count) if coarse_counts else count} {label}"
+        text += f" at {where}." if where else "."
+        result.append((text, sorted(set().union(*items))))
+    return result
+
+
+def width_groups(items, scene_width, describe_locations):
+    """Group lava pools or spike pits by width word and location, for grouped_count_phrases.
+    One running the full width of the scene takes no location, since it is everywhere."""
+    groups = {}
+    for cells in items:
+        cols = [c for _, c in cells]
+        item_w = max(cols) - min(cols) + 1
+        where = None
+        if describe_locations and coarse_locations and item_w < scene_width:
+            where = describe_location((min(cols) + max(cols)) / 2.0)
+        groups.setdefault((strip_length_word(item_w, scene_width), where), []).append(cells)
+    return groups
+
+
+def describe_lava_pools(scene, id_to_char, char_to_id, describe_locations, describe_absence):
+    """Phrases for the lava pools, one per width and location: " one long lava pool at left."
+    Returns (phrase, coordinates) tuples.
+    """
+    if LAVA_CHAR not in char_to_id:
+        return []
+    pools = find_objects(scene, id_to_char, LAVA_CHAR, set())
+    result = grouped_count_phrases(width_groups(pools, len(scene[0]), describe_locations), LAVA_NAMES)
+    if not result and describe_absence:
+        result.append((f" no {LAVA_NAMES[1]}.", []))
+    return result
+
+
+def describe_spikes(scene, id_to_char, char_to_id, describe_locations, describe_absence):
+    """Phrases for the spikes, by what they are part of (find_spike_groups): " one long spike pit
+    at center. a few floor spikes. two wall spikes." Pits are described like lava pools; the
+    other spikes are counted like enemies, by tile and without a location.
+    Returns (phrase, coordinates) tuples.
+    """
+    if SPIKE_CHAR not in char_to_id:
+        return []
+    by_kind = {kind: [] for kind in SPIKE_NAMES}
+    for kind, cells in find_spike_groups(scene, id_to_char, set()):
+        by_kind[kind].append(cells)
+    result = []
+    for kind, names in SPIKE_NAMES.items():
+        if kind == "pit":
+            groups = width_groups(by_kind[kind], len(scene[0]), describe_locations)
+        else:
+            groups = {(None, None): by_kind[kind]} if by_kind[kind] else {}
+        result += grouped_count_phrases(groups, names)
+    if not result and describe_absence:
+        result.append((" no spikes.", []))
+    return result
+
+
 def describe_tile_type_counts(scene, id_to_char, char_to_id, describe_absence,
                               describe_locations=False, already_accounted=frozenset()):
     """Phrases for the MMLV tile types that have no structural description of their own,
@@ -1129,13 +1291,22 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         exit_direction = None
 
 
-    # Count enemies, power-ups and hazards, each type under its own name
-    for family_ids, names_table, family_names in (
-            (enemy_ids, ENEMY_NAMES, ("enemy", "enemies")),
-            (powerup_ids, POWERUP_NAMES, ("powerup", "powerups")),
-            (hazard_ids, HAZARD_NAMES, ("hazard", "hazards"))):
+    # Count enemies, power-ups and hazards, each type under its own name. Spikes and lava are
+    # described by shape below, so they are left out of the hazard counts, and "no hazards"
+    # only applies when there are none of those either.
+    strip_ids = {char_to_id[ch] for ch in (SPIKE_CHAR, LAVA_CHAR) if ch in char_to_id}
+    has_strips = any(t in strip_ids for row in scene for t in row)
+    for family_ids, names_table, family_names, absence in (
+            (enemy_ids, ENEMY_NAMES, ("enemy", "enemies"), describe_absence),
+            (powerup_ids, POWERUP_NAMES, ("powerup", "powerups"), describe_absence),
+            ([i for i in hazard_ids if i not in strip_ids], HAZARD_NAMES, ("hazard", "hazards"),
+             describe_absence and not has_strips)):
         for phrase, coords in describe_named_counts(scene, char_to_id, family_ids, names_table,
-                                                    family_names, describe_absence):
+                                                    family_names, absence):
+            add_to_caption(phrase, coords)
+
+    for describe in (describe_spikes, describe_lava_pools):
+        for phrase, coords in describe(scene, id_to_char, char_to_id, describe_locations, describe_absence):
             add_to_caption(phrase, coords)
 
 

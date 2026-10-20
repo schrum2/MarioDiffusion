@@ -260,7 +260,11 @@ MMLV_MULTI_TILE_RULE = (
     "teleporter cells is two teleporters. A moving platform track and a conveyor belt can run "
     "to any length: one continuous line of track cells, including where it steps diagonally "
     "or passes under its platform, is ONE track, and one continuous run of conveyor cells is "
-    "ONE conveyor. An object cut off by the edge of the grid still counts as one. The "
+    "ONE conveyor. One continuous body of lava is ONE lava pool, described by its width "
+    "(short, long, or full when it spans the whole grid). A continuous strip of spikes sunk "
+    "into the floor with solid blocks at both ends is ONE spike pit, described by its width "
+    "the same way; every other spike, on a floor, ceiling or wall, is counted one by one. An object "
+    "cut off by the edge of the grid still counts as one. The "
     "deterministic caption counts these per object too, the same way."
 )
 
