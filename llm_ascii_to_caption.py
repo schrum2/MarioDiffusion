@@ -792,10 +792,13 @@ def deterministic_caption(scene: list[list[int]], id_to_char: dict[int, str], ch
 
     ceiling = edge_summary(scene[0])
 
-    center_col = width // 2
-    
-    
-    regions = (f"left=cols 1-{center_col}, right=cols {center_col + 1}-{width}")
+    # Thirds, split where the deterministic captioners' describe_location splits them (a column
+    # is left while its index is under width/3), so "center" means the same columns in the
+    # deterministic caption and here: cols 1-6 / 7-11 / 12-16 for a 16-wide scene.
+    left_end = -(-width // 3)
+    center_end = -(-2 * width // 3)
+    regions = (f"left=cols 1-{left_end}, center=cols {left_end + 1}-{center_end}, "
+               f"right=cols {center_end + 1}-{width}")
 
     return (
         f"{caption_block}"

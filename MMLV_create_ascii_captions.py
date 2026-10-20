@@ -55,7 +55,7 @@ ENEMY_NAMES = {
     "e": _pair("screw bomber"),
     "f": ("big eye", "big eyes"),
     "g": _pair("spine"),
-    "h": ("crazy razy", "crazy razys"),
+    "h": ("crazy razy", "crazy razies"),
     "i": _pair("watcher"),
     "I": _pair("tackle fire"),
     "j": _pair("killer bullet"),
@@ -71,10 +71,10 @@ ENEMY_NAMES = {
 # Like the enemies, each is counted per tile under its own name instead of pooled into one
 # "powerups" or "hazards" phrase, the way the Mario Maker 2 captioner names every tile.
 POWERUP_NAMES = {
-    "W": _pair("large weapon energy"),
-    "w": _pair("small weapon energy"),
-    "L": _pair("large life energy"),
-    "l": _pair("small life energy"),
+    "W": ("large weapon energy", "large weapon energies"),
+    "w": ("small weapon energy", "small weapon energies"),
+    "L": ("large life energy", "large life energies"),
+    "l": ("small life energy", "small life energies"),
     "+": _pair("1-up"),
     "*": _pair("yashichi"),
 }
@@ -163,6 +163,11 @@ STANDARD_WIDTH = common_settings.MEGAMAN_WIDTH
 LEFT = STANDARD_WIDTH / 3
 RIGHT = STANDARD_WIDTH - LEFT
 
+# Something spanning more than this share of the scene's width is everywhere rather than in
+# one third of it, so it reads "across" instead of being placed by its midpoint, which put a
+# full-width platform "at center".
+ACROSS_FRACTION = 2 / 3
+
 
 # Could define these via the command line, but for now they are hardcoded
 coarse_locations = True
@@ -187,12 +192,21 @@ def describe_location(x):
     return "right"
 
 
+def describe_span(start_x, end_x):
+    """The location phrase for something covering columns start_x to end_x: "across" when it
+    spans most of the scene's width (ACROSS_FRACTION)"""
+    if end_x - start_x + 1 > ACROSS_FRACTION * STANDARD_WIDTH:
+        return "across"
+    return "at " + describe_location((start_x + end_x) / 2.0)
+
+
 def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor, min_run_length=2, require_above_below_not_solid=False, exclude_rows = [], already_accounted = set()):
     """
     Finds horizontal lines (runs) of tiles with the target descriptor.
     - Skips the FLOOR row
     - Can require non-solid space above and below (for platforms)
-    - exclude_rows may not be needed because of the alread_accounted set
+    - Skips tiles in already_accounted, so a moving platform or key door that is solid isn't
+      also found as a plain platform; exclude_rows may not be needed because of it
     Returns a list of (y, start_x, end_x) tuples
     """
     lines = []
@@ -211,7 +225,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
             tile_char = id_to_char[scene[y][x]]
             descriptors = tile_descriptors.get(tile_char, [])
 
-            if target_descriptor not in descriptors:
+            if target_descriptor not in descriptors or (y, x) in already_accounted:
                 x += 1
                 continue
 
@@ -243,7 +257,7 @@ def find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor
                 tile_char = id_to_char[scene[y][x]]
                 descriptors = tile_descriptors.get(tile_char, [])
 
-                if target_descriptor in descriptors:
+                if target_descriptor in descriptors and (y, x) not in already_accounted:
                     if require_above_below_not_solid:
                         if y > 0 and "solid" in tile_descriptors.get(id_to_char[scene[y - 1][x]], []):
                             break
@@ -276,13 +290,13 @@ def describe_horizontal_lines(lines, label, describe_locations, describe_absence
         if coarse_locations:
             location_counts = {}
             for y, start_x, end_x in sorted(lines):
-                location_str = f"{describe_location((end_x + start_x)/2.0)}"
+                location_str = describe_span(start_x, end_x)
                 if location_str in location_counts:
                     location_counts[location_str] += 1
                 else:
                     location_counts[location_str] = 1
 
-            return " " + ". ".join([f"{describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''} at {location}" for location, count in location_counts.items()]) + "."
+            return " " + ". ".join([f"{describe_quantity(count) if coarse_counts else count} {label}{'s' if pluralize and count > 1 else ''} {location}" for location, count in location_counts.items()]) + "."
             
         else:
             parts = []
@@ -467,15 +481,14 @@ def describe_structure_counts(structures, names, describe_locations=False):
         count = len(items)
         label = plural if pluralize and count > 1 else singular
         text = f" {describe_quantity(count) if coarse_counts else count} {label}"
-        text += f" at {where}." if where else "."
+        text += f" {where}." if where else "."
         return (text, set().union(*items))
 
     if describe_locations and coarse_locations:
         by_location = {}
         for struct in structures:
-            rows = [r for r, _ in struct]
             cols = [c for _, c in struct]
-            where = describe_location((min(cols) + max(cols)) / 2.0)
+            where = describe_span(min(cols), max(cols))
             by_location.setdefault(where, []).append(struct)
         return [phrase(group, where) for where, group in by_location.items()]
 
@@ -502,15 +515,14 @@ def describe_tile_structures(structures, singular, plural, describe_locations=Fa
             # One phrase per location, so "two breakable blocks at left bottom" stays true.
             by_location = {}
             for struct in items:
-                rows = [r for r, _ in struct]
                 cols = [c for _, c in struct]
-                where = describe_location((min(cols) + max(cols)) / 2.0)
+                where = describe_span(min(cols), max(cols))
                 by_location.setdefault(where, []).append(struct)
             for where, group in by_location.items():
                 count = len(group)
                 label = many if pluralize and count > 1 else one
                 coords = set().union(*group)
-                result.append((f" {describe_quantity(count) if coarse_counts else count} {label} at {where}.", coords))
+                result.append((f" {describe_quantity(count) if coarse_counts else count} {label} {where}.", coords))
         else:
             count = len(items)
             label = many if pluralize and count > 1 else one
@@ -577,7 +589,7 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
 
         if describe_locations:
             if coarse_locations:
-                desc += " at " + describe_location((min_col + max_col) / 2.0)
+                desc += " " + describe_span(min_col, max_col)
             else:
                 desc += f" from row {min_row} to {max_row}, columns {min_col} to {max_col}"
 
@@ -1144,8 +1156,8 @@ def strip_length_word(length, full_length):
 
 
 def grouped_count_phrases(groups, names):
-    """One counting phrase per key of `groups`, a dict of (label prefix, location) -> list of
-    cell sets: " two long lava pools at left." Returns (phrase, coordinates) tuples."""
+    """One counting phrase per key of `groups`, a dict of (label prefix, location phrase) ->
+    list of cell sets: " two long lava pools at left." Returns (phrase, coordinates) tuples."""
     singular, plural = names
     result = []
     for (prefix, where), items in groups.items():
@@ -1154,21 +1166,22 @@ def grouped_count_phrases(groups, names):
         if prefix:
             label = f"{prefix} {label}"
         text = f" {describe_quantity(count) if coarse_counts else count} {label}"
-        text += f" at {where}." if where else "."
+        text += f" {where}." if where else "."
         result.append((text, sorted(set().union(*items))))
     return result
 
 
 def width_groups(items, scene_width, describe_locations):
     """Group lava pools or spike pits by width word and location, for grouped_count_phrases.
-    One running the full width of the scene takes no location, since it is everywhere."""
+    One running the full width of the scene takes no location, since "full" already says it
+    is everywhere."""
     groups = {}
     for cells in items:
         cols = [c for _, c in cells]
         item_w = max(cols) - min(cols) + 1
         where = None
         if describe_locations and coarse_locations and item_w < scene_width:
-            where = describe_location((min(cols) + max(cols)) / 2.0)
+            where = describe_span(min(cols), max(cols))
         groups.setdefault((strip_length_word(item_w, scene_width), where), []).append(cells)
     return groups
 
@@ -1319,6 +1332,12 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
             scene, id_to_char, char_to_id, describe_absence,
             describe_locations=describe_locations):
         add_to_caption(phrase, coords)
+
+    # Key doors are tagged solid, so without this the platform and block passes below would
+    # describe a door a second time, as a platform or a block cluster.
+    door_chars = {ch for ch, value in tile_descriptors.items() if "door" in value}
+    already_accounted.update((r, c) for r, row in enumerate(scene) for c, t in enumerate(row)
+                             if id_to_char[t] in door_chars)
 
     #Count water
     water_phrase = find_water_caption(scene, empty_ids, water_ids, describe_absence)
