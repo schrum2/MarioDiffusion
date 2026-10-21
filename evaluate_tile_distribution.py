@@ -9,6 +9,7 @@ import json
 from level_dataset import convert_to_level_format
 import util.common_settings as common_settings
 from captions.util import extract_tileset
+from util.descriptive_tilesets import GAMES
 from models.pipeline_loader import get_pipeline
 from models.fdm_pipeline import FDMPipeline
 from models.latent_diffusion_pipeline import UnconditionalDDPMPipeline
@@ -17,8 +18,9 @@ from tqdm.auto import tqdm
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Evaluate tile type distribution across a dataset and/or model checkpoints. "
-                    "Tile names are derived entirely from the tileset's descriptors, so this "
-                    "works for any game/tileset (original Mario, MM2, MM-Simple, MM-Full, MMLV, Lode Runner)."
+                    "Tiles are named by the game's full descriptive tileset (util/descriptive_tilesets.py) "
+                    "where one exists (MM-Simple, MM-Full, MMLV, MM2), otherwise by the tileset JSON's "
+                    "descriptors (Mario, Lode Runner)."
     )
     parser.add_argument("--model_path", type=str, default=None, help="Path to the trained model directory")
     parser.add_argument("--json_path", type=str, default=None, help="Path to a single dataset JSON file. Used alone to evaluate tile distribution for that dataset, or together with --epoch_dir as the training-set baseline for the comparison plot.")
@@ -72,83 +74,9 @@ _SKIP_DESCRIPTORS = {
 }
 
 
-# Authoritative MM2 char→name mapping sourced from OBJ_META in MarioMakerPCG
-# MM2's tileset descriptors are too generic to name enemies/items on their own
-# (e.g. every enemy is just "enemy"/"moving"), so this supplies real names as a
-# fallback when descriptors yield nothing specific. Only used for --game MM2.
-_MM2_OBJ_NAMES = {
-    # terrain
-    "#": "Ground",          "B": "Block",               "H": "Hard Block",
-    "?": "? Block",         "h": "Hidden Block",         "N": "Note Block",
-    "d": "Donut Block",     "I": "Ice Block",            "p": "P Block",
-    "O": "ON/OFF Block",    ".": "Dotted-Line Block",    "*": "Blinking Block",
-    "Ç": "Spike Block",     "C": "Crate",                "S": "Stone",
-    "{": "Starting Brick",  "=": "Castle Bridge",        "T": "Tree",
-    "/": "Slight Slope",    "\\": "Steep Slope",
-    # doors / warps
-    "|": "Pipe",            "D": "Door",                 "W": "Warp Box",
-    "k": "Key",             "f": "Checkpoint Flag",      "G": "Goal",
-    "c": "Clear Pipe",
-    # enemies
-    "g": "Goomba",          "K": "Koopa",                "P": "Piranha Plant",
-    "m": "Hammer Bro",      "t": "Thwomp",               "o": "Bob-omb",
-    "s": "Spiny",           "b": "Buzzy Beetle",         "L": "Lakitu",
-    "l": "Lakitu's Cloud",  "Z": "Banzai Bill",          "V": "Bullet Bill Blaster",
-    "y": "Magikoopa",       "<": "Spike Top",            "u": "Boo",
-    "X": "Bowser",          "x": "Bowser Jr.",           "@": "Chain Chomp",
-    "~": "Cheep Cheep",     "q": "Blooper",              "w": "Wiggler",
-    "Y": "Pokey",           "e": "Piranha Creeper",      "F": "Porcupuffer",
-    "%": "Fish Bone",       "&": "Lava Bubble",          "r": "Rocky Wrench",
-    ",": "Muncher",         "a": "Ant Trooper",          "n": "Monty Mole",
-    "R": "Mechakoopa",      "!": "Boom Boom",            "9": "Dry Bones",
-    "j": "Skipsqueak",      ";": "Stingby",              "A": "Angry Sun",
-    "v": "Charvaargh",      "[": "Bully",
-    "1": "Lemmy",           "2": "Morton",               "3": "Larry",
-    "4": "Wendy",           "5": "Iggy",                 "6": "Roy",
-    "7": "Ludwig",
-    # items
-    "¢": "Coin",            "$": "Red Coin",             "£": "Large Coin",
-    "U": "1-Up Mushroom",   "i": "Fire Flower",          "¤": "Super Star",
-    "M": "Super Mushroom",  "¶": "Big Mushroom",
-    "¬": "Super Hammer",    "¦": "P Switch",             "¯": "POW Block",
-    "±": "Spring",          "µ": "Goomba's Shoe",        "]": "Cannon Box",
-    "}": "Propeller Box",   ")": "Goomba Mask",          "°": "Bullet Bill Mask",
-    "²": "Red POW Box",
-    # platforms
-    "-": "Lift",            "³": "Mushroom Platform",    "´": "Semisolid Platform",
-    "·": "Bridge",          "¸": "Lava Lift",            "¹": "Snake Block",
-    "º": "Track Block",     "»": "Conveyor Belt",        "¼": "Fast Conveyor Belt",
-    "½": "Sprint Platform", "¾": "Seesaw",               "¿": "Swinging Claw",
-    "À": "ON/OFF Trampoline", "Á": "Mushroom Trampoline", "J": "Jumping Machine",
-    "Â": "Half-Collision Platform", "Ã": "Donut",
-    # hazards
-    "Ä": "Fire Bar",        "Å": "Saw",                  "Æ": "Burner",
-    "^": "Spikes",          "È": "Spike Ball",           "É": "Skewer",
-    "Ê": "Twister",         "Ë": "Icicle",
-    # decoration / other
-    "Ì": "Cloud",           "Í": "Vine",                 "Î": "Water Marker",
-    "Ï": "Arrow",           "Ð": "One-Way Wall",         "Ñ": "Reel Camera",
-    "Ò": "Sound Effect",    "Ó": "Player",               "Ô": "Clown Car",
-    "Õ": "Koopa Clown Car", "Ö": "Track",                "×": "Starting Arrow",
-    "Ø": "Cannon",          "Ù": "! Block",
-    # pipe directions (in tileset but not in OBJ_META)
-    "↑": "Pipe (Up)",       "↓": "Pipe (Down)",
-    "←": "Pipe (Left)",     "→": "Pipe (Right)",
-}
-
-
-def build_char_to_name(tileset_path, obj_names=None):
+def build_char_to_name(tileset_path, descriptive_names=None):
     """
-    Return a dict mapping each tile char to a unique human-readable name derived
-    purely from the tileset's own descriptors. Prefers the most specific,
-    descriptive attribute (multi-word > non-generic single word > last listed).
-    Any remaining duplicates are disambiguated by appending the char, and a tile
-    with no usable descriptor falls back to the char itself.
-
-    If `obj_names` (a char→name dict) is given, it is used as a fallback for any
-    char whose descriptors yield nothing but a generic term — this is how MM2,
-    whose enemy/item descriptors are too generic to name on their own, gets real
-    names like "Goomba" instead of "enemy (g)".
+    Return a dict mapping each tile char to a unique human-readable name
     """
     with open(tileset_path, 'r', encoding='utf-8') as f:
         tileset = json.load(f)
@@ -167,13 +95,11 @@ def build_char_to_name(tileset_path, obj_names=None):
 
     raw_names = {}
     for char, descriptors in tileset['tiles'].items():
+        if descriptive_names and char in descriptive_names:
+            raw_names[char] = descriptive_names[char]
+            continue
         name = pick_name_from_descriptors(descriptors)
-        if name and name not in _SKIP_DESCRIPTORS:
-            raw_names[char] = name
-        elif obj_names and char in obj_names:
-            raw_names[char] = obj_names[char]
-        else:
-            raw_names[char] = name if name else char
+        raw_names[char] = name if name else char
 
     # Disambiguate: when two chars share a raw name, append (char) to both
     name_count = Counter(raw_names.values())
@@ -585,8 +511,9 @@ def main():
         torch.cuda.manual_seed_all(args.seed)
 
     tile_chars, id_to_char, _, _ = extract_tileset(args.tileset)
-    obj_names = _MM2_OBJ_NAMES if args.game == "MM2" else None
-    char_to_name = build_char_to_name(args.tileset, obj_names)
+    descriptive_game = GAMES.get(args.game)
+    descriptive_names = descriptive_game["tiles"]["tiles"] if descriptive_game else None
+    char_to_name = build_char_to_name(args.tileset, descriptive_names)
 
     # Determine whether '_' is a real tile in this tileset or just the padding
     # sentinel appended by extract_tileset for tilesets that lack it.
