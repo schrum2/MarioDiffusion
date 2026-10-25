@@ -912,7 +912,8 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
         _mm2_draw_goals(canvas, goal_blocks, grid, chars, gamestyle, ts)
 
         if prompts:
-            sanitized_prompt = prompts[idx].replace(".", "")[:50]
+            # MM2 names have ? and / ("? block", "on/off block"), which Windows filenames can't
+            sanitized_prompt = re.sub(r'[<>:"/\\|?*]', "", prompts[idx].replace(".", ""))[:50]
             file_name = f"sample_{idx + start_index} - {sanitized_prompt}.png"
         else:
             file_name = f"sample_{idx + start_index} - unconditional.png"

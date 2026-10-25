@@ -4,7 +4,8 @@ MarioMaker_create_ascii_captions.py.
 Unlike the fixed keyword list in caption_match.py, MM2 captions mention whatever
 tiles are present ("Two goombas. A few coins. A blob of coins."), so topics are
 derived from the tileset: each entity name is a topic, and "a blob of X" is a
-separate topic grouped under the same entity (topic_entity). Metadata phrases
+separate topic grouped under the same entity (topic_entity). Shapes, block
+structures and arrangements ("Two lines of coins") are topics too. Metadata phrases
 (style/theme/difficulty/tags) aren't derivable from a bare scene, so they're
 ignored. The final score divides by the topics either caption mentions, not the
 whole vocabulary, so shared absences don't drown out real differences.
@@ -32,18 +33,34 @@ METADATA_SUFFIXES = (" style", " theme", " difficulty")
 
 
 def build_name_lookup(tileset_path):
-    """Maps every singular/plural entity name to its canonical singular form.
+    """Maps every singular/plural name the captioner counts to its singular form.
     Ground chars are excluded (the floor phrase covers them)."""
     char_names = get_char_names(tileset_path)
     _, _, ground_chars = get_tile_categories(tileset_path)
+    block_chars = get_block_chars(tileset_path)
     lookup = {}
+
+    def add(singular, *forms):
+        # Stored without trailing periods, which the phrase split strips off.
+        singular = singular.rstrip(".")
+        for form in (singular, pluralize(singular)) + forms:
+            lookup[form.rstrip(".")] = singular
+
     for char, name in char_names.items():
         if char in ground_chars:
             continue
-        # Stored without trailing periods, which the phrase split strips off.
-        base = name.lower().rstrip(".")
-        lookup[base] = base
-        lookup[pluralize(base).rstrip(".")] = base
+        base = name.lower()
+        add(base, SINGULAR_NAMES.get(name, name).lower())  # "one spike"
+        add(f"big {base}")
+        for head in ARRANGEMENT_NOUNS.values():  # "two lines of coins"
+            add(f"{head} of {base}", f"{head} of {pluralize(base)}",
+                f"{pluralize(head)} of {pluralize(base)}")
+        if char in block_chars:  # "one hard block platform"
+            for noun in BLOCK_SHAPE_NOUNS.values():
+                add(f"{base} {noun}")
+    for kind in BLOCK_SHAPE_NOUNS:  # terrain shapes like "one tower"
+        if kind != "ground":
+            add(kind)
     return lookup
 
 
@@ -74,11 +91,22 @@ def build_topic_keywords(tileset_path):
 TOPIC_KEYWORDS = build_topic_keywords(common_settings.MM2_TILESET)
 
 
+# Terrain phrases with no quantity, grouped so a caption can't ask for two of them
+LAYOUT_TOPICS = {
+    "ceiling": lambda p: p == "full ceiling" or p.startswith("ceiling with"),
+    "ground surface": lambda p: p in ("uneven ground", "stepped ground")
+                                or p.startswith(("ground rising", "ground sloping")),
+    "ground mass": lambda p: p == "raised flat ground" or p.startswith("the ground fills"),
+    "open space": lambda p: p == "open space beneath the ground",
+}
+
+
 def phrase_topic(phrase, name_lookup=None):
     """Sort one caption phrase into its topic.
 
-    Returns (topic, kind) where kind is one of "count", "blob", "ground" or
-    "metadata". Unrecognized phrases (tags, LLM wording) return (None, None).
+    Returns (topic, kind) where kind is one of "count", "blob", "scattered",
+    "ground", "layout" or "metadata". Unrecognized phrases (tags, LLM wording)
+    return (None, None).
     """
     if name_lookup is None:
         name_lookup = NAME_LOOKUP
@@ -89,6 +117,10 @@ def phrase_topic(phrase, name_lookup=None):
     if p == "full ground floor" or p == "scattered ground" or p.startswith("ground floor with"):
         return "ground", "ground"
 
+    for topic, matches in LAYOUT_TOPICS.items():
+        if matches(p):
+            return topic, "layout"
+
     # No tile to match this off
     if p.endswith("across the lower rows"):
         return "liquid", "count"
@@ -97,6 +129,12 @@ def phrase_topic(phrase, name_lookup=None):
         name = name_lookup.get(p[len("a blob of "):])
         if name:
             return f"blob of {name}", "blob"
+        return None, None
+
+    if p.startswith("scattered "):
+        name = name_lookup.get(p[len("scattered "):])
+        if name:
+            return f"scattered {name}", "scattered"
         return None, None
 
     for qty in sorted(QUANTITY_TERMS, key=len, reverse=True):
@@ -148,8 +186,12 @@ def group_phrases(caption, name_lookup=None):
 
 def quantity_score(phrase1, phrase2, debug=False):
     def find_quantity(phrase):
+        # Match at the start, or "one" is found inside "dry bones"
+        for prefix in ("ground floor with ", "ceiling with "):
+            if phrase.startswith(prefix):
+                phrase = phrase[len(prefix):]
         for term in sorted(QUANTITY_TERMS, key=len, reverse=True):
-            if term in phrase:
+            if phrase.startswith(term + " "):
                 return term
         return None
 

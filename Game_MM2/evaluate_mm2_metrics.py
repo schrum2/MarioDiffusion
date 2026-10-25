@@ -221,7 +221,10 @@ def evaluate_mm2_metrics(model_path, game="MM2", override=False, debug=False, us
         print(f"Error: Path does not exist - {model_path}")
         return
 
-    real_json = os.path.join("datasets", f"{game}_LevelsAndCaptions-regular.json")
+    # MM2-data.bat writes to Game_MM2/DATA rather than /datasets now.
+    real_json = os.path.join(f"Game_{game}", "DATA", f"{game}_LevelsAndCaptions-regular.json")
+    if not os.path.isfile(real_json):
+        real_json = os.path.join("datasets", f"{game}_LevelsAndCaptions-regular.json")
 
     lower = model_path.lower()
     fdm = "fdm" in lower
