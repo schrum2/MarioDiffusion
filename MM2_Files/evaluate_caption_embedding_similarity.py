@@ -9,9 +9,7 @@ and cosine ignores length. It only asks whether two captions point the same way,
 short caption and a long one saying the same thing still score high.
 
 Nothing here reads tiles, so it should work on Mega Man captions too, but that is
-untested. Treat the numbers as rough either way. An encoder scores most English fairly
-high, and what an LLM gives back for a scene varies a lot, which is what --baseline is
-there to show.
+untested. 
 """
 
 import argparse

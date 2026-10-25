@@ -478,6 +478,7 @@ COALESCE_POLICY = {
     "Angry Sun":          (_FIXED, 2, 2),   # confirmed
     "Clown Car":          (_FIXED, 2, 2),   # confirmed
     "Door":               (_FIXED, 1, 2),   # pairing the halves stops mispairing
+    "Lakitu":             (_FIXED, 1, 2),   # every one of 400 levels' 33 is 1x2
     # Wiggler/Chain Chomp deliberately absent: 1x1 in real data and often in rows.
     # Bowser Jr. is absent for the same reason. It was assumed to be 2x2, but the
     # real data has it 1x1 with 2x2 being its big form, like every other enemy.

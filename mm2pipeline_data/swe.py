@@ -117,7 +117,7 @@ OBJ_ID_MAP = {
     21:  "obj_donut_res",           # Donut Block
     22:  "obj_nube_res",            # Cloud
     23:  "obj_noteblock_res",       # Note Block
-    24:  "obj_firebar_res",         # Fire Bar
+    24:  None,                      # Fire Bar -> S7, see PLATFORM_S7_IDS
     25:  "obj_spiny_res",           # Spiny
     26:  None,                      # Goal Ground (terrain; goal is in S1)
     27:  None,                      # Goal (flagpole; stored in S1 goal_x/y)
@@ -146,7 +146,7 @@ OBJ_ID_MAP = {
     49:  None,
     50:  "obj_spring_res",          # Jumping Machine (approx)
     51:  None,                      # Skipsqueak
-    52:  None,                      # Wiggler
+    52:  "obj_floruga_res",         # Wiggler (floruga; shared with 86, SM3DW-only)
     53:  "obj_cinta_res",           # Fast Conveyor Belt
     54:  "obj_soplete_res",         # Burner
     55:  None,                      # Door -> S8 paired entry, see build_doors
@@ -255,6 +255,9 @@ MM2_PIPE_DIR = {0x00: "R", 0x20: "L", 0x40: "U", 0x60: "D"}
 PIPE_DIR_MAP = {"U": 0, "R": 1, "D": 2, "L": 3}
 PIPE_ROT = {0: 0, 1: -90, 2: 180, 3: -270}
 
+# Bits 6, 25 and 26 sit on 99.9% of every object, so keying off one reads noise.
+# Read elsewhere: 1 red, 3 thwomp down, 12 stacked, 14 big, 15 wings, 22-24 facing.
+
 # Skewer needs dir 1-4; dir=0 has no case in scr_edit_to_play and crashes on
 # play. Flag bit 23 set = ceiling mount (dir=3/rot=180), clear = floor
 # (dir=1/rot=0). Left/right mounts aren't mapped yet.
@@ -262,9 +265,12 @@ SKEWER_CEILING_FLAG = 1 << 23
 SKEWER_DIR = {0: 1, SKEWER_CEILING_FLAG: 3}
 SKEWER_ROT = {1: 0, 3: 180}
 
-# Thwomps need dir=1 (face-down) to chase the player; dir=0 is inert.
-# Up/left/right variants aren't mapped, so dir=1 is used for all.
-THWOMP_DIR = 1
+# Thwomps need dir 1-4; dir=0 is inert. Saves give dir=1 down, dir=2 left, dir=3
+# right. Bit 3 set = down (262 of 285, open below 82% against 17%). Nothing tells
+# left from right, so the 23 sideways face right, which 9 have clear against 3.
+THWOMP_DOWN_FLAG = 1 << 3
+THWOMP_DIR = {0: 3, THWOMP_DOWN_FLAG: 1}
+THWOMP_ROT = {1: 0, 2: 270, 3: 90}
 
 # One-Way Wall needs dir 1-4 (right/up/left/down); at dir=0 the loader hides
 # the gate permanently (no default case in its switch). MM2 stores the facing
@@ -281,20 +287,33 @@ BANZAI_SCL = {1: 1, 2: 1, 3: -1, 4: -1}
 
 # Flag bit 2 picks between two SWE variants: red/blue for ON/OFF (99) and
 # Dotted-Line (100) blocks, regular/fire for the Clown Car (42). Tuple is
-# (bit clear, bit set). Note 99 maps to obj_onoffblock_res and 100 to the
-# onoffplatform pair. Verified against reference saves.
+# (bit clear, bit set). 99 is the block pair, 100 the onoffplatform pair.
+# obj_onoffblock2_res replaces an obj_onoffblock_blue_res missing from data.win;
+# nothing in 400 levels sets the bit, so which block is blue is unconfirmed.
 ONOFF_COLOR_FLAG = 1 << 2
 ONOFF_SWE_IDS = {
     42:  ("obj_clown_res",           "obj_clown_fire_res"),
-    99:  ("obj_onoffblock_res",      "obj_onoffblock_blue_res"),
+    99:  ("obj_onoffblock_res",      "obj_onoffblock2_res"),
     100: ("obj_onoffplatform_blue_res", "obj_onoffplatform_res"),
 }
 
-# Style Power-up A (id 44) is a different object per gamestyle. Only SMB1 and
-# SMW have a usable mapping; SMB3/NSMBU are dropped rather than shown wrong.
+# Bit 1 is the red variant: in toost's render 113 of 113 Koopas with it have a red
+# shell, 70 of 74 without are green. Other types reuse it, so only the Koopa maps.
+RED_VARIANT_FLAG = 1 << 1
+RED_SWE_IDS = {1: "obj_koopa_red_res"}
+
+# Bit 15 is wings, an S4 field. toost does not draw them, so it was read from
+# placement: 227 objects, enemies and items only, hanging in mid-air in every type
+# measured (a Goomba 88% against 9%). Mid-level, so wings and not the parachute.
+WINGS_FLAG = 1 << 15
+
+# Style Power-up A (id 44) varies by gamestyle and so does obj_cap_res: Propeller
+# Mushroom in NSMBU, Leaf in SMB3, cape in SMW. SMB1's is a size change, not a cape.
 STYLE_POWERUP_A_MAP = {
     0: "obj_mushroom_res",       # SMB1: Big Mushroom -> Mega Mario (best-effort fallback)
-    2: "obj_cap_res",            # SMW: Cape Feather -> Cape Mario  (verified)
+    1: "obj_cap_res",            # SMB3: Super Leaf
+    2: "obj_cap_res",            # SMW:  Cape Feather (verified)
+    3: "obj_cap_res",            # NSMBU: Propeller Mushroom (verified)
 }
 
 # Style Power-up B (id 81) shares one SMMWE slot in every gamestyle.
@@ -328,16 +347,19 @@ OBJ_LEFT_ANCHOR_IDS = {14, 16, 17, 31, 42, 49, 67, 71, 72}
 # 13/14/16/47 get the same shift in their own S6/S7 builders.
 OBJ_H_ANCHOR_TOP_IDS = {12, 32, 71}
 
-# Flag bit 14 marks big-form enemies (bit 12 is wings, not big). SMMWE uses
-# separate "_b_res" objects; only these four have working variants, and
-# creating a nonexistent asset name crashes GameMaker, so every other enemy
-# keeps its normal sprite. BIG_Y_OFFSET keeps the taller sprite on its row.
+# Bit 14 marks big-form enemies; bit 12 is a stacked one, not wings (85% sit on an
+# identical enemy against 1%). A nonexistent "_b_res" name crashes GameMaker, so each
+# is checked against data.win, which is how obj_hammerbro_b_res went. BIG_Y_OFFSET
+# keeps the taller sprite on its row.
 BIG_ENEMY_FLAG = 1 << 14
 BIG_OBJ_ID_MAP = {
-    "obj_goomba_res":    "obj_goomba_b_res",
-    "obj_chomp_res":     "obj_chomp_b_res",
-    "obj_koopa_res":     "obj_koopa_b_res",
-    "obj_hammerbro_res": "obj_hammerbro_b_res",
+    "obj_goomba_res":      "obj_goomba_b_res",
+    "obj_chomp_res":       "obj_chomp_b_res",
+    "obj_koopa_res":       "obj_koopa_b_res",
+    "obj_koopa_red_res":   "obj_koopa_red_b_res",
+    "obj_muncher_res":     "obj_muncher_b_res",
+    "obj_podoboo_res":     "obj_podoboo_b_res",
+    "obj_buzzybeetle_res": "obj_buzzybeetle_b_res",
 }
 BIG_Y_OFFSET = {
     "obj_goomba_res": PX,       # 1 tile taller
@@ -378,11 +400,20 @@ PLATFORM_S7_IDS = {
     17: "obj_puente_res",            # Bridge
     49: "obj_puente_res",            # Castle Bridge (approx)
     14: "obj_mushroom_platform_res", # Mushroom Platform
+    24: "obj_firebar_res",           # Fire Bar
 }
+
+# A Burner's facing is bits 3-4: all four values appear (72/2/9/5) and nothing above
+# bit 4 does, so they map 1:1 onto dir 0-3. rot from a save.
+BURNER_DIR_FIELD = 3
+BURNER_ROT = {0: 0, 1: -90, 2: 180, 3: 90}
 
 # Bridges always use this sprite; the reference save used it regardless of
 # theme and no variants are confirmed.
 PUENTE_SPRITE = "spr_NSMBU_puente_underground"
+
+# Fire bars likewise: one sprite in the reference save, no themed variants seen.
+FIREBAR_SPRITE = "spr_firebar_base"
 
 # SWE gamestyle -> sprite-name prefix (SMW has none).
 GAMESTYLE_SPR_PREFIX = {0: "SMB", 1: "SMB3", 2: "", 3: "NSMBU"}
@@ -637,7 +668,7 @@ def build_pipes(objects):
 
 
 # MM2 object ids handled by dedicated builders, not the generic S4 path.
-_NON_S4_IDS = {9, 11, 13, 14, 16, 17, 47, 49, 55, 91}  # 9=Pipe (S5), 55=Door (S8), 11/13/14/16/17/47/49/91 -> S6/S7 (see below)
+_NON_S4_IDS = {9, 11, 13, 14, 16, 17, 24, 47, 49, 55, 91}  # 9=Pipe (S5), 55=Door (S8), 11/13/14/16/17/24/47/49/91 -> S6/S7 (see below)
 
 
 def build_objects(objects, gamestyle=3, consumed_plants=None):
@@ -665,6 +696,8 @@ def build_objects(objects, gamestyle=3, consumed_plants=None):
             swe_id = STYLE_POWERUP_A_MAP.get(gamestyle)
         elif oid == 81:
             swe_id = STYLE_POWERUP_B_MAP.get(gamestyle)
+        elif oid in RED_SWE_IDS and o.get("flag", 0) & RED_VARIANT_FLAG:
+            swe_id = RED_SWE_IDS[oid]
         elif oid in ONOFF_SWE_IDS:
             off_id, on_id = ONOFF_SWE_IDS[oid]
             swe_id = on_id if o.get("flag", 0) & ONOFF_COLOR_FLAG else off_id
@@ -691,8 +724,12 @@ def build_objects(objects, gamestyle=3, consumed_plants=None):
             "scl": scl,
             "dir": 0,   # best-effort: MM2 flag bitfields aren't carried over
         })
-        if oid == 12:
-            entry["dir"] = THWOMP_DIR
+        if oid == 54:
+            entry["dir"] = (o.get("flag", 0) >> BURNER_DIR_FIELD) & 0x3
+            entry["rot"] = BURNER_ROT[entry["dir"]]
+        elif oid == 12:
+            entry["dir"] = THWOMP_DIR.get(o.get("flag", 0) & THWOMP_DOWN_FLAG, 1)
+            entry["rot"] = THWOMP_ROT.get(entry["dir"], 0)
         elif oid == 67:
             entry["dir"] = ONEWAY_DIR_MAP.get((o.get("flag", 0) >> 22) & 0x3, 1)
             entry["rot"] = (entry["dir"] - 1) * 90
@@ -708,6 +745,8 @@ def build_objects(objects, gamestyle=3, consumed_plants=None):
             entry["yy"] = yy - PX
             entry["dir"] = SKEWER_DIR.get(o.get("flag", 0) & SKEWER_CEILING_FLAG, 1)
             entry["rot"] = SKEWER_ROT.get(entry["dir"], 0)
+        if o.get("flag", 0) & WINGS_FLAG:
+            entry["wings"] = 1
         if id(o) in block_sprouts:
             entry["sprout"] = block_sprouts[id(o)]
         out.append(entry)
@@ -747,8 +786,14 @@ def build_cannons(objects, occ):
     otherwise it faces away from a side wall. Floor cannons face right.
     Flag bit 26 clear flips left/right. A big (h>1) floor cannon's tile goes
     on the open row above its embedded box. Verified against the 21 cannons
-    in a real level plus a reference save."""
-    HFLIP_DIR = {3: 7, 7: 3}   # dir 3 = right, 7 = left
+    in a real level plus a reference save.
+
+    Two things still want one: the flip reads bit 26, which 99.95% of objects carry,
+    and the facing is inferred from terrain while bits 22-24 hold an explicit one."""
+    # dir is a compass, 0 = right counter-clockwise: a save shows floor cannons using
+    # only 0-4 and ceiling ones 0 and 4-7. The old 3 = right gave 33 of 74 bad pairs.
+    RIGHT, LEFT, DOWN = 0, 4, 6
+    HFLIP_DIR = {RIGHT: LEFT, LEFT: RIGHT}
     out = []
     for o in objects:
         if o.get("id") != 47:
@@ -762,15 +807,15 @@ def build_cannons(objects, occ):
             up, dwn = 1, 0
             below_open = not any((col + dx, row - 1) in occ for dx in range(w))
             if below_open:
-                cannon_dir = 6
+                cannon_dir = DOWN
             else:
                 wall_left = any((col - 1, row + dy) in occ for dy in range(h))
                 wall_right = any((col + w, row + dy) in occ for dy in range(h))
-                cannon_dir = 7 if (wall_right and not wall_left) else 3
+                cannon_dir = LEFT if (wall_right and not wall_left) else RIGHT
             top_row = row + h - 1
         else:
             up, dwn = 0, 1
-            cannon_dir = 3
+            cannon_dir = RIGHT
             top_row = row + h if h > 1 else row
 
         if not (o.get("flag", 0) & (1 << 26)):
@@ -836,6 +881,8 @@ def build_platform_objects(objects, *, gamestyle, theme):
             wth, hht = max(4, w), 1
         elif oid in (17, 49):
             wth, hht = w, 3
+        elif oid == 24:
+            wth, hht = 4, 4          # fixed 4x4 sprite whatever MM2's 1x1 says
         else:
             wth, hht = w, h
         yy = ground_yy(row) - (hht - 1) * PX
@@ -843,6 +890,8 @@ def build_platform_objects(objects, *, gamestyle, theme):
             yy += 2 * PX  # nudge the seesaw replacement down 2 tiles
         elif oid in (17, 49):
             yy += 2 * PX  # bridge sprite sits 2 tiles above the generic anchor
+        elif oid == 24:
+            yy += (hht - 1) * PX  # the editor anchors a fire bar on its own cell
         entry = dict(S7_TEMPLATE)
         entry.update({
             "ID": PLATFORM_S7_IDS[oid],
@@ -859,6 +908,9 @@ def build_platform_objects(objects, *, gamestyle, theme):
             entry.update({"spr": PUENTE_SPRITE, "dph": 8})
         elif oid == 14:
             entry.update({"spr": mp1_sprite_name(gamestyle, theme), "dph": 245 + hht})
+        elif oid == 24:
+            # MM2's starting angle (bits 22-24) has no SMMWE field, so dir stays 0
+            entry.update({"spr": FIREBAR_SPRITE, "dph": -1})
         else:  # 91 (Seesaw) / 11 (Lift) -- moving platform
             entry.update({"spr": platform_sprite_name(gamestyle), "dph": -1, "dir": 2})
         out.append(entry)
@@ -977,6 +1029,16 @@ def encode_swe(level_dict):
     b64 = base64.b64encode(payload.encode("utf-8"))
     checksum = hmac.new(SWE_HMAC_KEY, b64, hashlib.sha1).hexdigest()
     return b64 + checksum.encode("ascii") + b"\x00"
+
+
+def decode_swe(data):
+    """.swe bytes -> (level_dict, checksum_ok). Mirror of encode_swe, for reading a
+    hand-placed reference save back."""
+    body = data.rstrip(bytes([0]))
+    b64, checksum = body[:-40], body[-40:]
+    want = hmac.new(SWE_HMAC_KEY, b64, hashlib.sha1).hexdigest()
+    level = json.loads(base64.b64decode(b64).decode("utf-8"))
+    return level, checksum.decode("ascii", "replace") == want
 
 
 # ---------------------------------------------------------------------------
