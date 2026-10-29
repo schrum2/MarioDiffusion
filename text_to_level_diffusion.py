@@ -7,6 +7,7 @@ from captions.MM_caption_match import compare_captions as mm_compare_captions, p
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
+from MMLV_create_ascii_captions import assign_caption as mmlv_assign_caption
 from captions.MM2_caption_match import compare_captions as mm2_compare_captions
 from captions.MM2_caption_match import assign_caption as mm2_assign_caption
 from captions.MM2_caption_match import get_tile_categories as mm2_get_tile_categories
@@ -133,6 +134,9 @@ class InteractiveLevelGeneration(InteractiveGeneration):
         elif self.args.game == "MM-Simple" or self.args.game == "MM-Full":
             actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
             level_width = common_settings.MEGAMAN_WIDTH
+        elif self.args.game == "MMLV":
+            actual_caption = mmlv_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, self.args.describe_absence)
+            level_width = common_settings.MEGAMAN_WIDTH
         elif self.args.game == "MM2":
             _, _, ground_chars = mm2_get_tile_categories(self.args.tileset)
             char_names = mm2_get_char_names(self.args.tileset)
@@ -207,6 +211,10 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 describe_absence=self.args.describe_absence,
                 verbose=True
             )
+
+        elif self.args.game == "MMLV":
+            # No caption scoring: the MM comparator doesn't understand MMLV captions
+            print(f"Describe resulting image: {actual_caption}")
 
         elif self.args.game == "MM2":
             print(f"Describe resulting image: {actual_caption}")
