@@ -45,7 +45,9 @@ def parse_args():
     return parser.parse_args()
 
 class InteractiveLevelGeneration(InteractiveGeneration):
-    def __init__(self, args):
+    def __init__(self, args, interactive=True):
+        # interactive=False skips the "play this level?" prompts so other scripts can batch-generate
+        self.interactive = interactive
         super().__init__(
             {
                 "caption": str,
@@ -57,7 +59,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 "guidance_scale": float,
             },
             default_parameters={
-                "width":  width, #common_settings.MARIO_WIDTH,
+                "width":  common_settings.get_game_config(args.game)["width"],
                 "start_seed": 1,
                 "end_seed": 1,  # Will be set to start_seed if blank
                 "num_inference_steps": common_settings.NUM_INFERENCE_STEPS,
@@ -144,8 +146,12 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             level_width = common_settings.MM2_WIDTH
         else:
             raise ValueError(f"Unknown game: {self.args.game}")
-        
-        if args.game == "LR":
+
+        # Kept so batch callers can read back what was generated
+        self.last_scene = scene
+        self.last_actual_caption = actual_caption
+
+        if self.args.game == "LR":
             print(f"Describe resulting image: {actual_caption}")
             lr_compare_score = lr_compare_captions(param_values.get("caption", ""), actual_caption)
             print(f"Comparison score: {lr_compare_score}")
@@ -163,7 +169,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
                 verbose=True
             )
 
-        elif args.game == "Mario":
+        elif self.args.game == "Mario":
             #print(f"Describe resulting image: {actual_caption}")
             compare_score = compare_captions(param_values.get("caption", ""), actual_caption)
             print(f"Comparison score: {compare_score}")
@@ -182,7 +188,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             )
 
             # Ask if user wants to play level
-            play_level = input("Do you want to play this level? (y/n): ").strip().lower()
+            play_level = input("Do you want to play this level? (y/n): ").strip().lower() if self.interactive else 'n'
             if play_level == 'y':
                 print("Playing level...")
                 char_grid = scene_to_ascii(scene, self.id_to_char, False)
@@ -223,7 +229,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             print(f"Comparison score: {compare_score}")
 
             # Ask if user wants to play level
-            play_level = input("Do you want to play this level? (y/n): ").strip().lower()
+            play_level = input("Do you want to play this level? (y/n): ").strip().lower() if self.interactive else 'n'
             if play_level == 'y':
                 print("Playing level...")
                 # Mario Maker 2 has no Java simulator, so use the Python A* traversability check
@@ -285,7 +291,7 @@ class InteractiveLevelGeneration(InteractiveGeneration):
 
         param_values["output_type"] = "tensor"
 
-        config = common_settings.get_game_config(args.game)
+        config = common_settings.get_game_config(self.args.game)
         param_values["height"] = config["height"]
         param_values["width"] = config["width"]
 
