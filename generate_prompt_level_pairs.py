@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("--captions_json", type=str, required=True, help="Json list of entries with a 'caption' field (e.g. a RandomTest json)")
     parser.add_argument("--num_pairs", type=int, default=50, help="Number of captions to sample (capped at the number of captions available)")
     parser.add_argument("--game", type=str, default=None, choices=common_settings.GAME_CLI_CHOICES, help="Game the model was trained on. Defaults to the 'game' in the model's interactive_defaults.json")
-    parser.add_argument("--seed", type=int, default=0, help="Seed for picking captions; pair i is generated with seed + i")
+    parser.add_argument("--seed", type=int, default=42, help="Seed for picking captions; pair i is generated with seed + i")
     parser.add_argument("--num_inference_steps", type=int, default=common_settings.NUM_INFERENCE_STEPS, help="Number of denoising steps")
     parser.add_argument("--guidance_scale", type=float, default=common_settings.GUIDANCE_SCALE, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--describe_absence", action="store_true", default=False, help="Indicate when there are no occurrences of an item or structure in the assigned captions")
