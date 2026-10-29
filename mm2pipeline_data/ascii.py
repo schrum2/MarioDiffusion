@@ -55,9 +55,7 @@ _PIPE_DIR_CHAR = {'R': '→', 'L': '←', 'U': '↑', 'D': '↓'}
 # ---------------------------------------------------------------------------
 # Tile size helper — uses w/h from JSON directly (already tile counts)
 # ---------------------------------------------------------------------------
-# toost draws these at a constant size and never sizes them by the record's
-# w/h, so those fields aren't a footprint -- the clown car only reads h to shift
-# itself up. Sizes taken from LevelDrawer.cpp's object switch.
+# toost draws these at a fixed size no matter the w/h (from LevelDrawer.cpp).
 _FIXED_SIZE = {
     "Clown Car": (2, 2),
 }
@@ -228,14 +226,10 @@ def build_ascii_grid(level):
             grid[max_ty - 1 - row_game][col] = ch
 
     BG_TYPES = {"Semisolid Platform","Mushroom Platform"}
-    # Terrain goes down before the objects standing on it. Ground used to be
-    # painted last (normalize_level appends it) and was cutting holes in
-    # anything it overlapped, e.g. the bottom rows of a saw sitting on a floor.
+    # Terrain goes down first so ground can't cut holes in objects sitting on it.
     TERRAIN_TYPES = {"Ground","Goal"}
 
-    # Smallest first inside a layer, so a 1x1 can't punch a hole in something
-    # bigger. A coin that lands inside another object's box wasn't placed there
-    # in the editor anyway, but a broken pipe reads as the wrong shape.
+    # Smallest first in each layer so a 1x1 can't punch a hole in something bigger.
     order = sorted(objects, key=lambda o: obj_tile_size(o)[0] * obj_tile_size(o)[1])
 
     for pass_n in range(3):
@@ -302,8 +296,7 @@ def build_ascii_grid(level):
                     for dy in range(h):
                         set_cell(col+dx,row+dy,char)
 
-    # Surface each block's contained item (cid) as its glyph one tile above
-    # the block, only into a still-empty cell.
+    # Put each block's item (cid) one tile above it if that cell is empty.
     gamestyle_raw = level.get("gamestyle_raw", 0)
     for obj in objects:
         if obj.get("id") not in CONTAINER_BLOCK_IDS:
@@ -442,13 +435,9 @@ def make_object(name, col, row, w=1, h=1, flag=DEFAULT_FLAG):
 # ---------------------------------------------------------------------------
 # Multi-tile object coalescing (ASCII -> JSON)
 #
-# build_ascii_grid paints each object as a w x h block of its glyph. Reading it
-# back one cell at a time would make a 2x2 Thwomp four thwomps, an N-wide
-# platform N tiny ones, and so on. coalesce() regroups 4-connected same-glyph
-# cells into correctly-sized objects. Footprints below come from real toost JSON
-# exports; a few bosses with no sample are assumed 2x2 (harmless -- they're never
-# placed adjacent, and an isolated cell clamps to one object). Objects not listed
-# stay 1x1, so rows of spikes/coins are never merged.
+# build_ascii_grid paints each object as a w x h block of its glyph, so coalesce()
+# groups touching same-glyph cells back into one object. Anything not listed
+# stays 1x1 so rows of coins don't get merged.
 # ---------------------------------------------------------------------------
 _FIXED, _BBOX, _MUSHROOM, _HRUN, _VRUN, _PIPE = (
     "fixed", "bbox", "mushroom", "hrun", "vrun", "pipe")
@@ -459,9 +448,7 @@ _REV_LEFT_ANCHOR = frozenset({
     "One-Way Wall", "One-Way",
 })
 
-# name -> policy. _FIXED tiles into fw x fh stamps, _BBOX one box per component,
-# _MUSHROOM a cap+stem platform, _HRUN/_VRUN 1-tall/1-wide runs, _PIPE a 2-wide
-# directional pipe. "confirmed" = seen in a real toost export.
+# name -> policy. "confirmed" means the size was seen in a real toost export.
 COALESCE_POLICY = {
     "Thwomp":             (_FIXED, 2, 2),   # confirmed
     "Bowser":             (_FIXED, 2, 2),   # confirmed
@@ -477,11 +464,9 @@ COALESCE_POLICY = {
     "Banzai Bill":        (_FIXED, 4, 4),   # confirmed, never smaller
     "Angry Sun":          (_FIXED, 2, 2),   # confirmed
     "Clown Car":          (_FIXED, 2, 2),   # confirmed
-    "Door":               (_FIXED, 1, 2),   # pairing the halves stops mispairing
-    "Lakitu":             (_FIXED, 1, 2),   # every one of 400 levels' 33 is 1x2
-    # Wiggler/Chain Chomp deliberately absent: 1x1 in real data and often in rows.
-    # Bowser Jr. is absent for the same reason. It was assumed to be 2x2, but the
-    # real data has it 1x1 with 2x2 being its big form, like every other enemy.
+    "Door":               (_FIXED, 1, 2),   # confirmed
+    "Lakitu":             (_FIXED, 1, 2),   # confirmed
+    # Wiggler, Chain Chomp and Bowser Jr. are left out since they're 1x1 in the data.
     "Mushroom Platform":  (_MUSHROOM,),
     "Semisolid Platform": (_BBOX,),   # box repair, see repair_semisolid_cells
     "Half-Collision Platform": (_BBOX,),
@@ -560,14 +545,33 @@ def _runs(values):
     yield start, prev - start + 1
 
 
+def _pipe_split(comp, vertical):
+    """Pair a pipe columns (rows when not vertical) off into 2-wide pipes since a vert/horizantal pipe will always be either 2 * h or w * 2."""
+    lanes = {}
+    for c, r in comp:
+        if vertical:
+            lanes.setdefault(c, set()).add(r)
+        else:
+            lanes.setdefault(r, set()).add(c)
+    lo, hi = min(lanes), max(lanes)
+    if (hi - lo) % 2 == 0:
+        return None
+    pipes = []
+    for a in range(lo, hi + 1, 2):
+        if lanes[a] != lanes[a + 1]:
+            return None
+        for start, length in _runs(lanes[a]):
+            if length < 2:
+                return None
+            pipes.append((a, start, length))
+    return pipes
+
+
 # ---------------------------------------------------------------------------
 # Semisolid platform repair (ASCII -> JSON)
 #
-# A semisolid is a solid box you stand on and pass through from below. The model
-# sprays its 'k' glyph as lone tiles and ragged blobs, so plain _BBOX leaves a
-# swarm of slivers. repair_semisolid_cells() rebuilds one box per 4-connected
-# blob: take its columns and top (cap) row, widen to the 3-tile minimum, then
-# drag the bottom down to rest on ground.
+# The model sprays 'k' as lone tiles and ragged blobs, so each blob gets rebuilt
+# as one box, widened to 3 tiles and dragged down to the ground.
 # ---------------------------------------------------------------------------
 PLATFORM_MIN_SIZE = 3       # SMM2 won't place a semisolid smaller than 3x3
 
@@ -588,9 +592,7 @@ def repair_semisolid_cells(cells, ground=None):
             c0 = max(0, c0 - (PLATFORM_MIN_SIZE - w) // 2)
             w = PLATFORM_MIN_SIZE
         c1 = c0 + w - 1
-        # Drag the bottom down until every column directly beneath the base rests
-        # on ground (or we hit the floor) -- the same rest-on-ground rule
-        # json_to_bcd._fix_platform_objects uses.
+        # Same rest-on-ground rule as json_to_bcd._fix_platform_objects.
         bottom = min(rows)
         while bottom > 0 and any((c, bottom - 1) not in ground
                                  for c in range(c0, c1 + 1)):
@@ -622,8 +624,7 @@ def coalesce(name, cells, out, ground=None):
 
         if kind == _FIXED:
             fw, fh = policy[1], policy[2]
-            # Twice the footprint each way, filled, is the big form of the
-            # enemy rather than four of them.
+            # A full block twice the footprint is one big enemy, not four.
             if (c1 - c0 + 1, r1 - r0 + 1) == (2 * fw, 2 * fh) and len(comp) == 4 * fw * fh:
                 out.append(make_object(name, c0, r0, 2 * fw, 2 * fh))
                 continue
@@ -639,9 +640,7 @@ def coalesce(name, cells, out, ground=None):
         elif kind == _BBOX:
             out.append(make_object(name, c0, r0, c1 - c0 + 1, r1 - r0 + 1))
         elif kind == _MUSHROOM:
-            # A mushroom is a wide cap over a 1-wide stem; stacked mushrooms share
-            # a blob. A cap is a row of >=2 cells with a narrow/empty row above;
-            # each cap hangs down to just above the next cap (or the blob bottom).
+            # Stacked mushrooms share a blob, so each cap hangs down to the next one.
             rows_by = {}
             for c, r in comp:
                 rows_by.setdefault(r, []).append(c)
@@ -672,11 +671,15 @@ def coalesce(name, cells, out, ground=None):
                 for start, length in _runs(crows):
                     out.append(make_object(name, c, start, 1, length))
         elif kind == _PIPE:
-            bw, bh = c1 - c0 + 1, r1 - r0 + 1
-            if bw == 2 and bh >= 2:        # vertical -> mouth up (default)
-                out.append(make_object(name, c0, r0, 2, bh, PIPE_FLAG_U))
-            elif bh == 2 and bw >= 2:      # horizontal -> mouth right
-                out.append(make_object(name, c0, r1, 2, bw, PIPE_FLAG_R))
+            # Pipes standing side by side share a dimension, so it gets split into 2 wide pipes, where we choose to have the way with fewer pipes always. Should work with vertical pipes.
+            up = _pipe_split(comp, True)
+            side = _pipe_split(comp, False)
+            if side is not None and (up is None or len(side) < len(up)):
+                for r, c, length in side:       # horizontal -> mouth right
+                    out.append(make_object(name, c, r + 1, 2, length, PIPE_FLAG_R))
+            elif up is not None:                # vertical -> mouth up (default)
+                for c, r, length in up:
+                    out.append(make_object(name, c, r, 2, length, PIPE_FLAG_U))
             else:                          # malformed -> leave as 1x1 cells
                 for col, row in comp:
                     out.append(make_object(name, col, row))
@@ -685,9 +688,8 @@ def coalesce(name, cells, out, ground=None):
 # ---------------------------------------------------------------------------
 # End-of-level goal synthesis (ASCII -> JSON)
 #
-# Training data carries no 'G', so the model produces levels without one. This
-# tacks a reachable finish onto the right edge: a flat ground runway flush with
-# the level's floor, with a goal standing on its first tile.
+# Training data has no 'G', so generated levels get a runway and goal added on
+# the right edge.
 # ---------------------------------------------------------------------------
 GOAL_RUNWAY_TILES = 10      # width of the synthesized end platform, in tiles
 GOAL_WIDTH_TILES = 3        # the goal's own footprint, in tiles
@@ -697,8 +699,7 @@ def _append_end_goal(ground, width):
     """Append a ground runway past the right edge and return
     (goal_col, goal_row, added_cols) for a goal standing on its first tile."""
     ground_at = {(g["x"], g["y"]) for g in ground}
-    # Floor height = the ground stack at the right-most column that has a floor;
-    # the runway is laid flush with it. Default to SMM2's usual floor of 2.
+    # Runway matches the floor height at the right-most column, or 2 if there isn't one.
     floor = 0
     for col in range(width - 1, -1, -1):
         if (col, 0) in ground_at:
@@ -745,14 +746,12 @@ def ascii_to_level(text, source_file=None, *, gamestyle_raw=22349, theme_raw=0,
                 unknown_glyphs[ch] = unknown_glyphs.get(ch, 0) + 1
                 continue
             if name == "Goal":
-                # The goal is header metadata (goal_x/goal_y), not an objects[]
-                # entry, so collect its cells and recover the pole base below.
+                # The goal lives in goal_x/goal_y, not objects[], so just collect it.
                 goal_cells.append((col, row_game))
                 continue
             obj_cells.setdefault(name, set()).add((col, row_game))
 
-    # Fold an item glyph directly above a Brick/?/Hidden block into that block's
-    # `cid` (inverse of the forward painter), so it round-trips as a container.
+    # An item right above a Brick/?/Hidden block goes back into that block's cid.
     block_cells = set()
     for bname in CONTAINER_BLOCK_NAMES:
         block_cells |= obj_cells.get(bname, set())
@@ -784,9 +783,7 @@ def ascii_to_level(text, source_file=None, *, gamestyle_raw=22349, theme_raw=0,
             continue
         coalesce(name, cells, objects, ground_cells)
 
-    # Recover goal_x/goal_y from the flagpole cells (goal_x in tenths of a tile,
-    # goal_y the base row). The goal is left-anchored and grows up, so take the
-    # min column/row. With no 'G' glyphs, synthesize a goal on a new runway.
+    # goal_x is in tenths of a tile. No 'G' means a goal gets added on a new runway.
     if goal_cells:
         goal_col = min(c for c, _ in goal_cells)
         goal_row = min(r for _, r in goal_cells)
@@ -794,8 +791,7 @@ def ascii_to_level(text, source_file=None, *, gamestyle_raw=22349, theme_raw=0,
         goal_col, goal_row, added = _append_end_goal(ground, width)
         width += added
 
-    # Recover the spawn height from the ground stack at the left edge (start_y=0
-    # would spawn the player in the void). Default to SMM2's usual 2.
+    # Spawn on the ground at the left edge, since start_y=0 spawns in the void.
     ground_at = {(g["x"], g["y"]) for g in ground}
     start_y = 0
     for c in (0, 1, 2):
@@ -877,8 +873,7 @@ def ascii_to_json_file(infile, outdir, **kwargs):
     # utf-8-sig transparently strips a leading BOM if one is present.
     text = Path(infile).read_text(encoding="utf-8-sig")
     level = ascii_to_level(text, source_file=infile, **kwargs)
-    # The pipeline finds companions by the _overworld/_subworld suffix, so tag
-    # generated levels as overworld.
+    # The pipeline matches files by the _overworld/_subworld suffix.
     stem = Path(infile).stem
     if not (stem.endswith("_overworld") or stem.endswith("_subworld")):
         stem += "_overworld"
