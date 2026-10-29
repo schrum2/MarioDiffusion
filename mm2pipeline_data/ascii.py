@@ -545,6 +545,28 @@ def _runs(values):
     yield start, prev - start + 1
 
 
+def _place_footprints(comp, fw, fh, fits=None):
+    """Split a multi-tile object into fw x fh footprints, as (col, row, whole) where whole means every cell passed `fits`."""
+    fits = fits or set(comp).__contains__
+    left = set(comp)
+    boxes = []
+    while left:
+        # The lowest, leftmost cell left is always some object's bottom-left corner, even when they touch off-grid.
+        c, r = min(left, key=lambda p: (p[1], p[0]))
+        best = None
+        for dr in range(fh):
+            for dc in range(fw):
+                box = [(x, y) for x in range(c - dc, c - dc + fw)
+                       for y in range(r - dr, r - dr + fh)]
+                key = (all(fits(p) for p in box), sum(p in left for p in box), -dr, -dc)
+                if best is None or key > best[0]:
+                    best = (key, c - dc, r - dr, box)
+        key, col, row, box = best
+        boxes.append((col, row, key[0]))
+        left.difference_update(box)
+    return boxes
+
+
 def _pipe_split(comp, vertical):
     """Pair a pipe columns (rows when not vertical) off into 2-wide pipes since a vert/horizantal pipe will always be either 2 * h or w * 2."""
     lanes = {}
@@ -570,8 +592,7 @@ def _pipe_split(comp, vertical):
 # ---------------------------------------------------------------------------
 # Semisolid platform repair (ASCII -> JSON)
 #
-# The model sprays 'k' as lone tiles and ragged blobs, so each blob gets rebuilt
-# as one box, widened to 3 tiles and dragged down to the ground.
+# The model sprays 'k' as lone tiles and ragged shapes, so each one gets rebuilt as a box, widened to 3 tiles and dragged down to the ground.
 # ---------------------------------------------------------------------------
 PLATFORM_MIN_SIZE = 3       # SMM2 won't place a semisolid smaller than 3x3
 
@@ -623,24 +644,14 @@ def coalesce(name, cells, out, ground=None):
         c0, c1, r0, r1 = min(cols), max(cols), min(rows), max(rows)
 
         if kind == _FIXED:
+            # No big forms here since .swe can't make these big (see replacements.md).
             fw, fh = policy[1], policy[2]
-            # A full block twice the footprint is one big enemy, not four.
-            if (c1 - c0 + 1, r1 - r0 + 1) == (2 * fw, 2 * fh) and len(comp) == 4 * fw * fh:
-                out.append(make_object(name, c0, r0, 2 * fw, 2 * fh))
-                continue
-            cr = r0
-            while cr <= r1:                # cr is each stamp's bottom row
-                cc = c0
-                while cc <= c1:
-                    out.append(make_object(
-                        name, cc, cr,
-                        min(fw, c1 - cc + 1), min(fh, r1 - cr + 1)))
-                    cc += fw
-                cr += fh
+            for col, row, _ in _place_footprints(comp, fw, fh):
+                out.append(make_object(name, col, row, fw, fh))
         elif kind == _BBOX:
             out.append(make_object(name, c0, r0, c1 - c0 + 1, r1 - r0 + 1))
         elif kind == _MUSHROOM:
-            # Stacked mushrooms share a blob, so each cap hangs down to the next one.
+            # Stacked mushrooms join into one multi-tile object, so each cap hangs down to the next one.
             rows_by = {}
             for c, r in comp:
                 rows_by.setdefault(r, []).append(c)
