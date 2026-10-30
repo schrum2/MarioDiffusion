@@ -111,6 +111,12 @@ BLOCK_SHAPE_NOUNS = {
 ARRANGEMENT_NOUNS = {"row": "line", "column": "column", "block": "cluster",
                      "clump": "clump"}
 
+# Loose tiles that ever show up big in the data. Items like stars and P switches never do.
+BIG_FORM_NAMES = {"Goomba", "Koopa", "Piranha Plant", "Hammer Bro", "Cheep Cheep",
+                  "Buzzy Beetle", "Chain Chomp", "Cannon", "Spiny", "Lava Bubble",
+                  "Wiggler", "Bowser Jr.", "Monty Mole", "Boo", "Blooper", "Bob-omb",
+                  "Dry Bones", "Magikoopa", "Rocky Wrench", "Coin"}
+
 
 def metadata_phrases(item):
     """Build caption phrases from an item's level metadata. Skips missing/empty
@@ -401,19 +407,16 @@ def classify_arrangement(cells):
 
 
 def big_form_blocks(scene, id_to_char, loose_chars):
-    """Find the big variant of an enemy, which paints an exact 2x2 square of its
-    glyph, so it reads as one big goomba instead of four normal ones."""
-    # A lone 2x2 blob is one big enemy about 93% of the time in the data.
-    # Bowser Jr.'s policy also has its big form as the base; the real base is 1x1.
+    """Find the big variant of an enemy, which paints a 2x2 square of its glyph, so it reads as one big goomba instead of four normal ones."""
     blocks = {}
     for char in sorted(loose_chars):
         for region in terrain_regions(scene, id_to_char, {char}):
-            if len(region) != 4:
-                continue
-            rows = [r for r, _ in region]
-            cols = [c for _, c in region]
-            if max(rows) - min(rows) == 1 and max(cols) - min(cols) == 1:
-                blocks.setdefault(char, []).append(region)
+            cells = set(region)
+            squares = [(r, c) for r, c in cells if {(r, c + 1), (r + 1, c), (r + 1, c + 1)} <= cells]
+            # Only a lone 2x2 counts, since a 2x2 with others touching it turned out to be normal ones a quarter of the time
+            if len(cells) == 4 and squares:
+                r, c = squares[0]
+                blocks.setdefault(char, []).append([(r, c), (r, c + 1), (r + 1, c), (r + 1, c + 1)])
     return blocks
 
 
@@ -431,7 +434,9 @@ def describe_arrangements(scene, id_to_char, loose_chars, char_names, skip=None)
         loose = []
         groups = 0
         for region in terrain_regions(scene, id_to_char, {char}):
-            if skip and tuple(sorted(region)) in skip:
+            # Cells a big one already took, so the normal ones touching it still get described
+            region = [cell for cell in region if cell not in skip] if skip else region
+            if not region:
                 continue
             kind = classify_arrangement(region)
             if kind is None:
@@ -726,14 +731,15 @@ def assign_caption(scene, id_to_char, char_names, ground_chars=None,
         for phrase, region in block_phrases:
             add_to_caption(phrase, region)
 
-    big = big_form_blocks(scene, id_to_char, loose_chars) if loose_chars else {}
+    big_chars = {char for char in loose_chars or () if char_names.get(char) in BIG_FORM_NAMES}
+    big = big_form_blocks(scene, id_to_char, big_chars) if big_chars else {}
     for char, blocks in big.items():
         named = [cell for block in blocks for cell in block]
         add_to_caption(count_phrase(len(blocks), f"big {char_names[char].lower()}"), named)
         spoken.setdefault(char, set()).update(named)
 
     if loose_chars:
-        skip = {tuple(sorted(b)) for blocks in big.values() for b in blocks}
+        skip = {cell for blocks in big.values() for block in blocks for cell in block}
         loose_phrases, loose_spoken = describe_arrangements(
             scene, id_to_char, loose_chars, char_names, skip)
         for phrase, region in loose_phrases:
