@@ -233,9 +233,13 @@ def get_caption_tools(game, id_to_char=None, char_to_id=None, tile_descriptors=N
     from captions.LR_caption_match import compare_captions as lr_compare_captions
     from captions.MM_caption_match import compare_captions as mm_compare_captions
     from captions.MM2_caption_match import caption_tools as mm2_caption_tools
+    from captions.MMLV_caption_match import caption_tools as mmlv_caption_tools
 
     config = get_game_config(game)
     cli = config["cli_name"]
+
+    if cli == "MMLV":
+        return mmlv_caption_tools(tileset_path or config["tileset"], describe_absence=describe_absence)
 
     if cli == "MM2":
         # MM2 builds its own captioner + comparator straight from the tileset,
@@ -248,14 +252,12 @@ def get_caption_tools(game, id_to_char=None, char_to_id=None, tile_descriptors=N
         "LR": lr_assign_caption,
         "MM-Simple": mm_assign_caption,
         "MM-Full": mm_assign_caption,
-        "MMLV": mm_assign_caption,
     }
     compare_fns = {
         "Mario": compare_captions,
         "LR": lr_compare_captions,
         "MM-Simple": mm_compare_captions,
         "MM-Full": mm_compare_captions,
-        "MMLV": mm_compare_captions,
     }
 
     if cli not in assign_fns:

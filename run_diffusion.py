@@ -14,6 +14,7 @@ from util.size_utils import dataset_width_range, unet_width_factor, sample_rando
 from models.pipeline_loader import get_pipeline
 from LR_create_ascii_captions import save_level_data as lr_save_level_data
 from MM_create_ascii_captions import save_level_data as mm_save_level_data
+from MMLV_create_ascii_captions import save_level_data as mmlv_save_level_data
 from captions.MM2_caption_match import caption_tools as mm2_caption_tools
 
 
@@ -301,7 +302,9 @@ def generate_levels(args):
         elif args.game == "LR":
             tileset = common_settings.LR_TILESET
             lr_save_level_data(scenes, tileset, out_path, False, args.describe_absence)
-        elif args.game in ("MM-Simple", "MM-Full", "MMLV"):
+        elif args.game == "MMLV":
+            mmlv_save_level_data(scenes, args.tileset, out_path, True, args.describe_absence)
+        elif args.game in ("MM-Simple", "MM-Full"):
             mm_save_level_data(scenes, args.tileset, out_path, False, args.describe_absence)
         elif args.game == "MM2":
             # MM2 has its own deterministic captioner; the SMB caption code can't read

@@ -49,6 +49,7 @@ from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MegaManLayoutEditor import LevelEditor, MegaManLayoutEditor
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
+from MMLV_create_ascii_captions import assign_caption as mmlv_assign_caption
 
 # Tag -> RGB color used to shade tiles in the MM2 grid view when no fixed
 # per-game palette entry applies (see _build_color_map).
@@ -669,10 +670,13 @@ class TileViewer(tk.Tk):
         from captions.LR_caption_match import TOPIC_KEYWORDS as LR_TOPIC_KEYWORDS
         from captions.MM_caption_match import TOPIC_KEYWORDS as MM_TOPIC_KEYWORDS
         from captions.MM2_caption_match import TOPIC_KEYWORDS as MM2_TOPIC_KEYWORDS
+        from captions.MMLV_caption_match import TOPIC_KEYWORDS as MMLV_TOPIC_KEYWORDS
 
         if self.game.get() == "LR":
             TOPIC_KEYWORDS = LR_TOPIC_KEYWORDS
-        elif self.game.get() in ("MM-Simple", "MM-Full", "MMLV"):
+        elif self.game.get() == "MMLV":
+            TOPIC_KEYWORDS = MMLV_TOPIC_KEYWORDS
+        elif self.game.get() in ("MM-Simple", "MM-Full"):
             TOPIC_KEYWORDS = MM_TOPIC_KEYWORDS
         elif self.game.get() == "MM2":
             TOPIC_KEYWORDS = MM2_TOPIC_KEYWORDS
@@ -1093,7 +1097,8 @@ class TileViewer(tk.Tk):
             # --direction_captions), instead of parsing it back out of the
             # previous caption text.
             data = sample.get('data', None)
-            caption, details = mm_assign_caption(
+            megaman_assign_caption = mmlv_assign_caption if self.game.get() == "MMLV" else mm_assign_caption
+            caption, details = megaman_assign_caption(
                 sample['scene'], self.id_to_char, self.char_to_id, self.tile_descriptors,
                 describe_locations=False, describe_absence=self.describe_absence.get(),
                 data=data, debug=True, return_details=True

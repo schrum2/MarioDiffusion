@@ -9,6 +9,7 @@ from captions.LR_caption_match import compare_captions as lr_compare_captions
 from captions.MM_caption_generator import GrammarGenerator as MM_GrammarGenerator
 from captions.MM_caption_match import compare_captions as mm_compare_captions
 from captions.generic_caption_generator import GenericGrammarGenerator
+from MMLV_create_ascii_captions import CAPTION_VERSION_KEY
 
 import util.common_settings as common_settings
 
@@ -132,7 +133,8 @@ def main():
         )
         print(generator.describe_topics())
         validation_captions = generate_generic_captions(generator, args)
-        save_captions(validation_captions, args.save_file)
+        # These captions recombine the dataset's own phrases, so they speak its captioner's language.
+        save_captions(validation_captions, args.save_file, source_caption_version(dataset.data))
         return
 
     # MM2 likewise learns its topic vocabulary from the dataset's captions. The
@@ -240,8 +242,16 @@ def generate_mm2_captions(generator, args):
 
     return validation_captions
 
-def save_captions(validation_captions, save_file):
+def source_caption_version(entries):
+    """The captioner version a dataset's entries all record, or None if they don't all agree."""
+    versions = {entry.get(CAPTION_VERSION_KEY) for entry in entries}
+    return versions.pop() if len(versions) == 1 else None
+
+def save_captions(validation_captions, save_file, caption_version=None):
     new_validation_captions = [{"caption": caption} for caption in validation_captions]
+    if caption_version is not None:
+        for entry in new_validation_captions:
+            entry[CAPTION_VERSION_KEY] = caption_version
     with open(save_file, 'w') as f:
         json.dump(new_validation_captions, f, indent=4)
     print(f"List successfully saved to '{save_file}'")

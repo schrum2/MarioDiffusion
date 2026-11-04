@@ -25,6 +25,6 @@ python create_megaman_json_data.py --levels Game_MMLV\MMLV_Levels --tileset Game
 python log_timestamp.py --log_file %TIMING_LOG% --event "build level JSON"
 
 REM assign deterministic captions
-python MM_create_ascii_captions.py --dataset Game_MMLV\DATA\MMLV_Levels.json --tileset Game_MMLV\MMLV.json --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --caption-mode keyed --caption-key deterministic_captions
+python MMLV_create_ascii_captions.py --dataset Game_MMLV\DATA\MMLV_Levels.json --tileset Game_MMLV\MMLV.json --output Game_MMLV\DATA\MMLV_LevelsAndCaptions-regular.json --caption-mode keyed --caption-key deterministic_captions
 python log_timestamp.py --log_file %TIMING_LOG% --event "deterministic ASCII captions"
 

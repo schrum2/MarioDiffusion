@@ -18,6 +18,11 @@ from Game_MMLV.vglc_to_mmlv import (MULTI_TILE_CHUNKS, SPIKE_ANCHOR_CHARS, SPIKE
 import util.common_settings as common_settings
 
 
+# Bump this whenever a change is meant to alter the captions. Datasets record it under
+# CAPTION_VERSION_KEY so captions/MMLV_caption_match.py can tell whether a dataset's captions still
+# match the captioner that will describe generated levels.
+CAPTIONER_VERSION = 1
+CAPTION_VERSION_KEY = "caption_version"
 
 
 # The last row of the scene (0-indexed). Kept as a fallback and as a default for the
@@ -151,6 +156,26 @@ MOVING_PLATFORM_NAMES = {
 # several blocks: a thick wall or mass to dig through rather than one obstacle. Those clusters
 # are called large; the rest keep the plain cluster phrase.
 LARGE_CLUSTER_CELLS = 4
+
+# Names for the features that are found by their shape rather than by a tile of their own. These
+# and the tables above are the vocabulary captions/MMLV_caption_match.py builds its phrase bank
+# from, so renaming one here renames it in the scorer too.
+PLATFORM_NAMES = _pair("platform")
+DISAPPEARING_BLOCK_NAMES = _pair("disappearing block")
+BREAKABLE_BLOCK_NAMES = _pair("breakable block")
+LOOSE_BLOCK_NAMES = _pair("loose block")
+TOWER_NAMES = _pair("tower")
+RECTANGULAR_CLUSTER_NAMES = _pair("rectangular block cluster")
+IRREGULAR_CLUSTER_NAMES = _pair("irregular block cluster")
+
+
+def tile_structure_names(singular, plural):
+    """The (singular, plural) names describe_tile_structures gives a family of tiles: alone, in
+    a cluster, and in a large cluster."""
+    return ((singular, plural),
+            (singular + " cluster", singular + " clusters"),
+            ("large " + singular + " cluster", "large " + singular + " clusters"))
+
 
 # A moving platform sits on one node of its own track, and that node decodes to the platform
 # 'M' instead of '=', so 'M' joins the track on either side of it rather than splitting it.
@@ -505,9 +530,7 @@ def describe_tile_structures(structures, singular, plural, describe_locations=Fa
     large = [s for s in structures if len(s) > LARGE_CLUSTER_CELLS]
     result = []
 
-    for items, (one, many) in ((singles, (singular, plural)),
-                               (clusters, (singular + " cluster", singular + " clusters")),
-                               (large, ("large " + singular + " cluster", "large " + singular + " clusters"))):
+    for items, (one, many) in zip((singles, clusters, large), tile_structure_names(singular, plural)):
         if not items:
             continue
         if describe_locations and coarse_locations:
@@ -575,13 +598,13 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
 
 
         if not attached_to_ceiling and width <= 2 and height >= 3 and in_contact_with_floor:
-            desc = "tower"
+            desc = TOWER_NAMES[0]
         elif all((r, c) in struct for r in range(min_row, max_row + 1) for c in range(min_col, max_col + 1)):
-            desc = "rectangular block cluster"
+            desc = RECTANGULAR_CLUSTER_NAMES[0]
         #elif not attached_to_ceiling and width >= 3 and height <= 2 and in_contact_with_floor:
         #    desc = "wall"
         else:
-            desc = "irregular block cluster"
+            desc = IRREGULAR_CLUSTER_NAMES[0]
 
         if debug:
             print(f"{desc} at {min_row} {max_row} {min_col} {max_col}: {struct}: attached_to_ceiling: {attached_to_ceiling}, in_contact_with_floor: {in_contact_with_floor}")
@@ -615,8 +638,8 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
             # Pluralize the first word
             words = desc.split()
             for i in range(len(words)):
-                if words[i] == "tower":
-                    words[i] = "towers"
+                if words[i] == TOWER_NAMES[0]:
+                    words[i] = TOWER_NAMES[1]
                 #elif words[i] == "wall":
                 #    words[i] = "walls"
                 elif words[i] == "cluster":
@@ -627,7 +650,7 @@ def describe_structures(structures, ceiling_row=CEILING, floor_row=FLOOR, descri
 
     # Handle absence descriptions if needed
     if describe_absence:
-        absent_types = {"tower": set(), "rectangular block cluster": set(), "irregular block cluster": set()}
+        absent_types = {names[0]: set() for names in (TOWER_NAMES, RECTANGULAR_CLUSTER_NAMES, IRREGULAR_CLUSTER_NAMES)}
         described_types = desc_to_structs.keys()
         
         for absent_type in absent_types:
@@ -970,7 +993,9 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations=True,
     "deterministic_captions"), so a scene can carry captions from several sources at once;
     "legacy" stores it in the single "caption" string. Either way every other input attribute
     is copied through, so a dataset that already carries metadata or LLM captions accumulates
-    sources rather than being replaced.
+    sources rather than being replaced. Each entry also records the captioner's version
+    (CAPTION_VERSION_KEY), on the entry rather than beside the file so it survives splitting,
+    shuffling and combining datasets.
     """
     tile_chars, id_to_char, char_to_id, tile_descriptors = extract_tileset(tileset_path)
 
@@ -996,6 +1021,7 @@ def save_level_data(dataset, tileset_path, output_path, describe_locations=True,
             entry[caption_key] = [caption]
         else:
             entry["caption"] = caption
+        entry[CAPTION_VERSION_KEY] = CAPTIONER_VERSION
         captioned_dataset.append(entry)
 
     # Save new dataset with captions
@@ -1323,7 +1349,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
 
 
     # Count disappearing blocks
-    disappearing_phrase = count_caption_phrase(scene, disappearing_ids, "disappearing block", "disappearing blocks", describe_absence=describe_absence)
+    disappearing_phrase = count_caption_phrase(scene, disappearing_ids, *DISAPPEARING_BLOCK_NAMES, describe_absence=describe_absence)
     add_to_caption(disappearing_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in disappearing_ids])
 
     # Count the MMLV tile types that the Mega Man captioner has no phrase for at all
@@ -1423,7 +1449,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
     #Count regular platforms
     platform_lines = find_horizontal_lines(scene, id_to_char, tile_descriptors, target_descriptor="solid", min_run_length=2, require_above_below_not_solid=True, already_accounted=already_accounted, exclude_rows=[ceiling_row] + floor_rows)
     #print("after platform_lines", (10,0) in already_accounted)
-    platform_phrase = describe_horizontal_lines(platform_lines, "platform", describe_locations, describe_absence=describe_absence)
+    platform_phrase = describe_horizontal_lines(platform_lines, PLATFORM_NAMES[0], describe_locations, describe_absence=describe_absence)
     add_to_caption(platform_phrase, [(y, x) for y, start_x, end_x in platform_lines for x in range(start_x, end_x + 1)])
 
 
@@ -1441,7 +1467,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
                        if "breakable" in desc and "door" not in desc]
     breakable_structures = find_char_structures(scene, id_to_char, breakable_chars, already_accounted)
     for phrase, coords in describe_tile_structures(
-            breakable_structures, "breakable block", "breakable blocks",
+            breakable_structures, *BREAKABLE_BLOCK_NAMES,
             describe_locations=describe_locations,
             describe_absence=describe_absence):
         add_to_caption(phrase, sorted(coords))
@@ -1464,7 +1490,7 @@ def assign_caption(scene, id_to_char, char_to_id, tile_descriptors, describe_loc
         add_to_caption(phrase, coords)
 
     #print(already_accounted)
-    loose_block_phrase = count_caption_phrase(scene, wall_ids, "loose block", "loose blocks", describe_absence=describe_absence, exclude=already_accounted)
+    loose_block_phrase = count_caption_phrase(scene, wall_ids, *LOOSE_BLOCK_NAMES, describe_absence=describe_absence, exclude=already_accounted)
     add_to_caption(loose_block_phrase, [(r, c) for r, row in enumerate(scene) for c, t in enumerate(row) if t in wall_ids and (r, c) not in already_accounted])
 
     return (caption.strip(), details) if return_details else caption.strip()

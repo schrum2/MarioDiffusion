@@ -16,12 +16,14 @@ from util.sampler import SampleOutput
 from captions.caption_match import compare_captions
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from captions.MM_caption_match import compare_captions as mm_compare_captions
+from captions.MMLV_caption_match import compare_captions as mmlv_compare_captions
 from create_ascii_captions import assign_caption
 from captions.MM2_caption_match import assign_caption as mm2_assign_caption
 from captions.MM2_caption_match import compare_captions as mm2_compare_captions
 from captions.MM2_caption_match import get_tile_categories, get_char_names
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
+from MMLV_create_ascii_captions import assign_caption as mmlv_assign_caption
 from captions.util import extract_tileset
 import util.common_settings as common_settings
 from util.sampler import scene_to_ascii
@@ -890,7 +892,8 @@ class CaptionBuilder(ParentBuilder):
             actual_caption = mm2_assign_caption(scene, self.id_to_char, char_names, ground_chars)
             pil_img = visualize_samples(images, game="MM2")
         else:
-            actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            megaman_assign_caption = mmlv_assign_caption if config["cli_name"] == "MMLV" else mm_assign_caption
+            actual_caption = megaman_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             pil_img = visualize_samples(images, game=config["render_name"])
         return actual_caption, pil_img
 
@@ -902,6 +905,8 @@ class CaptionBuilder(ParentBuilder):
             return compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
         if config["is_mario_maker_2"]:
             return mm2_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+        if config["cli_name"] == "MMLV":
+            return mmlv_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
         return mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
 
     def generate_image(self):
@@ -1701,6 +1706,9 @@ Average Segment Score: {avg_segment_score}"""
         elif self.game_var.get() == 'Mario Maker 2':
             actual_caption = self.mm2_assign_caption(scene)
             compare_score, exact_matches, partial_matches, excess_phrases = self.mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
+        elif self._selected_game_config()["cli_name"] == "MMLV":
+            actual_caption = mmlv_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
+            compare_score, exact_matches, partial_matches, excess_phrases = mmlv_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())
         else:  # Mega Man variants
             actual_caption = mm_assign_caption(scene, self.id_to_char, self.char_to_id, self.tile_descriptors, False, False)
             compare_score, exact_matches, partial_matches, excess_phrases = mm_compare_captions(prompt, actual_caption, return_matches=True, debug=self.debug_caption.get())

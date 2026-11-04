@@ -17,6 +17,8 @@ from LR_create_ascii_captions import save_level_data as lr_save_level_data
 from captions.util import extract_tileset 
 from captions.caption_match import compare_captions
 from captions.MM2_caption_match import caption_tools as mm2_caption_tools
+from captions.MMLV_caption_match import caption_tools as mmlv_caption_tools
+from captions.MMLV_caption_match import check_dataset as mmlv_check_dataset, describe_report as mmlv_describe_report
 from captions.LR_caption_match import compare_captions as lr_compare_captions
 from tqdm.auto import tqdm
 import util.common_settings as common_settings
@@ -672,6 +674,12 @@ def main():
                 drop_last=False
             )
 
+    # Generated levels get described by the captioner as it stands now, so MMLV scores only mean
+    # something if the prompts came from a captioner that describes scenes the same way.
+    if game == "MMLV" and not args.no_caption_score:
+        report = mmlv_check_dataset(raw_data if args.caption_source_keys else dataset.data, tileset)
+        print("\n".join(mmlv_describe_report(report)))
+
     if args.compare_checkpoints:
         scores_by_epoch = track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, tile_descriptors, clip_model=clip_model, clip_processor=clip_processor)
 
@@ -728,11 +736,15 @@ def main():
             have_hamming_scores = bool(hamming_all_scores) and len(hamming_all_scores) == len(scenes)
             have_js_scores = bool(js_all_scores) and len(js_all_scores) == len(scenes)
             paired = []
+            if game == "MMLV":
+                mmlv_assign_fn, _ = mmlv_caption_tools(tileset, describe_absence=args.describe_absence)
             for idx, (prompt, scene, metadata) in enumerate(zip(all_prompts, scenes, prompt_metadata or [None] * len(scenes))):
                 if game == "LR":
                     capt_scene = [[tile % common_settings.LR_TILE_COUNT for tile in row] for row in scene]
                     caption = lr_assign_caption(capt_scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
-                elif game in ("MM-Simple", "MM-Full", "MMLV"):
+                elif game == "MMLV":
+                    caption = mmlv_assign_fn(scene)
+                elif game in ("MM-Simple", "MM-Full"):
                     caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
                 else:  # Mario
                     caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, args.describe_absence)
@@ -1169,6 +1181,9 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
     # assign_caption_fn/compare_captions_fn override the game detection below, for
     # Mario Maker (which the height checks can't tell from Mario: both MARIO_HEIGHT).
+    # Set here for MMLV so train_diffusion.py and every checkpoint comparison get them too.
+    if game == "MMLV" and assign_caption_fn is None:
+        assign_caption_fn, compare_captions_fn = mmlv_caption_tools(common_settings.MMLV_TILESET, describe_absence=describe_absence)
 
     #Used for potential level scene pruning later
     original_mode = dataloader.dataset.mode
@@ -1334,13 +1349,13 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
                 scene = sample_scene_grid
 
-                # MM2 uses assign_caption_fn (set above), so it never reaches these by-game cases.
+                # MM2 and MMLV use assign_caption_fn (set above), so they never reach these by-game cases.
                 if assign_caption_fn is not None:
                     actual_caption = assign_caption_fn(scene)
                 elif game == "LR":
                     scene = [[tile % common_settings.LR_TILE_COUNT for tile in s] for s in scene]
                     actual_caption = lr_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
-                elif game in ("MM-Simple", "MM-Full", "MMLV"):
+                elif game in ("MM-Simple", "MM-Full"):
                     actual_caption = mm_assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
                 elif game == "Mario":
                     actual_caption = assign_caption(scene, id_to_char, char_to_id, tile_descriptors, False, describe_absence)
@@ -1349,12 +1364,12 @@ def calculate_caption_score_and_samples(device, pipe, dataloader, inference_step
 
 
                 if output: print(f"\t{caption}")
-                # Same idea: MM2 uses compare_captions_fn above, so only the other games reach here.
+                # Same idea: MM2 and MMLV use compare_captions_fn above, so only the other games reach here.
                 if compare_captions_fn is not None:
                     compare_score = compare_captions_fn(caption, actual_caption)
                 elif game == "LR":
                     compare_score = lr_compare_captions(caption, actual_caption)
-                elif game in ("MM-Simple", "MM-Full", "MMLV"):
+                elif game in ("MM-Simple", "MM-Full"):
                     compare_score = mm_compare_captions(caption, actual_caption)
                 elif game == "Mario":
                     compare_score = compare_captions(caption, actual_caption)

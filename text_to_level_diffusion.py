@@ -4,6 +4,7 @@ from level_dataset import visualize_samples, convert_to_level_format, positive_n
 from captions.caption_match import compare_captions, process_scene_segments
 from captions.LR_caption_match import compare_captions as lr_compare_captions, process_scene_segments as lr_process_scene_segments
 from captions.MM_caption_match import compare_captions as mm_compare_captions, process_scene_segments as mm_process_scene_segments
+from captions.MMLV_caption_match import process_scene_segments as mmlv_process_scene_segments
 from create_ascii_captions import assign_caption
 from LR_create_ascii_captions import assign_caption as lr_assign_caption
 from MM_create_ascii_captions import assign_caption as mm_assign_caption
@@ -219,8 +220,19 @@ class InteractiveLevelGeneration(InteractiveGeneration):
             )
 
         elif self.args.game == "MMLV":
-            # No caption scoring: the MM comparator doesn't understand MMLV captions
             print(f"Describe resulting image: {actual_caption}")
+            # Scored with locations, since the prompt may give them and actual_caption doesn't
+            mmlv_process_scene_segments(
+                scene=scene,
+                segment_width=level_width,
+                prompt=param_values.get("caption", ""),
+                id_to_char=self.id_to_char,
+                char_to_id=self.char_to_id,
+                tile_descriptors=self.tile_descriptors,
+                describe_locations=True,
+                describe_absence=self.args.describe_absence,
+                verbose=True
+            )
 
         elif self.args.game == "MM2":
             print(f"Describe resulting image: {actual_caption}")
