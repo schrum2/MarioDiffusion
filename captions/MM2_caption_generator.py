@@ -59,6 +59,8 @@ def classify(phrase, name_lookup):
         return "count", ("count", topic), topic
     if kind == "blob":
         return "blob", None, topic_entity(topic)
+    if topic:  # layout and scattered phrases, one per topic
+        return "other", ("other", topic), None
 
     fallback_kind, entity = _fallback_kind_entity(phrase)
     if fallback_kind == "blob":

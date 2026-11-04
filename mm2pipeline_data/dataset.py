@@ -757,6 +757,10 @@ def main_build(argv=None):
                              "default: the goal belongs to the level, not to a 20 "
                              "wide slice of it, and ascii-to-json puts one back. "
                              "Pass --no-strip_goal to leave them in.")
+    parser.add_argument("--max_samples", type=int, default=None, metavar="N",
+                        help="Stop once the dataset holds N samples, however many "
+                             "levels that takes. The last level is cut off partway "
+                             "if it would go over. Default: no cap.")
     parser.add_argument("--min_tiles_pct", type=float, default=7.0,
                         help="Drop samples where non-air tiles (sky and unknown "
                              "tiles don't count) make up less than this percent of "
@@ -860,6 +864,9 @@ def main_build(argv=None):
                      "contiguous strip of the level, which a widened or carved window "
                      "no longer is.")
 
+    if args.max_samples is not None and args.max_samples < 1:
+        parser.error("--max_samples must be at least 1.")
+
     if args.with_images and args.convert_to_vglc:
         parser.error("--with_images cannot be combined with --convert_to_vglc: "
                      "the rendered PNGs match the native MM2 grid, not the "
@@ -935,7 +942,12 @@ def main_build(argv=None):
     levels_beaten = 0        # levels A* crossed, or reached a warp in
     windows_on_path = 0      # windows the level path crossed, so they skipped a search
 
+    def cap_reached():
+        return args.max_samples is not None and len(dataset) >= args.max_samples
+
     for input_file in input_files:
+        if cap_reached():
+            break
         raw_levels = parse_source_file(input_file)
         file_stem = input_file.stem
         file_meta = level_metadata.get(file_stem)
@@ -958,6 +970,8 @@ def main_build(argv=None):
         print(f"Parsing content from {input_file}...")
 
         for name, rows in raw_levels.items():
+            if cap_reached():
+                break
             # Prefix with the source filename so names stay unique across files
             full_name = f"{file_stem}/{name}" if len(input_files) > 1 else name
             try:
@@ -1102,6 +1116,9 @@ def main_build(argv=None):
                         samples = [(full_name, best_x, scene, path_info)]
                         print(f"  [OK] {full_name}")
 
+                if args.max_samples is not None:
+                    samples = samples[:args.max_samples - len(dataset)]
+
                 for sample_name, x, scene, path_info in samples:
                     entry, saved = build_sample_entry(
                         sample_name, x, scene, args.with_images, Image,
@@ -1165,6 +1182,11 @@ def main_build(argv=None):
             json.dump(dataset_dropped, f, indent=2)
 
     print(f"\nCompleted! Packaged {processed} items into {output_file} ({skipped} skipped).")
+    if args.max_samples is not None:
+        if cap_reached():
+            print(f"Stopped at the --max_samples cap of {args.max_samples}.")
+        else:
+            print(f"Ran out of levels before the --max_samples cap of {args.max_samples}.")
     if dropped_min_samples:
         tally = ", ".join(f"{r}={reason_counts[r]}" for r in FILTER_REASONS)
         print(f"Filtered {dropped_min_samples} sample(s) ({tally}).")

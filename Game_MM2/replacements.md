@@ -36,6 +36,10 @@ Levels containing any of these are dropped entirely due to them not being in .sw
 - Steep Slope -> Ground
 - Big Mushroom -> Super Mushroom (SMB1) / Cape (SMW); dropped in SMB3 and NSMBU
 
+## Not made big (swe)
+
+Thwomp, Bowser and Boom Boom have 4x4 big forms in vanilla MM2, and toost exports them that way, but for now SMMWE does not let these be big, so a 4x4 block of one is read back (and counted) as four normal ones. 
+
 ## Dropped, no replacement (swe)
 
 - Wiggler

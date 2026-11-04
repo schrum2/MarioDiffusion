@@ -24,7 +24,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from mm2pipeline_data.tiles import OBJ_META, CHAR_TO_NAME
 from mm2pipeline_data.ascii import (COALESCE_POLICY, PLATFORM_MIN_SIZE,
-                               _connected_components, _runs)
+                               _connected_components, _place_footprints, _runs)
 
 _FIXED, _BBOX, _MUSHROOM, _HRUN, _VRUN, _PIPE = (
     "fixed", "bbox", "mushroom", "hrun", "vrun", "pipe")
@@ -76,59 +76,17 @@ def _is_full_rect(comp):
 
 
 def _count_fixed(comp, fw, fh, scene_w, scene_h, wildcards):
-    """Tile the bounding box into fw x fh stamps like coalesce does. Each stamp
-    with a cell is one instance, valid when some placement of the full fw x fh
-    window covers all its cells with every other window cell explainable (part
-    of the component, a wildcard, or off-scene); otherwise it's a fragment.
-
-    A big-form enemy paints a 2fw x 2fh block, which splits into four valid
-    stamps -- so the total counts one big enemy as four normal ones.
-    """
+    """Split footprints out like coalesce does, so a 4x4 Thwomp block counts as four; one is broken if any cell isn't explainable."""
     cells = set(comp)
 
-    def explainable(c, r):
+    def explainable(cell):
+        c, r = cell
         if c < 0 or c >= scene_w or r < 0 or r >= scene_h:
             return True
-        return (c, r) in cells or (c, r) in wildcards
+        return cell in cells or cell in wildcards
 
-    def fits_window(stamp_cells):
-        sc0 = max(c for c, _ in stamp_cells) - fw + 1
-        sc1 = min(c for c, _ in stamp_cells)
-        sr0 = max(r for _, r in stamp_cells) - fh + 1
-        sr1 = min(r for _, r in stamp_cells)
-        for wc in range(sc0, sc1 + 1):
-            for wr in range(sr0, sr1 + 1):
-                if all(explainable(c, r)
-                       for c in range(wc, wc + fw)
-                       for r in range(wr, wr + fh)):
-                    return True
-        return False
-
-    cols = [c for c, _ in comp]
-    rows = [r for _, r in comp]
-    c0, c1, r0, r1 = min(cols), max(cols), min(rows), max(rows)
-
-    # A filled block twice the footprint each way is one big enemy, not the four
-    # stamps it would tile into. big_form_blocks does the same for the 1x1 ones.
-    if (c1 - c0 + 1, r1 - r0 + 1) == (2 * fw, 2 * fh) and len(cells) == 4 * fw * fh:
-        return 1, 0
-
-    total = broken = 0
-    cr = r0
-    while cr <= r1:
-        cc = c0
-        while cc <= c1:
-            w = min(fw, c1 - cc + 1)
-            h = min(fh, r1 - cr + 1)
-            stamp_cells = [(c, r) for c in range(cc, cc + w)
-                           for r in range(cr, cr + h) if (c, r) in cells]
-            if stamp_cells:
-                total += 1
-                if not fits_window(stamp_cells):
-                    broken += 1
-            cc += fw
-        cr += fh
-    return total, broken
+    boxes = _place_footprints(comp, fw, fh, explainable)
+    return len(boxes), sum(not whole for _, _, whole in boxes)
 
 
 def _count_pipe(comp, fill_cells, scene_w, scene_h):

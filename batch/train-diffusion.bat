@@ -162,17 +162,18 @@ for %%A in (%*) do (
     )
 )
 
+REM Uses !NUM_CAPTIONS! because %NUM_CAPTIONS% breaks parsing when it's unset
 if defined NUM_CAPTIONS (
-    set /a NUM_CAPTIONS_CHECK=%NUM_CAPTIONS% 2>nul
+    set /a NUM_CAPTIONS_CHECK=!NUM_CAPTIONS! 2>nul
     if errorlevel 1 (
-        echo Error: Invalid num_captions '%NUM_CAPTIONS%'. Must be a positive integer.
+        echo Error: Invalid num_captions '!NUM_CAPTIONS!'. Must be a positive integer.
         exit /b 1
     )
-    if %NUM_CAPTIONS% LSS 1 (
-        echo Error: Invalid num_captions '%NUM_CAPTIONS%'. Must be a positive integer.
+    if !NUM_CAPTIONS! LSS 1 (
+        echo Error: Invalid num_captions '!NUM_CAPTIONS!'. Must be a positive integer.
         exit /b 1
     )
-    set "CAPTIONS_PER_KEY_FLAG=--captions_per_key %NUM_CAPTIONS%"
+    set "CAPTIONS_PER_KEY_FLAG=--captions_per_key !NUM_CAPTIONS!"
 )
 
 if defined CAPTION_SOURCE_KEYS (

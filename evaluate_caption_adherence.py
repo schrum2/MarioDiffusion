@@ -859,12 +859,14 @@ def mm2_caption_adherence(args, device, pipe, items, tileset, compute_clip=False
     if compute_score:
         assign_caption_fn, compare_captions_fn = mm2_caption_tools(tileset)
 
+    # --height/--width default to Mario's size, so use the game's for captions with no scene
+    _, _, game_height, game_width = resolve_game(args)
     by_shape = {}
     for item in items:
         if item.get("scene") is not None:
             shape = (len(item["scene"]), len(item["scene"][0]))
         else:
-            shape = (args.height, args.width)
+            shape = (game_height, game_width)
         by_shape.setdefault(shape, []).append(item)
 
     results = []
@@ -874,6 +876,7 @@ def mm2_caption_adherence(args, device, pipe, items, tileset, compute_clip=False
     scene_clip_score_sum = 0.0
     scene_clip_count = 0
     clip_image_embeddings = [] if compute_clip else None
+    clip_text_embeddings = [] if compute_clip else None
     per_shape_scores = {}
     scene_embedding_cache = {}
     for shape in sorted(by_shape):
@@ -981,6 +984,7 @@ def track_caption_adherence(args, device, dataloader, id_to_char, char_to_id, ti
         (int(d.split("-")[-1]), os.path.join(args.model_path, d))
         for d in os.listdir(args.model_path)
         if os.path.isdir(os.path.join(args.model_path, d)) and d.startswith("checkpoint-")
+        and d.split("-")[-1].isdigit()  # skip checkpoint-best
     ]
     checkpoint_dirs = sorted(checkpoint_dirs, key=lambda x: x[0])
     if os.path.isdir(os.path.join(args.model_path, "unet")):

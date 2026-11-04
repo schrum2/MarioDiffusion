@@ -11,6 +11,7 @@ Example:
 
 import argparse
 from collections import Counter
+from functools import lru_cache
 import json
 import re
 from pathlib import Path
@@ -199,9 +200,53 @@ def tile_name_terms(description: str) -> set[str]:
     }
 
 
+@lru_cache(maxsize=4)
+def _mm2_tagged_platforms(tileset_path: str):
+    """Chars the MM2 tileset tags as a platform, as (char, tags) pairs."""
+    import json as _json
+    with open(tileset_path, encoding="utf-8") as fh:
+        tiles = _json.load(fh)["tiles"]
+    return tuple((ch, tuple(tags)) for ch, tags in tiles.items() if "platform" in tags)
+
+
+@lru_cache(maxsize=4)
+def _mm2_terrain_chars(tileset_path: str):
+    """MM2's ground and solid char sets, read once per tileset."""
+    from Game_MM2 import MarioMaker_create_ascii_captions as mm2
+    _, _, ground_chars = mm2.get_tile_categories(tileset_path)
+    return ground_chars, mm2.get_solid_chars(tileset_path), mm2.get_block_chars(tileset_path)
+
+
+def mm2_has_platform(scene: list[list[int]], id_to_char: dict[int, str]) -> bool:
+    """True when MM2's own captioner would call something here a platform. Uses the actual code logic."""
+    from Game_MM2 import MarioMaker_create_ascii_captions as mm2
+    from mm2pipeline_data import paths
+    ground_chars, solid_chars, block_chars = _mm2_terrain_chars(str(paths.MM2_TILESET_PATH))
+    # A semisolid or mushroom platform is one by name, whatever shape it sits in.
+    tagged = {ch for ch, t in _mm2_tagged_platforms(str(paths.MM2_TILESET_PATH))}
+    if any(id_to_char.get(t) in tagged for row in scene for t in row):
+        return True
+    solid = mm2.solid_positions(scene, id_to_char, solid_chars)
+    height = len(scene)
+    width = len(scene[0]) if height else 0
+    # Terrain and blocks get the shape pass separately, so a brick platform counts too
+    # (see describe_terrain and describe_block_structures).
+    return any(mm2.classify_terrain_region(region, height, width, solid) == "platform"
+               for chars in (ground_chars, block_chars)
+               for region in mm2.terrain_regions(scene, id_to_char, chars))
+
+
+# Games whose own captioner defines a platform; everything else uses the run below.
+PLATFORM_DETECTORS = {"MM2": mm2_has_platform}
+
+
 def scene_has_platform(scene: list[list[int]], id_to_char: dict[int, str],
-                       tile_descriptors: dict, tile_concepts: dict) -> bool:
+                       tile_descriptors: dict, tile_concepts: dict,
+                       game: str = None) -> bool:
     """Detect explicit platform tiles or a Mario-style horizontal solid platform run."""
+    detector = PLATFORM_DETECTORS.get(game)
+    if detector is not None:
+        return detector(scene, id_to_char)
     present_chars = {
         id_to_char[tile]
         for row in scene
@@ -329,7 +374,8 @@ def build_vocabulary(game: str, id_to_char: dict[int, str], tile_descriptors: di
             "phrases": matching_phrases(description, tags),
             "categories": category_for_tile(description, tags),
         }
-    return {"categories": vocabulary, "tiles": tile_concepts, "tile_descriptors": tile_descriptors}
+    return {"categories": vocabulary, "tiles": tile_concepts,
+            "tile_descriptors": tile_descriptors, "game": game}
 
 
 def scene_characters(scene: list[list[int]], id_to_char: dict[int, str]) -> Counter:
@@ -351,7 +397,8 @@ def score_caption(caption: str, scene: list[list[int]], id_to_char: dict[int, st
         for char, info in vocabulary["tiles"].items()
     ):
         present_categories.add("platform")
-    if scene_has_platform(scene, id_to_char, vocabulary["tile_descriptors"], vocabulary["tiles"]):
+    if scene_has_platform(scene, id_to_char, vocabulary["tile_descriptors"],
+                          vocabulary["tiles"], vocabulary.get("game")):
         present_categories.add("platform")
 
     # Evaluate category alternatives explicitly while preserving a stable, human-readable result.
