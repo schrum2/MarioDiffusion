@@ -130,10 +130,11 @@ def generate_samples(pipe, num_samples, batch_size, inference_steps, guidance_sc
     all_scenes = []
     remaining = num_samples
     offset = 0
+    # Seed once, not per batch: re-seeding would restart every batch from the same noise
+    generator = torch.Generator(device).manual_seed(seed)
 
     while remaining > 0:
         current_batch = min(batch_size, remaining)
-        generator = torch.Generator(device).manual_seed(seed)
         batch_captions = captions[offset:offset + current_batch] if captions is not None else None
 
         with torch.no_grad():
