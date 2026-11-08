@@ -854,11 +854,14 @@ def _render_mm2_samples(sample_indices, output_dir, start_index, prompts, gamest
                     # One sprite scaled to the ENTIRE block, so a 2x2 and a 4x4
                     # Bowser each render as a single (correspondingly sized) boss
                     # instead of bailing to a grid of 1x1 tiles. Covers the bbox.
-                    # Unless the block is several of them in a row: three Banzai Bills
-                    # make a 12x4 block, and one sprite stretched over that looks awful.
+                    # Unless the block is several of them: only the normal size or the
+                    # big form (2x on both axes) is one sprite, so two stacked Banzai
+                    # Bills (4x8) stamp twice instead of stretching one. Same thing
+                    # was happening with boom-booms (2x on both axes as well) which should
+                    # also be resolved with this.
                     stored = _mm2_stored_footprint(glyph)
-                    is_several = bool(stored) and not (bw in (stored[0], 2 * stored[0])
-                                                       and bh in (stored[1], 2 * stored[1]))
+                    is_several = bool(stored) and (bw, bh) not in (
+                        tuple(stored), (2 * stored[0], 2 * stored[1]))
                     if not is_several:
                         _mm2_paste_region(canvas, sprite, c0, r0, bw, bh, ts)
                         for y in range(r0, r1 + 1):
