@@ -75,6 +75,24 @@ UNDERCUT_MIN_COLUMNS = 3
 # Ground this many rows deep is a plateau, not the floor.
 GROUND_TALL_ROWS = 6
 
+# Valley bottoms out in a dip or pit no wider than this, anything wider we treat as a jump with stairs on either side.
+VALLEY_MAX_BOTTOM = 4
+
+# We need each side to climb at least this many rows over at least this many columns.
+VALLEY_MIN_RISE = 3
+VALLEY_MIN_SLOPE = 3
+
+# Taller steps we count as a wall and longer flat stretches as a ledge instead of a slope.
+VALLEY_MAX_STEP = 3
+VALLEY_MAX_FLAT = 4
+
+# Neither side rising above this we call a small valley.
+VALLEY_SMALL_RISE = 4
+
+# One side this many times as tall and this many rows taller we call out as the taller side.
+VALLEY_LOPSIDED_RATIO = 2
+VALLEY_LOPSIDED_ROWS = 4
+
 # Below this much solid along a row there is no ceiling worth describing.
 CEILING_MIN_COVERAGE = 0.5
 
@@ -111,7 +129,7 @@ BLOCK_SHAPE_NOUNS = {
 ARRANGEMENT_NOUNS = {"row": "line", "column": "column", "block": "cluster",
                      "clump": "clump"}
 
-# Loose tiles that ever show up big in the data. Items like stars and P switches never do.
+# Loose tiles that ever can show up big in our data.
 BIG_FORM_NAMES = {"Goomba", "Koopa", "Piranha Plant", "Hammer Bro", "Cheep Cheep",
                   "Buzzy Beetle", "Chain Chomp", "Cannon", "Spiny", "Lava Bubble",
                   "Wiggler", "Bowser Jr.", "Monty Mole", "Boo", "Blooper", "Bob-omb",
@@ -567,6 +585,104 @@ def undercut_columns(cells, height):
     return len(undercut)
 
 
+def floor_surface(regions, height, width):
+    """The top row of each column across every region resting on the bottom row,
+    None where the floor is missing. Unlike surface_profile it carries on across a pit."""
+    tops = [None] * width
+    for region in regions:
+        if max(r for r, _ in region) != height - 1:
+            continue
+        for r, c in region:
+            if tops[c] is None or r < tops[c]:
+                tops[c] = r
+    return tops
+
+
+def valley_side(tops, start, step, bottom):
+    """How far one side of a valley climbs, walking out from its bottom. None
+    when the side is a wall, a ledge, or too low to count."""
+    climb = []
+    c = start
+    while 0 <= c < len(tops) and tops[c] is not None:
+        climb.append(tops[c])
+        c += step
+    if not climb:
+        return None
+    # We only count the stretch up to the highest point as the slope
+    climb = climb[:climb.index(min(climb)) + 1]
+    steps = [a - b for a, b in zip([bottom] + climb, climb)]
+    if any(s < 0 or s > VALLEY_MAX_STEP for s in steps):
+        return None
+    flat = longest = 1
+    for a, b in zip(climb, climb[1:]):
+        flat = flat + 1 if a == b else 1
+        longest = max(longest, flat)
+    rise = bottom - climb[-1]
+    if rise < VALLEY_MIN_RISE or len(climb) < VALLEY_MIN_SLOPE or longest > VALLEY_MAX_FLAT:
+        return None
+    return rise
+
+
+def valley_phrase(start, end, width, left, right, gap):
+    # We measure from the middle of each column so the left and right thirds come out the same width
+    centre = (start + end + 1) / 2
+    if centre < width / 3:
+        where = "on the left"
+    elif centre >= width - width / 3:
+        where = "on the right"
+    else:
+        where = "in the middle"
+    phrase = f"{'Small valley' if max(left, right) <= VALLEY_SMALL_RISE else 'Valley'} {where}"
+    if gap:
+        phrase += " with a small gap to the bottom"
+    tall, short = max(left, right), min(left, right)
+    if tall >= VALLEY_LOPSIDED_RATIO * short and tall - short >= VALLEY_LOPSIDED_ROWS:
+        phrase += ", taller on the left" if left > right else ", taller on the right"
+    return phrase
+
+
+def find_valley(regions, height, width, solid=None):
+    """
+        Looks along the floor for ground sloping down from both sides into a narrow
+        dip, or into a pit with nothing at the bottom to land on.
+        Returns the phrase and the floor cells it covers, or (None, []).
+    """
+    tops = floor_surface(regions, height, width)
+    c = 0
+    while c < width:
+        start = c
+        if tops[c] is None:
+            while c < width and tops[c] is None:
+                c += 1
+            end = c - 1
+            gap = True
+        else:
+            while c + 1 < width and tops[c + 1] == tops[start]:
+                c += 1
+            end = c
+            c += 1
+            gap = False
+        if start == 0 or end == width - 1 or end - start + 1 > VALLEY_MAX_BOTTOM:
+            continue
+        before, after = tops[start - 1], tops[end + 1]
+        if gap:
+            # Something standing in the pit catches the player so we don't count it as a drop
+            if solid and any((height - 1, x) in solid for x in range(start, end + 1)):
+                continue
+            bottom = max(before, after)
+        elif before is None or after is None or not (before < tops[start] > after):
+            continue
+        else:
+            bottom = tops[start]
+        left = valley_side(tops, start - 1, -1, bottom)
+        right = valley_side(tops, end + 1, 1, bottom)
+        if left and right:
+            cells = [cell for region in regions for cell in region
+                     if max(r for r, _ in region) == height - 1]
+            return valley_phrase(start, end, width, left, right, gap), cells
+    return None, []
+
+
 def classify_terrain_region(cells, height, width, solid=None):
     """
         Sorts a terrain region into a shape by its footprint and by what it touches,
@@ -614,8 +730,19 @@ def describe_terrain(scene, id_to_char, terrain_chars, solid=None):
     width = len(scene[0]) if height else 0
     phrases = []
     shapes = {}
+    ground = {}
 
-    for region in terrain_regions(scene, id_to_char, terrain_chars):
+    def add_ground(phrase, region):
+        # Pit can split the floor into regions that earn the same phrase so we only say it once
+        ground.setdefault(phrase, []).extend(region)
+
+    regions = terrain_regions(scene, id_to_char, terrain_chars)
+    # Valley names the floor's shape so we consider it a stand in for the region specific surface phrases.
+    valley, valley_cells = find_valley(regions, height, width, solid)
+    if valley:
+        add_ground(valley, valley_cells)
+
+    for region in regions:
         kind = classify_terrain_region(region, height, width, solid)
         if kind is None:
             continue
@@ -623,23 +750,24 @@ def describe_terrain(scene, id_to_char, terrain_chars, solid=None):
             rows = [r for r, _ in region]
             surface = describe_surface(surface_profile(region))
             # Flat ground is already covered by the floor summary.
-            if surface in ("uneven", "stepped"):
-                phrases.append((f"{surface.capitalize()} ground", region))
-            elif surface != "flat":
-                phrases.append((f"Ground {surface}", region))
+            if not valley and surface in ("uneven", "stepped"):
+                add_ground(f"{surface.capitalize()} ground", region)
+            elif not valley and surface != "flat":
+                add_ground(f"Ground {surface}", region)
             if len(region) >= GROUND_BULK_FRACTION * height * width:
-                phrases.append(("The ground fills most of the scene", region))
+                add_ground("The ground fills most of the scene", region)
             elif len(region) >= GROUND_HEAVY_FRACTION * height * width:
-                phrases.append(("The ground fills much of the scene", region))
+                add_ground("The ground fills much of the scene", region)
             elif surface == "flat" and max(rows) - min(rows) + 1 >= GROUND_TALL_ROWS:
                 # A deep flat mass is a plateau the floor summary misses.
-                phrases.append(("Raised flat ground", region))
+                add_ground("Raised flat ground", region)
             if undercut_columns(region, height) >= UNDERCUT_MIN_COLUMNS:
-                phrases.append(("Open space beneath the ground", region))
+                add_ground("Open space beneath the ground", region)
         else:
             count, cells = shapes.get(kind, (0, []))
             shapes[kind] = (count + 1, cells + region)
 
+    phrases.extend(ground.items())
     for kind, (count, cells) in shapes.items():
         phrases.append((count_phrase(count, kind), cells))
     return phrases
