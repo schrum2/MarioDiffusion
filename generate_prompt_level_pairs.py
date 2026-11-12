@@ -5,7 +5,8 @@ ascii_data_browser.py can open. Each entry holds:
     prompt  - the caption the level was generated from (shown with "Show Prompt" in the browser)
     caption - the caption assigned to the generated scene
     scene   - the generated scene
-    seed, source_index - generation seed and the prompt's index in --captions_json
+    caption_key - the --captions_json field the prompt came from (e.g. 'caption', 'gemma4:12b_captions')
+    seed, source_index - generation seed and the index of the prompt's entry in --captions_json
 
 Example:
 python generate_prompt_level_pairs.py --model_path Game_MMLV/10_20-conditional-mlm --captions_json Game_MMLV/DATA/10_20_RandomTest-regular.json --num_pairs 50 --save_images
@@ -30,7 +31,7 @@ from text_to_level_diffusion import InteractiveLevelGeneration
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate prompt/level pairs from randomly sampled captions")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained text-conditional diffusion model")
-    parser.add_argument("--captions_json", type=str, required=True, help="Json list of entries with a 'caption' field (e.g. a RandomTest json)")
+    parser.add_argument("--captions_json", type=str, required=True, help="Json list of entries; captions are read from every field with 'caption' in its name (e.g. a test split or RandomTest json)")
     parser.add_argument("--num_pairs", type=int, default=50, help="Number of captions to sample (capped at the number of captions available)")
     parser.add_argument("--game", type=str, default=None, choices=common_settings.GAME_CLI_CHOICES, help="Game the model was trained on. Defaults to the 'game' in the model's interactive_defaults.json")
     parser.add_argument("--seed", type=int, default=42, help="Seed for picking captions; pair i is generated with seed + i")
@@ -57,13 +58,27 @@ def resolve_game(args):
     raise ValueError(f"No --game given and no game found in {defaults_path}")
 
 
+def collect_captions(entries):
+    """Every caption in the json, from any entry field with "caption" in its name (e.g. 'caption'
+    or LLM fields like 'gemma4:12b_captions'). Fields may hold a string or a list of strings.
+    Returns (caption, field name, entry index) tuples."""
+    captions = []
+    for entry_index, entry in enumerate(entries):
+        for field in [field for field in entry if "caption" in field and field != "caption_version"]:
+            value = entry[field]
+            for caption in (value if isinstance(value, list) else [value]):
+                if isinstance(caption, str) and caption:
+                    captions.append((caption, field, entry_index))
+    return captions
+
+
 def main():
     args = parse_args()
     game = resolve_game(args)
     config = common_settings.get_game_config(game)
 
     with open(args.captions_json) as f:
-        captions = [entry["caption"] for entry in json.load(f)]
+        captions = collect_captions(json.load(f))
     if args.num_pairs > len(captions):
         print(f"Only {len(captions)} captions in {args.captions_json}; generating {len(captions)} pairs")
     picked = random.Random(args.seed).sample(range(len(captions)), min(args.num_pairs, len(captions)))
@@ -89,8 +104,9 @@ def main():
     pairs = []
     for i, caption_index in enumerate(tqdm(picked, desc="Generating pairs", unit="pair", disable=args.show_generation)):
         seed = args.seed + i
+        prompt, caption_key, entry_index = captions[caption_index]
         param_values = {
-            "caption": captions[caption_index],
+            "caption": prompt,
             "num_inference_steps": args.num_inference_steps,
             "guidance_scale": args.guidance_scale,
             "show_progress_bar": args.show_generation,
@@ -107,11 +123,12 @@ def main():
             continue
 
         pairs.append({
-            "prompt": captions[caption_index],
+            "prompt": prompt,
+            "caption_key": caption_key,
             "caption": generator_app.last_actual_caption,
             "scene": generator_app.last_scene,
             "seed": seed,
-            "source_index": caption_index,
+            "source_index": entry_index,
         })
         if args.save_images:
             image.save(os.path.join(output_dir, f"{len(pairs) - 1:03d}.png"))
