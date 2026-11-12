@@ -27,6 +27,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 import torch
+import torch.nn.functional as F
 
 from create_multiple_caption_dataset import make_caption_orderings
 from models.sentence_transformers_helper import encode, load_pretrained_encoder
@@ -64,16 +65,24 @@ def read_caption_sets(path, caption_key, limit=None):
     return sets, skipped
 
 
-def embed(texts, tokenizer, model, batch_size, device):
-    """Each distinct string mapped to its unit vector, embedded once."""
+def split_phrases(caption):
+    """The same period split split_pretrained_sentences training uses."""
+    return [s.strip() for s in caption.split(".") if s.strip()] or [caption]
+
+
+def embed(texts, tokenizer, model, batch_size, device, split=True):
+    """Each distinct string mapped to its unit vector, embedded once. With split,
+    that vector is the mean of the caption's phrase vectors."""
     # The ceiling pass hands the same caption back repeatedly, so embed each once
-    unique = sorted(set(texts))
-    vectors = {}
+    pieces = {text: split_phrases(text) if split else [text] for text in set(texts)}
+    unique = sorted({p for ps in pieces.values() for p in ps})
+    piece_vectors = {}
     for i in range(0, len(unique), batch_size):
         chunk = unique[i:i + batch_size]
         for text, vector in zip(chunk, encode(chunk, tokenizer, model, device)):
-            vectors[text] = vector
-    return vectors
+            piece_vectors[text] = vector
+    return {text: F.normalize(torch.stack([piece_vectors[p] for p in ps]).mean(0), dim=0)
+            for text, ps in pieces.items()}
 
 
 def pair_sims(captions, vectors):
@@ -83,18 +92,28 @@ def pair_sims(captions, vectors):
             for a, b in itertools.combinations(captions, 2)]
 
 
-def summarize(caption_sets, vectors):
+def summarize(caption_sets, vectors, per_scene=False):
     """How alike one scene's captions are, and whether that holds across scenes."""
-    means, stds = [], []
+    means, stds, scenes = [], [], []
     for captions in caption_sets:
         sims = pair_sims(captions, vectors)
         means.append(statistics.fmean(sims))
         # pstdev, since these pairs are the whole set for the scene and not a
         # sample drawn from a larger one
         stds.append(statistics.pstdev(sims) if len(sims) > 1 else 0.0)
+        if per_scene:
+            # Same pair order as pair_sims, numbered from 1 to match the captions
+            labels = [f"{a}-{b}" for a, b in
+                      itertools.combinations(range(1, len(captions) + 1), 2)]
+            scenes.append({
+                "captions": {str(n): c for n, c in enumerate(captions, 1)},
+                "pair_similarities": dict(zip(labels, sims)),
+                "average": means[-1],
+                "standard_deviation": stds[-1],
+            })
     if not means:
         return None
-    return {
+    result = {
         "scene_count": len(means),
         "caption_count": sum(len(c) for c in caption_sets),
         "pair_count": sum(len(c) * (len(c) - 1) // 2 for c in caption_sets),
@@ -102,6 +121,9 @@ def summarize(caption_sets, vectors):
         "average_scene_standard_deviation": statistics.fmean(stds),
         "standard_deviation_of_scene_averages": statistics.pstdev(means) if len(means) > 1 else 0.0,
     }
+    if per_scene:
+        result["scenes"] = scenes
+    return result
 
 
 def floor_score(caption_sets, vectors):
@@ -122,7 +144,7 @@ def floor_score(caption_sets, vectors):
             "standard_deviation": statistics.pstdev(sims)}
 
 
-def ceiling_score(caption_sets, tokenizer, model, batch_size, device):
+def ceiling_score(caption_sets, tokenizer, model, batch_size, device, split=True):
     """What one caption reworded scores, as a ceiling. One-phrase captions are
     skipped, since there is nothing to reorder."""
     # First caption of each scene only, since reordering the rest measures the
@@ -134,7 +156,7 @@ def ceiling_score(caption_sets, tokenizer, model, batch_size, device):
     per_scene = round(statistics.fmean(len(c) for c in caption_sets))
     shuffled = [make_caption_orderings(caption, per_scene) for caption in usable]
     vectors = embed([c for group in shuffled for c in group],
-                    tokenizer, model, batch_size, device)
+                    tokenizer, model, batch_size, device, split)
     return summarize(shuffled, vectors)
 
 
@@ -158,6 +180,14 @@ def parse_args(argv=None):
     parser.add_argument("--baseline", action="store_true",
                         help="Also score unrelated captions and reorderings of one "
                              "caption, which bracket the number above.")
+    parser.add_argument("--per_scene", action="store_true",
+                        help="Also write every scene's captions, pair similarities, "
+                             "average and standard deviation. Unsafe on a large, full dataset.")
+    parser.add_argument("--whole_captions", dest="split_sentences", action="store_false",
+                        help="Embed each caption as one string. By default each "
+                             "period-separated phrase is embedded on its own, as "
+                             "--split_pretrained_sentences training does, and averaged "
+                             "into one vector per caption.")
     parser.add_argument("--device", default=None, help="Torch device. Default: cuda if present.")
     return parser.parse_args(argv)
 
@@ -172,7 +202,8 @@ def main(argv=None):
                  f"(looked for {args.caption_key or 'caption/caption1..N'})")
 
     summary = {"input": str(args.input), "caption_key": args.caption_key,
-               "device": device, "scene_count": len(caption_sets),
+               "device": device, "split_sentences": args.split_sentences,
+               "scene_count": len(caption_sets),
                "skipped_count": skipped, "encoders": {}}
 
     # One encoder at a time, so only one of them is in memory
@@ -181,12 +212,13 @@ def main(argv=None):
         model, tokenizer, _ = load_pretrained_encoder(name, device)
         model.eval()
         vectors = embed([c for captions in caption_sets for c in captions],
-                        tokenizer, model, args.batch_size, device)
-        score = summarize(caption_sets, vectors)
+                        tokenizer, model, args.batch_size, device, args.split_sentences)
+        score = summarize(caption_sets, vectors, args.per_scene)
         if args.baseline:
             score["floor_unrelated_scenes"] = floor_score(caption_sets, vectors)
             score["ceiling_reordered_phrases"] = ceiling_score(
-                caption_sets, tokenizer, model, args.batch_size, device)
+                caption_sets, tokenizer, model, args.batch_size, device,
+                args.split_sentences)
         summary["encoders"][name] = score
         if score:
             print(f"Average pairwise cosine similarity: "

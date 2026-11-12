@@ -486,8 +486,9 @@ INDIVISIBLE_NAMES = frozenset(
 
 
 def indivisible_object_boxes(level):
-    """Boxes of the objects a cut must not land inside, as {name,x,y,w,h}. Grid
-    coordinates, y counted from the top like the emitted rows."""
+    """Boxes of the objects a cut must not land inside, as {name,x,y,w,h,axis}. Grid
+    coordinates, y counted from the top like the emitted rows. axis says which cuts
+    matter: "x" for window edges, "y" for the height crop, "xy" for both."""
     _, max_ty = grid_bounds(level)
     gamestyle_raw = level.get("gamestyle_raw", 0)
 
@@ -498,14 +499,21 @@ def indivisible_object_boxes(level):
             continue
 
         resolved = resolve_obj_name(name, gamestyle_raw)
-        if resolved not in INDIVISIBLE_NAMES:
-            continue
-        col, row_game = obj_anchor(obj)
         w, h = obj_tile_size(obj)
+        if resolved in INDIVISIBLE_NAMES:
+            axis = "xy"
+        elif resolved == "Pipe":
+            # Only the 2-tile cross-section is fixed; the length can run off-scene
+            axis = "x" if _pipe_direction(obj.get("flag", 0)) in ("U", "D") else "y"
+        elif resolved not in COALESCE_POLICY and (w, h) == (2, 2):
+            axis = "xy"     # big form of an enemy or item
+        else:
+            continue
         if w <= 1 and h <= 1:   # a single cell survives any cut
             continue
+        col, row_game = obj_anchor(obj)
         boxes.append({"name": resolved, "x": col, "y": max_ty - row_game - h,
-                      "w": w, "h": h})
+                      "w": w, "h": h, "axis": axis})
     return boxes
 
 

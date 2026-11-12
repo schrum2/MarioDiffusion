@@ -6,8 +6,8 @@ tiles are present ("Two goombas. A few coins. A blob of coins."), so topics are
 derived from the tileset: each entity name is a topic, and "a blob of X" is a
 separate topic grouped under the same entity (topic_entity). Shapes, block
 structures and arrangements ("Two lines of coins") are topics too. Metadata phrases
-(style/theme/difficulty/tags) aren't derivable from a bare scene, so they're
-ignored. The final score divides by the topics either caption mentions, not the
+(style/theme/difficulty/tags) and the liquid phrase aren't derivable from a bare
+scene, so they're ignored. The final score divides by the topics either caption mentions, not the
 whole vocabulary, so shared absences don't drown out real differences.
 """
 import os
@@ -84,7 +84,7 @@ def build_topic_keywords(tileset_path):
     topics.update(BLOCK_SHAPE_NOUNS)
     topics.update(BLOCK_SHAPE_NOUNS.values())
     topics.update(ARRANGEMENT_NOUNS.values())
-    topics.update(("floor", "ground", "ceiling"))
+    topics.update(("floor", "ground", "ceiling", "valley"))
     return sorted(topics, key=len, reverse=True)
 
 
@@ -95,7 +95,8 @@ TOPIC_KEYWORDS = build_topic_keywords(common_settings.MM2_TILESET)
 LAYOUT_TOPICS = {
     "ceiling": lambda p: p == "full ceiling" or p.startswith("ceiling with"),
     "ground surface": lambda p: p in ("uneven ground", "stepped ground")
-                                or p.startswith(("ground rising", "ground sloping")),
+                                or p.startswith(("ground rising", "ground sloping",
+                                                 "valley ", "small valley ")),
     "ground mass": lambda p: p == "raised flat ground" or p.startswith("the ground fills"),
     "open space": lambda p: p == "open space beneath the ground",
 }
@@ -166,7 +167,8 @@ def extract_topics(caption, name_lookup=None, include_metadata=False):
         topic, kind = phrase_topic(raw, name_lookup)
         if topic is None:
             continue
-        if kind == "metadata" and not include_metadata:
+        # Liquid comes from level settings instead of tiles so we ignore it like the metadata
+        if (kind == "metadata" or topic == "liquid") and not include_metadata:
             continue
         topics.setdefault(topic, raw.strip().lower().rstrip("."))
     return topics
@@ -208,6 +210,32 @@ def quantity_score(phrase1, phrase2, debug=False):
     return 0.1
 
 
+VALLEY_PLACES = ("on the left", "in the middle", "on the right")
+
+
+def is_valley(phrase):
+    return phrase.startswith(("valley ", "small valley "))
+
+
+def valley_parts(phrase):
+    """A valley phrase's details: (small, place index, has a gap, taller side)."""
+    head, _, taller = phrase.partition(", taller ")
+    place = next(i for i, where in enumerate(VALLEY_PLACES) if where in head)
+    return phrase.startswith("small "), place, "gap" in head, taller
+
+
+def valley_score(phrase1, phrase2, debug=False):
+    """Two valleys mostly agree. A pit that one has and the other lacks costs the
+    most, then each third of the scene apart, then size and which side is taller."""
+    small1, place1, gap1, taller1 = valley_parts(phrase1)
+    small2, place2, gap2, taller2 = valley_parts(phrase2)
+    score = (1.0 - 0.3 * (gap1 != gap2) - 0.1 * abs(place1 - place2)
+             - 0.1 * (small1 != small2) - 0.1 * (taller1 != taller2))
+    if debug:
+        print(f"[Valley] '{phrase1}' vs '{phrase2}' -> {score:.2f}")
+    return score
+
+
 def compare_captions(correct_caption, generated_caption, debug=False, return_matches=False, name_lookup=NAME_LOOKUP):
     """Score generated_caption against correct_caption over the topics that
     either caption mentions. Same return shape as caption_match.compare_captions."""
@@ -245,6 +273,9 @@ def compare_captions(correct_caption, generated_caption, debug=False, return_mat
             exact_matches.append(g)
         elif c.startswith("ground floor with") and g.startswith("ground floor with"):
             total_score += quantity_score(c, g, debug=debug)
+            partial_matches.append(g)
+        elif is_valley(c) and is_valley(g):
+            total_score += valley_score(c, g, debug=debug)
             partial_matches.append(g)
         elif topic == "ground":
             # Different floor categories (full/gaps/scattered): topic overlap only.

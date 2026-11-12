@@ -190,6 +190,8 @@ def erase_cropped_remnants(rows, boxes, top_cut, empty_char):
     grid = None
     blanked = []
     for box in boxes:
+        if "y" not in box.get("axis", "xy"):
+            continue
         top = box["y"]
         bottom = top + box["h"] - 1
         if not top < top_cut <= bottom:
@@ -227,7 +229,7 @@ def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty
     width = max((len(r) for r in rows), default=0)
 
     if width < WINDOW_W or not rows:
-        return [], 0
+        return [], 0, 0
 
     padded = _pad_rows(rows, width, empty_char)
 
@@ -244,7 +246,10 @@ def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty
             xs[-1] = last_x
 
     # An object wider than the window can never fit, so protecting it is pointless.
-    boxes = [b for b in protected_boxes if b["w"] <= WINDOW_W]
+    boxes = [b for b in protected_boxes
+             if b["w"] <= WINDOW_W and "x" in b.get("axis", "xy")]
+    # Carving can still shorten a horizontal pipe, so it protects every box
+    keep_whole = [b for b in protected_boxes if b["w"] <= WINDOW_W]
     skipped = 0
     carved = 0
     spans = []                  # the columns each window keeps, left to right
@@ -259,7 +264,7 @@ def extract_all_windows(rows, tile_to_id, extra_tile=EXTRA_TILE, stride=1, empty
         if slice_policy == "expand":
             spans.append(list(range(left, right)))
             continue
-        cols = carve_window(padded, left, right, boxes, WINDOW_W)
+        cols = carve_window(padded, left, right, keep_whole, WINDOW_W)
         if cols is None:        # not enough slack to carve it back down
             skipped += 1
             continue
