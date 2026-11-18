@@ -799,8 +799,14 @@ class TileViewer(tk.Tk):
             self.caption_text.insert(tk.END, str(sample.get('prompt', '')), ("black", "center"))
         else:
             values = self._selected_values(sample)
-            caption_text = str(values[self.current_caption_idx])
-            for part in caption_text.split('.'):
+            value = values[self.current_caption_idx]
+            caption_text = str(value)
+            # Numbers like scores have a decimal point, not phrases
+            parts = caption_text.split('.') if isinstance(value, str) else []
+            if not parts:
+                self.caption_text.tag_configure("black", foreground="black")
+                self.caption_text.insert(tk.END, caption_text, ("black", "center"))
+            for part in parts:
                 part = part.strip()
                 if part:
                     part = part + "."  # add the period back
